@@ -1990,11 +1990,26 @@ export class EntriesScroller extends BaseVirtualScroller {
   // .sticky-stack, a sibling of the scroller's host) inherit the same values.
   _computeSlotWidths() {
     // An errored or not-yet-streamed result carries no width hints; the
-    // transform/group sizers would destructure null. Nothing to size — no rows.
-    if (this._errored || this._streamPending) return;
+    // transform/group sizers would destructure null. The flat header still
+    // renders while pending, though — its shape tracks the tool stack, not the
+    // scroller's transient 'tuple' tier — so seed its label floors or the
+    // labels sit at the CSS fallback with no rows to widen them.
+    if (this._errored || this._streamPending) { this._seedFlatHeaderFloors(); return; }
     if (isMultiLaneTier(this.sortTier)) { this._computeGroupSlotWidths(); return; }
     if (this._flat) { this._computeFlatSlotWidths(); return; }
     this._computeTransformSlotWidths();
+  }
+
+  // Only fills unset vars: a content-sized track already floors to the same
+  // label px and must stick, so a later empty search doesn't shrink it back.
+  _seedFlatHeaderFloors() {
+    const target = this.host.closest('#detail-panel') || this.sizer;
+    const seed = (name, px) => {
+      if (!target.style.getPropertyValue(name)) target.style.setProperty(name, `${px}px`);
+    };
+    seed('--entry-w', sortableHeaderPx('Entry'));
+    seed('--len-w', sortableHeaderPx('Len'));
+    seed('--score-w', sortableHeaderPx('Score'));
   }
 
   _computeFlatSlotWidths() {
