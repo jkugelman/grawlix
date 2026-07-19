@@ -228,7 +228,7 @@ test('a downstream transform keeps the two semordnilap directions separate', asy
     entries: ['star', 'rats', 'tar', 'ats'],
     scores:  [50, 50, 50, 50],
   }));
-  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'semordnilap' }, { tool: 'behead' }]));
+  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'semordnilap' }, { tool: 'head_off', params: { pattern: '?' } }]));
 
   // Entry sort projects off the first atom, so rows order rats < star.
   await expectVisible(page, [
@@ -641,7 +641,7 @@ test('Entry sort holds row order when a 1-output transform is added', async ({ p
 
   // Adding behead chains each survivor and drops the rest; the chains keep
   // their tool-less first-atom order because Entry sort projects off atom 0.
-  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'behead' }]));
+  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'head_off', params: { pattern: '?' } }]));
   await expect.poll(async () => (await readVisible(page))[0]).toEqual(['bridge', 'ridge']);  // behead really ran
   const chained = await readVisible(page);
   expect(chained.map(row => row[0])).toEqual(beforeOrder);
@@ -660,7 +660,7 @@ test('atoms truncate long entries with ellipsis + full-text title', async ({ pag
     entries: ['shejustsayingwhatweveallbeenthinking', 'hejustsayingwhatweveallbeenthinking'],
     scores:  [60, 60],
   }));
-  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'behead' }]));
+  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'head_off', params: { pattern: '?' } }]));
 
   const originatorAtom = page.locator('.entry-row .atom').first().locator('.atom-entry');
   await expect(originatorAtom).toHaveAttribute('title', 'shejustsayingwhatweveallbeenthinking');
@@ -737,7 +737,7 @@ test('a transform chained after the grouped tool emits a pair atom per surviving
   }));
   await page.evaluate(() => window.__grawlixTest.setStack([
     { tool: 'letter_bank', grouped: true },
-    { tool: 'behead', params: {} },
+    { tool: 'head_off', params: { pattern: '?' } },
   ]));
 
   await expectGroups(page,
@@ -758,7 +758,7 @@ test('a transform chained before the grouped tool carries its atom forward into 
     scores: [50, 50, 50, 50, 50, 50],
   }));
   await page.evaluate(() => window.__grawlixTest.setStack([
-    { tool: 'behead', params: {} },
+    { tool: 'head_off', params: { pattern: '?' } },
     { tool: 'letter_bank', grouped: true },
   ]));
 
@@ -781,7 +781,7 @@ test('a transform chain prefixes the new-word atom with its relation glyph; a fi
 
   await page.evaluate(() => window.__grawlixTest.setStack([
     { tool: 'letter_bank', grouped: true },
-    { tool: 'behead', params: {} },
+    { tool: 'head_off', params: { pattern: '?' } },
   ]));
   const transformChain = page.locator('.group-row', { hasText: 'spot' }).locator('.group-chain').first();
   await expect(transformChain.locator('.atom').nth(0).locator('.atom-glyph')).toHaveCount(0);

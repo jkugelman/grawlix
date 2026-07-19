@@ -1,5 +1,7 @@
 import { test } from 'node:test';
-import { visible, sameVisible } from './harness.js';
+import assert from 'node:assert/strict';
+import { visible, sameVisible, run, rowByFirst } from './harness.js';
+import { rowAtoms } from '../../../site/src/engine/executor.js';
 
 test('keeps entries that appear as a subsequence of the input', async () => {
   sameVisible(await visible(['joey', 'joke', 'key', 'major', 'zebra'],
@@ -29,4 +31,9 @@ test('the param is matched case-insensitively', async () => {
   sameVisible(await visible(['joey'],
     [{ tool: 'joeys', params: { entry: 'mAjOrKeY' } }]),
     ['joey']);
+});
+
+test('shows no highlight — the joey letters live in the argument, not the row', async () => {
+  const { rows } = await run(['joey'], [{ tool: 'joeys', params: { entry: 'MAJORKEY' } }]);
+  assert.equal(rowAtoms(rowByFirst(rows, 'joey'))[0].highlights, null);
 });

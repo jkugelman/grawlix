@@ -43,7 +43,7 @@ Markers: **[★ advertise]** = shows off a feature / nook. **[deep]** = needs a 
 23. **How do I make a wordlist for a rebus puzzle?** — *the Rebus tool: squeeze a letter string into one symbol (BARSTOOL → BARSⓉ), download as a supplement.* **[★]**
 24. **Give me a genuinely useful tool-chain recipe.** — *the headline "show me something cool" answer; pick 2–3 concrete recipes.* **[★][deep]**
 25. **How do I anagram a pile of letters and then narrow it to fit a corner?** — *Anagram → search: type RETINAS into Anagram, then type the fixed crossing letters in the search bar to live-filter. The canonical chain.* **[★]**
-26. **How do I find words that become other words when you chop off the front?** — *Behead (SWING → WING), optionally chain a search / score range. Theme-mining use case.* **[★]**
+26. **How do I find words that become other words when you chop off the front?** — *Head off (SWING → WING), optionally chain a search / score range. Theme-mining use case.* **[★]**
 27. **How do I build a rhyme family for a theme set?** — *Rhymes in all-mode clusters your list into rhyme groups; add a score range so you only get good fill. Pronunciation-based, loose vs. strict.* **[★]**
 28. **How do I find phrases hiding a word in their initials?** — *Initialisms all-mode: "the IRS" / "Tom Is Right" both land under TIS — and only surface if TIS is itself an entry (bidirectional pairs). Great theme generator.* **[★]**
 29. **Rhymes that actually rhyme?** — *matched on pronunciation not spelling (BLUE rhymes THROUGH; THROUGH doesn't rhyme ROUGH); multi-word rhymes on the last word. Show off the CMU-dict cleverness.* **[★]**

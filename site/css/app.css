@@ -1285,8 +1285,10 @@ body.picker-expanded #picker-backdrop { opacity: 1; }
 .tool-row > .tool-row-param:not(.tool-row-param-text) { margin-left: 12px; }
 .tool-row > .tool-row-asides { margin-left: 12px; }
 .tool-row > .tool-row-remove { grid-column: -2 / -1; margin-left: 12px; }
-.tool-row > .tool-row-invert, .search-bar > .tool-row-invert { grid-column: 7; margin-left: 8px; }
-.tool-row > .tool-row-invert + .tool-row-remove { margin-left: 2px; }
+.tool-row > .tool-row-invert, .search-bar > .tool-row-invert,
+.tool-row > .tool-row-reverse { grid-column: 7; margin-left: 8px; }
+.tool-row > .tool-row-invert + .tool-row-remove,
+.tool-row > .tool-row-reverse + .tool-row-remove { margin-left: 2px; }
 .tool-row > .tool-row-replace > .tool-row-param-text { grid-column: 4; grid-row: 2; padding-left: 6px; }
 .tool-row > .tool-row-replace > .tool-row-asides { grid-column: 5; grid-row: 2; margin-left: 12px; }
 .tool-row:last-child { border-bottom: none; }
@@ -1377,16 +1379,18 @@ body.picker-expanded #picker-backdrop { opacity: 1; }
 .tool-row-all-toggle.disabled:hover { color: var(--muted); background: none; }
 .tool-row-all-toggle .ast-glyph { font-size: 15px; line-height: 1; display: inline-block; }
 
-.tool-row-invert { padding: 5px; background: none; border: 0; cursor: pointer; color: var(--faint); display: flex; align-items: center; justify-content: center; line-height: 1; transition: color 0.15s; }
-.tool-row-invert > svg { display: block; }
-.tool-row-invert:focus-visible { outline: 1px solid var(--accent); outline-offset: 1px; border-radius: 4px; }
+.tool-row-invert, .tool-row-reverse { padding: 5px; background: none; border: 0; cursor: pointer; color: var(--faint); display: flex; align-items: center; justify-content: center; line-height: 1; transition: color 0.15s; }
+.tool-row-invert > svg, .tool-row-reverse > svg { display: block; }
+.tool-row-invert:focus-visible, .tool-row-reverse:focus-visible { outline: 1px solid var(--accent); outline-offset: 1px; border-radius: 4px; }
 .tool-row-invert.active { color: #e53935; }
+.tool-row-reverse.active { color: var(--accent); }
 .tool-row-invert.disabled { opacity: 0.4; cursor: default; }
 @media (hover: hover) {
-  .tool-row-invert:not(.active):not(.disabled):hover { color: var(--text); }
+  .tool-row-invert:not(.active):not(.disabled):hover,
+  .tool-row-reverse:not(.active):hover { color: var(--text); }
 }
 @media (prefers-reduced-motion: reduce) {
-  .tool-row-invert, .tool-row-icon-glyph { transition: none; }
+  .tool-row-invert, .tool-row-reverse, .tool-row-icon-glyph { transition: none; }
 }
 
 /* Deliberately redundant with the button: keep both — dropping this red slash on the

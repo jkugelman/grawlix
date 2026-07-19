@@ -126,17 +126,88 @@ test('`not` is not mistaken for an unknown key', () => {
   assert.equal(decode('search=cat&not').droppedUnknown, false);
 });
 
+test('a reversed row encodes under its reverse slug', () => {
+  assert.equal(query(makeToolRow('head_off', { pattern: 'can' }, false, false, true)), 'head_on=can');
+  assert.equal(query(makeToolRow('back_off', { pattern: 's' }, false, false, true)), 'back_on=s');
+  assert.equal(query(makeToolRow('head_off', { pattern: 'can' })), 'head_off=can');
+});
+
+test('a reverse slug decodes to the reversed tool and round-trips', () => {
+  const grow = decode('head_on=can').rows[0];
+  assert.equal(grow.tool, 'head_off');
+  assert.equal(grow.reversed(), true);
+  assert.equal(grow.params.pattern, 'can');
+  assert.equal(query(grow), 'head_on=can');
+
+  const back = decode('back_on=s').rows[0];
+  assert.equal(back.tool, 'back_off');
+  assert.equal(back.reversed(), true);
+  assert.equal(back.params.pattern, 's');
+});
+
+test('joeys is its own forward tool, not a Kangaroos reverse slug', () => {
+  const joey = decode('joeys=kanga').rows[0];
+  assert.equal(joey.tool, 'joeys');
+  assert.equal(joey.reversed(), false);
+  assert.equal(joey.params.entry, 'kanga');
+});
+
+test('a reverse slug digit-migrates its value like the forward slug', () => {
+  assert.equal(decode('head_on=3').rows[0].params.pattern, '???');
+});
+
+test('the retired count keys ?behead=N / ?curtail=N decode to N wildcards on the renamed tool', () => {
+  const behead = decode('behead=3').rows[0];
+  assert.equal(behead.tool, 'head_off');
+  assert.equal(behead.reversed(), false);
+  assert.equal(behead.params.pattern, '???');
+
+  const curtail = decode('curtail=2').rows[0];
+  assert.equal(curtail.tool, 'back_off');
+  assert.equal(curtail.params.pattern, '??');
+});
+
+test('retired affix slugs decode to the renamed tool + direction', () => {
+  const rp = decode('remove_prefix=can').rows[0];
+  assert.equal(rp.tool, 'head_off');
+  assert.equal(rp.reversed(), false);
+  assert.equal(rp.params.pattern, 'can');
+
+  const ap = decode('add_prefix=can').rows[0];
+  assert.equal(ap.tool, 'head_off');
+  assert.equal(ap.reversed(), true);
+
+  assert.equal(decode('remove_suffix=can').rows[0].tool, 'back_off');
+  assert.equal(decode('add_suffix=can').rows[0].reversed(), true);
+});
+
+test('a retired affix value stays literal — ?add_prefix=3 is the prefix "3", not a count', () => {
+  assert.equal(decode('add_prefix=3').rows[0].params.pattern, '3');
+});
+
+test('retired slugs are not flagged as unknown keys', () => {
+  assert.equal(decode('add_prefix=can').droppedUnknown, false);
+  assert.equal(decode('behead=can').droppedUnknown, false);
+});
+
 // design.md § Tool stack encoding calls this "the one namespace rule the scheme
 // rests on": decode classifies each key positionally, so a tool slug or param key
 // that shadows a reserved word makes links decode as something else entirely —
 // no error, just a different pipeline than the one shared.
-test('no tool slug or param key collides with a reserved word', () => {
+test('no tool slug, reverse slug, or param key collides with a reserved word or each other', () => {
   const slugs = Object.keys(TOOLS);
+  const reverseSlugs = Object.values(TOOLS).map(t => t.reverseSlug).filter(Boolean);
   const params = [...new Set(Object.values(TOOLS).flatMap(t => t.params.map(p => p.key)))];
   // `entry` is reserved but deliberately absent: it IS several tools' first-param
   // key, and a first param always rides its tool-slug key, so it never collides.
   for (const word of ['all', 'not', 'sort', 'sort-dir']) {
     assert.ok(!slugs.includes(word), `tool slug "${word}" shadows a reserved word`);
+    assert.ok(!reverseSlugs.includes(word), `reverse slug "${word}" shadows a reserved word`);
     assert.ok(!params.includes(word), `param key "${word}" shadows a reserved word`);
   }
+  for (const rs of reverseSlugs) {
+    assert.ok(!slugs.includes(rs), `reverse slug "${rs}" shadows a tool slug`);
+    assert.ok(!params.includes(rs), `reverse slug "${rs}" shadows a param key`);
+  }
+  assert.equal(new Set(reverseSlugs).size, reverseSlugs.length, 'two tools share a reverse slug');
 });

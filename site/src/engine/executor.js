@@ -39,9 +39,9 @@ export function currentAtomCount(stack) {
       count = 1;
       tailSlot = true;
     } else if (row.kind() === 'transform') {
-      if (row.def.inputHighlights && tailSlot) count++;   // input mark can't fold into a slot tail
-      count++;                                            // output atom (new word)
-      tailSlot = !!row.def.outputHighlights;
+      if (row.inputHi() && tailSlot) count++;   // input mark can't fold into a slot tail
+      count++;                                  // output atom (new word)
+      tailSlot = row.outputHi();
     } else if (row.kind() === 'group') {
       // A bare group producer emits members carrying the upstream atoms unchanged —
       // no atom of its own. One that highlights members (group.memberHighlights)
@@ -50,7 +50,7 @@ export function currentAtomCount(stack) {
         if (tailSlot) count++;
         tailSlot = true;
       }
-    } else if (row.def.inputHighlights && !row.inverted()) {   // highlighting filter (search)
+    } else if (row.inputHi() && !row.inverted()) {   // highlighting filter (search)
       if (tailSlot) count++;
       tailSlot = true;
     }
@@ -128,7 +128,7 @@ async function makeTupleEmit(emit, downstream, mergedWordlist, signal, y) {
   const stages = await Promise.all(downstream.map(async row => ({
     row,
     prepared: row.def.prepare
-      ? await row.def.prepare(normalizeParams(row.params, row.def.params), makeCtx(mergedWordlist, signal, y, row.grouped))
+      ? await row.def.prepare(normalizeParams(row.params, row.def.params), makeCtx(mergedWordlist, signal, y, row.grouped, row.reversed()))
       : normalizeParams(row.params, row.def.params),
   })));
   return async batch => {
@@ -156,7 +156,7 @@ export function chainProducesMultiAtom(stack) {
   return stack.some(row => {
     if (row.isInert()) return false;
     if (row.kind() === 'group') return false;   // bare members — unify would throw on them
-    return row.kind() === 'transform' || (!!row.def.inputHighlights && !row.inverted());
+    return row.kind() === 'transform' || (row.inputHi() && !row.inverted());
   });
 }
 
@@ -173,10 +173,11 @@ function makeWorkingSetView(rows) {
   };
 }
 
-function makeCtx(mergedWordlist, signal, y, grouped = false) {
+function makeCtx(mergedWordlist, signal, y, grouped = false, reversed = false) {
   return {
     wordlist: mergedWordlist,
     grouped,
+    reversed,
     throwIfAborted: () => throwIfAborted(signal),
     due: y.due,
     yield: y.yield,
@@ -371,7 +372,7 @@ async function runStackRow(stackRow, state, mergedWordlist, signal, y, emit = nu
       ? state.groups.flatMap(g => g.chains)
       : state.groups[0].chains;
     const prepared = def.prepare
-      ? await def.prepare(params, makeCtx(mergedWordlist, signal, y, stackRow.grouped), makeWorkingSetView(prepareInput))
+      ? await def.prepare(params, makeCtx(mergedWordlist, signal, y, stackRow.grouped, stackRow.reversed()), makeWorkingSetView(prepareInput))
       : params;
     const groupFilter = state.grouped && stackRow.kind() === 'filter';
     for (const g of state.groups) {
@@ -415,7 +416,7 @@ async function runToolStage(rows, stackRow, prepared, mergedWordlist, y, emit = 
         // tool declares. currentAtomCount agrees via inverted() — disagree and rows overlap.
         if (!result) next.push(row);
       } else if (result) {
-        if (def.inputHighlights) {
+        if (stackRow.inputHi()) {
           const highlights = Array.isArray(result) ? tagCoord(result, coord) : [];
           next.push({ atoms: [...rowAtoms(row),
             { wlEntry: tailEntry, highlights, glyph }] });
@@ -436,12 +437,12 @@ async function runToolStage(rows, stackRow, prepared, mergedWordlist, y, emit = 
           : [synthWlEntry(text, synthetic ? tailEntry : ZERO_SCORE)];
         for (const wlEntry of targets) {
           const atoms = rowAtoms(row).slice();
-          if (def.inputHighlights) {
+          if (stackRow.inputHi()) {
             atoms.push({ wlEntry: tailEntry, highlights: tagCoord(out.inputHighlights || [], coord), glyph: null });
           }
           atoms.push({
             wlEntry,
-            highlights: def.outputHighlights ? tagCoord(out.outputHighlights || [], coord) : null,
+            highlights: stackRow.outputHi() ? tagCoord(out.outputHighlights || [], coord) : null,
             glyph,
           });
           next.push({ atoms });

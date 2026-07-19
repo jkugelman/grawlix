@@ -18,12 +18,12 @@ test.beforeEach(async ({ page }) => {
 //
 // Fixture constraints (executor.js bucketize): a group needs >= 2 members, and
 // an anchored tool (initialisms) drops a group whose key isn't itself an entry.
-// Behead/Curtail only emit an output that's itself a corpus entry, so the chains
+// Head off/Back off only emit an output that's itself a corpus entry, so the chains
 // stay corpus-atom (rich) — synthetic { s } atoms aren't reachable from these
 // transforms and aren't this chunk's subject (they're untouched here and already
 // covered round-tripping by worker-rich-tiers.spec.js).
 //   - Anagram groups (string key): elvis/lives/evils/veils (4), stressed/desserts (2).
-//   - Behead→Curtail chain: scare → care → car (each a corpus entry, 3 atoms).
+//   - Head off→Back off chain: scare → care → car (each a corpus entry, 3 atoms).
 //   - Dead-center group (anchored + highlighted members): abe centers babel/label.
 const PRIMARY = [
   ['elvis', 70, 'king'],
@@ -33,8 +33,8 @@ const PRIMARY = [
   ['stressed', 80, ''],
   ['desserts', 75, 'sweet'],
   ['scare', 50, ''],
-  ['care', 40, 'tend'],   // behead('scare',1) → 'care'
-  ['car', 35, ''],        // curtail('care',1) → 'car'
+  ['care', 40, 'tend'],   // head_off('scare',1) → 'care'
+  ['car', 35, ''],        // back_off('care',1) → 'car'
   ['hot', 20, ''],        // initialism anchor for the colliding phrases below
   ['abe', 45, ''],        // dead-center anchor for babel/label below
   ['babel', 40, ''],      // b·abe·l
@@ -113,14 +113,14 @@ async function renderRich(page, stack, syncScope) {
 
 // ─── Transform-chain tier ─────────────────────────────────────────────────────
 
-test('transform chain (Behead then Curtail) ships rich atoms that decode the chain', async ({ page }) => {
+test('transform chain (Head off then Back off) ships rich atoms that decode the chain', async ({ page }) => {
   await gotoApp(page);
   await seedCorpus(page);
   // Merged scope (gotoApp default) renders the Source column, so the rich atom's
   // sourceId reconstruction is exercised.
   await renderRich(page, [
-    { tool: 'behead', params: { count: '1' } },
-    { tool: 'curtail', params: { count: '1' } },
+    { tool: 'head_off', params: { pattern: '?' } },
+    { tool: 'back_off', params: { pattern: '?' } },
   ], undefined);
 
   const rows = await page.evaluate(() => window.__grawlixTest.getVisibleEntries());
@@ -128,10 +128,10 @@ test('transform chain (Behead then Curtail) ships rich atoms that decode the cha
   expect(chain).toEqual(['scare', 'care', 'car']);
 });
 
-test('single transform (Behead) with input highlights ships rich atoms', async ({ page }) => {
+test('single transform (Head off) with input highlights ships rich atoms', async ({ page }) => {
   await gotoApp(page);
   await seedCorpus(page);
-  await renderRich(page, [{ tool: 'behead', params: { count: '1' } }], undefined);
+  await renderRich(page, [{ tool: 'head_off', params: { pattern: '?' } }], undefined);
 
   const rows = await page.evaluate(() => window.__grawlixTest.getVisibleEntries());
   expect(rows.some(r => Array.isArray(r) && r[0] === 'scare' && r[1] === 'care')).toBe(true);

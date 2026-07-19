@@ -380,7 +380,7 @@ const __grawlixTest = {
   // from the worker's own fetchAllRows.
   async workerMirrorsMain(stack) {
     await this.pipelineIdle();
-    const rows = stack.map(r => makeToolRow(r.tool, r.params || {}, !!r.grouped));
+    const rows = stack.map(r => makeToolRow(r.tool, r.params || {}, !!r.grouped, !!r.invert, !!r.reverse));
     const result = await runOnWorker(rows);
     let workerNorms;
     if (result.flat) {
@@ -397,12 +397,12 @@ const __grawlixTest = {
   // Set the tool stack directly, bypassing gallery clicks. Routes
   // through the same path the URL parser uses (`ToolStack.setStack` +
   // `renderMergedDetail`), so tests exercise the executor with the
-  // same plumbing the user does. Pass an array of `{tool, params}`.
+  // same plumbing the user does. Pass an array of `{tool, params, grouped?, invert?, reverse?}`.
   // Returns the render promise — tests `await` it before reading the DOM.
   workerAssetState: () => workerAssetStateForTest(),
 
   async setStack(stack) {
-    ToolStack.setStack(stack.filter(r => TOOLS[r.tool]).map(r => makeToolRow(r.tool, r.params || {}, !!r.grouped, !!r.invert)));
+    ToolStack.setStack(stack.filter(r => TOOLS[r.tool]).map(r => makeToolRow(r.tool, r.params || {}, !!r.grouped, !!r.invert, !!r.reverse)));
     const p = renderMergedDetail();
     ToolStack.refreshGalleryActive();
     await p;

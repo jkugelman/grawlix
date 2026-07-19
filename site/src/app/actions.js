@@ -1280,7 +1280,7 @@ export function exportFilename(stack, ext) {
   stack.forEach((row, i) => {
     const isBar = i === stack.length - 1 && row.tool === 'search';
     if (isBar && row.isInert()) return;
-    parts.push(exportFilenameSegment(row.tool));
+    parts.push(exportFilenameSegment(row.reversed() ? row.def.reverseSlug : row.tool));
     if (row.grouped) parts.push('all');
     if (row.inverted()) parts.push('not');
     const firstParam = row.def.params.find(p => row.params[p.key] && p.type !== 'checkbox');
@@ -1320,7 +1320,7 @@ export function buildCopyLinkMarkdown(stack) {
   stack.forEach((row, i) => {
     const isBar = i === stack.length - 1 && row.tool === 'search';
     if (isBar && row.isInert()) return;
-    let label = row.def.name;
+    let label = row.reversed() ? row.def.reverseName : row.def.name;
     const firstParam = row.def.params.find(p => row.params[p.key] && p.type !== 'checkbox');
     if (firstParam) {
       const v = row.params[firstParam.key];

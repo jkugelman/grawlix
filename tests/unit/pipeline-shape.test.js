@@ -9,15 +9,19 @@ import {
 // ─── Fixtures ───────────────────────────────────────────────────────────────
 
 // A minimal stack-row factory — only the members currentAtomCount and the chain
-// predicates read: kind(), isInert(), inverted(), def.inputHighlights,
-// def.outputHighlights.
+// predicates read: kind(), isInert(), inverted(), reversed(), inputHi(), outputHi().
 // No `state`, no catalog: shipped makeToolRow reads TOOLS, so it can't be fenced.
-function makeToolRow({ kind = 'filter', inert = false, inputHighlights = false, outputHighlights = false, invert = false } = {}) {
+function makeToolRow({ kind = 'filter', inert = false, inputHighlights = false, outputHighlights = false, invert = false, reverse = false } = {}) {
+  const def = { inputHighlights, outputHighlights, reversible: reverse };
+  const reversed = () => reverse;
   return {
     kind: () => kind,
     isInert: () => inert,
     inverted: () => invert && kind === 'filter',
-    def: { inputHighlights, outputHighlights },
+    reversed,
+    inputHi: () => reversed() ? !!def.outputHighlights : !!def.inputHighlights,
+    outputHi: () => reversed() ? !!def.inputHighlights : !!def.outputHighlights,
+    def,
   };
 }
 const search        = () => makeToolRow({ kind: 'filter', inputHighlights: true });

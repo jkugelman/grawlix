@@ -47,7 +47,7 @@ test('filter-only: a single-axis header sorts on click and flips direction', asy
 test('transform tier: clicking Score opens a menu reaching Min and Max score', async ({ page }) => {
   await gotoApp(page);
   await addFixture(page);
-  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'behead' }]));
+  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'head_off', params: { pattern: '?' } }]));
 
   await openColMenu(page, '.col-score');
   await expect(page.locator('#sort-menu')).toBeVisible();
@@ -67,7 +67,7 @@ test('transform tier: clicking Score opens a menu reaching Min and Max score', a
 test('transform tier: the Len column keeps Length and adds the Min/Max length spread', async ({ page }) => {
   await gotoApp(page);
   await addFixture(page);
-  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'behead' }]));
+  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'head_off', params: { pattern: '?' } }]));
 
   await openColMenu(page, '.col-len');
   await expect(page.locator('#sort-menu')).toBeVisible();
@@ -133,7 +133,7 @@ test('keyboard: Enter sorts a single-axis header and opens the menu on a multi-a
   await page.keyboard.press('Enter');
   expect((await sortState(page)).key).toBe('score');
 
-  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'behead' }]));
+  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'head_off', params: { pattern: '?' } }]));
   await page.locator('.col-score .col-sort').focus();
   await page.keyboard.press('Enter');
   await expect(page.locator('#sort-menu')).toBeVisible();
@@ -145,7 +145,7 @@ test('keyboard: Enter sorts a single-axis header and opens the menu on a multi-a
 test('the sort menu dismisses on Escape and on an outside click', async ({ page }) => {
   await gotoApp(page);
   await addFixture(page);
-  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'behead' }]));
+  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'head_off', params: { pattern: '?' } }]));
 
   await openColMenu(page, '.col-score');
   await expect(page.locator('#sort-menu')).toBeVisible();

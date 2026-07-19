@@ -42,7 +42,7 @@ test('an inverted empty search is inert, not a filter that matches nothing', asy
 
 test('invert composes downstream of a transform', async () => {
   const { rows } = await run(['swing', 'wing', 'sting', 'ting'], [
-    { tool: 'behead', params: { count: '1' } },
+    { tool: 'head_off', params: { pattern: '?' } },
     { tool: 'search', params: { pattern: 'w*' }, invert: true },
   ]);
   assert.deepEqual(norms(rows), ['ting']);
@@ -118,6 +118,6 @@ test('inverted() ignores the flag on an all-mode group row', () => {
 
 test('a stray invert on a transform row leaves the transform running', async () => {
   const { rows } = await run(['swing', 'wing'],
-    [{ tool: 'behead', params: { count: '1' }, invert: true }]);
+    [{ tool: 'head_off', params: { pattern: '?' }, invert: true }]);
   assert.deepEqual(norms(rows), ['wing']);
 });

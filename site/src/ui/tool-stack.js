@@ -244,6 +244,16 @@ function invertOptsFor(row, rowToken) {
   return { rowToken, active: row.inverted(), canInvert: row.kind() === 'filter' };
 }
 
+function reverseOptsFor(row, rowToken) {
+  const def = TOOLS[row.tool];
+  if (!def.reversible) return null;
+  return { rowToken, active: row.reversed(), name: def.name, reverseName: def.reverseName };
+}
+
+function labelDefFor(row, def) {
+  return def.reversible && row.reversed() ? { icon: def.icon, name: def.reverseName } : def;
+}
+
 export function buildSearchBarHTML() {
   const row = ToolStack.getSearchBarRow();
   // `bar`, not a numeric index: the bar's DOM persists across rerenderRows, so
@@ -291,6 +301,22 @@ function buildInvertButtonHTML(invert) {
     + ` aria-pressed="${active}" aria-disabled="${!canInvert}"`
     + ` title="${esc(title)}" aria-label="${esc(title)}">`
     + `<svg width="14" height="14" aria-hidden="true"><use href="#icon-ban"/></svg></button>`;
+}
+
+export function reverseTooltip({ active, name, reverseName }) {
+  return `Switch to ${active ? name : reverseName}`;
+}
+
+function buildReverseButtonHTML(reverse) {
+  if (!reverse) return '';
+  const { rowToken, active } = reverse;
+  const title = reverseTooltip(reverse);
+  const cls = ['tool-row-reverse'];
+  if (active) cls.push('active');
+  return `<button type="button" class="${cls.join(' ')}" data-reverse="${rowToken}"`
+    + ` aria-pressed="${active}"`
+    + ` title="${esc(title)}" aria-label="${esc(title)}">`
+    + `<svg width="14" height="14" aria-hidden="true"><use href="#icon-swap"/></svg></button>`;
 }
 
 export function allModeTooltip({ blocked, active, kind }) {
@@ -419,15 +445,17 @@ export const ToolStack = (() => {
     const remove = `<button type="button" class="tool-row-remove" data-remove="${idx}" title="Remove" aria-label="Remove ${esc(tool.name)}"><svg width="12" height="12"><use href="#icon-x"/></svg></button>`;
     const errBtn = `<button type="button" class="icon tool-row-error-btn" data-error-row="${idx}" aria-label="Tool error" hidden>⚠️</button>`;
     const invert = buildInvertButtonHTML(invertOptsFor(row, idx));
+    const reverse = buildReverseButtonHTML(reverseOptsFor(row, idx));
     const inverted = row.inverted() ? ' inverted' : '';
     return `<div class="tool-row${inverted}" data-tool="${esc(row.tool)}">
       ${buildDragHandleHTML()}
-      ${buildToolLabelHTML(tool)}
+      ${buildToolLabelHTML(labelDefFor(row, tool))}
       ${parts.caret}
       ${main}
       ${parts.asides}
       ${errBtn}
       ${invert}
+      ${reverse}
       ${remove}
       ${parts.replace}
     </div>`;
@@ -687,6 +715,14 @@ export const ToolStack = (() => {
     repaintAfterStackChange();
   }
 
+  function toggleReverse(token) {
+    const row = stack[parseInt(token, 10)];
+    if (!row || !row.def.reversible) return;
+    row.reverse = !row.reverse;
+    rerenderRows();   // the label's icon+name and the button state both change
+    repaintAfterStackChange();
+  }
+
   // The clear below is load-bearing, not a stray side effect: a replacement typed (or
   // ✱ switched on) moves the row out of filter kind, and the flag left behind would
   // encode a `not` into a shared URL that no stage honors.
@@ -843,6 +879,11 @@ export const ToolStack = (() => {
       if (allBtn) {
         if (allBtn.classList.contains('disabled')) return;
         toggleAllMode(parseInt(allBtn.dataset.allToggle, 10));
+        return;
+      }
+      const reverseBtn = e.target.closest('.tool-row-reverse[data-reverse]');
+      if (reverseBtn) {
+        toggleReverse(reverseBtn.dataset.reverse);
         return;
       }
       const invertBtn = e.target.closest('.tool-row-invert[data-invert]');

@@ -17,7 +17,7 @@ export function compileFlatHighlighters(stack) {
   const out = [];
   for (const row of stack) {
     const { def } = row;
-    if (row.isInert() || row.kind() !== 'filter' || !def.inputHighlights || row.inverted()) continue;
+    if (row.isInert() || row.kind() !== 'filter' || !row.inputHi() || row.inverted()) continue;
     const params = normalizeParams(row.params, def.params);
     // Sync prepare only — the render path can't await; Search/Regex prepare is
     // sync and ignores ctx, so a future async-prepare highlighting filter would

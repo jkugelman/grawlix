@@ -72,7 +72,7 @@ test('the returning-user baseline is a frozen static list, not the live catalog 
     'repeaters', 'neckouts', 'isograms', 'supervocalics', 'monovocalics',
     'alphabetical', 'reverse_alphabetical', 'consonantcy', 'vowelcy',
     'kangaroos', 'joeys', 'palindromes', 'semordnilap', 'rhymes',
-    'space_out', 'search', 'regex', 'initialisms', 'behead', 'curtail', 'rebus',
+    'space_out', 'search', 'regex', 'initialisms', 'head_off', 'back_off', 'rebus',
   ]);
   const catalog = new Set(Object.keys(TOOLS));
   for (const slug of RETURNING_BASELINE) assert.ok(catalog.has(slug), `unknown tool in baseline: ${slug}`);

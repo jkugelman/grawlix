@@ -93,7 +93,7 @@ test('a subsequent run on the respawned worker produces the correct result', asy
   await seedTwoWordlists(page);
 
   // Reference for the post-recovery stack, captured cleanly first.
-  const ref = await workerNorms(page, [{ tool: 'behead', params: { count: '1' } }]);
+  const ref = await workerNorms(page, [{ tool: 'head_off', params: { pattern: '?' } }]);
   expect(ref.norms.length).toBeGreaterThan(0);
 
   // Crash mid-flight to force one respawn.
@@ -107,7 +107,7 @@ test('a subsequent run on the respawned worker produces the correct result', asy
   });
 
   // A brand-new run against the respawned worker matches the clean reference.
-  const got = await workerNorms(page, [{ tool: 'behead', params: { count: '1' } }]);
+  const got = await workerNorms(page, [{ tool: 'head_off', params: { pattern: '?' } }]);
   expect(got.aborted).toBe(false);
   expect(got.errored).toBe(false);
   expect(got.norms).toEqual(ref.norms);

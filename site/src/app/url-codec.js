@@ -12,6 +12,21 @@ import { TOOLS, makeToolRow } from '../engine/tools.js';
 // emitted as a standalone key by tool encoding — only the panel emits it.
 const RESERVED = new Set(['sort', 'sort-dir', 'entry']);
 
+const REVERSE_SLUGS = {};
+for (const [key, def] of Object.entries(TOOLS)) if (def.reverseSlug) REVERSE_SLUGS[def.reverseSlug] = key;
+
+// Retired slugs → the renamed tool + direction. The old count-based behead/curtail
+// digit-migrate (?behead=3 → ???); the pre-merge affix slugs stay literal
+// (?add_prefix=3 is the prefix "3"), per each entry's `migrate`.
+const LEGACY_SLUGS = {
+  behead:        { tool: 'head_off', reverse: false, migrate: true },
+  curtail:       { tool: 'back_off', reverse: false, migrate: true },
+  remove_prefix: { tool: 'head_off', reverse: false, migrate: false },
+  add_prefix:    { tool: 'head_off', reverse: true,  migrate: false },
+  remove_suffix: { tool: 'back_off', reverse: false, migrate: false },
+  add_suffix:    { tool: 'back_off', reverse: true,  migrate: false },
+};
+
 function encodeTailParams(row, schema) {
   const parts = [];
   for (const p of schema.slice(1)) {
@@ -47,14 +62,32 @@ function encodeRepeatRow(row, schema, slug) {
 // An inverted row carries a bare `not`; a grouped one never does, since inverted()
 // gates on filter kind.
 export function encodeRow(row) {
-  const { params: schema } = row.def;
-  if (row.grouped) return [encodeURIComponent(row.tool), 'all', ...encodeTailParams(row, schema)];
-  const slug = encodeURIComponent(row.tool);
+  const { def } = row;
+  const schema = def.params;
+  const slug = encodeURIComponent(row.reversed() ? def.reverseSlug : row.tool);
+  if (row.grouped) return [slug, 'all', ...encodeTailParams(row, schema)];
   const parts = !schema.length ? [slug]
     : schema.some(p => p.repeat) ? encodeRepeatRow(row, schema, slug)
     : [slug + '=' + encodeURIComponent(row.params[schema[0].key] || ''), ...encodeTailParams(row, schema)];
   if (row.inverted()) parts.push('not');   // at the row's tail: decode binds a bare flag to the current row
   return parts;
+}
+
+// Clearing the repeat arrays drops the single-empty seed makeToolRow stamps for
+// fresh UI rows — else a spurious '' leads the decoded array. `migrate` runs
+// decodeFirstParam; legacy affix slugs pass false so ?add_prefix=3 stays the
+// literal prefix "3", not 3 digit-migrated wildcards.
+function makeSlugRow(tool, value, reverse, migrate) {
+  const def = TOOLS[tool];
+  const row = makeToolRow(tool);
+  for (const p of def.params) if (p.repeat) row.params[p.key] = [];
+  const first = def.params[0];
+  if (first) {
+    const v = value || '';
+    row.params[first.key] = first.repeat ? [v] : (migrate && def.decodeFirstParam ? def.decodeFirstParam(v) : v);
+  }
+  if (reverse) row.reverse = true;
+  return row;
 }
 
 // Decode the pipeline rows from a URLSearchParams. Returns the rows plus a flag
@@ -82,15 +115,18 @@ export function decodeRows(params) {
       if (cur) cur.invert = true;
       continue;
     }
-    const tool = TOOLS[key];
-    if (tool) {
-      const row = makeToolRow(key);
-      // Decode builds the repeatable arrays purely from URL values, so clear the
-      // single-empty seed makeToolRow stamps for fresh UI rows before appending.
-      for (const p of tool.params) if (p.repeat) row.params[p.key] = [];
-      const first = tool.params[0];
-      if (first) row.params[first.key] = first.repeat ? [value || ''] : (value || '');
-      rows.push(row);
+    const reverseTool = REVERSE_SLUGS[key];
+    if (reverseTool) {
+      rows.push(makeSlugRow(reverseTool, value, true, true));
+      continue;
+    }
+    const legacy = LEGACY_SLUGS[key];
+    if (legacy) {
+      rows.push(makeSlugRow(legacy.tool, value, legacy.reverse, legacy.migrate));
+      continue;
+    }
+    if (TOOLS[key]) {
+      rows.push(makeSlugRow(key, value, false, true));
       continue;
     }
     const cur = rows[rows.length - 1];

@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { visible, sameVisible, run, rowByFirst, highlightTexts } from './harness.js';
 
-test('keeps entries that contain the input as a subsequence with gaps', async () => {
+test('Kangaroos keeps entries that contain the input as a subsequence with gaps', async () => {
   sameVisible(await visible(['milkandsugar', 'kangaroo', 'hello', 'bangalore'],
     [{ tool: 'kangaroos', params: { entry: 'KANGA' } }]),
     ['kangaroo', 'milkandsugar']);
@@ -32,7 +32,7 @@ test('the param is matched case-insensitively', async () => {
     ['kangaroo']);
 });
 
-test('highlights each joey letter where it lands in the kangaroo', async () => {
+test('highlights each input letter where it lands in the kangaroo', async () => {
   const { rows } = await run(['milkandsugar'], [{ tool: 'kangaroos', params: { entry: 'KANGA' } }]);
   const row = rowByFirst(rows, 'milkandsugar');
   assert.deepEqual(highlightTexts(row.atoms[0]), ['k', 'a', 'n', 'g', 'a']);

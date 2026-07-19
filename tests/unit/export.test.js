@@ -17,12 +17,13 @@ const chain = (...atoms) => ({ atoms });
 
 // A minimal exportFilename stack row. No state, no catalog: shipped makeToolRow
 // reads TOOLS, so it can't be fenced — this stubs only the members read here.
-const row = ({ tool = 'search', inert = false, grouped = false, inverted = false, params = {}, paramDefs = [] } = {}) => ({
+const row = ({ tool = 'search', inert = false, grouped = false, inverted = false, reversed = false, reverseSlug, params = {}, paramDefs = [] } = {}) => ({
   tool,
   isInert: () => inert,
   grouped,
   inverted: () => inverted,
-  def: { params: paramDefs },
+  reversed: () => reversed,
+  def: { params: paramDefs, reverseSlug },
   params,
 });
 
@@ -160,6 +161,11 @@ test('exportFilename: multiple rows chain their segments with dashes', () => {
     row({ tool: 'reverse' }),
   ];
   assert.equal(exportFilename(stack, 'txt'), 'grawlix-search-a-reverse.txt');
+});
+
+test('exportFilename: a reversed row names its reverse slug, not the tool key', () => {
+  const stack = [row({ tool: 'head_off', reversed: true, reverseSlug: 'head_on', paramDefs: [{ key: 'pattern', type: 'text' }], params: { pattern: 'can' } })];
+  assert.equal(exportFilename(stack, 'txt'), 'grawlix-head_on-can.txt');
 });
 
 test('exportFilename: an over-long assembled name is truncated to 100 chars before the extension', () => {

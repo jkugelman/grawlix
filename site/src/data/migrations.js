@@ -19,7 +19,11 @@ import { URL_REMAPS } from '../core/constants.js';
 //                     sync_main_<key> {handle} + sync_worker_<key> {baseline}.
 //   v12 (2026-06-19): renamed the standalone returning-visitor flag
 //                     welcomeSeen → returningVisitor.
-export const SCHEMA_VERSION = 12;
+//   v13 (2026-07-22): the affix merge renamed tool slugs; the seenTools reveal
+//                     list maps behead/add_prefix/remove_prefix → head_off and
+//                     curtail/add_suffix/remove_suffix → back_off, so renamed
+//                     tools don't re-reveal.
+export const SCHEMA_VERSION = 13;
 
 // MIGRATIONS[v] upgrades stored data from schema v to v+1 via an optional `ls`
 // step and/or `idb` step. The two run in separate boot phases (the array is
@@ -69,6 +73,19 @@ export const MIGRATIONS = {
       const v = lsLoad('welcomeSeen');
       if (v !== null) lsSave('returningVisitor', v);
       lsDel('welcomeSeen');
+    },
+  },
+  12: {
+    ls: () => {                                 // affix merge renamed tool slugs
+      const raw = lsLoad('seenTools');
+      if (raw === null) return;
+      let seen; try { seen = JSON.parse(raw); } catch { return; }
+      if (!Array.isArray(seen)) return;
+      const rename = {
+        behead: 'head_off', add_prefix: 'head_off', remove_prefix: 'head_off',
+        curtail: 'back_off', add_suffix: 'back_off', remove_suffix: 'back_off',
+      };
+      lsSave('seenTools', JSON.stringify([...new Set(seen.map(s => rename[s] || s))]));
     },
   },
 };

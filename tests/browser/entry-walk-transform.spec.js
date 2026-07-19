@@ -24,7 +24,7 @@ async function setup(page) {
     name: 'Src', entries: e, scores: e.map(() => 50),
   }), ENTRIES);
   await page.evaluate(() => window.__grawlixTest.setStack(
-    [{ tool: 'add_prefix', params: { prefix: 'over' } }]));
+    [{ tool: 'head_off', params: { pattern: 'over' }, reverse: true }]));
   await page.evaluate(() => window.__grawlixTest.pipelineIdle());
 }
 

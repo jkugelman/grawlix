@@ -71,9 +71,9 @@ const cases = [
     atoms: 2,
   },
   {
-    name: 'an input-marked transform (behead) folds its input mark with no slot tail → 2 atoms',
+    name: 'an input-marked transform (head off) folds its input mark with no slot tail → 2 atoms',
     rowHasText: 'spark',
-    stack: [{ tool: 'behead' }],
+    stack: [{ tool: 'head_off', params: { pattern: '?' } }],
     atoms: 2,
   },
   {
@@ -87,7 +87,7 @@ const cases = [
     rowHasText: 'spark',
     stack: [
       { tool: 'search', params: { pattern: 'spark' } },
-      { tool: 'behead' },
+      { tool: 'head_off', params: { pattern: '?' } },
     ],
     atoms: 3,
   },
@@ -122,7 +122,7 @@ test('the multi-atom rows render the expected distinct chain words', async ({ pa
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'semordnilap' }]));
   await expectVisible(page, [['devil', 'lived']]);
 
-  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'behead' }]));
+  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'head_off', params: { pattern: '?' } }]));
   await expectVisible(page, [['spark', 'park']]);
 
   await page.evaluate(() => window.__grawlixTest.setStack([

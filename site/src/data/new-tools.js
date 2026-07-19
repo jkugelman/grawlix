@@ -15,7 +15,7 @@ export const RETURNING_BASELINE = [
   'repeaters', 'neckouts', 'isograms', 'supervocalics', 'monovocalics',
   'alphabetical', 'reverse_alphabetical', 'consonantcy', 'vowelcy',
   'kangaroos', 'joeys', 'palindromes', 'semordnilap', 'rhymes',
-  'space_out', 'search', 'regex', 'initialisms', 'behead', 'curtail', 'rebus',
+  'space_out', 'search', 'regex', 'initialisms', 'head_off', 'back_off', 'rebus',
 ];
 
 function readSeen() {

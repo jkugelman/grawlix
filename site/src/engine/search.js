@@ -19,6 +19,17 @@ export function escapeRegexClass(s)   { return s.replace(/[\]\\^]/g, '\\$&'); }
 export const SEARCH_WILDCARD_RE = /[*?#@[]/;
 export function isLiteralQuery(query) { return query !== '' && !SEARCH_WILDCARD_RE.test(query); }
 
+export function patternLengthRange(query) {
+  const q = (query || '').normalize('NFC');
+  let min = 0, star = false;
+  for (let i = 0; i < q.length; i++) {
+    if (q[i] === '*') { star = true; continue; }
+    if (q[i] === '[') { const end = q.indexOf(']', i); if (end !== -1) i = end; }   // a class is one token — mirror buildSearchPattern's scan
+    min++;
+  }
+  return { min, max: star ? Infinity : min };
+}
+
 // Two arms: the regex runs against both the entry's norm (accents + separators
 // stripped) and its verbatim display, matching if either does — norm forgives
 // separators (`theirs` finds "the IRS"); display requires a typed space/accent.

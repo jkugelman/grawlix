@@ -34,6 +34,18 @@ test('v11 → v12 renames the standalone welcomeSeen flag to returningVisitor an
   assert.equal('grawlix_welcomeSeen' in _ls, false);
 });
 
+test('v12 → v13 renames merged tool slugs in the seenTools reveal list, deduped', () => {
+  _ls.grawlix_seenTools = JSON.stringify(['anagrams', 'behead', 'curtail', 'add_prefix', 'joeys', 'kangaroos', 'rebus']);
+  migrateLs({}, 12);
+  assert.deepEqual(JSON.parse(_ls.grawlix_seenTools), ['anagrams', 'head_off', 'back_off', 'joeys', 'kangaroos', 'rebus']);
+});
+
+test('v12 → v13 leaves seenTools alone when no reveal list is stored', () => {
+  delete _ls.grawlix_seenTools;
+  migrateLs({}, 12);
+  assert.equal('grawlix_seenTools' in _ls, false);
+});
+
 test('remapStoredUrls rewrites a relocated url, reports the change, and no-ops otherwise', () => {
   const remaps = [{ to: 'https://grawlix.wtf/wordlists/new.txt', from: ['https://grawlix.wtf/old.txt'] }];
   const metas = [

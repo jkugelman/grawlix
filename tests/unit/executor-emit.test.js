@@ -62,19 +62,19 @@ test('emit: a flat search streams disjoint batches that concatenate to the retur
   assert.equal(flat.length, result.rows.length);
 });
 
-test('emit: a transform stack (behead) streams its rows', async () => {
+test('emit: a transform stack (head_off) streams its rows', async () => {
   forceDeterministicYields();
 
-  // scat→cat, brat→rat, plice→lice behead into corpus members. Behead produces no
+  // scat→cat, brat→rat, plice→lice head_off into corpus members. head_off produces no
   // mirror pairs, so the raw emitted rows union exactly to the unify'd result.
   const corpus = makeCorpus(['scat', 'cat', 'brat', 'rat', 'plice', 'lice']);
   const batches = [];
   const result = await executePipeline(
-    corpus, [makeToolRow('behead', { count: '1' })], null,
+    corpus, [makeToolRow('head_off', { pattern: '?' })], null,
     b => batches.push(b),
   );
 
-  assert.ok(result.rows.length > 0, 'behead fixture matched nothing');
+  assert.ok(result.rows.length > 0, 'head_off fixture matched nothing');
   assert.ok(result.rows.every(r => r.atoms && r.atoms.length >= 2), 'expected rich transform rows');
   assert.ok(batches.length >= 1, 'a transform run must stream');
 
@@ -104,7 +104,7 @@ test('emit: a tuple run streams tuple-group batches that union to the returned g
 test('streamPlan: a tuple run streams as a tuple, with a filter tail as downstream stages', () => {
   const umiaq = makeToolRow('umiaq', { query: 'AB;BA' });
   const filter = makeToolRow('search', { pattern: 'pea' });
-  const transform = makeToolRow('behead', { count: '1' });
+  const transform = makeToolRow('head_off', { pattern: '?' });
   const group = makeToolRow('cryptogram', {}, true);
   const caesar = makeToolRow('caesar', { entry: 'abc', shift: '1' });
 
@@ -208,4 +208,18 @@ test('no-emit: the returned rows are identical to those of an emitting run (addi
 
   assert.equal(buffered.rows.length, MATCHING.length, 'no-emit run must return the full flat result');
   assert.deepStrictEqual(streamed.rows.map(projectRow), buffered.rows.map(projectRow));
+});
+
+test('emit: a reverse transform (head on) streams each row exactly once', async () => {
+  forceDeterministicYields();
+  const corpus = makeCorpus(['catcall', 'all', 'cat cows', 'ows', 'cat cow', 'ow']);
+  const batches = [];
+  const result = await executePipeline(
+    corpus, [makeToolRow('head_off', { pattern: 'catc' }, false, false, true)], null,
+    b => batches.push(b),
+  );
+  const flat = batches.flat();
+  assert.equal(new Set(flat).size, flat.length, 'a row was emitted in more than one batch');
+  assert.deepEqual([...flat.map(tailNorm)].sort(), [...result.rows.map(tailNorm)].sort());
+  assert.equal(flat.length, result.rows.length);
 });

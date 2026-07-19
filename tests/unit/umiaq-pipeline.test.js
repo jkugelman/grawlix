@@ -10,12 +10,16 @@ function toolRow(def, params) {
     isInert: () => (def.isInert ? def.isInert(params) : false),
     glyph: () => (def.glyph ? def.glyph(params) : null),
     inverted: () => false,
+    reversed: () => false,
+    inputHi: () => !!def.inputHighlights,
+    outputHi: () => !!def.outputHighlights,
   };
 }
 
 const inertSearch = {
   tool: 'search', def: { inputHighlights: true }, params: {}, grouped: false, invert: false,
   kind: () => 'filter', isInert: () => true, glyph: () => null, inverted: () => false,
+  reversed: () => false, inputHi: () => true, outputHi: () => false,
 };
 
 function mergedWordlist(norms) {

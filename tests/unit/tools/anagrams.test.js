@@ -46,7 +46,7 @@ test('grouped: TOPS and POTS share a multiset but OPT does not (different length
 
 test('grouped after a transform: distinct words sharing a tail stay separate members', async () => {
   const gs = await groups(['wheat', 'cheat', 'heat', 'tiger'],
-    [{ tool: 'behead', params: { count: '1' } }, { tool: 'anagrams', grouped: true }]);
+    [{ tool: 'head_off', params: { pattern: '?' } }, { tool: 'anagrams', grouped: true }]);
   assert.equal(gs.length, 1);
   assert.deepEqual(gs[0].chains.map(c => c.join('→')).sort(), ['cheat→heat', 'wheat→heat']);
 });

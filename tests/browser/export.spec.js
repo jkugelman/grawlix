@@ -52,7 +52,7 @@ test('Markdown link prefixes a grouped tool with a ✱', async ({ page }) => {
 test('Copy renders multi-entry chains inline with their glyphs', async ({ page }) => {
   await gotoApp(page);
   await addFixture(page);
-  await setStack(page, [{ tool: 'behead', params: { count: '1' } }]);
+  await setStack(page, [{ tool: 'head_off', params: { pattern: '?' } }]);
 
   const text = await getExport(page, 'copy');
   expect(text).toContain('4 SCAR  → 3 CAR');
@@ -76,10 +76,10 @@ test('Copy lists group members per line, no group key', async ({ page }) => {
 test('Markdown link omits backticks around numeric params', async ({ page }) => {
   await gotoApp(page);
   await addFixture(page);
-  await setStack(page, [{ tool: 'behead', params: { count: '1' } }]);
+  await setStack(page, [{ tool: 'caesar', params: { shift: '3' } }]);
 
   const text = await getExport(page, 'markdown-link');
-  expect(text).toMatch(/^\[Behead 1\]\(http/);
+  expect(text).toMatch(/^\[Caesar shift 3\]\(http/);
 });
 
 test('Markdown link for empty pipeline uses [All Wordlists](URL)', async ({ page }) => {
@@ -94,7 +94,7 @@ test('Markdown link for empty pipeline uses [All Wordlists](URL)', async ({ page
 test('Wordlist dumps tail entries with chain-min score, alphabetically sorted', async ({ page }) => {
   await gotoApp(page);
   await addFixture(page);
-  await setStack(page, [{ tool: 'behead', params: { count: '1' } }]);
+  await setStack(page, [{ tool: 'head_off', params: { pattern: '?' } }]);
 
   const { text, count, skipped } = await getExport(page, 'wordlist');
   expect(skipped).toBe(0);
@@ -115,7 +115,7 @@ test('CSV flat one-entry rows: header is entry,length,score,comment,source', asy
 test('CSV chain rows: header interleaves entry/length/score/comment/source per atom with min/max prefix', async ({ page }) => {
   await gotoApp(page);
   await addFixture(page);
-  await setStack(page, [{ tool: 'behead', params: { count: '1' } }]);
+  await setStack(page, [{ tool: 'head_off', params: { pattern: '?' } }]);
 
   const text = await getExport(page, 'csv');
   const headerRow = text.split('\r\n')[0];
@@ -177,7 +177,7 @@ test('JSON has uniform shape: groups → chains → entries (flat is one mega-gr
 test('JSON drops generically-computed fields (length, count, min_score, max_score)', async ({ page }) => {
   await gotoApp(page);
   await addFixture(page);
-  await setStack(page, [{ tool: 'behead', params: { count: '1' } }]);
+  await setStack(page, [{ tool: 'head_off', params: { pattern: '?' } }]);
 
   const json = await getExport(page, 'json');
   const chain = json.groups[0].chains[0];
@@ -220,13 +220,13 @@ test('JSON metadata: tools array reflects pipeline order with params', async ({ 
   await gotoApp(page);
   await addFixture(page);
   await setStack(page, [
-    { tool: 'behead', params: { count: '1' } },
+    { tool: 'head_off', params: { pattern: '?' } },
     { tool: 'search', params: { pattern: 'a' } },
   ]);
 
   const json = await getExport(page, 'json');
   expect(json.tools).toEqual([
-    { name: 'behead', params: { count: '1' } },
+    { name: 'head_off', params: { pattern: '?' } },
     { name: 'search', params: { pattern: 'a' } },
   ]);
 });
@@ -245,10 +245,10 @@ test('JSON metadata: tools array flags an inverted filter with invert:true', asy
 test('JSON metadata: tools array skips the inert permanent search bar', async ({ page }) => {
   await gotoApp(page);
   await addFixture(page);
-  await setStack(page, [{ tool: 'behead', params: { count: '1' } }]);
+  await setStack(page, [{ tool: 'head_off', params: { pattern: '?' } }]);
 
   const json = await getExport(page, 'json');
-  expect(json.tools.map(t => t.name)).toEqual(['behead']);
+  expect(json.tools.map(t => t.name)).toEqual(['head_off']);
 });
 
 test('JSON metadata: score_range is {min, max} when fully specified', async ({ page }) => {
@@ -285,10 +285,10 @@ test('Filename includes tool keys for chained pipeline', async ({ page }) => {
   await gotoApp(page);
   await addFixture(page);
   await setStack(page, [
-    { tool: 'behead', params: { count: '1' } },
+    { tool: 'head_off', params: { pattern: '?' } },
     { tool: 'search', params: { pattern: 'a' } },
   ]);
 
   const name = await page.evaluate(() => window.__grawlixTest.exportFilename('json'));
-  expect(name).toBe('grawlix-behead-1-search-a.json');
+  expect(name).toBe('grawlix-head_off-search-a.json');
 });

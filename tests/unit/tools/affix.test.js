@@ -1,78 +1,43 @@
 import { test } from 'node:test';
-import assert from 'node:assert/strict';
-import { visible, sameVisible, run, rowByFirst, highlightTexts } from './harness.js';
+import { visible, sameVisible } from './harness.js';
 
-// PET SCAN is load-bearing: collapse it to PETSCAN and these tests still pass
-// while no longer proving affixes match in norm space (spaces/punctuation stripped).
-const LIB = [
-  { entry: 'tata', score: 40 }, { entry: 'cantata', score: 60 },
-  { entry: 'pets', score: 50 }, { entry: 'pet scan', score: 55 },
-  { entry: 'read', score: 50 }, { entry: 'bread', score: 60 },
-  { entry: 'dog', score: 40 },
-];
-
-test('add prefix chains an entry to its prefixed form, dropping ones with no match', async () => {
-  sameVisible(await visible(LIB, [{ tool: 'add_prefix', params: { prefix: 'can' } }]),
-    [['tata', 'cantata']]);
+test('* cuts any leading run, emitting every remainder that is a real word', async () => {
+  sameVisible(await visible(['abcd', 'bcd', 'cd'],
+    [{ tool: 'head_off', params: { pattern: '*' } }]),
+    [['abcd', 'bcd'], ['abcd', 'cd'], ['bcd', 'cd']]);
 });
 
-test('add prefix marks the prepended letters on the output atom', async () => {
-  const { rows } = await run(LIB, [{ tool: 'add_prefix', params: { prefix: 'can' } }]);
-  const row = rowByFirst(rows, 'tata');
-  assert.equal(row.atoms[0].highlights, null);
-  assert.deepEqual(highlightTexts(row.atoms[1]), ['can']);
-  assert.equal(row.atoms[1].highlights[0].kind, 'search:0');
+test('a class token cuts one letter drawn from the set (@ = any vowel)', async () => {
+  sameVisible(await visible(['acorn', 'corn', 'scorn'],
+    [{ tool: 'head_off', params: { pattern: '@' } }]),
+    [['acorn', 'corn']]);
 });
 
-test('remove prefix chains an entry to its deprefixed form, only when the entry starts with it', async () => {
-  sameVisible(await visible(LIB, [{ tool: 'remove_prefix', params: { prefix: 'can' } }]),
-    [['cantata', 'tata']]);
+test('a mixed literal + wildcard pattern cuts a matching prefix', async () => {
+  sameVisible(await visible(['coat', 'at', 'dog'],
+    [{ tool: 'head_off', params: { pattern: 'c?' } }]),
+    [['coat', 'at']]);
 });
 
-test('remove prefix marks the dropped letters on the input atom only', async () => {
-  const { rows } = await run(LIB, [{ tool: 'remove_prefix', params: { prefix: 'can' } }]);
-  const row = rowByFirst(rows, 'cantata');
-  assert.deepEqual(highlightTexts(row.atoms[0]), ['can']);
-  assert.equal(row.atoms[0].highlights[0].kind, 'removed');
-  assert.equal(row.atoms[1].highlights, null);
+test('cut then grow the same pattern round-trips back to the original', async () => {
+  sameVisible(await visible(['cantata', 'tata'], [
+    { tool: 'head_off', params: { pattern: 'can' } },
+    { tool: 'head_off', params: { pattern: 'can' }, reverse: true },
+  ]),
+    [['cantata', 'tata', 'cantata']]);
 });
 
-test('add suffix matches in norm space — PETS + can lands on PET SCAN', async () => {
-  sameVisible(await visible(LIB, [{ tool: 'add_suffix', params: { suffix: 'can' } }]),
-    [['pets', 'pet scan']]);
+test('grow is multivalued — a count adds any matching letters that land on a real word', async () => {
+  sameVisible(await visible(['at', 'cat', 'bat', 'oat'],
+    [{ tool: 'head_off', params: { pattern: '?' }, reverse: true }]),
+    [['at', 'cat'], ['at', 'bat'], ['at', 'oat']]);
 });
 
-test('add suffix marks the appended letters on the output atom, projected onto the display', async () => {
-  const { rows } = await run(LIB, [{ tool: 'add_suffix', params: { suffix: 'can' } }]);
-  const row = rowByFirst(rows, 'pets');
-  assert.deepEqual(highlightTexts(row.atoms[1]), ['can']);
-  assert.equal(row.atoms[1].highlights[0].kind, 'search:0');
-});
-
-test('remove suffix inverts add suffix — PET SCAN back to PETS', async () => {
-  sameVisible(await visible(LIB, [{ tool: 'remove_suffix', params: { suffix: 'can' } }]),
-    [['pet scan', 'pets']]);
-});
-
-test('remove suffix marks the dropped trailing letters on the input atom only', async () => {
-  const { rows } = await run(LIB, [{ tool: 'remove_suffix', params: { suffix: 'can' } }]);
-  const row = rowByFirst(rows, 'pet scan');
-  assert.deepEqual(highlightTexts(row.atoms[0]), ['can']);
-  assert.equal(row.atoms[0].highlights[0].kind, 'removed');
-  assert.equal(row.atoms[1].highlights, null);
-});
-
-test('an affix never strips an entry to nothing — entry equal to the prefix is skipped', async () => {
-  const lib = [{ entry: 'can', score: 40 }, { entry: 'cantata', score: 60 }, { entry: 'tata', score: 40 }];
-  sameVisible(await visible(lib, [{ tool: 'remove_prefix', params: { prefix: 'can' } }]),
-    [['cantata', 'tata']]);
-});
-
-test('add then remove the same suffix round-trips back to the original entry', async () => {
-  sameVisible(
-    await visible(LIB, [
-      { tool: 'add_suffix', params: { suffix: 'can' } },
-      { tool: 'remove_suffix', params: { suffix: 'can' } },
-    ]),
-    [['pets', 'pet scan', 'pets']]);
+test('cut and grow enumerate spellings symmetrically — each grow row is a cut row reversed', async () => {
+  const lib = ['a wing', 'awing', 'wing', 'w ing'];   // 2 spellings of norm 'awing', 2 of 'wing'
+  const cut = await visible(lib, [{ tool: 'head_off', params: { pattern: '?' } }]);
+  const grow = await visible(lib, [{ tool: 'head_off', params: { pattern: '?' }, reverse: true }]);
+  sameVisible(cut,
+    [['a wing', 'wing'], ['a wing', 'w ing'], ['awing', 'wing'], ['awing', 'w ing']]);
+  sameVisible(grow, cut.map(([input, output]) => [output, input]));
 });

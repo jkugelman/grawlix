@@ -30,12 +30,8 @@ import search from './tools/search.js';
 import regex from './tools/regex.js';
 import umiaq, { configureUmiaq } from './tools/umiaq.js';
 import initialisms, { wordSplits } from './tools/initialisms.js';
-import behead from './tools/behead.js';
-import curtail from './tools/curtail.js';
-import add_prefix from './tools/add_prefix.js';
-import remove_prefix from './tools/remove_prefix.js';
-import add_suffix from './tools/add_suffix.js';
-import remove_suffix from './tools/remove_suffix.js';
+import head_off from './tools/head_off.js';
+import back_off from './tools/back_off.js';
 import dead_center from './tools/dead_center.js';
 import rebus from './tools/rebus.js';
 import { reverseString, sortLetters } from './tools/shared.js';
@@ -86,12 +82,8 @@ export const TOOLS = {
   regex,
   umiaq,
   initialisms,
-  behead,
-  curtail,
-  add_prefix,
-  remove_prefix,
-  add_suffix,
-  remove_suffix,
+  head_off,
+  back_off,
   dead_center,
   rebus,
 };
@@ -153,7 +145,7 @@ export function normalizeParams(params, schema) {
   return out;
 }
 
-export function makeToolRow(tool, params = {}, grouped = false, invert = false) {
+export function makeToolRow(tool, params = {}, grouped = false, invert = false, reverse = false) {
   const def = TOOLS[tool];
   if (!grouped) {
     for (const p of def.params) {
@@ -165,7 +157,7 @@ export function makeToolRow(tool, params = {}, grouped = false, invert = false) 
     }
   }
   const row = {
-    tool, params, def, grouped, invert,
+    tool, params, def, grouped, invert, reverse,
     kind() {
       // A function `kind` decides the all-mode (`*`) case itself, rather than
       // defaulting to group: Caesar's `*` is a transform when a shift is set.
@@ -174,7 +166,13 @@ export function makeToolRow(tool, params = {}, grouped = false, invert = false) 
     },
     // Read this, never `row.invert`: `?search=a&replace=b&not` sets the flag on a
     // non-filter row, where a reader skipping the kind test diverges from the stage.
-    inverted() { return !!row.invert && row.kind() === 'filter'; },
+    inverted() { return !!row.invert && row.kind() === 'filter' && !def.reversible; },   // a reversible filter's label hosts direction, not invert
+    reversed() { return !!row.reverse && !!def.reversible; },
+    // reversed() swaps which side highlights: the converse of a front-cut that marks
+    // its INPUT is a front-grow that marks its OUTPUT. Read the wrong side and the
+    // atom count reserves a slot on the wrong atom — rows overlap in the scroller, no error.
+    inputHi() { return row.reversed() ? !!def.outputHighlights : !!def.inputHighlights; },
+    outputHi() { return row.reversed() ? !!def.inputHighlights : !!def.outputHighlights; },
     isInert() {
       if (row.grouped) return false;
       return def.isInert ? def.isInert(row.params) : false;
