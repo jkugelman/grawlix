@@ -18,6 +18,7 @@ export const SPACE_OUT_SUFFIXES = ['s', 'es', 'ed', 'ied', 'ing', 'er', 'est', '
 // entry's letters, not just its spaces — a unit test pins that.
 export const SPACE_OUT_OVERRIDES = {
   alot: 'a lot',
+  asa: 'as a',
   gota: 'got a',
   ofthe: 'of the',
 };
