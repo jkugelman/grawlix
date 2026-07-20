@@ -10,7 +10,7 @@ Two families that unlock entire categories of tools, gated on bundling external 
 
 ### Phonetics
 
-The CMU Pronouncing Dictionary maps words to phoneme sequences, opening up an entire class of sound-based operations that letter-based tools can't touch. The dict is fetched from a remote URL and cached at runtime by the pipeline worker (a worker-owned data asset registered in [`../../site/src/engine/assets.js`](../../site/src/engine/assets.js), kept fresh by the hourly asset auto-update). **Rhymes** ships on it (`engine/tools/rhymes.js` + `engine/phonetics.js`); Phonetic substitution and Sound shift remain to explore.
+The CMU Pronouncing Dictionary maps words to phoneme sequences, opening up an entire class of sound-based operations that letter-based tools can't touch. The dict is fetched from a remote URL and cached at runtime by the pipeline worker (a worker-owned data asset registered in [`../../site/src/engine/assets.js`](../../site/src/engine/assets.js), a static dataset refreshed by a `dataIdbKey` bump rather than hourly polling). **Rhymes** ships on it (`engine/tools/rhymes.js` + `engine/phonetics.js`); Phonetic substitution and Sound shift remain to explore.
 
 ### Thesaurus / semantics
 

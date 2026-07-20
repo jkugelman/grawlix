@@ -101,6 +101,7 @@ configurePhoneticsIO({ idbGet, idbPut });
 
 async function handleCheckAssets() {
   for (const asset of DATA_ASSETS) {
+    if (!asset.autoUpdate) continue;
     try {
       if (!(await idbHasKey(asset.dataIdbKey))) continue;   // never loaded → skip
       const resp = await fetch(asset.url, { method: 'HEAD' });

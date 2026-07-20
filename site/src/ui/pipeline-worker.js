@@ -7,6 +7,7 @@
 // included (no leading-slash hardcoding).
 
 import { currentAtomCount } from '../engine/executor.js';
+import { anyAssetAutoUpdates } from '../engine/assets.js';
 import { state, bumpErrorMarks } from '../data/state.js';
 import { setShippedAllSourcesAxis, setShippedScopedLayout } from '../data/derived.js';
 import { setShippedConfigCounts, setShippedRescoreInputs } from '../data/merge.js';
@@ -127,6 +128,7 @@ export function sendViewport(runId, start, end) {
 }
 
 export function checkWorkerAssets() {
+  if (!anyAssetAutoUpdates()) return;
   getWorker().postMessage({ type: 'check-assets' });
 }
 
