@@ -14,12 +14,13 @@ Linguistic data
 ---------------
 
 - Open English WordNet — inflectional exception lists (noun.exc, verb.exc), reduced to irregular base forms — CC BY 4.0 — https://en-word.net/
+- wordfreq — Robyn Speer — Apache-2.0 — a bundled list of the 30,000 most frequent English words from the large_en corpus, used as a word-family reduction tiebreak — https://github.com/rspeer/wordfreq
 
 
 Fetched at runtime
 ------------------
 
-- wordfreq — Robyn Speer — Apache-2.0 — https://github.com/rspeer/wordfreq
+- wordfreq — Robyn Speer — Apache-2.0 — the full large_en frequency corpus, for space-out word segmentation — https://github.com/rspeer/wordfreq
 
 
 Algorithm
@@ -105,3 +106,16 @@ Grawlix bundles a modified form of the noun.exc and verb.exc inflectional
 exception lists from the 2025 release: reduced to lines mapping an irregular
 surface form to its base, with forms a suffix rule already reaches removed. No
 other WordNet data is used.
+
+
+wordfreq — https://github.com/rspeer/wordfreq
+-------------------------------------------------------------------------------
+
+Copyright (c) Robyn Speer.
+
+Licensed under the Apache License, Version 2.0: https://www.apache.org/licenses/LICENSE-2.0
+
+Grawlix bundles a derived word list — the 30,000 most frequent English words
+from the large_en corpus, as a bare alphabetical list with frequencies dropped —
+used as a tiebreak when reducing entries to word families. It also fetches the
+full large_en frequency corpus at runtime for space-out word segmentation.

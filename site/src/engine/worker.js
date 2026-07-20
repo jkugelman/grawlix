@@ -19,7 +19,8 @@ import { parseRange, matchesRange } from './range.js';
 import { compileRescoreRules } from './rescore.js';
 import { sourceAccessor, invalidateSourceAccessor, parseWordlistColumns, columnsFromEntries } from './sources.js';
 import { buildCorpus, assignFamilies, scopeSourceIds, mergedContributors, resolveEditSeedWinner, mergeKey, mergedNormLowerBound, computeMergedBucket, diffWordlistEntries, isDistinguishing, concreteDisplay } from './corpus.js';
-import { familyKey } from './morphology.js';
+import { familyKey, configureCommonWords } from './morphology.js';
+import { COMMON_WORDS } from './common-words-data.js';
 import { getHistogramLayout, invalidateHistogramLayout, bucketCounts } from './histogram.js';
 import { computeStatsRaw } from './stats.js';
 import { makeWidthHintAcc, computeWidthHints, computeCorpusWidthBound } from './width-hints.js';
@@ -27,6 +28,8 @@ import { compileFlatHighlighters, materializeFlatRow } from './flat-highlight.js
 import { serializeEntries } from './serialize.js';
 import { threeWayMergeEdits, sameEditsEntries } from './edits-merge.js';
 import { applyEditsWriteSet, planEntryWrite } from './edit-plan.js';
+
+configureCommonWords(COMMON_WORDS);
 
 // scheduler.yield() (the executor's default) starves the worker's run/cancel
 // message on Chromium and a microtask yield never delivers it — either silently

@@ -23,6 +23,14 @@ for (const [base, forms] of Object.entries({
   for (const form of forms) IRREGULARS.set(form, base);
 }
 
+// Injected by the worker (the only place families are computed) rather than
+// imported, so the ~80 KB word list rides the worker bundle alone and not the
+// main bundle, which pulls morphology transitively but never reduces a token.
+let commonWords = new Set();
+export function configureCommonWords(raw) {
+  commonWords = new Set(raw.trim().split('\n'));
+}
+
 const ARTICLES = new Set(['a', 'an', 'the']);
 
 // ─── Reduction ───────────────────────────────────────────────────────────────
@@ -48,10 +56,18 @@ function candidates(word) {
 function reduceToken(word, vocab) {
   const base = IRREGULARS.get(word);
   if (base !== undefined) return base;
-  let best = null;
+  // A common candidate outranks a longer one, else a spurious longer stem in the
+  // list (French `calle` for `called`) beats the true base `call` on length and
+  // silently splits the paradigm. An all-uncommon set falls back to longest, so
+  // out-of-dictionary fill still anchors against the list's own vocabulary.
+  let best = null, bestCommon = false;
   for (const cand of candidates(word)) {
-    if (cand !== word && cand.length < word.length && vocab.has(cand)
-        && (best === null || cand.length > best.length)) best = cand;
+    if (cand === word || cand.length >= word.length || !vocab.has(cand)) continue;
+    const common = commonWords.has(cand);
+    if (best === null || (common && !bestCommon) || (common === bestCommon && cand.length > best.length)) {
+      best = cand;
+      bestCommon = common;
+    }
   }
   return best;
 }

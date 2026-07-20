@@ -1,6 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { familyKey, collectVocab, familyTokens } from '../../site/src/engine/morphology.js';
+import { familyKey, collectVocab, familyTokens, configureCommonWords } from '../../site/src/engine/morphology.js';
+import { COMMON_WORDS } from '../../site/src/engine/common-words-data.js';
+
+configureCommonWords(COMMON_WORDS);
 
 const GROUPS = [
   ['eat', 'eats', 'eating', 'ate', 'eaten'],
@@ -80,4 +83,26 @@ test('an irreducible word keys to itself, not an over-stripped fragment', () => 
   const v = collectVocab(['news', 'bus', 'red']);
   assert.equal(familyKey('bus', v), 'bus');
   assert.equal(familyKey('red', v), 'red');
+});
+
+test('a spurious longer stem in the list does not split a common base off its inflections', () => {
+  const v = collectVocab(['call', 'calls', 'called', 'calling', 'calle']);
+  const keys = new Set(['call', 'calls', 'called', 'calling'].map(e => familyKey(e, v)));
+  assert.equal(keys.size, 1, `expected one key, got: ${[...keys].join(', ')}`);
+  assert.equal(familyKey('called', v), 'call');
+  assert.notEqual(familyKey('calle', v), familyKey('call', v));
+});
+
+test('a silent-e verb keeps its -e base even when the consonant stem is in the list', () => {
+  const v = collectVocab(['hope', 'hopes', 'hoped', 'hoping', 'hop', 'hops']);
+  const keys = new Set(['hope', 'hopes', 'hoped', 'hoping'].map(e => familyKey(e, v)));
+  assert.equal(keys.size, 1, `expected one key, got: ${[...keys].join(', ')}`);
+  assert.equal(familyKey('hoped', v), 'hope');
+});
+
+test('with no common candidate, reduction falls back to the longest in-vocab stem', () => {
+  const v = collectVocab(['zorf', 'zorfs', 'zorfed', 'zorfing']);
+  const keys = new Set(['zorf', 'zorfs', 'zorfed', 'zorfing'].map(e => familyKey(e, v)));
+  assert.equal(keys.size, 1, `expected one key, got: ${[...keys].join(', ')}`);
+  assert.equal(familyKey('zorfed', v), 'zorf');
 });
