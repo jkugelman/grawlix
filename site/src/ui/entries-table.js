@@ -910,14 +910,23 @@ export class EntriesScroller extends BaseVirtualScroller {
     return wl ? { norm: wl.norm, display: wl.display ?? null } : null;
   }
 
-  _indexOfIdentity(id) {
+  // A transform chain row holds several atoms and the panel can open on any of
+  // them, so the walk matches every atom (not just atoms[0]) and returns the
+  // column, letting a step stay in it. Flat rows have one atom, so atom is 0.
+  _locateIdentity(id) {
     const key = this._idKey(id);
     for (const [i, decoded] of this._winCache) {
-      const wl = decoded.atoms?.[0]?.wlEntry;
-      if (wl && this._idKey({ norm: wl.norm, display: wl.display ?? null }) === key) return i;
+      const atoms = decoded.atoms;
+      if (!atoms) continue;
+      for (let atom = 0; atom < atoms.length; atom++) {
+        const wl = atoms[atom].wlEntry;
+        if (wl && this._idKey({ norm: wl.norm, display: wl.display ?? null }) === key) return { row: i, atom };
+      }
     }
-    return -1;
+    return { row: -1, atom: 0 };
   }
+
+  _indexOfIdentity(id) { return this._locateIdentity(id).row; }
 
   _setSelection(ids) {
     this._selection.clear();
@@ -1113,22 +1122,25 @@ export class EntriesScroller extends BaseVirtualScroller {
   // The panel suppresses the scroller's own key nav while modal, so the walk must
   // drive the cursor from here rather than through _onListboxKeydown. Anchor on the
   // panel's active identity, not _cursorIndex: not every open sets the cursor (a touch
-  // tap, a Related-entry click, and a deep link don't).
-  // 'replace' so the table selection tracks the walked entry — a visible anchor, and
-  // Esc-then-Enter reopens the same one.
-  _walkBaseIndex(fromId) {
-    const base = fromId ? this._indexOfIdentity(fromId) : -1;
-    return base >= 0 ? base : this._cursorIndex;
+  // tap, a Related-entry click, and a deep link don't) — and the transform tier never
+  // does, so its walk relies entirely on locating the active atom here.
+  _walkBase(fromId) {
+    const loc = fromId ? this._locateIdentity(fromId) : { row: -1, atom: 0 };
+    return loc.row >= 0 ? loc : { row: this._cursorIndex, atom: loc.atom };
   }
 
   async stepPanelCursor(delta, fromId) {
     const n = this._renderRowCount();
-    const base = this._walkBaseIndex(fromId);
+    const { row: base, atom } = this._walkBase(fromId);
     if (n === 0 || base < 0) return null;
     const target = base + delta;
     if (target < 0 || target >= n) return null;
-    await this._moveCursor(target, 'replace');
-    return this._winCache.get(this._cursorIndex)?.atoms?.[0]?.wlEntry ?? null;
+    // Flat 'replace' tracks the walked row in the table selection (a visible anchor,
+    // and Esc-then-Enter reopens it); the transform tier has no selection, so 'move'
+    // just cursors + scrolls the row into view.
+    await this._moveCursor(target, this._flat ? 'replace' : 'move');
+    const atoms = this._winCache.get(this._cursorIndex)?.atoms;
+    return atoms?.[Math.min(atom, atoms.length - 1)]?.wlEntry ?? null;
   }
 
   // Cursor-only ('move', not 'replace'): a multi-select walk moves the cursor to the
@@ -1141,9 +1153,15 @@ export class EntriesScroller extends BaseVirtualScroller {
 
   panelWalkEdges(fromId) {
     const n = this._renderRowCount();
-    const base = this._walkBaseIndex(fromId);
+    const base = this._walkBase(fromId).row;
     return { atFirst: base <= 0, atLast: base >= n - 1 };
   }
+
+  // The walk steps the cursor, then the panel adopts the new active identity; re-
+  // render so the .active row highlight (keyed off that identity) follows. In the
+  // transform tier that highlight is the only anchor — no selection — so without
+  // this the walked row scrolls in unhighlighted.
+  repaintActiveRow() { this._render(); }
 
   _stickyOffsetPx() {
     const cs = getComputedStyle(document.documentElement);
@@ -3928,6 +3946,7 @@ export const EntryPanel = (() => {
   // panel rather than rewinding member-by-member.
   function walkTo(target, focus) {
     doOpen(target, null, activeScroller, focus, 'edit', false, true, false);
+    activeScroller?.repaintActiveRow?.();
     _navigate();
   }
 
