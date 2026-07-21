@@ -2,7 +2,6 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { executePipeline, rowLastEntry } from '../../site/src/engine/executor.js';
 import umiaqTool from '../../site/src/engine/tools/umiaq.js';
-import { buildByNormAll } from '../../site/src/engine/snapshot.js';
 
 function toolRow(def, params) {
   return {
@@ -21,7 +20,7 @@ const inertSearch = {
 
 function mergedWordlist(norms) {
   const entries = norms.map((n, i) => ({ norm: n, display: null, score: 100 - i, comment: '', _i: i }));
-  return { entries, byNorm: new Map(entries.map(e => [e.norm, e])), byNormAll: buildByNormAll(entries) };
+  return { entries, byNorm: new Map(entries.map(e => [e.norm, e])) };
 }
 
 async function run(query, norms) {

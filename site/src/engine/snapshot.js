@@ -23,15 +23,6 @@ export function buildByNorm(entries) {
   return byNorm;
 }
 
-export function buildByNormAll(entries) {
-  const byNormAll = new Map();
-  for (const row of entries) {
-    const list = byNormAll.get(row.norm);
-    if (list) list.push(row); else byNormAll.set(row.norm, [row]);
-  }
-  return byNormAll;
-}
-
 // One norm's canonical row. MUST match buildByNorm's rule (code-unit-min
 // display): the worker's owned-corpus splice routes through here, so a divergent
 // rule silently disagrees on case variants ('CAT' vs 'Cat').

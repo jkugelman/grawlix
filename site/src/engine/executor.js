@@ -3,6 +3,7 @@
 import { matchesRange } from './range.js';
 import { displayOf, toNorm, synthWlEntry } from './norm.js';
 import { normalizeParams } from './tools.js';
+import { mergedRowsForNorm } from './corpus.js';
 
 const ZERO_SCORE = { score: 0 };
 
@@ -426,10 +427,10 @@ async function runToolStage(rows, stackRow, prepared, mergedWordlist, y, emit = 
       for (const out of (result || [])) {
         const synthetic = Array.isArray(out.entry);
         const text = synthetic ? out.entry[0] : out.entry;
-        // A transform output surfaces EVERY (norm, display) entry sharing its norm,
-        // not just byNorm's winner — matching the base view's per-spelling rows.
-        // Collapse to the winner and transform results silently drop the other spellings.
-        const variants = synthetic ? null : mergedWordlist.byNormAll.get(toNorm(text));
+        // Emit one row per (norm, display) spelling sharing this output's norm,
+        // so transform results match the base merged view's per-spelling rows; a
+        // single-winner lookup would silently drop the other spellings (eta/ETA).
+        const variants = synthetic ? null : mergedRowsForNorm(mergedWordlist, toNorm(text));
         const targets = variants && variants.length
           ? variants
           : [synthWlEntry(text, synthetic ? tailEntry : ZERO_SCORE)];

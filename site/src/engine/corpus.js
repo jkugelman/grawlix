@@ -3,7 +3,7 @@
 // ─── Corpus ──────────────────────────────────────────────────────────────────
 
 import { sourceAccessor } from './sources.js';
-import { buildByNorm, buildByNormAll } from './snapshot.js';
+import { buildByNorm } from './snapshot.js';
 import { displayOf } from './norm.js';
 import { familyKey, collectVocab } from './morphology.js';
 
@@ -85,7 +85,7 @@ export function resolveCorpus(buckets, sourceList) {
 
   const sourceCounts = sourceList.map(wl => ({ wordlist: wl, count: sourceCountMap.get(wl) || 0 }));
 
-  return { entries, sourceCounts, byNorm: buildByNorm(entries), byNormAll: buildByNormAll(entries), byKey };
+  return { entries, sourceCounts, byNorm: buildByNorm(entries), byKey };
 }
 
 export function buildCorpus(sourceList) {
