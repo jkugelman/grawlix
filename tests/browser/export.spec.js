@@ -31,6 +31,24 @@ test('Copy header is a markdown link with backtick-quoted params', async ({ page
   expect(text).toMatch(/^\[Search `c\?t`\]\(http/);
 });
 
+test('Copy header prefixes an inverted filter with a 🚫', async ({ page }) => {
+  await gotoApp(page);
+  await addFixture(page);
+  await setStack(page, [{ tool: 'search', params: { pattern: 'c?t' }, invert: true }]);
+
+  const text = await getExport(page, 'copy');
+  expect(text).toMatch(/^\[🚫 Search `c\?t`\]\(http/);
+});
+
+test('Copy header prefixes a grouped tool with a ✱', async ({ page }) => {
+  await gotoApp(page);
+  await addFixture(page);
+  await setStack(page, [{ tool: 'letter_bank', grouped: true }]);
+
+  const text = await getExport(page, 'copy');
+  expect(text).toMatch(/^\[✱ Letter bank\]\(http/);
+});
+
 test('Copy renders multi-entry chains inline with their glyphs', async ({ page }) => {
   await gotoApp(page);
   await addFixture(page);
@@ -210,6 +228,17 @@ test('JSON metadata: tools array reflects pipeline order with params', async ({ 
   expect(json.tools).toEqual([
     { name: 'behead', params: { count: '1' } },
     { name: 'search', params: { pattern: 'a' } },
+  ]);
+});
+
+test('JSON metadata: tools array flags an inverted filter with invert:true', async ({ page }) => {
+  await gotoApp(page);
+  await addFixture(page);
+  await setStack(page, [{ tool: 'search', params: { pattern: 'a' }, invert: true }]);
+
+  const json = await getExport(page, 'json');
+  expect(json.tools).toEqual([
+    { name: 'search', params: { pattern: 'a' }, invert: true },
   ]);
 });
 

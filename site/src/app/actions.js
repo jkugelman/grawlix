@@ -1241,6 +1241,7 @@ function exportToolsMetadata(stack) {
     }
     if (Object.keys(params).length) entry.params = params;
     if (row.grouped) entry.grouped = true;
+    if (row.inverted()) entry.invert = true;
     out.push(entry);
   });
   return out;
@@ -1279,6 +1280,7 @@ export function exportFilename(stack, ext) {
     if (isBar && row.isInert()) return;
     parts.push(exportFilenameSegment(row.tool));
     if (row.grouped) parts.push('all');
+    if (row.inverted()) parts.push('not');
     const firstParam = row.def.params.find(p => row.params[p.key] && p.type !== 'checkbox');
     if (firstParam) {
       const seg = exportFilenameSegment(String(row.params[firstParam.key]));
@@ -1322,7 +1324,8 @@ function exportCopyHeader(stack) {
       const v = row.params[firstParam.key];
       label += firstParam.type === 'number' ? ` ${v}` : ' `' + v + '`';
     }
-    if (row.grouped) label += ' (all)';
+    if (row.grouped) label = '✱ ' + label;
+    if (row.inverted()) label = '🚫 ' + label;
     labels.push(label);
   });
   const desc = labels.length ? labels.join(' → ') : MERGED_NAME;

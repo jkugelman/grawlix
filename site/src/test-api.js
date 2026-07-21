@@ -402,7 +402,7 @@ const __grawlixTest = {
   workerAssetState: () => workerAssetStateForTest(),
 
   async setStack(stack) {
-    ToolStack.setStack(stack.filter(r => TOOLS[r.tool]).map(r => makeToolRow(r.tool, r.params || {}, !!r.grouped)));
+    ToolStack.setStack(stack.filter(r => TOOLS[r.tool]).map(r => makeToolRow(r.tool, r.params || {}, !!r.grouped, !!r.invert)));
     const p = renderMergedDetail();
     ToolStack.refreshGalleryActive();
     await p;

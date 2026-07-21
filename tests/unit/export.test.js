@@ -17,10 +17,11 @@ const chain = (...atoms) => ({ atoms });
 
 // A minimal exportFilename stack row. No state, no catalog: shipped makeToolRow
 // reads TOOLS, so it can't be fenced — this stubs only the members read here.
-const row = ({ tool = 'search', inert = false, grouped = false, params = {}, paramDefs = [] } = {}) => ({
+const row = ({ tool = 'search', inert = false, grouped = false, inverted = false, params = {}, paramDefs = [] } = {}) => ({
   tool,
   isInert: () => inert,
   grouped,
+  inverted: () => inverted,
   def: { params: paramDefs },
   params,
 });
@@ -120,6 +121,11 @@ test('exportFilename: a representative search row + first text param', () => {
 test('exportFilename: a grouped row inserts an "all" segment after the tool', () => {
   const stack = [row({ tool: 'anagram', grouped: true, paramDefs: [], params: {} })];
   assert.equal(exportFilename(stack, 'csv'), 'grawlix-anagram-all.csv');
+});
+
+test('exportFilename: an inverted row inserts a "not" segment before the param', () => {
+  const stack = [row({ tool: 'search', inverted: true, paramDefs: [{ key: 'pattern', type: 'text' }], params: { pattern: 'cat' } })];
+  assert.equal(exportFilename(stack, 'txt'), 'grawlix-search-not-cat.txt');
 });
 
 test('exportFilename: the first truthy non-checkbox param is appended; checkbox params are ignored', () => {
