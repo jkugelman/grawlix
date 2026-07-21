@@ -56,7 +56,7 @@ import { applyScoringChange } from './ui/rescore-editor.js';
 import { propagateDefaults as _propagateDefaults } from './model/scoring.js';
 import {
   addNewWordlist, applyWordlistText, bakeRescoring, saveEdit, saveEntry, deleteFromEdits, persistEdits,
-  buildCopyText, buildWordlistText, buildCSVText, buildExportJSONObject, exportFilename, _ready, loadIdle,
+  buildCopyLinkMarkdown, buildCopyResults, buildWordlistText, buildCSVText, buildExportJSONObject, exportFilename, _ready, loadIdle,
   setFetchRevealDelayForTest,
 } from './app/actions.js';
 import { serializeEntries } from './engine/serialize.js';
@@ -568,8 +568,9 @@ const __grawlixTest = {
     const grouped = isMultiLaneTier(scroller.sortTier);
     const tuple = scroller.sortTier === 'tuple';
     const stack = ToolStack.getStack();
-    if (format === 'copy')     return buildCopyText(rows, grouped, stack);
-    if (format === 'wordlist') return buildWordlistText(rows, grouped, getOutputFormat());
+    if (format === 'copy')          return buildCopyResults(rows, grouped);
+    if (format === 'markdown-link') return buildCopyLinkMarkdown(stack);
+    if (format === 'wordlist')      return buildWordlistText(rows, grouped, getOutputFormat());
     if (format === 'csv')      return buildCSVText(rows, grouped, stack, tuple, getOutputFormat());
     if (format === 'json')     return buildExportJSONObject(rows, grouped, stack, tuple);
     throw new Error(`Unknown export format: ${format}`);

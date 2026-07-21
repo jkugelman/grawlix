@@ -108,7 +108,7 @@ export function buildParamHTML(param, value, toolKey, wiring) {
   return `<span class="tool-row-param tool-row-param-text">${labelHTML}${buildTextInputHTML(param, value, toolKey, wiring)}</span>`;
 }
 
-export function positionPopover(el, anchor, { placement = 'above', offset = 6 } = {}) {
+export function positionPopover(el, anchor, { placement = 'above', offset = 6, align = 'left' } = {}) {
   const aRect = anchor.getBoundingClientRect();
   const eRect = el.getBoundingClientRect();
   let above = placement === 'above';
@@ -116,7 +116,8 @@ export function positionPopover(el, anchor, { placement = 'above', offset = 6 } 
   else if (!above && aRect.bottom + offset + eRect.height > window.innerHeight - 8) above = true;
   const top = above ? aRect.top - eRect.height - offset : aRect.bottom + offset;
   const maxLeft = window.innerWidth - eRect.width - 8;
-  const left = Math.max(8, Math.min(aRect.left, maxLeft));
+  const rawLeft = align === 'right' ? aRect.right - eRect.width : aRect.left;
+  const left = Math.max(8, Math.min(rawLeft, maxLeft));
   el.style.top  = top  + 'px';
   el.style.left = left + 'px';
 }

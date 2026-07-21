@@ -37,7 +37,7 @@ import {
 } from './ui/rendering.js';
 import { Router } from './app/router.js';
 import {
-  WordlistActions, init, regenerateFillOutputs, persistEdits, bakeMenuOpts, applyWordlistText, fetchWordlist, checkForUpdates, ingestFile, getAutoUpdate, addNewWordlist, deleteWordlist, deleteFromEdits, saveEdit, attachExternalEditHandlers, refreshDerivedDisplays, downloadSourceWordlist, downloadOriginalWordlist, downloadMergedWordlistFromPanel, buildExportMenuHTML, buildWordlistText, exportCopy, exportWordlist, exportCSV, exportJSON,
+  WordlistActions, init, regenerateFillOutputs, persistEdits, bakeMenuOpts, applyWordlistText, fetchWordlist, checkForUpdates, ingestFile, getAutoUpdate, addNewWordlist, deleteWordlist, deleteFromEdits, saveEdit, attachExternalEditHandlers, refreshDerivedDisplays, downloadSourceWordlist, downloadOriginalWordlist, downloadMergedWordlistFromPanel, buildExportMenuHTML, buildWordlistText, openCopyPopover, exportWordlist, exportCSV, exportJSON,
 } from './app/actions.js';
 
 // ─── Components ──────────────────────────────────────────────────────────────
@@ -64,7 +64,7 @@ function exposeWindowGlobals() {
     saveRuleField, deleteRule, addRule, resetRescoreRules, neutralizeRescoreRules,
     saveScoringField, deleteScoringRow, addScoringRow, resetScoringRules,
     applyRescoreDraft, cancelRescoreDraft, makeRescorePermanent,
-    exportCopy, exportWordlist, exportCSV, exportJSON,
+    openCopyPopover, exportWordlist, exportCSV, exportJSON,
     state, Router, ToolStack, SettingsDialog, Storage, TOOLS,
     getOutputFormat, setOutputFormat, persistMeta, persistEdits,
     downloadSourceWordlist, downloadOriginalWordlist, downloadMergedWordlistFromPanel, checkForUpdates, saveEdit,

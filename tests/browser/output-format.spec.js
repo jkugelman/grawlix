@@ -175,17 +175,50 @@ test.describe('results exports follow the output format', () => {
 });
 
 test.describe('stats-bar Share and Export menus', () => {
-  test('Share holds only Copy; Export holds the three file downloads', async ({ page }) => {
+  test('Share is a labeled trigger; Export lists the three file downloads', async ({ page }) => {
     await gotoApp(page);
     const controls = page.locator('#stats .stats-bar-controls');
     await expect(controls.locator('.more-menu-labeled')).toHaveCount(2);
+    await expect(controls.locator('.more-menu-labeled', { hasText: 'Share' })).toHaveCount(1);
 
-    const share  = controls.locator('.split-btn', { has: page.locator('.more-menu-labeled', { hasText: 'Share' }) });
     const exportM = controls.locator('.split-btn', { has: page.locator('.more-menu-labeled', { hasText: 'Export' }) });
-
-    await expect(share.locator('.split-btn-menu button')).toHaveText(['Copy to clipboard']);
     await expect(exportM.locator('.split-btn-menu button')).toHaveText([
       'Results as wordlist', 'Results as CSV', 'Results as JSON',
     ]);
+  });
+
+  test('Share opens a copy popover with markdown link, plain link, and results', async ({ page }) => {
+    await gotoApp(page);
+    await page.locator('#stats .stats-bar-controls .more-menu-labeled', { hasText: 'Share' }).click();
+
+    const pop = page.locator('.copy-popover.open');
+    await expect(pop).toBeVisible();
+
+    await expect(pop.locator('[data-field="mdlink"]')).toHaveValue(/^\[All Wordlists\]\(http/);
+    await expect(pop.locator('[data-field="link"]')).toHaveValue(page.url());
+    await expect(pop.locator('[data-label="results"]')).toHaveText('Results');
+  });
+
+  test('Copy buttons write their own field to the clipboard', async ({ page }) => {
+    await gotoApp(page);
+    // Stub writeText: reading the real clipboard needs a permission webkit won't grant, so it flakes in the full matrix.
+    await page.evaluate(() => {
+      window.__copied = [];
+      navigator.clipboard.writeText = t => { window.__copied.push(t); return Promise.resolve(); };
+    });
+    await page.locator('#stats .stats-bar-controls .more-menu-labeled', { hasText: 'Share' }).click();
+    const pop = page.locator('.copy-popover.open');
+    await expect(pop).toBeVisible();
+
+    await pop.locator('.copy-row-btn[data-copy="link"]').click();
+    await pop.locator('.copy-row-btn[data-copy="mdlink"]').click();
+    await pop.locator('.copy-row-btn[data-copy="results"]').click();
+    // The results copy awaits the async fill, so wait for all three writes to land.
+    await expect.poll(() => page.evaluate(() => window.__copied.length)).toBe(3);
+
+    const copied = await page.evaluate(() => window.__copied);
+    expect(copied[0]).toBe(page.url());
+    expect(copied[1]).toMatch(/^\[All Wordlists\]\(http/);
+    expect(copied[2]).not.toMatch(/^\[/);   // results body carries no link header
   });
 });

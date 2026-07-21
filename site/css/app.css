@@ -136,8 +136,8 @@ button.danger:hover:not(:disabled) { background: #e74c3c; border-color: #c0392b;
 /* Form inputs — shared chrome; checkboxes, radios, and ranges are excluded so
    they keep native rendering and their focus ring. :where() keeps the base at
    zero specificity so any component rule (invalid states, etc.) still overrides. */
-input:where(:not([type="checkbox"], [type="radio"], [type="range"])), select { background: var(--input-bg); color: var(--text); border: 1px solid var(--border); border-radius: 4px; font-family: inherit; font-size: 13px; }
-input:where(:not([type="checkbox"], [type="radio"], [type="range"])):focus, select:focus { outline: none; border-color: var(--accent); }
+input:where(:not([type="checkbox"], [type="radio"], [type="range"])), select, textarea { background: var(--input-bg); color: var(--text); border: 1px solid var(--border); border-radius: 4px; font-family: inherit; font-size: 13px; }
+input:where(:not([type="checkbox"], [type="radio"], [type="range"])):focus, select:focus, textarea:focus { outline: none; border-color: var(--accent); }
 input:disabled, select:disabled { opacity: 0.5; cursor: not-allowed; }
 
 /* Split button */
@@ -148,7 +148,8 @@ input:disabled, select:disabled { opacity: 0.5; cursor: not-allowed; }
 .split-btn.primary .split-btn-main:hover:not(:disabled) { background: var(--accent-hover); }
 .split-btn.primary .split-btn-arrow { background: var(--accent); color: white; border-color: var(--accent); border-left: 1px solid rgba(255,255,255,0.35); }
 .split-btn.primary .split-btn-arrow:hover:not(:disabled) { background: var(--accent-hover); }
-.split-btn-menu { display: none; position: absolute; top: 100%; right: 0; margin-top: 3px; background: var(--bg); border: 1px solid var(--border); border-radius: 4px; box-shadow: 0 2px 8px rgba(0,0,0,0.15); z-index: 200; padding: 4px 0; white-space: nowrap; }
+.split-btn-menu, .copy-popover { background: var(--bg); border: 1px solid var(--border); border-radius: 4px; box-shadow: 0 2px 8px rgba(0,0,0,0.15); z-index: 200; }
+.split-btn-menu { display: none; position: absolute; top: 100%; right: 0; margin-top: 3px; padding: 4px 0; white-space: nowrap; }
 .split-btn.open .split-btn-menu { display: block; }
 .split-btn-menu button { display: block; width: 100%; text-align: left; border: none; background: none; border-radius: 0; padding: 6px 13px; color: var(--text); }
 .split-btn-menu-header { padding: 4px 13px 5px; margin-bottom: 4px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--faint); border-bottom: 1px solid var(--border2); }
@@ -158,6 +159,16 @@ input:disabled, select:disabled { opacity: 0.5; cursor: not-allowed; }
 .more-menu-btn:has(svg):hover:not(:disabled) { background: var(--hover); }
 .more-menu-btn.more-menu-labeled { display: inline-flex; align-items: center; gap: 5px; font-size: 13px; padding: 4px 8px; }
 .more-menu-btn.more-menu-labeled .more-menu-caret { width: 8px; height: 5px; display: inline-block; }
+
+.copy-popover { position: fixed; display: none; width: 360px; max-width: calc(100vw - 16px); padding: 12px; }
+.copy-popover.open { display: block; }
+.copy-row + .copy-row { margin-top: 12px; }
+.copy-row-label { margin-bottom: 4px; }
+.copy-row-field { display: flex; gap: 6px; align-items: flex-start; }
+.copy-field { flex: 1; min-width: 0; padding: 5px 8px; }
+input.copy-field { overflow-x: auto; }
+.copy-results { line-height: 1.5; overflow: hidden; resize: none; }
+.copy-row-btn { flex: none; }
 
 #detail-panel { display: flex; flex-direction: column; min-width: 0; flex: 1 1 auto; }
 

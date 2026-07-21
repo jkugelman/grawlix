@@ -22,30 +22,30 @@ async function getExport(page, format) {
   return page.evaluate(f => window.__grawlixTest.exportText(f), format);
 }
 
-test('Copy header is a markdown link with backtick-quoted params', async ({ page }) => {
+test('Markdown link uses backtick-quoted params', async ({ page }) => {
   await gotoApp(page);
   await addFixture(page);
   await setStack(page, [{ tool: 'search', params: { pattern: 'c?t' } }]);
 
-  const text = await getExport(page, 'copy');
+  const text = await getExport(page, 'markdown-link');
   expect(text).toMatch(/^\[Search `c\?t`\]\(http/);
 });
 
-test('Copy header prefixes an inverted filter with a 🚫', async ({ page }) => {
+test('Markdown link prefixes an inverted filter with a 🚫', async ({ page }) => {
   await gotoApp(page);
   await addFixture(page);
   await setStack(page, [{ tool: 'search', params: { pattern: 'c?t' }, invert: true }]);
 
-  const text = await getExport(page, 'copy');
+  const text = await getExport(page, 'markdown-link');
   expect(text).toMatch(/^\[🚫 Search `c\?t`\]\(http/);
 });
 
-test('Copy header prefixes a grouped tool with a ✱', async ({ page }) => {
+test('Markdown link prefixes a grouped tool with a ✱', async ({ page }) => {
   await gotoApp(page);
   await addFixture(page);
   await setStack(page, [{ tool: 'letter_bank', grouped: true }]);
 
-  const text = await getExport(page, 'copy');
+  const text = await getExport(page, 'markdown-link');
   expect(text).toMatch(/^\[✱ Letter bank\]\(http/);
 });
 
@@ -73,21 +73,21 @@ test('Copy lists group members per line, no group key', async ({ page }) => {
   expect(memberLine).toBeTruthy();
 });
 
-test('Copy header omits backticks around numeric params', async ({ page }) => {
+test('Markdown link omits backticks around numeric params', async ({ page }) => {
   await gotoApp(page);
   await addFixture(page);
   await setStack(page, [{ tool: 'behead', params: { count: '1' } }]);
 
-  const text = await getExport(page, 'copy');
+  const text = await getExport(page, 'markdown-link');
   expect(text).toMatch(/^\[Behead 1\]\(http/);
 });
 
-test('Copy header for empty pipeline uses [All Wordlists](URL)', async ({ page }) => {
+test('Markdown link for empty pipeline uses [All Wordlists](URL)', async ({ page }) => {
   await gotoApp(page);
   await addFixture(page);
   await setStack(page, []);
 
-  const text = await getExport(page, 'copy');
+  const text = await getExport(page, 'markdown-link');
   expect(text).toMatch(/^\[All Wordlists\]\(http/);
 });
 

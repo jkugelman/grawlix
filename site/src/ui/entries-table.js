@@ -2676,6 +2676,19 @@ export class EntriesScroller extends BaseVirtualScroller {
     return reply.rows.map(r => this._richRowToChain(r, sourceById));
   }
 
+  // Only the flat tier needs bounding: its full result can be the whole merged
+  // corpus, so a full fetch+format for a few preview lines stalls. Grouped/transform
+  // are already windowed and small, so exportRows is cheap for them.
+  async exportPreviewRows(n) {
+    if (isMultiLaneTier(this.sortTier) || this._transform) return this.exportRows();
+    const reply = await fetchWorkerRows(this._currentStreamRunId(), 0, n);
+    if (!reply) return [];
+    const sourceById = new Map(state.sources.map(w => [w.dbKey, w]));
+    return reply.rows.map(r => this._richRowToChain(r, sourceById));
+  }
+
+  resultRowCount() { return this._renderRowCount(); }
+
   // The match guard is load-bearing: the shipped answer resolves whatever target
   // rode this run's dispatch, so on a mismatch (the panel re-targeted between
   // dispatch and rebind) it names the wrong entry. Post-flip there's no local

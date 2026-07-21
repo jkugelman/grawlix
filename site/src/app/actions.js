@@ -54,7 +54,7 @@ import {
 } from '../data/disk-sync.js';
 import { propagateDefaults } from '../model/scoring.js';
 import { showToast, showActionToast, showUndoToast } from '../ui/toasts.js';
-import { buildMoreMenuHTML } from '../ui/components.js';
+import { buildMoreMenuHTML, positionPopover } from '../ui/components.js';
 import { showConfirm, showAlert, showMergeConflict } from '../ui/dialogs/confirm.js';
 import { openUpdateSummaryDialog } from '../ui/dialogs/update-summary.js';
 import { SettingsDialog, cycleDarkMode } from '../ui/dialogs/settings.js';
@@ -1177,9 +1177,11 @@ export async function downloadOriginalWordlist(wordlist) {
 // See docs/design.md § Entries-table export.
 
 export function buildExportMenuHTML() {
-  return buildMoreMenuHTML([
-    ['Copy to clipboard', 'exportCopy()'],
-  ], { label: 'Share', title: 'Share results' }) +
+  const caret = `<svg class="more-menu-caret" aria-hidden="true" viewBox="0 0 8 5"><use href="#icon-arrow"/></svg>`;
+  const share = `<div class="split-btn">` +
+    `<button class="more-menu-btn more-menu-labeled" onclick="openCopyPopover(event)" title="Share results" aria-haspopup="dialog">Share${caret}</button>` +
+    `</div>`;
+  return share +
   buildMoreMenuHTML([
     ['Results as wordlist', 'exportWordlist()'],
     ['Results as CSV',      'exportCSV()'],
@@ -1312,7 +1314,7 @@ function chainCopyText(chain) {
 // Backtick the params: a wildcard like `*EARNING` would otherwise trigger
 // italic-on-rest-of-line in markdown renderers that parse formatting inside
 // link text — a silent breakage in Discord/GitHub, invisible in plain text.
-function exportCopyHeader(stack) {
+export function buildCopyLinkMarkdown(stack) {
   const url = location.href;
   const labels = [];
   stack.forEach((row, i) => {
@@ -1332,15 +1334,14 @@ function exportCopyHeader(stack) {
   return `[${desc}](${url})`;
 }
 
-export function buildCopyText(rows, grouped, stack) {
-  const header = exportCopyHeader(stack);
+export function buildCopyResults(rows, grouped) {
   const body = [];
   if (grouped) {
     for (const g of rows) body.push(g.chains.map(chainCopyText).join(', '));
   } else {
     body.push(...flatCopyLines(rows));
   }
-  return header + (body.length ? '\n' + body.join('\n') : '');
+  return body.join('\n');
 }
 
 export function flatCopyLines(chains) {
@@ -1375,20 +1376,125 @@ export function flatCopyLines(chains) {
   }).join(' '));
 }
 
-export async function exportCopy() {
-  const scroller = getEntriesScroller();
-  if (!scroller) return;
-  const grouped = isMultiLaneTier(scroller.sortTier);
-  const rows = await scroller.exportRows();
-  const text = buildCopyText(rows, grouped, ToolStack.getStack());
-  try {
-    await navigator.clipboard.writeText(text);
-  } catch (e) {
-    showToast('Copy failed — clipboard permission denied');
-    return;
-  }
-  showToast(`Copied ${exportCountPhrase(rows, scroller.sortTier)}`);
+// ── Copy popover ──
+// See docs/design.md § Copy to clipboard.
+
+const COPY_PREVIEW_ROWS = 6;
+
+function capLines(text, visible, total = null) {
+  const lines = text ? text.split('\n') : [];
+  const n = total ?? lines.length;
+  if (n <= visible) return lines.slice(0, visible).join('\n');
+  const shown = lines.slice(0, visible - 1);
+  shown.push(`+${(n - shown.length).toLocaleString()} more`);
+  return shown.join('\n');
 }
+
+function buildCopyPopoverHTML() {
+  const row = (kind, labelText, fieldHTML) =>
+    `<div class="copy-row">` +
+      `<div class="dialog-row-label copy-row-label" data-label="${kind}">${labelText}</div>` +
+      `<div class="copy-row-field">${fieldHTML}` +
+        `<button type="button" class="copy-row-btn" data-copy="${kind}">Copy</button>` +
+      `</div>` +
+    `</div>`;
+  const input = (kind, aria) => `<input class="copy-field" type="text" data-field="${kind}" readonly aria-label="${aria}">`;
+  return (
+    row('mdlink', 'Markdown link', input('mdlink', 'Markdown link')) +
+    row('link',   'Plain link',    input('link', 'Plain link')) +
+    row('results', 'Results', `<textarea class="copy-field copy-results" data-field="results" rows="6" wrap="off" readonly aria-label="Results"></textarea>`)
+  );
+}
+
+export const openCopyPopover = (() => {
+  let el, anchor, isOpen = false, seq = 0;
+
+  function ensure() {
+    if (el) return;
+    el = document.createElement('div');
+    el.className = 'copy-popover';
+    el.setAttribute('role', 'dialog');
+    el.setAttribute('aria-label', 'Share results');
+    el.tabIndex = -1;
+    el.innerHTML = buildCopyPopoverHTML();
+    el.addEventListener('click', onCopyClick);
+    document.body.appendChild(el);
+  }
+
+  const fieldEl = kind => el.querySelector(`[data-field="${kind}"]`);
+
+  async function onCopyClick(e) {
+    const btn = e.target.closest('.copy-row-btn');
+    if (!btn) return;
+    const kind = btn.dataset.copy;
+    let text, toast;
+    if (kind === 'results') {
+      const scroller = getEntriesScroller();
+      const rows = scroller ? await scroller.exportRows() : [];
+      text = buildCopyResults(rows, scroller ? isMultiLaneTier(scroller.sortTier) : false);
+      toast = `Copied ${exportCountPhrase(rows, scroller?.sortTier)}`;
+    } else if (kind === 'mdlink') { text = fieldEl(kind).value; toast = 'Markdown link copied'; }
+    else                         { text = fieldEl(kind).value; toast = 'Link copied'; }
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch (err) {
+      showToast('Copy failed — clipboard permission denied');
+      return;
+    }
+    showToast(toast);
+  }
+
+  function reposition() { if (isOpen) positionPopover(el, anchor, { placement: 'below', align: 'right', offset: 6 }); }
+
+  const onDocClick = e => { if (isOpen && !el.contains(e.target) && !anchor.contains(e.target)) close(); };
+  const onKeyDown  = e => { if (isOpen && e.key === 'Escape') { close(); anchor.focus(); } };
+
+  function show() {
+    isOpen = true;
+    // Capture phase: a split menu's toggle stops the click from bubbling, so a
+    // bubble-phase dismiss would silently miss it and leave this popover open.
+    document.addEventListener('click', onDocClick, true);
+    document.addEventListener('keydown', onKeyDown, true);
+    window.addEventListener('resize', reposition);
+    window.addEventListener('scroll', reposition, true);
+    el.classList.add('open');
+  }
+
+  function close() {
+    isOpen = false;
+    document.removeEventListener('click', onDocClick, true);
+    document.removeEventListener('keydown', onKeyDown, true);
+    window.removeEventListener('resize', reposition);
+    window.removeEventListener('scroll', reposition, true);
+    el.classList.remove('open');
+  }
+
+  async function fill(mySeq) {
+    fieldEl('mdlink').value = buildCopyLinkMarkdown(ToolStack.getStack());
+    fieldEl('link').value = location.href;
+    fieldEl('results').value = '…';
+    const scroller = getEntriesScroller();
+    if (!scroller) { fieldEl('results').value = ''; return; }
+    const grouped = isMultiLaneTier(scroller.sortTier);
+    const total = scroller.resultRowCount();
+    const rows = await scroller.exportPreviewRows(COPY_PREVIEW_ROWS);
+    if (mySeq !== seq) return;   // superseded by a reopen
+    fieldEl('results').value = capLines(buildCopyResults(rows, grouped), COPY_PREVIEW_ROWS, total);
+    reposition();   // preview height changed
+  }
+
+  return function openCopyPopover(event) {
+    event.stopPropagation();
+    const trigger = event.currentTarget;
+    if (isOpen && anchor === trigger) { close(); return; }
+    document.querySelectorAll('.split-btn.open').forEach(b => b.classList.remove('open'));
+    ensure();
+    anchor = trigger;
+    fill(++seq);
+    show();
+    reposition();
+  };
+})();
 
 // ── Wordlist ──
 
