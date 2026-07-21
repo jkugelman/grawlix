@@ -1,12 +1,14 @@
 import { test, expect } from '@playwright/test';
 import { stubPublisherFetches, gotoApp } from './helpers.js';
 
-// A search <mark> carries a 1px background bleed (padding + compensating negative
-// margin). When the match lands at the entry's trailing edge — a suffix match, or
-// a whole-string match like "blin" — that bleed used to overflow the shrink-wrapped
-// entry cell by 1px and falsely trip text-overflow:ellipsis, lopping off the last
-// character ("blin" rendered as "bli…"). text-overflow leaves textContent intact,
-// so the only observable signal is scrollWidth exceeding clientWidth.
+// A search <mark> at the entry's trailing edge (a suffix or whole-string match
+// like "blin") can overflow the shrink-wrapped cell by 1px and trip
+// text-overflow:ellipsis, lopping off the last character ("blin" as "bli…").
+//
+// Measured float-precise on purpose: the overflow is sub-pixel, so the obvious
+// scrollWidth>clientWidth check (integer, both sides round equal) silently misses
+// it in Firefox — the only engine the bug manifests in. Compare the text's
+// rendered right edge (a Range rect) against the cell's content-box right edge.
 
 test.beforeEach(async ({ page }) => {
   await stubPublisherFetches(page);
@@ -33,7 +35,13 @@ function rowClips(page) {
     await window.__grawlixTest.pipelineIdle?.();
     return [...document.querySelectorAll('#vs-host .entry-row')].map(r => {
       const el = r.querySelector('.atom-entry');
-      return { text: (el?.textContent || '').trim(), clipped: el.scrollWidth > el.clientWidth };
+      const cs = getComputedStyle(el);
+      const box = el.getBoundingClientRect();
+      const contentRight = box.right - parseFloat(cs.paddingRight) - parseFloat(cs.borderRightWidth);
+      const rng = document.createRange();
+      rng.selectNodeContents(el);
+      const textRight = rng.getBoundingClientRect().right;
+      return { text: (el?.textContent || '').trim(), clipped: textRight - contentRight > 0.5 };
     });
   });
 }
