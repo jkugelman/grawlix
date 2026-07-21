@@ -15,11 +15,21 @@ const panel = page => page.locator('#entry-panel');
 const link = page => panel(page).locator('.entry-panel-suggest-link');
 const lookup = page => panel(page).locator('.entry-panel-lookup');
 
+// The rename hint renders segmenter spacing first, then a 600ms debounce fires the
+// reference resolution that upgrades it. Asserting the pre-upgrade spacing races
+// that debounce and flakes under load, so tests gate the reference route on a latch.
+function referenceLatch() {
+  let release;
+  const held = new Promise(r => { release = r; });
+  return { held, release };
+}
+
 // Registered after gotoApp's catch-all 404 lookup stubs, so these more-specific
 // handlers win. Only the spaced query "helen of troy" resolves; the bare concat
 // and every other query fall through to empty, so the bare entry draws a blank.
-async function stubHelenOfTroy(page) {
-  await page.route(/action=opensearch/, route => {
+async function stubHelenOfTroy(page, gate) {
+  await page.route(/action=opensearch/, async route => {
+    if (gate) await gate;
     if (/search=helen(?:%20|\+| )of(?:%20|\+| )troy/i.test(route.request().url())) {
       route.fulfill({ status: 200, contentType: 'application/json',
         body: JSON.stringify(['helen of troy', ['Helen of Troy'], [''], ['https://en.wikipedia.org/wiki/Helen_of_Troy']]) });
@@ -35,9 +45,9 @@ async function stubHelenOfTroy(page) {
     }) }));
 }
 
-async function seed(page) {
+async function seed(page, gate) {
   await gotoApp(page);
-  await stubHelenOfTroy(page);
+  await stubHelenOfTroy(page, gate);
   await page.evaluate(w => window.__grawlixTest.addCustomWordlist(w),
     { name: 'Src', entries: ['helenoftroy', 'helen', 'of', 'troy'], scores: [50, 50, 50, 50] });
   await page.evaluate(() => window.__grawlixTest.pipelineIdle());
@@ -53,9 +63,11 @@ async function openPanelFor(page, norm) {
 }
 
 test('rename hint upgrades from segmenter spacing to the canonical casing', async ({ page }) => {
-  await seed(page);
+  const latch = referenceLatch();
+  await seed(page, latch.held);
   await openPanelFor(page, 'helenoftroy');
-  await expect(link(page)).toHaveText('helen of troy');   // stage 1: plain spacing
+  await expect(link(page)).toHaveText('helen of troy');   // stage 1: plain spacing (reference held)
+  latch.release();
   await expect(link(page)).toHaveText('Helen of Troy');   // stage 2: canonical, in place
 });
 
@@ -101,8 +113,9 @@ test('a respelling that would strip a capital is suppressed', async ({ page }) =
 // Only the singular "dna sequencer" resolves (a Wikipedia entity); the negative
 // lookahead makes the plural query miss, so the plural must recover its casing by
 // resolving the singular and re-adding the "s".
-async function stubDnaSequencer(page) {
-  await page.route(/action=opensearch/, route => {
+async function stubDnaSequencer(page, gate) {
+  await page.route(/action=opensearch/, async route => {
+    if (gate) await gate;
     if (/search=dna(?:%20|\+| )sequencer(?!s)/i.test(route.request().url())) {
       route.fulfill({ status: 200, contentType: 'application/json',
         body: JSON.stringify(['dna sequencer', ['DNA sequencer'], [''], ['https://en.wikipedia.org/wiki/DNA_sequencer']]) });
@@ -119,8 +132,9 @@ async function stubDnaSequencer(page) {
 }
 
 test('a plural recovers its singular’s casing and re-adds the "s"', async ({ page }) => {
+  const latch = referenceLatch();
   await gotoApp(page);
-  await stubDnaSequencer(page);
+  await stubDnaSequencer(page, latch.held);
   await page.evaluate(w => window.__grawlixTest.addCustomWordlist(w),
     { name: 'Src', entries: ['dnasequencers', 'dna', 'sequencer', 'sequencers'], scores: [50, 50, 50, 50] });
   await page.evaluate(() => window.__grawlixTest.pipelineIdle());
@@ -128,7 +142,8 @@ test('a plural recovers its singular’s casing and re-adds the "s"', async ({ p
     { dna: -3, sequencer: -4, sequencers: -4 });
 
   await openPanelFor(page, 'dnasequencers');
-  await expect(link(page)).toHaveText('dna sequencers');   // stage 1: plain spacing
+  await expect(link(page)).toHaveText('dna sequencers');   // stage 1: plain spacing (reference held)
+  latch.release();
   await expect(link(page)).toHaveText('DNA sequencers');   // stage 2: singular's casing + "s"
 });
 
@@ -252,17 +267,22 @@ test('a phrase Wikipedia force-caps but Wiktionary lowercases keeps the lowercas
 // Mirror of the case above: "theirs" is a real spaceless word, so the suppressor
 // must keep it and retract the "the irs" split. Wikipedia is left to 404, so only
 // Wiktionary's spaceless form stands.
-async function stubTheirs(page) {
-  await page.route(/en\.wiktionary\.org\/w\/api\.php/, route =>
-    /srsearch=theirs&/i.test(route.request().url())
-      ? route.fulfill({ status: 200, contentType: 'application/json',
-          body: JSON.stringify({ query: { search: [{ title: 'theirs' }] } }) })
-      : route.fulfill({ status: 404, contentType: 'application/json', body: '{}' }));
+async function stubTheirs(page, gate) {
+  await page.route(/en\.wiktionary\.org\/w\/api\.php/, async route => {
+    if (gate) await gate;
+    if (/srsearch=theirs&/i.test(route.request().url())) {
+      route.fulfill({ status: 200, contentType: 'application/json',
+        body: JSON.stringify({ query: { search: [{ title: 'theirs' }] } }) });
+    } else {
+      route.fulfill({ status: 404, contentType: 'application/json', body: '{}' });
+    }
+  });
 }
 
 test('a real spaceless word is kept whole, retracting the segmenter split', async ({ page }) => {
+  const latch = referenceLatch();
   await gotoApp(page);
-  await stubTheirs(page);
+  await stubTheirs(page, latch.held);
   await page.evaluate(w => window.__grawlixTest.addCustomWordlist(w),
     { name: 'Src', entries: ['theirs', 'the', 'irs'], scores: [50, 50, 50] });
   await page.evaluate(() => window.__grawlixTest.pipelineIdle());
@@ -270,9 +290,9 @@ test('a real spaceless word is kept whole, retracting the segmenter split', asyn
     { the: -1, irs: -3 });
 
   await openPanelFor(page, 'theirs');
-  await expect(link(page)).toHaveText('the irs');   // stage 1: the segmenter's split
+  await expect(link(page)).toHaveText('the irs');   // stage 1: the segmenter's split (reference held)
+  latch.release();
   // Resolved form equals the entry → no rename: the suppressor retracts the split.
-  await page.waitForTimeout(900);
   await expect(link(page)).toHaveCount(0);
 });
 
