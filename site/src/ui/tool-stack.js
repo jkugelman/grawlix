@@ -236,7 +236,7 @@ export const SymbolSuggest = (() => {
 })();
 
 // Renders for every filter-CAPABLE tool, graying out when params currently make the
-// row a transform. Gating on kind() instead reads cleaner but rebuilds the label
+// row a transform. Gating on kind() instead reads cleaner but rebuilds the row
 // mid-keystroke, dropping the search bar's focus.
 function invertOptsFor(row, rowToken) {
   const def = TOOLS[row.tool];
@@ -252,44 +252,45 @@ export function buildSearchBarHTML() {
   const parts = buildToolRowPartsHTML(TOOLS.search.params, row.params, 'search',
     p => ` data-row="bar" data-key="${p.key}"${p.key === 'pattern' ? ' title="Search (Alt-S)"' : ''}`,
     { findReplace: true, rowToken: 'bar', expanded: ToolStack.isRowExpanded('bar') });
-  const label = buildToolLabelHTML(TOOLS.search, undefined, invertOptsFor(row, 'bar'));
+  const label = buildToolLabelHTML(TOOLS.search);
+  const invert = buildInvertButtonHTML(invertOptsFor(row, 'bar'));
   const solo = ToolStack.getUserStack().length === 0 ? ' solo' : '';
-  return `<div class="search-bar${solo}">
+  const inverted = row.inverted() ? ' inverted' : '';
+  return `<div class="search-bar${solo}${inverted}">
       <span class="drag-handle" aria-hidden="true">≡</span>
       ${label}
       ${parts.caret}
       ${parts.main}
       ${parts.asides}
+      ${invert}
+      <span class="tool-row-remove-placeholder" aria-hidden="true"></span>
       ${parts.replace}
     </div>`;
 }
 
 // Inline icon + name pair used by tool rows, the search bar, and gallery cards.
-// `icon` is raw HTML (emoji string or <svg>); `name` is plain text. `invert` makes
-// the icon the row's invert toggle; the gallery passes none.
-export function buildToolLabelHTML({ icon, name }, suffix, invert = null) {
+export function buildToolLabelHTML({ icon, name }, suffix) {
   const suf = suffix ? `<span class="tool-row-name-suffix"> · ${esc(suffix)}</span>` : '';
-  const iconHTML = invert
-    ? buildInvertToggleHTML(icon, invert)
-    : `<span class="icon tool-row-icon">${icon}</span>`;
-  const labelTitle = invert ? ` title="${esc(invertTooltip(invert))}"` : '';
-  return `<span class="tool-label"${labelTitle}>${iconHTML} `
+  return `<span class="tool-label"><span class="icon tool-row-icon"><span class="tool-row-icon-glyph">${icon}</span></span> `
     + `<span class="tool-row-name">${esc(name)}${suf}</span></span>`;
 }
 
-export function invertTooltip({ active, canInvert }) {
+export function invertTooltip({ canInvert }) {
   if (!canInvert) return 'Inverting needs a filter — clear the replacement';
-  return active ? 'Keep matches' : 'Exclude matches';
+  return 'Exclude matches';
 }
 
-function buildInvertToggleHTML(icon, { rowToken, active, canInvert }) {
-  const title = invertTooltip({ active, canInvert });
-  const cls = ['icon', 'tool-row-icon', 'tool-row-invert'];
+function buildInvertButtonHTML(invert) {
+  if (!invert) return '';
+  const { rowToken, active, canInvert } = invert;
+  const title = invertTooltip({ canInvert });
+  const cls = ['tool-row-invert'];
   if (active) cls.push('active');
   if (!canInvert) cls.push('disabled');
   return `<button type="button" class="${cls.join(' ')}" data-invert="${rowToken}"`
     + ` aria-pressed="${active}" aria-disabled="${!canInvert}"`
-    + ` aria-label="${esc(title)}"><span class="tool-row-invert-icon">${icon}</span></button>`;
+    + ` title="${esc(title)}" aria-label="${esc(title)}">`
+    + `<svg width="14" height="14" aria-hidden="true"><use href="#icon-ban"/></svg></button>`;
 }
 
 export function allModeTooltip({ blocked, active, kind }) {
@@ -417,13 +418,16 @@ export const ToolStack = (() => {
     if (tool.group) main = decorateMainWithAllToggle(main, idx, row);
     const remove = `<button type="button" class="tool-row-remove" data-remove="${idx}" title="Remove" aria-label="Remove ${esc(tool.name)}"><svg width="12" height="12"><use href="#icon-x"/></svg></button>`;
     const errBtn = `<button type="button" class="icon tool-row-error-btn" data-error-row="${idx}" aria-label="Tool error" hidden>⚠️</button>`;
-    return `<div class="tool-row" data-tool="${esc(row.tool)}">
+    const invert = buildInvertButtonHTML(invertOptsFor(row, idx));
+    const inverted = row.inverted() ? ' inverted' : '';
+    return `<div class="tool-row${inverted}" data-tool="${esc(row.tool)}">
       ${buildDragHandleHTML()}
-      ${buildToolLabelHTML(tool, undefined, invertOptsFor(row, idx))}
+      ${buildToolLabelHTML(tool)}
       ${parts.caret}
       ${main}
       ${parts.asides}
       ${errBtn}
+      ${invert}
       ${remove}
       ${parts.replace}
     </div>`;
@@ -689,13 +693,15 @@ export const ToolStack = (() => {
   function syncInvertState(rowEl, row) {
     const canInvert = row.kind() === 'filter';
     if (!canInvert) row.invert = false;
+    const on = row.inverted();
+    rowEl?.classList.toggle('inverted', on);
     const btn = rowEl?.querySelector('.tool-row-invert');
     if (!btn) return;
-    const title = invertTooltip({ active: !!row.invert, canInvert });
-    btn.classList.toggle('active', !!row.invert);
+    const title = invertTooltip({ canInvert });
+    btn.classList.toggle('active', on);
     btn.classList.toggle('disabled', !canInvert);
-    btn.closest('.tool-label').title = title;
-    btn.setAttribute('aria-pressed', String(!!row.invert));
+    btn.title = title;
+    btn.setAttribute('aria-pressed', String(on));
     btn.setAttribute('aria-disabled', String(!canInvert));
     btn.setAttribute('aria-label', title);
   }
@@ -839,7 +845,7 @@ export const ToolStack = (() => {
         toggleAllMode(parseInt(allBtn.dataset.allToggle, 10));
         return;
       }
-      const invertBtn = e.target.closest('.tool-label')?.querySelector('.tool-row-invert[data-invert]');
+      const invertBtn = e.target.closest('.tool-row-invert[data-invert]');
       if (invertBtn) {
         if (!invertBtn.classList.contains('disabled')) toggleInvert(invertBtn.dataset.invert);
         return;

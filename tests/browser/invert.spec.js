@@ -1,6 +1,3 @@
-// The invert toggle — the tool icon doubles as it, so the mode costs no row width.
-// See docs/design.md § Tool gallery & stack.
-
 import { test, expect } from '@playwright/test';
 import { stubPublisherFetches, gotoApp, addTool, expectVisible } from './helpers.js';
 
@@ -16,26 +13,28 @@ async function fixture(page) {
   }));
 }
 
-const barIcon = page => page.locator('.search-bar .tool-row-invert');
+const barBtn = page => page.locator('.search-bar .tool-row-invert');
 const url = page => new URL(page.url()).search;
 
-test('clicking the search bar icon inverts the filter and marks the URL', async ({ page }) => {
+test('clicking the search bar button inverts the filter and marks the URL', async ({ page }) => {
   await gotoApp(page);
   await fixture(page);
 
   await page.fill('.search-bar input[data-key="pattern"]', 'c?t');
   await expectVisible(page, ['cat', 'cot', 'cut']);
 
-  await barIcon(page).click();
+  await barBtn(page).click();
   await expectVisible(page, ['dog', 'level']);
   expect(url(page)).toContain('not');
-  await expect(barIcon(page)).toHaveAttribute('aria-pressed', 'true');
-  await expect(barIcon(page)).toHaveClass(/active/);
+  await expect(barBtn(page)).toHaveAttribute('aria-pressed', 'true');
+  await expect(barBtn(page)).toHaveClass(/active/);
+  await expect(page.locator('.search-bar')).toHaveClass(/inverted/);
 
-  await barIcon(page).click();
+  await barBtn(page).click();
   await expectVisible(page, ['cat', 'cot', 'cut']);
   expect(url(page)).not.toContain('not');
-  await expect(barIcon(page)).toHaveAttribute('aria-pressed', 'false');
+  await expect(barBtn(page)).toHaveAttribute('aria-pressed', 'false');
+  await expect(page.locator('.search-bar')).not.toHaveClass(/inverted/);
 });
 
 test('a `not` URL boots inverted', async ({ page }) => {
@@ -43,10 +42,11 @@ test('a `not` URL boots inverted', async ({ page }) => {
   await fixture(page);
   await gotoApp(page, '?search=c%3Ft&not');
   await expectVisible(page, ['dog', 'level']);
-  await expect(barIcon(page)).toHaveAttribute('aria-pressed', 'true');
+  await expect(barBtn(page)).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('.search-bar')).toHaveClass(/inverted/);
 });
 
-test('a param-less tool row inverts from its own icon', async ({ page }) => {
+test('a param-less tool row inverts from its button', async ({ page }) => {
   await gotoApp(page);
   await fixture(page);
   await addTool(page, 'isograms');
@@ -54,18 +54,25 @@ test('a param-less tool row inverts from its own icon', async ({ page }) => {
 
   await page.locator('.tool-row .tool-row-invert').click();
   await expectVisible(page, ['level']);
+  await expect(page.locator('.tool-row')).toHaveClass(/inverted/);
 });
 
-test('a tool row inverts from its name too, and the label carries the tooltip', async ({ page }) => {
+test('the button carries the tooltip; clicking the tool name or icon does not invert', async ({ page }) => {
   await gotoApp(page);
   await fixture(page);
   await addTool(page, 'isograms');
   await expectVisible(page, ['cat', 'cot', 'cut', 'dog']);
 
   await page.locator('.tool-row .tool-row-name').click();
+  await page.locator('.tool-row .tool-row-icon').click();
+  await expectVisible(page, ['cat', 'cot', 'cut', 'dog']);
+  await expect(page.locator('.tool-row .tool-row-invert')).not.toHaveClass(/active/);
+  await expect(page.locator('.tool-row .tool-row-invert')).toHaveAttribute('title', 'Exclude matches');
+
+  await page.locator('.tool-row .tool-row-invert').click();
   await expectVisible(page, ['level']);
   await expect(page.locator('.tool-row .tool-row-invert')).toHaveClass(/active/);
-  await expect(page.locator('.tool-row .tool-label')).toHaveAttribute('title', 'Keep matches');
+  await expect(page.locator('.tool-row .tool-row-invert')).toHaveAttribute('title', 'Exclude matches');
 });
 
 // The mutual exclusion: Search's kind is params-derived, so a replacement makes the
@@ -75,16 +82,17 @@ test('typing a replacement clears invert and disables the toggle', async ({ page
   await gotoApp(page);
   await fixture(page);
   await page.fill('.search-bar input[data-key="pattern"]', 'c?t');
-  await barIcon(page).click();
+  await barBtn(page).click();
   expect(url(page)).toContain('not');
 
   await page.locator('.search-bar .find-replace-caret').click();
   await page.fill('.search-bar .tool-row-replace input', 'zzz');
 
   expect(url(page)).not.toContain('not');
-  await expect(barIcon(page)).toHaveClass(/disabled/);
-  await expect(barIcon(page)).toHaveAttribute('aria-disabled', 'true');
-  await expect(barIcon(page)).not.toHaveClass(/active/);
+  await expect(barBtn(page)).toHaveClass(/disabled/);
+  await expect(barBtn(page)).toHaveAttribute('aria-disabled', 'true');
+  await expect(barBtn(page)).not.toHaveClass(/active/);
+  await expect(page.locator('.search-bar')).not.toHaveClass(/inverted/);
 });
 
 test('a disabled toggle ignores clicks', async ({ page }) => {
@@ -94,7 +102,7 @@ test('a disabled toggle ignores clicks', async ({ page }) => {
   await page.locator('.search-bar .find-replace-caret').click();
   await page.fill('.search-bar .tool-row-replace input', 'zzz');
 
-  await barIcon(page).click({ force: true });
+  await barBtn(page).click({ force: true });
   expect(url(page)).not.toContain('not');
-  await expect(barIcon(page)).toHaveAttribute('aria-pressed', 'false');
+  await expect(barBtn(page)).toHaveAttribute('aria-pressed', 'false');
 });

@@ -220,9 +220,9 @@ input.copy-field { overflow-x: auto; }
 html.light-mode .histogram-bar { filter: saturate(1.8) brightness(0.9); }
 html.light-mode .histogram-rect { opacity: 0.11; }
 
-.search-bar { padding: 8px 14px; background: var(--surface); border-bottom: 1px solid var(--border2); display: grid; grid-template-columns: auto auto auto minmax(80px, auto) auto 1fr; align-items: center; column-gap: 0; row-gap: 6px; position: relative; }
+.search-bar { padding: 8px 14px; background: var(--surface); border-bottom: 1px solid var(--border2); display: grid; grid-template-columns: auto auto auto minmax(64px, auto) auto 1fr auto auto; align-items: center; column-gap: 0; row-gap: 6px; position: relative; }
 .search-bar > .tool-label { margin-left: 12px; }
-.search-bar > .find-replace-caret { margin-left: 12px; }
+.search-bar > .find-replace-caret { margin-left: 4px; }
 .search-bar > .tool-row-param-text { padding-left: 12px; }
 .search-bar > .find-replace-caret ~ .tool-row-param-text { padding-left: 6px; }
 .search-bar > .tool-row-param:not(.tool-row-param-text) { margin-left: 12px; }
@@ -1268,14 +1268,14 @@ body.picker-expanded #picker-backdrop { opacity: 1; }
    doesn't shrink below the height of an input-bearing row, and the search
    bar (visually the bottom row of the stack) lines up with them. */
 .tool-row, .search-bar { min-height: 42px; --tool-control-h: 30px; }
-.tool-row { position: relative; display: grid; grid-template-columns: auto auto auto minmax(80px, auto) auto 1fr auto; align-items: center; padding: 8px 14px; border-bottom: 1px solid var(--border2); column-gap: 0; row-gap: 6px; overflow: hidden; }
+.tool-row { position: relative; display: grid; grid-template-columns: auto auto auto minmax(80px, auto) auto 1fr auto auto; align-items: center; padding: 8px 14px; border-bottom: 1px solid var(--border2); column-gap: 0; row-gap: 6px; overflow: hidden; }
 .tool-row > .tool-label { margin-left: 12px; }
 /* The tool name and its handle sit on the first control line, not centered
    against a multi-line body (e.g. a Rebus row with several pairs). */
 .tool-row > .tool-label, .tool-row > .drag-handle,
 .search-bar > .tool-label, .search-bar > .drag-handle { align-self: start; min-height: var(--tool-control-h); }
 .tool-row > .drag-handle, .search-bar > .drag-handle { display: inline-flex; align-items: center; }
-.tool-row > .find-replace-caret { margin-left: 12px; }
+.tool-row > .find-replace-caret { margin-left: 4px; }
 /* Pin the input to its column so it lands there with or without a preceding
    find/replace caret — otherwise a caret-less tool's input slides up into the
    caret column, leaving col4 as dead space that strands the error icon. */
@@ -1285,6 +1285,8 @@ body.picker-expanded #picker-backdrop { opacity: 1; }
 .tool-row > .tool-row-param:not(.tool-row-param-text) { margin-left: 12px; }
 .tool-row > .tool-row-asides { margin-left: 12px; }
 .tool-row > .tool-row-remove { grid-column: -2 / -1; margin-left: 12px; }
+.tool-row > .tool-row-invert, .search-bar > .tool-row-invert { grid-column: 7; margin-left: 8px; }
+.tool-row > .tool-row-invert + .tool-row-remove { margin-left: 2px; }
 .tool-row > .tool-row-replace > .tool-row-param-text { grid-column: 4; grid-row: 2; padding-left: 6px; }
 .tool-row > .tool-row-replace > .tool-row-asides { grid-column: 5; grid-row: 2; margin-left: 12px; }
 .tool-row:last-child { border-bottom: none; }
@@ -1309,7 +1311,8 @@ body.picker-expanded #picker-backdrop { opacity: 1; }
 .tool-stack-cursor { position: absolute; top: -1px; left: 10px; right: 10px; height: 2px; background: var(--accent); pointer-events: none; box-shadow: 0 0 6px color-mix(in srgb, var(--accent) 55%, transparent); }
 .tool-stack-cursor::before { content: ''; position: absolute; left: 0; top: 50%; width: 0; height: 0; transform: translateY(-50%); border-style: solid; border-width: 4px 0 4px 7px; border-color: transparent transparent transparent var(--accent); }
 .tool-label { white-space: nowrap; display: inline-flex; align-items: center; gap: 5px; }
-.tool-row-icon { font-size: 16px; line-height: 1; color: var(--muted); flex-shrink: 0; }
+.tool-row-icon { position: relative; font-size: 16px; line-height: 1; color: var(--muted); flex-shrink: 0; }
+.tool-row-icon-glyph { display: inline-flex; transition: filter 0.12s, opacity 0.12s; }
 .tool-row-name { font-size: 13px; font-weight: 600; color: var(--text); }
 .tool-row-name-suffix { font-weight: 400; color: var(--muted); }
 .tool-row-asides { display: flex; align-items: center; gap: 6px; }
@@ -1374,43 +1377,34 @@ body.picker-expanded #picker-backdrop { opacity: 1; }
 .tool-row-all-toggle.disabled:hover { color: var(--muted); background: none; }
 .tool-row-all-toggle .ast-glyph { font-size: 15px; line-height: 1; display: inline-block; }
 
-/* Invert lives on the tool's own icon rather than in a column of its own — a phone
-   row has no width to spare. Disabled must render identically to the plain icon a
-   non-invertible row shows, so hover and slash both drop out. */
-/* font-family alone, not the `font` shorthand: it resets font-size, and this rule
-   outranks .tool-row-icon's 16px by source order — the emoji would shrink. Same
-   reason `color` stays unset (the icon's --muted must win over the UA button color). */
-.tool-row-invert { position: relative; padding: 0; background: none; border: 0; border-radius: 4px; cursor: pointer; font-family: inherit; transition: background 0.15s; }
-.tool-row-invert::before { content: ''; position: absolute; inset: -6px; }   /* touch target, no layout cost */
-.tool-row-invert:focus-visible { outline: 1px solid var(--accent); outline-offset: 1px; }
-.tool-row-invert-icon { display: inline-flex; align-items: center; justify-content: center; transition: filter 0.12s, opacity 0.12s; }
-.tool-row-invert::after {
+.tool-row-invert { padding: 5px; background: none; border: 0; cursor: pointer; color: var(--faint); display: flex; align-items: center; justify-content: center; line-height: 1; transition: color 0.15s; }
+.tool-row-invert > svg { display: block; }
+.tool-row-invert:focus-visible { outline: 1px solid var(--accent); outline-offset: 1px; border-radius: 4px; }
+.tool-row-invert.active { color: #e53935; }
+.tool-row-invert.disabled { opacity: 0.4; cursor: default; }
+@media (hover: hover) {
+  .tool-row-invert:not(.active):not(.disabled):hover { color: var(--text); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tool-row-invert, .tool-row-icon-glyph { transition: none; }
+}
+
+/* Deliberately redundant with the button: keep both — dropping this red slash on the
+   tool's own icon loses inversion's at-a-glance read on the row. */
+.tool-row.inverted > .tool-label .tool-row-icon-glyph,
+.search-bar.inverted > .tool-label .tool-row-icon-glyph { filter: grayscale(1); opacity: 0.5; }
+.tool-row.inverted > .tool-label .tool-row-icon::after,
+.search-bar.inverted > .tool-label .tool-row-icon::after {
   content: ''; position: absolute; left: 50%; top: 50%; width: 22px; height: 2px;
   border-radius: 1px; background: #e53935; pointer-events: none;
   transform: translate(-50%, -50%) rotate(-45deg);
-  opacity: 0; transition: opacity 0.12s;
-}
-.tool-row-invert.active::after { opacity: 1; }
-.tool-row-invert.active .tool-row-invert-icon { filter: grayscale(1); opacity: 0.5; }
-.tool-row-invert.disabled { cursor: default; }
-.tool-row-invert.disabled::after { display: none; }
-/* Don't un-gate these onto plain :hover. Touch fires a sticky :hover on tap that never
-   clears until another tap, so an un-gated preview keeps painting the slash after
-   .active drops — the row reads as still-inverted. Invisible on a desktop dev machine. */
-@media (hover: hover) {
-  .tool-row-invert:hover { background: var(--hover); }
-  .tool-row-invert.disabled:hover { background: none; }
-  .tool-label:hover .tool-row-invert::after { opacity: 1; }
-  .tool-label:hover .tool-row-invert:not(.disabled) .tool-row-invert-icon { filter: grayscale(1); opacity: 0.5; }
-  .tool-label:has(.tool-row-invert:not(.disabled)) { cursor: pointer; }
-}
-@media (prefers-reduced-motion: reduce) {
-  .tool-row-invert, .tool-row-invert::after, .tool-row-invert-icon { transition: none; }
 }
 .tool-row-remove { background: none; border: none; color: var(--faint); cursor: pointer; padding: 5px; border-radius: 4px; line-height: 1; display: flex; align-items: center; justify-content: center; }
 .tool-row-remove:hover { color: var(--text); background: var(--hover); }
 .tool-row-remove-placeholder { width: 24px; height: 24px; }
-.tool-row > .tool-row-error-btn { grid-column: -3 / -2; justify-self: start; margin-left: 12px; }
+.search-bar > .tool-row-remove-placeholder { grid-column: -2 / -1; }
+.search-bar.solo > .tool-row-remove-placeholder { width: 0; }
+.tool-row > .tool-row-error-btn { grid-column: 6; justify-self: start; margin-left: 12px; }
 
 /* Rebus pair list */
 .tool-row > .rebus-pairs { margin-left: 12px; }
