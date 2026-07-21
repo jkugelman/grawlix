@@ -32,3 +32,13 @@ test('Count drops that many leading letters and marks them', async () => {
   const { rows } = await run(lib, [{ tool: 'behead', params: { count: '2' } }]);
   assert.deepEqual(highlightTexts(rowByFirst(rows, 'chair').atoms[0]), ['ch']);
 });
+
+test('a transform output surfaces every spelling that shares its norm', async () => {
+  const lib = [
+    { entry: 'swing', score: 50 },
+    { entry: 'wing', score: 40 },
+    { entry: 'w ing', score: 30 },   // distinct display, same norm as 'wing'
+  ];
+  sameVisible(await visible(lib, [{ tool: 'behead' }]),
+    [['swing', 'wing'], ['swing', 'w ing']]);
+});

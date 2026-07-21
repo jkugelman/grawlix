@@ -8,6 +8,7 @@ import {
   rowLastEntry,
   streamPlan,
 } from '../../site/src/engine/executor.js';
+import { buildByNormAll } from '../../site/src/engine/snapshot.js';
 
 const wlEntry = s => {
   const norm = toNorm(s);
@@ -18,7 +19,7 @@ function makeCorpus(words) {
   const entries = words.map(wlEntry);
   const byNorm = new Map();
   for (const e of entries) if (!byNorm.has(e.norm)) byNorm.set(e.norm, e);
-  return { entries, byNorm };
+  return { entries, byNorm, byNormAll: buildByNormAll(entries) };
 }
 
 const MATCHING = Array.from({ length: 200 }, (_, i) => `un${String(i).padStart(4, '0')}ed`);

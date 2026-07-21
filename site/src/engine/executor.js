@@ -424,20 +424,27 @@ async function runToolStage(rows, stackRow, prepared, mergedWordlist, y, emit = 
       }
     } else {
       for (const out of (result || [])) {
-        const atoms = rowAtoms(row).slice();
-        if (def.inputHighlights) {
-          atoms.push({ wlEntry: tailEntry, highlights: tagCoord(out.inputHighlights || [], coord), glyph: null });
-        }
         const synthetic = Array.isArray(out.entry);
         const text = synthetic ? out.entry[0] : out.entry;
-        const lookup = synthetic ? null : mergedWordlist.byNorm.get(toNorm(text));
-        const wlEntry = lookup || synthWlEntry(text, synthetic ? tailEntry : ZERO_SCORE);
-        atoms.push({
-          wlEntry,
-          highlights: def.outputHighlights ? tagCoord(out.outputHighlights || [], coord) : null,
-          glyph,
-        });
-        next.push({ atoms });
+        // A transform output surfaces EVERY (norm, display) entry sharing its norm,
+        // not just byNorm's winner — matching the base view's per-spelling rows.
+        // Collapse to the winner and transform results silently drop the other spellings.
+        const variants = synthetic ? null : mergedWordlist.byNormAll.get(toNorm(text));
+        const targets = variants && variants.length
+          ? variants
+          : [synthWlEntry(text, synthetic ? tailEntry : ZERO_SCORE)];
+        for (const wlEntry of targets) {
+          const atoms = rowAtoms(row).slice();
+          if (def.inputHighlights) {
+            atoms.push({ wlEntry: tailEntry, highlights: tagCoord(out.inputHighlights || [], coord), glyph: null });
+          }
+          atoms.push({
+            wlEntry,
+            highlights: def.outputHighlights ? tagCoord(out.outputHighlights || [], coord) : null,
+            glyph,
+          });
+          next.push({ atoms });
+        }
       }
     }
     if (y.due()) {
