@@ -2026,7 +2026,7 @@ export class EntriesScroller extends BaseVirtualScroller {
       if (!target.style.getPropertyValue(name)) target.style.setProperty(name, `${px}px`);
     };
     seed('--entry-w', sortableHeaderPx('Entry'));
-    seed('--len-w', sortableHeaderPx('Len'));
+    seed('--len-w', sortableHeaderPx('Length'));
     seed('--score-w', sortableHeaderPx('Score'));
   }
 
@@ -2055,7 +2055,7 @@ export class EntriesScroller extends BaseVirtualScroller {
     const target = this.host.closest('#detail-panel') || this.sizer;
     target.style.setProperty('--count-w', `${(countDigits + 1) * ch}px`);
     target.style.setProperty('--entry-w', `${Math.max(entryContentW, sortableHeaderPx('Entry'))}px`);
-    target.style.setProperty('--len-w', `${Math.max(maxLenDigits * ch, sortableHeaderPx('Len'))}px`);
+    target.style.setProperty('--len-w', `${Math.max(maxLenDigits * ch, sortableHeaderPx('Length'))}px`);
     const arrowPrefixW = maxRawDigits ? maxRawDigits * ch + measureScoreArrowPx() : 0;
     target.style.setProperty('--score-w', `${Math.max(badgeWidthPx(maxScoreDigits) + arrowPrefixW, sortableHeaderPx('Score'))}px`);
     target.style.setProperty('--source-max', `${sourceColMaxPx(sourceMatrixSlots().length)}px`);
@@ -2085,7 +2085,7 @@ export class EntriesScroller extends BaseVirtualScroller {
     const target = this.host.closest('#detail-panel') || this.sizer;
     target.style.setProperty('--count-w', `${(countDigits + 1) * ch}px`);
     target.style.setProperty('--entry-w', `${Math.max(entryContentW, sortableHeaderPx('Entry'))}px`);
-    target.style.setProperty('--len-w', `${Math.max(maxLenDigits * ch, sortableHeaderPx('Len'))}px`);
+    target.style.setProperty('--len-w', `${Math.max(maxLenDigits * ch, sortableHeaderPx('Length'))}px`);
     const arrowPrefixW = maxRawDigits ? maxRawDigits * ch + measureScoreArrowPx() : 0;
     target.style.setProperty('--score-w', `${Math.max(badgeWidthPx(maxScoreDigits) + arrowPrefixW, sortableHeaderPx('Score'))}px`);
     target.style.setProperty('--source-max', `${sourceColMaxPx(sourceMatrixSlots().length)}px`);
@@ -4606,7 +4606,7 @@ export function buildEntryHeadersHTML() {
   return `<div class="entry-headers entry-headers-font">
       <span></span>
       <span class="col-entry">${hdr('Entry', columnSortAxes('col-entry', tierAxes), 'col-entry')}</span>
-      <span class="col-len">${hdr('Len', columnSortAxes('col-len', tierAxes), 'col-len')}</span>
+      <span class="col-len">${hdr('Length', columnSortAxes('col-len', tierAxes), 'col-len')}</span>
       <span class="col-score">${hdr('Score', columnSortAxes('col-score', tierAxes), 'col-score')}</span>
       <span class="col-comment">${hdr('Comment', columnSortAxes('col-comment', tierAxes), 'col-comment')}</span>
       <span class="col-source">Sources</span>

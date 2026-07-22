@@ -76,7 +76,7 @@ test('URL search/sort/match-mode state applies on boot and updates as the UI cha
   await expect(page.locator('input[data-key="pattern"]')).toHaveValue('BAGEL');
   await expect(page.locator('.tool-row-match input[type="checkbox"]')).toBeChecked();
   await expect(page.locator('.tool-row-match .match-mode-label')).toHaveText('Whole entry');
-  await expect(page.locator('.col-len .col-sort')).toHaveAttribute('aria-label', 'Sort by Len, ascending');
+  await expect(page.locator('.col-len .col-sort')).toHaveAttribute('aria-label', 'Sort by Length, ascending');
 
   // The other half of the round-trip: drive the UI, watch the URL update.
   // Changing the search query is debounced (250ms), so poll the hash.
