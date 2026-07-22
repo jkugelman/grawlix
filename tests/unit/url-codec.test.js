@@ -86,7 +86,7 @@ test('an unknown key flags droppedUnknown', () => {
   assert.equal(decode('rebus=tool&symbol=' + enc('Ⓣ')).droppedUnknown, false);
 });
 
-test('an inverted row carries a bare `not` behind its slug', () => {
+test('an inverted row carries a bare `not` at its tail', () => {
   assert.equal(query(makeToolRow('search', { pattern: 'c?t' }, false, true)), 'search=c%3Ft&not');
   assert.equal(query(makeToolRow('isograms', {}, false, true)), 'isograms&not');
   assert.equal(query(makeToolRow('search', { pattern: 'c?t' })), 'search=c%3Ft');
@@ -100,7 +100,7 @@ test('`not` binds to its own row, not the next one', () => {
 
 test('`not` survives a round-trip alongside tail params', () => {
   const qs = query(makeToolRow('search', { pattern: 'c?t', mode: 'word' }, false, true));
-  assert.equal(qs, 'search=c%3Ft&not&mode=word');
+  assert.equal(qs, 'search=c%3Ft&mode=word&not');
   const row = decode(qs).rows[0];
   assert.equal(row.inverted(), true);
   assert.equal(row.params.mode, 'word');

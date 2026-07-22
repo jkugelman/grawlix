@@ -53,7 +53,7 @@ export function encodeRow(row) {
   const parts = !schema.length ? [slug]
     : schema.some(p => p.repeat) ? encodeRepeatRow(row, schema, slug)
     : [slug + '=' + encodeURIComponent(row.params[schema[0].key] || ''), ...encodeTailParams(row, schema)];
-  if (row.inverted()) parts.splice(1, 0, 'not');   // directly behind the slug: decode binds it to this row
+  if (row.inverted()) parts.push('not');   // at the row's tail: decode binds a bare flag to the current row
   return parts;
 }
 
