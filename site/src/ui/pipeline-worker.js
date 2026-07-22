@@ -650,14 +650,21 @@ function handleSelfReady(data) {
 // build also reports built:false (its work was discarded for a newer sync), but a
 // newer syncConfig is in flight that WILL drain the deferral, so its selfReady is
 // ignored — settling errored here would prematurely fail a run a later build serves.
+//
+// built:true needs the same latest-configId guard as built:false: two syncConfigs
+// can overlap (an automatic resync plus a caller's own explicit one), and an
+// earlier one's genuine built:true can arrive while the later is mid-rebuild,
+// about to null the corpus again. Dispatching on that stale signal sends a run
+// into the gap — the worker throws on the null corpus, and with no tool row to
+// blame (empty stack) it silently renders as an empty result, not an error.
 function applySelfReadyFreshness(data) {
   const scope = data.scope ?? MERGED_ID;
-  if (data.built) {
+  if (data.built && data.configId === configRequestId) {
     ownedFreshScope = scope;
     const waiters = _committedWaiters; _committedWaiters = [];
     waiters.forEach(w => w(true));
     drainDeferred();
-  } else if (data.configId === configRequestId && deferredRun && deferredRun.scope === scope) {
+  } else if (!data.built && data.configId === configRequestId && deferredRun && deferredRun.scope === scope) {
     const { stack, resolve } = deferredRun;
     deferredRun = null;
     resolve(erroredResult(stack));
