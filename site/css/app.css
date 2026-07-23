@@ -160,7 +160,7 @@ input:disabled, select:disabled { opacity: 0.5; cursor: not-allowed; }
 .more-menu-btn.more-menu-labeled { display: inline-flex; align-items: center; gap: 5px; font-size: 13px; padding: 4px 8px; }
 .more-menu-btn.more-menu-labeled .more-menu-caret { width: 8px; height: 5px; display: inline-block; }
 
-.copy-popover { position: fixed; display: none; width: 360px; max-width: calc(100vw - 16px); padding: 12px; }
+.copy-popover { position: fixed; display: none; width: 360px; max-width: calc(100vw - 16px); padding: 12px; --copy-arrow-w: 26px; }
 .copy-popover.open { display: block; }
 .copy-row + .copy-row { margin-top: 12px; }
 .copy-row-label { margin-bottom: 4px; }
@@ -169,6 +169,9 @@ input:disabled, select:disabled { opacity: 0.5; cursor: not-allowed; }
 input.copy-field { overflow-x: auto; }
 .copy-results { line-height: 1.5; overflow: hidden; resize: none; }
 .copy-row-btn { flex: none; }
+.copy-row-field > .copy-row-btn { margin-right: calc(var(--copy-arrow-w) - 1px); }
+.copy-row-split { flex: none; }
+.copy-row-split .split-btn-arrow { width: var(--copy-arrow-w); padding-left: 0; padding-right: 0; }
 
 #detail-panel { display: flex; flex-direction: column; min-width: 0; flex: 1 1 auto; }
 

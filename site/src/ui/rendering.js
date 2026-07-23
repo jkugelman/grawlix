@@ -37,17 +37,17 @@ let _refreshDerivedDisplays    = () => {};
 let _deleteFromEdits           = () => {};
 let _attachExternalEditHandlers = () => {};
 let _buildScoreRangeInputHTML  = () => '';
-let _buildExportMenuHTML       = () => '';
+let _buildShareControlHTML     = () => '';
 
 export function configureRendering({
   refreshDerivedDisplays, deleteFromEdits, attachExternalEditHandlers,
-  buildScoreRangeInputHTML, buildExportMenuHTML,
+  buildScoreRangeInputHTML, buildShareControlHTML,
 }) {
   if (refreshDerivedDisplays)     _refreshDerivedDisplays = refreshDerivedDisplays;
   if (deleteFromEdits)            _deleteFromEdits = deleteFromEdits;
   if (attachExternalEditHandlers) _attachExternalEditHandlers = attachExternalEditHandlers;
   if (buildScoreRangeInputHTML)   _buildScoreRangeInputHTML = buildScoreRangeInputHTML;
-  if (buildExportMenuHTML)        _buildExportMenuHTML = buildExportMenuHTML;
+  if (buildShareControlHTML)      _buildShareControlHTML = buildShareControlHTML;
 }
 
 let entriesScroller = null;
@@ -375,7 +375,7 @@ export function buildStatsBarHTML() {
     : buildStatItemHTML(tuple ? 'Results' : 'Entries', countText, incomplete ? 'Results incomplete' : null, 'stat-entries');
 
   const rangeHTML = _buildScoreRangeInputHTML('score-range-input', AppView.scoreRange, 'AppView');
-  const exportHTML = _buildExportMenuHTML();
+  const shareHTML = _buildShareControlHTML();
 
   return `<div class="stats-bar${isEmpty ? ' stats-empty' : ''}">
       <div class="stats-bar-counts">${countsHTML}</div>
@@ -384,7 +384,7 @@ export function buildStatsBarHTML() {
         ${rangeHTML}
         ${buildResultsStaleChipHTML()}
       </div>
-      <div class="stats-bar-controls">${exportHTML}</div>
+      <div class="stats-bar-controls">${shareHTML}</div>
     </div>`;
 }
 

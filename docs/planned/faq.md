@@ -54,7 +54,7 @@ Markers: **[★ advertise]** = shows off a feature / nook. **[deep]** = needs a 
 
 32. **Wait — the URL is shareable?** — *your whole tool stack + search ride in the URL; paste it in Discord and your friend sees the same pipeline on their lists. Underadvertised.* **[★]**
 33. **Can I filter by score by dragging on the histogram?** — *click/drag across the histogram to set the score range; it's a control, not just a chart.* **[★]**
-34. **Can I export just what I'm looking at?** — *the export menu: copy to clipboard (markdown), wordlist .txt, CSV, JSON — reflects your current filtered view.* **[★]**
+34. **Can I export just what I'm looking at?** — *the Share popover: copy to clipboard (markdown or plain), plus download as wordlist .txt, CSV, or JSON — reflects your current filtered view.* **[★]**
 35. **Any keyboard shortcuts?** — *Alt-T tools, Alt-S search, Alt-W whole-word, Alt-C score range, Alt-M dark mode. Tips-style.* **[★]**
 36. **Can I control how entries get written out (spaces, accents, punctuation)?** — *the Output format setting; match what your software can read (e.g. strip specials for Crosserville).*
 37. **Dark mode?** — *Auto/Light/Dark, Alt-M to cycle. Quick win.*

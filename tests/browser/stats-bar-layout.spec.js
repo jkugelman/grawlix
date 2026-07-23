@@ -81,7 +81,7 @@ test.describe('Stats bar layout', () => {
 
     // Font-metric-dependent breakpoints shift between environments, so assert the hide
     // priority (histogram sheds, score filter never does), never a specific width.
-    const widths = [1040, 880, 760, 680, 620, 560, 500, 460, 420, 380, 340];
+    const widths = [1040, 880, 760, 680, 620, 560, 500, 460, 420, 380, 340, 300, 260];
     for (const width of widths) {
       await page.setViewportSize({ width, height: 800 });
       await expect.poll(shown('scores')).toBe(true);

@@ -174,16 +174,26 @@ test.describe('results exports follow the output format', () => {
   });
 });
 
-test.describe('stats-bar Share and Export menus', () => {
-  test('Share is a labeled trigger; Export lists the three file downloads', async ({ page }) => {
+test.describe('stats-bar Share control and download menu', () => {
+  test('Share is the only stats-bar control', async ({ page }) => {
     await gotoApp(page);
     const controls = page.locator('#stats .stats-bar-controls');
-    await expect(controls.locator('.more-menu-labeled')).toHaveCount(2);
+    await expect(controls.locator('.more-menu-labeled')).toHaveCount(1);
     await expect(controls.locator('.more-menu-labeled', { hasText: 'Share' })).toHaveCount(1);
+    await expect(controls).not.toContainText('Export');
+  });
 
-    const exportM = controls.locator('.split-btn', { has: page.locator('.more-menu-labeled', { hasText: 'Export' }) });
-    await expect(exportM.locator('.split-btn-menu button')).toHaveText([
-      'Results as wordlist', 'Results as CSV', 'Results as JSON',
+  test('the Results row splits Copy from the three file downloads', async ({ page }) => {
+    await gotoApp(page);
+    await page.locator('#stats .stats-bar-controls .more-menu-labeled', { hasText: 'Share' }).click();
+    const pop = page.locator('.copy-popover.open');
+    await expect(pop).toBeVisible();
+
+    const split = pop.locator('.copy-row-split');
+    await expect(split.locator('.split-btn-main')).toHaveText('Copy');
+    await split.locator('.split-btn-arrow').click();
+    await expect(split.locator('.split-btn-menu button')).toHaveText([
+      'Download as wordlist', 'Download as CSV', 'Download as JSON',
     ]);
   });
 

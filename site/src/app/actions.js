@@ -54,7 +54,7 @@ import {
 } from '../data/disk-sync.js';
 import { propagateDefaults } from '../model/scoring.js';
 import { showToast, showActionToast, showUndoToast } from '../ui/toasts.js';
-import { buildMoreMenuHTML, positionPopover } from '../ui/components.js';
+import { positionPopover } from '../ui/components.js';
 import { showConfirm, showAlert, showMergeConflict } from '../ui/dialogs/confirm.js';
 import { openUpdateSummaryDialog } from '../ui/dialogs/update-summary.js';
 import { SettingsDialog, cycleDarkMode } from '../ui/dialogs/settings.js';
@@ -1176,17 +1176,11 @@ export async function downloadOriginalWordlist(wordlist) {
 // ─── Export ──────────────────────────────────────────────────────────
 // See docs/design.md § Entries-table export.
 
-export function buildExportMenuHTML() {
+export function buildShareControlHTML() {
   const caret = `<svg class="more-menu-caret" aria-hidden="true" viewBox="0 0 8 5"><use href="#icon-arrow"/></svg>`;
-  const share = `<div class="split-btn">` +
+  return `<div class="split-btn">` +
     `<button class="more-menu-btn more-menu-labeled" onclick="openCopyPopover(event)" title="Share results" aria-haspopup="dialog">Share${caret}</button>` +
     `</div>`;
-  return share +
-  buildMoreMenuHTML([
-    ['Results as wordlist', 'exportWordlist()'],
-    ['Results as CSV',      'exportCSV()'],
-    ['Results as JSON',     'exportJSON()'],
-  ], { label: 'Export', title: 'Export results' });
 }
 
 export function chainContentEntries(chain) {
@@ -1391,18 +1385,31 @@ function capLines(text, visible, total = null) {
 }
 
 function buildCopyPopoverHTML() {
-  const row = (kind, labelText, fieldHTML) =>
+  const copyBtn = kind => `<button type="button" class="copy-row-btn" data-copy="${kind}">Copy</button>`;
+  const row = (kind, labelText, fieldHTML, control = copyBtn(kind)) =>
     `<div class="copy-row">` +
       `<div class="dialog-row-label copy-row-label" data-label="${kind}">${labelText}</div>` +
-      `<div class="copy-row-field">${fieldHTML}` +
-        `<button type="button" class="copy-row-btn" data-copy="${kind}">Copy</button>` +
-      `</div>` +
+      `<div class="copy-row-field">${fieldHTML}${control}</div>` +
     `</div>`;
   const input = (kind, aria) => `<input class="copy-field" type="text" data-field="${kind}" readonly aria-label="${aria}">`;
+
+  const arrow = `<svg width="8" height="5" aria-hidden="true"><use href="#icon-arrow"/></svg>`;
+  const resultsControl =
+    `<div class="split-btn copy-row-split">` +
+      // copy-row-btn/data-copy keep this on the popover's delegated onCopyClick path.
+      `<button type="button" class="split-btn-main copy-row-btn" data-copy="results">Copy</button>` +
+      `<button type="button" class="split-btn-arrow" onclick="toggleSplitMenu(event)" title="Download results" aria-haspopup="menu">${arrow}</button>` +
+      `<div class="split-btn-menu">` +
+        `<button type="button" onclick="exportWordlist()">Download as wordlist</button>` +
+        `<button type="button" onclick="exportCSV()">Download as CSV</button>` +
+        `<button type="button" onclick="exportJSON()">Download as JSON</button>` +
+      `</div>` +
+    `</div>`;
+
   return (
     row('mdlink', 'Markdown link', input('mdlink', 'Markdown link')) +
     row('link',   'Plain link',    input('link', 'Plain link')) +
-    row('results', 'Results', `<textarea class="copy-field copy-results" data-field="results" rows="6" wrap="off" readonly aria-label="Results"></textarea>`)
+    row('results', 'Results', `<textarea class="copy-field copy-results" data-field="results" rows="6" wrap="off" readonly aria-label="Results"></textarea>`, resultsControl)
   );
 }
 

@@ -37,7 +37,7 @@ import {
 } from './ui/rendering.js';
 import { Router } from './app/router.js';
 import {
-  WordlistActions, init, regenerateFillOutputs, persistEdits, bakeMenuOpts, applyWordlistText, fetchWordlist, checkForUpdates, ingestFile, getAutoUpdate, addNewWordlist, deleteWordlist, deleteFromEdits, saveEdit, attachExternalEditHandlers, refreshDerivedDisplays, downloadSourceWordlist, downloadOriginalWordlist, downloadMergedWordlistFromPanel, buildExportMenuHTML, buildWordlistText, openCopyPopover, exportWordlist, exportCSV, exportJSON,
+  WordlistActions, init, regenerateFillOutputs, persistEdits, bakeMenuOpts, applyWordlistText, fetchWordlist, checkForUpdates, ingestFile, getAutoUpdate, addNewWordlist, deleteWordlist, deleteFromEdits, saveEdit, attachExternalEditHandlers, refreshDerivedDisplays, downloadSourceWordlist, downloadOriginalWordlist, downloadMergedWordlistFromPanel, buildShareControlHTML, buildWordlistText, openCopyPopover, exportWordlist, exportCSV, exportJSON,
 } from './app/actions.js';
 
 // ─── Components ──────────────────────────────────────────────────────────────
@@ -110,7 +110,7 @@ function boot() {
     deleteFromEdits,
     attachExternalEditHandlers,
     buildScoreRangeInputHTML,
-    buildExportMenuHTML,
+    buildShareControlHTML,
   });
   configureEntriesTable({
     navigate: (opts) => Router.navigate(opts),
