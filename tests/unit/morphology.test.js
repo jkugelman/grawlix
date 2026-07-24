@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { familyKey, collectVocab, familyTokens, configureCommonWords } from '../../site/src/engine/morphology.js';
+import { familyKey, collectVocab, familyTokens, inflectForms, generateRelativeNorms, configureCommonWords } from '../../site/src/engine/morphology.js';
 import { COMMON_WORDS } from '../../site/src/engine/common-words-data.js';
 
 configureCommonWords(COMMON_WORDS);
@@ -105,4 +105,50 @@ test('with no common candidate, reduction falls back to the longest in-vocab ste
   const keys = new Set(['zorf', 'zorfs', 'zorfed', 'zorfing'].map(e => familyKey(e, v)));
   assert.equal(keys.size, 1, `expected one key, got: ${[...keys].join(', ')}`);
   assert.equal(familyKey('zorfed', v), 'zorf');
+});
+
+// ─── Inflection generation (Related-entries widening) ──────────────────────────
+
+test('inflectForms expands a regular paradigm both ways', () => {
+  const bills = new Set(inflectForms('bills'));
+  for (const f of ['bill', 'bills', 'billed', 'billing']) assert.ok(bills.has(f), `missing ${f}`);
+  const bill = new Set(inflectForms('bill'));
+  for (const f of ['bills', 'billed', 'billing']) assert.ok(bill.has(f), `missing ${f}`);
+});
+
+test('inflectForms carries an irregular through its whole paradigm', () => {
+  const took = new Set(inflectForms('took'));
+  for (const f of ['take', 'takes', 'taking', 'took']) assert.ok(took.has(f), `missing ${f}`);
+});
+
+test('inflectForms handles consonant-y plurals', () => {
+  assert.ok(new Set(inflectForms('party')).has('parties'));
+  assert.ok(new Set(inflectForms('parties')).has('party'));
+});
+
+test('generateRelativeNorms bridges spacing: a phrase and its glued spelling generate each other', () => {
+  assert.ok(generateRelativeNorms('electric bill').has('electricbills'));
+  assert.ok(generateRelativeNorms('electricbills').has('electricbill'));
+});
+
+test('generateRelativeNorms reaches a tail inflection buried in a glued entry', () => {
+  assert.ok(generateRelativeNorms('notarizedstatement').has('notarizedstatements'));
+  assert.ok(generateRelativeNorms('notarized statements').has('notarizedstatement'));
+});
+
+test('generateRelativeNorms inflects an irregular verb across a phrase', () => {
+  assert.ok(generateRelativeNorms('took out of context').has('takeoutofcontext'));
+});
+
+test('generateRelativeNorms varies at most two words by default', () => {
+  const s = generateRelativeNorms('cat dog bird');   // each pluralizes independently
+  assert.ok(s.has('catsdogbird'), 'one-word change present');
+  assert.ok(s.has('catsdogsbird'), 'two-word change present');
+  assert.ok(!s.has('catsdogsbirds'), 'three-word change must be excluded');
+  assert.ok(generateRelativeNorms('cat dog bird', { maxChanged: 3 }).has('catsdogsbirds'));
+});
+
+test('generateRelativeNorms drops the query itself and respects the cap', () => {
+  assert.ok(!generateRelativeNorms('electric bill').has('electricbill'), 'self excluded');
+  assert.ok(generateRelativeNorms('a b c d e f g h', { cap: 100 }).size <= 100);
 });

@@ -19,7 +19,7 @@ import { parseRange, matchesRange } from './range.js';
 import { compileRescoreRules } from './rescore.js';
 import { sourceAccessor, invalidateSourceAccessor, parseWordlistColumns, columnsFromEntries } from './sources.js';
 import { buildCorpus, assignFamilies, scopeSourceIds, mergedContributors, resolveEditSeedWinner, mergeKey, mergedNormLowerBound, computeMergedBucket, diffWordlistEntries, isDistinguishing, concreteDisplay } from './corpus.js';
-import { familyKey, configureCommonWords } from './morphology.js';
+import { familyKey, generateRelativeNorms, configureCommonWords } from './morphology.js';
 import { COMMON_WORDS } from './common-words-data.js';
 import { getHistogramLayout, invalidateHistogramLayout, bucketCounts } from './histogram.js';
 import { computeStatsRaw } from './stats.js';
@@ -1520,9 +1520,25 @@ function handleFetchFamily({ requestId, norm, display, boundNorm = norm, boundDi
     // spelling not yet in the corpus, whose family must pull the relatives. Equals
     // the stamped family on a real click (familyKey(displayOf(e))), so clicks are unchanged.
     const family = familyKey(display ?? norm, ownedMerged.vocab);
+    // Family keys diverge once spacing differs, so respaced/inflected kin
+    // (electric bill ↔ electricbills) need this second, norm-based membership source.
+    const genNorms = generateRelativeNorms(display ?? norm);
+    if (!/\s/.test(display ?? norm)) {
+      // A glued single token hides buried inflections (hadagraspon ↔ hasagraspon)
+      // until segmented. Fire-and-forget the lazy corpus load rather than awaiting
+      // it: awaiting stalls the first query on every unspaced entry behind the
+      // multi-MB download.
+      if (hasUnigramCorpus()) {
+        for (const parts of rankedSplits(norm, SPACE_OUT_WINDOWS.few, ownedMerged).slice(0, 3)) {
+          for (const n of generateRelativeNorms(parts.join(' '))) genNorms.add(n);
+        }
+      } else {
+        loadUnigramCorpus().catch(() => {});
+      }
+    }
     for (const e of ownedMerged.entries) {
       if (e === bound && renaming) continue;
-      if (e.norm === norm || (family && e.family === family)) {
+      if (e.norm === norm || (family && e.family === family) || genNorms.has(e.norm)) {
         members.push({
           norm: e.norm, display: e.display ?? null, score: e.score,
           comment: e.comment || '', sourceId: e.wordlist.dbKey, current: e === bound,

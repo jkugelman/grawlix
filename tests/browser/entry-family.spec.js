@@ -92,18 +92,35 @@ test('Related entries ignores scope: a relative in another wordlist still shows'
   await expect(sibling(page)).toContainText('cats');
 });
 
-test('Related entries update live as the entry is retyped', async ({ page }) => {
+test('a glued entry finds its spaced/inflected sibling, and adding a space keeps it', async ({ page }) => {
   await gotoApp(page);
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
-    name: 'Src', entries: ['primary care center', 'primarycarecenters'], scores: [50, 50],
+    name: 'Src', entries: ['electric bill', 'electricbills'], scores: [50, 50],
   }));
-  await openPanelFor(page, 'primarycarecenters');
-  await expect(items(page)).toHaveCount(0);   // the solid spelling shares no family yet
 
-  // Retyping with spaces reduces 'centers' → 'center', joining that family — live,
-  // before any save.
-  await panel(page).locator('.entry-input').fill('primary care centers');
-  await expect(sibling(page)).toContainText('primary care center');
+  await openPanelFor(page, 'electricbills');
+  await expect(sibling(page)).toContainText('electric bill');
+
+  // Adding the space mid-rename must not drop the sibling — the friction this fixes.
+  await panel(page).locator('.entry-input').fill('electric bills');
+  await expect(sibling(page)).toContainText('electric bill');
+});
+
+test('Related entries reach an inflection buried behind a word boundary', async ({ page }) => {
+  await gotoApp(page);
+  await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
+    name: 'Src',
+    entries: ['breaksoutintosong', 'broke out into song', 'breaks', 'out', 'into', 'song'],
+    scores: [50, 50, 50, 50, 50, 50],
+  }));
+  // Seed the segmenter corpus after the run settles (a tool-less run evicts it),
+  // so the glued token can be split without the multi-MB network fetch.
+  await page.evaluate(() => window.__grawlixTest.pipelineIdle());
+  await page.evaluate(() => window.__grawlixTest.setWorkerUnigramCorpus(
+    { breaks: -2, out: -2, into: -2, song: -3 }));
+
+  await openPanelFor(page, 'breaksoutintosong');
+  await expect(sibling(page)).toContainText('broke out into song');
 });
 
 test('a live rename drops the entry being renamed from its own Related list', async ({ page }) => {
