@@ -1510,12 +1510,11 @@ function handleFetchEditSeed({ requestId, norm, display }) {
 function handleFetchFamily({ requestId, norm, display, boundNorm = norm, boundDisplay = display ?? null }) {
   let members = [];
   if (ownedMerged && ownedCorpusFresh) {
-    // `bound` is the entry the panel is on: the bold `current` while the query
-    // still names it, but dropped from its own relatives once a live rename types a
-    // different spelling — the old spelling unifies into the new one on save, so it
-    // is not a sibling of it.
+    // `bound` is the entry the panel is on, flagged `current` so it renders as the
+    // bold inert anchor. It is never dropped mid-rename: an editable panel overwrites
+    // this row with the live edit, and a read-only one wants the winner's spelling a
+    // bare click resolves to (byNorm), which the panel itself cannot name.
     const bound = ownedMerged.byKey.get(mergeKey(boundNorm, boundDisplay ?? null)) ?? ownedMerged.byNorm.get(boundNorm) ?? null;
-    const renaming = norm !== boundNorm || (display ?? null) !== (boundDisplay ?? null);
     // Re-key family from the query text, not bound.family: a live rename types a
     // spelling not yet in the corpus, whose family must pull the relatives. Equals
     // the stamped family on a real click (familyKey(displayOf(e))), so clicks are unchanged.
@@ -1537,7 +1536,6 @@ function handleFetchFamily({ requestId, norm, display, boundNorm = norm, boundDi
       }
     }
     for (const e of ownedMerged.entries) {
-      if (e === bound && renaming) continue;
       if (e.norm === norm || (family && e.family === family) || genNorms.has(e.norm)) {
         members.push({
           norm: e.norm, display: e.display ?? null, score: e.score,
@@ -1545,7 +1543,6 @@ function handleFetchFamily({ requestId, norm, display, boundNorm = norm, boundDi
         });
       }
     }
-    members.sort((a, b) => (a.display ?? a.norm).localeCompare(b.display ?? b.norm) || a.norm.localeCompare(b.norm));
   }
   postMessage({ type: 'family', requestId, members });
 }

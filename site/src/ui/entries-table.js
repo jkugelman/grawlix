@@ -3182,6 +3182,9 @@ export const EntryPanel = (() => {
     renderProvWrap();
     refreshSaveEnabled();
     updateModeLabels();
+    // The seed sets the score field directly (no `input` event), so the Related-
+    // entries anchor won't pick it up on its own — push the seeded score in.
+    refreshFamilyScore();
     if (focus) focusSeedField(focus);
   }
 
@@ -3747,6 +3750,7 @@ export const EntryPanel = (() => {
       inp.addEventListener('input', renderProvWrap);
       inp.addEventListener('input', updateModeLabels);
     }
+    scoreInp.addEventListener('input', refreshFamilyScore);
 
     for (const inp of [entryInp, scoreInp, commentInp]) {
       inp.addEventListener('input', refreshSaveEnabled);
@@ -3766,20 +3770,47 @@ export const EntryPanel = (() => {
     if (lookupHost) LookupSection.mount(lookupHost, entryInp.value);
   }
 
+  function currentPanelScore() {
+    const typed = parseInt(el.querySelector('.score-input')?.value, 10);
+    if (Number.isFinite(typed)) return typed;
+    // A deep-link open renders before the async seed lands, when the field is empty
+    // and the URL-placeholder entry carries score '' — coerce to a real number so the
+    // badge never renders blank (refreshFamilyScore fills the true value on seed).
+    return Number.isFinite(activeWlEntry?.score) ? activeWlEntry.score : 0;
+  }
+
   function renderFamily(norm, display) {
     const token = ++familyToken;
-    // The bound entry (what the panel is on) rides alongside the query so the
-    // worker can drop it once a live rename's query text diverges from it — the
-    // old spelling isn't a relative of the new one (§ worker-protocol fetchFamily).
+    // The bound entry rides alongside the query so the worker excludes it from the
+    // corpus siblings — the panel owns the current row (below) instead.
     const boundNorm = activeWlEntry?.norm ?? norm;
     const boundDisplay = activeWlEntry ? activeWlEntry.display ?? null : display ?? null;
     fetchWorkerFamily(norm, display ?? null, boundNorm, boundDisplay).then(members => {
       if (token !== familyToken || !isOpen()) return;
       const h = el?.querySelector('.entry-panel-family');
       if (!h) return;
-      familyMembers = members;
-      h.innerHTML = buildFamilyHTML(members);
+      // An editable panel overwrites the anchor with the live edit (typed name and
+      // score) so the list reads as the post-save view and holds through a rename;
+      // read-only has no pending edit, so the worker's row stands as-is.
+      if (!activeReadOnly) {
+        const cur = members.find(m => m.current);
+        if (cur) { cur.display = display ?? null; cur.score = currentPanelScore(); }
+        else members.push({ norm, display: display ?? null, score: currentPanelScore(), current: true });
+      }
+      familyMembers = members.sort(
+        (a, b) => (a.display ?? a.norm).localeCompare(b.display ?? b.norm) || a.norm.localeCompare(b.norm));
+      h.innerHTML = buildFamilyHTML(familyMembers);
     });
+  }
+
+  // A score edit re-queries no siblings (they can't change), so patch the current
+  // row's badge in place — else the anchor keeps its pre-edit score.
+  function refreshFamilyScore() {
+    const cur = familyMembers.find(m => m.current);
+    if (!cur) return;
+    cur.score = currentPanelScore();
+    const h = el?.querySelector('.entry-panel-family');
+    if (h) h.innerHTML = buildFamilyHTML(familyMembers);
   }
 
   function renderRenameHTML() {
@@ -3859,8 +3890,8 @@ export const EntryPanel = (() => {
   }
 
   function buildFamilyHTML(members) {
-    // Show only when a relative is present. The current entry may be absent — a
-    // live rename drops it — so test for a non-current member, not the count.
+    // Show only when a sibling is present, else an entry with no relatives renders
+    // as a lone bold self. (Empty members — no anchor at all — falls out the same way.)
     if (members.every(m => m.current)) return '';
     const items = members.map((m, i) => {
       const cls = m.current ? 'entry-family-item entry-family-item--current' : 'entry-family-item';

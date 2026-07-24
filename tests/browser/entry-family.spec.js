@@ -3,7 +3,7 @@
 // and navigates to a relative on click.
 
 import { test, expect } from '@playwright/test';
-import { stubPublisherFetches, gotoApp, expectVisible, scopeTo } from './helpers.js';
+import { stubPublisherFetches, gotoApp, reloadApp, expectVisible, scopeTo } from './helpers.js';
 
 test.beforeEach(async ({ page }) => {
   await stubPublisherFetches(page);
@@ -123,18 +123,42 @@ test('Related entries reach an inflection buried behind a word boundary', async 
   await expect(sibling(page)).toContainText('broke out into song');
 });
 
-test('a live rename drops the entry being renamed from its own Related list', async ({ page }) => {
+test('a live rename shows the typed name as the bold anchor, not the old spelling', async ({ page }) => {
   await gotoApp(page);
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
     name: 'Src', entries: ['7layerdips', '7-layer dip'], scores: [20, 60],
   }));
   await openPanelFor(page, '7layerdips');
+  await expect(current(page)).toContainText('7layerdips');   // the anchor at the start
 
   await panel(page).locator('.entry-input').fill('7-layer dips');
 
-  // The singular relative shows; the bare entry being renamed does NOT — it would
-  // unify into the new spelling on save, so it's not a sibling of it.
-  await expect(page.locator('.entry-family-item .entry-family-entry')).toHaveText(['7-layer dip']);
+  // Post-save view: old spelling gone, typed spelling is the bold anchor, relative stays.
+  await expect(page.locator('.entry-family-item .entry-family-entry')).toHaveText(['7-layer dip', '7-layer dips']);
+  await expect(current(page)).toContainText('7-layer dips');
+  await expect(sibling(page)).toContainText('7-layer dip');
+});
+
+test('editing the score updates the current entry\'s badge in Related entries', async ({ page }) => {
+  await setup(page);
+  await openPanelFor(page, 'cat');
+  await expect(current(page).locator('.score-badge')).toHaveText('50');
+
+  await page.locator('#entry-panel-score').fill('0');
+  await expect(current(page).locator('.score-badge')).toHaveText('0');
+});
+
+test('a deep-link open shows the entry score on its Related-entries anchor', async ({ page }) => {
+  await gotoApp(page);
+  await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
+    name: 'Src', entries: ['ocean', 'oceans'], scores: [50, 30],
+  }));
+  await openPanelFor(page, 'ocean');
+
+  // Reload re-opens via ?entry=ocean, seeding the score async from the worker.
+  await reloadApp(page);
+  await expect(current(page)).toContainText('ocean');
+  await expect(current(page).locator('.score-badge')).toHaveText('50');
 });
 
 test('a rescore committed by clicking a relative shows on the next panel and on return', async ({ page }) => {
