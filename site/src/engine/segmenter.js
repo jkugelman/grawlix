@@ -16,15 +16,18 @@ export const SPACE_OUT_SUFFIXES = ['s', 'es', 'ed', 'ied', 'ing', 'er', 'est', '
 // per segmentation part so `ofthe → of the` fires mid-entry (ageofthepyramids),
 // not just as a whole entry. A value must norm back to its key or it changes the
 // entry's letters, not just its spaces — a unit test pins that.
-export const SPACE_OUT_OVERRIDES = {
-  alot: 'a lot',
-  ami: 'am I',
-  asa: 'as a',
-  gota: 'got a',
-  hada: 'had a',
-  hasa: 'has a',
-  ofthe: 'of the',
-};
+// A Map, not an object literal: parts are arbitrary wordlist norms, and `constructor`
+// is both a real entry and an inherited Object key, so a plain object resolves it to
+// a function and throws mid-split.
+export const SPACE_OUT_OVERRIDES = new Map([
+  ['alot', 'a lot'],
+  ['ami', 'am I'],
+  ['asa', 'as a'],
+  ['gota', 'got a'],
+  ['hada', 'had a'],
+  ['hasa', 'has a'],
+  ['ofthe', 'of the'],
+]);
 
 // Injected so this engine module never imports the data layer (IDB/localStorage).
 let _idbGet = null;
@@ -217,7 +220,7 @@ export function rankedSplits(entry, window, wordlist) {
   const seen = new Set();
   const out = [];
   for (const { parts } of results) {
-    const expanded = parts.flatMap(p => SPACE_OUT_OVERRIDES[p]?.split(' ') ?? [p]);
+    const expanded = parts.flatMap(p => SPACE_OUT_OVERRIDES.get(p)?.split(' ') ?? [p]);
     const key = expanded.join(' ');
     if (!seen.has(key)) { seen.add(key); out.push(expanded); }
   }

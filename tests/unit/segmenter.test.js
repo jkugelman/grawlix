@@ -238,7 +238,16 @@ test('rankedSplits: override expansion dedupes a glued and a natural split that 
 test('SPACE_OUT_OVERRIDES: every value norms back to its key', () => {
   // The override re-spaces an entry; a value that norms to anything but its key
   // would change the entry's letters, so Space out would emit a different word.
-  for (const [key, spacing] of Object.entries(SPACE_OUT_OVERRIDES)) {
+  for (const [key, spacing] of SPACE_OUT_OVERRIDES) {
     assert.equal(toNorm(spacing), key, `"${spacing}" must norm to "${key}"`);
   }
+});
+
+test('rankedSplits: a part named like an inherited Object key splits normally', () => {
+  // `constructor` is a real wordlist entry, so it reaches the override lookup as a
+  // part; on a plain-object table it resolves to Object itself and throws mid-split.
+  const { rankedSplits } = corpus([['crossword', -1], ['constructor', -1]]);
+  assert.deepEqual(
+    rankedSplits('crosswordconstructor', 10, allowed('crossword', 'constructor')),
+    [['crossword', 'constructor']]);
 });
