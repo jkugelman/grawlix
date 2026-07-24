@@ -4,6 +4,7 @@
 
 import { test, expect } from '@playwright/test';
 import { stubPublisherFetches, gotoApp, reloadApp, expectVisible, scopeTo } from './helpers.js';
+import { gzipSync } from 'node:zlib';
 
 test.beforeEach(async ({ page }) => {
   await stubPublisherFetches(page);
@@ -194,4 +195,42 @@ test('navigating to a relative seeds its winner score and offers My Edits adopt'
   await expect(panel(page).locator('.entry-input')).toHaveValue('cats');
   await expect(page.locator('#entry-panel-score')).toHaveValue('40');
   await expect(panel(page).locator('.entry-panel-adopt-btn')).toBeVisible();
+});
+
+// Segmented kin (raceagainst <-> racesagainst) are reachable only through the unigram
+// asset, which loads lazily on first use -- so the very first query for a glued entry
+// is the one that races it. Stubs the real asset URL rather than injecting the corpus,
+// because injecting it is what makes the race disappear.
+function unigramAsset(buckets) {
+  const bytes = [0x90 | buckets.length];
+  for (const words of buckets) {
+    bytes.push(0x90 | words.length);
+    for (const w of words) {
+      const utf8 = Buffer.from(w, 'utf8');
+      bytes.push(0xa0 | utf8.length, ...utf8);
+    }
+  }
+  return gzipSync(Buffer.from(bytes));
+}
+
+test('a cold deep link lists the relatives that need the segmenter', async ({ page }) => {
+  await gotoApp(page);
+  await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
+    name: 'Src',
+    entries: ['raceagainst', 'racesagainst', 'race', 'races', 'against'],
+    scores: [50, 50, 50, 50, 50],
+  }));
+
+  await page.route(/msgpack/, route => route.fulfill({
+    status: 200, contentType: 'application/octet-stream',
+    body: unigramAsset([[], ['race', 'races', 'against']]),
+  }));
+
+  // The panel opens straight from the URL, so its family query is the first thing to
+  // touch the asset — no earlier interaction has warmed it.
+  await gotoApp(page, '/?entry=raceagainst');
+  await expect(panel(page)).toBeVisible();
+
+  await expect(items(page)).toHaveCount(2);
+  await expect(sibling(page)).toContainText('racesagainst');
 });

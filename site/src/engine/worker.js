@@ -1507,7 +1507,15 @@ function handleFetchEditSeed({ requestId, norm, display }) {
 // differently-spelled same-norm siblings (Boney M. / Boney M) stay navigable here even
 // when a concrete click keeps them out of the provenance table. ownedCorpusFresh gates
 // ownedMerged the same way the edit-seed fetch does (see its note).
-function handleFetchFamily({ requestId, norm, display, boundNorm = norm, boundDisplay = display ?? null }) {
+async function handleFetchFamily({ requestId, norm, display, boundNorm = norm, boundDisplay = display ?? null }) {
+  // Awaited, not fire-and-forget: nothing re-asks a family query, so a load left in
+  // flight answers the first one short and stays that way until the panel is reopened
+  // (an empty Related list on a cold deep link). The stall it costs is one download
+  // for a brand-new user — IDB-cached after — and the space-out query fired alongside
+  // it already awaits the same asset.
+  if (!/\s/.test(display ?? norm) && !hasUnigramCorpus()) {
+    try { await loadUnigramCorpus(); } catch { /* offline → unsegmented membership */ }
+  }
   let members = [];
   if (ownedMerged && ownedCorpusFresh) {
     // `bound` is the entry the panel is on, flagged `current` so it renders as the
@@ -1522,17 +1530,11 @@ function handleFetchFamily({ requestId, norm, display, boundNorm = norm, boundDi
     // Family keys diverge once spacing differs, so respaced/inflected kin
     // (electric bill ↔ electricbills) need this second, norm-based membership source.
     const genNorms = generateRelativeNorms(display ?? norm);
-    if (!/\s/.test(display ?? norm)) {
-      // A glued single token hides buried inflections (hadagraspon ↔ hasagraspon)
-      // until segmented. Fire-and-forget the lazy corpus load rather than awaiting
-      // it: awaiting stalls the first query on every unspaced entry behind the
-      // multi-MB download.
-      if (hasUnigramCorpus()) {
-        for (const parts of rankedSplits(norm, SPACE_OUT_WINDOWS.few, ownedMerged).slice(0, 3)) {
-          for (const n of generateRelativeNorms(parts.join(' '))) genNorms.add(n);
-        }
-      } else {
-        loadUnigramCorpus().catch(() => {});
+    // A glued single token hides buried inflections (hadagraspon ↔ hasagraspon) until
+    // segmented; the load above is what makes this reachable on a first query.
+    if (!/\s/.test(display ?? norm) && hasUnigramCorpus()) {
+      for (const parts of rankedSplits(norm, SPACE_OUT_WINDOWS.few, ownedMerged).slice(0, 3)) {
+        for (const n of generateRelativeNorms(parts.join(' '))) genNorms.add(n);
       }
     }
     for (const e of ownedMerged.entries) {
