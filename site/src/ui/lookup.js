@@ -26,6 +26,9 @@ export const LookupSection = (() => {
   // usable alternative), or undefined (not yet resolved). Keyed like `cache`, so
   // it persists across entries at module scope.
   const resolved = new LruCache(100, 60 * 60 * 1000);
+  // Retry flags for degraded resolutions. Must share `resolved`'s lifetime: outlive it
+  // and entries re-resolve for nothing, expire first and a degraded one stops retrying.
+  const degraded = new LruCache(100, 60 * 60 * 1000);
 
   function key(entryStr, id) { return `${entryStr} ${id}`; }
 
@@ -132,11 +135,17 @@ export const LookupSection = (() => {
     // independently), so re-ensure them — otherwise fallbackPending waits on
     // fetches nothing will start.
     if (alt) { for (const s of INLINE) fetchInto(alt, s.id); return; }
-    if (resolved.has(entryStr)) return;   // in flight (undefined) or no alternative (null)
+    if (resolved.has(entryStr) && !degraded.has(entryStr)) return;   // in flight (undefined) or no alternative (null)
+    degraded.delete(entryStr);
     resolved.set(entryStr, undefined);
-    resolveEntryCanonical(entryStr).then(form => {
-      const alt = form && form !== entryStr ? form : null;
+    resolveEntryCanonical(entryStr).then(({ value, complete }) => {
+      const alt = value && value !== entryStr ? value : null;
+      // Recorded even when degraded: a missing `resolved` entry reads as "still
+      // resolving" to fallbackPending, stranding the card on its spinner. `degraded`
+      // is the separate retry flag, so the answer settles the UI without sticking
+      // for the cache's full hour.
       resolved.set(entryStr, alt);
+      if (!complete) degraded.set(entryStr, true);
       if (alt) for (const s of INLINE) fetchInto(alt, s.id);
       if (hostEl && shownEntry === entryStr) render();
     });

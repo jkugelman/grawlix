@@ -2812,6 +2812,7 @@ export const EntryPanel = (() => {
   let familyMembers = [];
   let familyToken = 0;
   let renameSuggestion = null;
+  let renameSuggestionFor = null;
   let renameToken = 0;
   let renameTimer = null;
   // Non-null bounds the walk to a multi-select ({ members, index }); null is the
@@ -2946,6 +2947,7 @@ export const EntryPanel = (() => {
     ownsHistoryEntry = false;
     scoreCombo = null;
     renameSuggestion = null;
+    renameSuggestionFor = null;
     clearTimeout(renameTimer);
     renameTimer = null;
     seedQueryToken++;
@@ -3082,6 +3084,10 @@ export const EntryPanel = (() => {
     stagedAdopt = false;
     stagedDelete = null;
     focusEl = null;
+    // Cleared before the render below, which now paints this: a reused panel would
+    // otherwise open the new entry showing the previous one's suggestion.
+    renameSuggestion = null;
+    renameSuggestionFor = null;
 
     // Seed from the clicked row: in the merged view it IS the merge winner; an editable
     // scoped view (or a route open) holds no winner, refined below from the worker.
@@ -3465,7 +3471,7 @@ export const EntryPanel = (() => {
           <label for="entry-panel-entry">Entry</label>
           <input id="entry-panel-entry" class="entry-input" type="text" autocapitalize="off" autocorrect="off" spellcheck="false" value="${esc(seed.entry)}"${ro}>
           <div class="entry-panel-note-slot">${activeReadOnly ? '' : renderNotesHTML()}</div>
-          <div class="entry-panel-suggest-slot"></div>
+          <div class="entry-panel-suggest-slot">${renderRenameHTML()}</div>
           <label for="entry-panel-score">Score</label>
           <div class="entry-panel-score-row">
             <div class="score-combo">
@@ -3840,22 +3846,34 @@ export const EntryPanel = (() => {
   function refreshRenameSuggestion(display) {
     const token = ++renameToken;
     clearTimeout(renameTimer);
+    // A hint belongs to the exact text it was computed for, so a changed one drops it
+    // up front. Without this the un-ready early-returns below would leave the previous
+    // keystroke's hint sitting on the new text, where clicking it renames to the wrong
+    // spelling. Re-renders pass the SAME text and so keep their hint.
+    if (display !== renameSuggestionFor) {
+      renameSuggestionFor = display;
+      setRenameSuggestion(null);
+    }
     const norm = toNorm(display);
     if (activeReadOnly || activeMode === 'create' || !norm) { setRenameSuggestion(null); return; }
     const bare = display === norm;
     if (bare) {
-      fetchWorkerSpaceOut(norm).then(spaced => {
+      fetchWorkerSpaceOut(norm).then(({ suggestion, ready }) => {
         if (token !== renameToken || !isOpen()) return;
-        setRenameSuggestion(spaced && spaced !== display ? spaced : null);
+        // An un-ready segmenter knows nothing about this entry, so it must not speak
+        // for it — clearing here would erase a hint the reference pass had upgraded.
+        if (!ready) return;
+        setRenameSuggestion(suggestion && suggestion !== display ? suggestion : null);
       });
     } else {
       setRenameSuggestion(null);
     }
     renameTimer = setTimeout(() => {
-      resolveEntryCanonical(display).then(canonical => {
+      resolveEntryCanonical(display).then(({ value, complete }) => {
         if (token !== renameToken || !isOpen()) return;
-        const ok = canonical && canonical !== display && (bare || isRicher(canonical, display));
-        setRenameSuggestion(ok ? canonical : null);
+        if (!complete) return;
+        const ok = value && value !== display && (bare || isRicher(value, display));
+        setRenameSuggestion(ok ? value : null);
       });
     }, RENAME_DEBOUNCE_MS);
   }

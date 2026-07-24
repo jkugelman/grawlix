@@ -904,12 +904,15 @@ export function fetchWorkerSpaceOut(norm, timeout = 15000) {
   const w = getWorker();
   const requestId = ++fetchSpaceOutRequestId;
   return new Promise(resolve => {
-    const timer = setTimeout(() => { w.removeEventListener('message', onMessage); resolve(null); }, timeout);
+    const timer = setTimeout(() => {
+      w.removeEventListener('message', onMessage);
+      resolve({ suggestion: null, ready: false });
+    }, timeout);
     function onMessage({ data }) {
       if (data?.type !== 'spaceOut' || data.requestId !== requestId) return;
       clearTimeout(timer);
       w.removeEventListener('message', onMessage);
-      resolve(data.suggestion ?? null);
+      resolve({ suggestion: data.suggestion ?? null, ready: !!data.ready });
     }
     w.addEventListener('message', onMessage);
     w.postMessage({ type: 'fetchSpaceOut', requestId, norm });

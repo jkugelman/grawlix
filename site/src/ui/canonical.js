@@ -14,8 +14,8 @@ import { fetchWorkerSpaceOut } from './pipeline-worker.js';
 const cache = new LruCache(100, 60 * 60 * 1000);
 
 // Resolve `display` to { value, complete }. `complete` is false when a reference
-// fetch failed, so resolveCached can refuse to keep it — the answer then depends
-// on the sources, never on which fetch happened to land.
+// fetch failed OR the worker couldn't segment, so resolveCached can refuse to keep
+// it — the answer then depends on the sources, never on which fetch happened to land.
 async function computeCanonical(display) {
   const norm = toNorm(display);
   if (!norm) return { value: display, complete: true };
@@ -24,7 +24,12 @@ async function computeCanonical(display) {
   // references can't complete — computed up front so a thrown fetch degrades to it
   // rather than to a force-capped partial (Wiktionary down → "ground frost", not
   // "Ground frost").
-  const fallback = hasSpace ? display : (await fetchWorkerSpaceOut(norm)) || display;
+  const spaced = hasSpace ? { suggestion: null, ready: true } : await fetchWorkerSpaceOut(norm);
+  const fallback = spaced.suggestion || display;
+  // Taints only the fallback return. An un-ready segmenter leaves fallback === display,
+  // which gates out the re-resolve below, so every reference-derived answer here stands
+  // on its own — suppressing those too would drop good hints whenever the worker is cold.
+  const ready = spaced.ready;
   try {
     let ref = await resolveReference(display, norm);
     // A spaced bare reference is a Wikipedia-only fuzz-match across the missing space
@@ -53,7 +58,7 @@ async function computeCanonical(display) {
       if (!sub.complete) return { value: fallback, complete: false };
       if (toNorm(sub.value + 's') === norm) return { value: sub.value + 's', complete: true };
     }
-    return { value: fallback, complete: true };
+    return { value: fallback, complete: ready };
   } catch {
     return { value: fallback, complete: false };
   }
@@ -70,6 +75,8 @@ function resolveCached(display) {
   return p;
 }
 
+// Returns { value, complete }. Callers that memoize the answer must check `complete`
+// — an incomplete one is a degraded snapshot of an outage, not this entry's form.
 export function resolveEntryCanonical(display) {
-  return resolveCached(display).then(r => r.value);
+  return resolveCached(display);
 }

@@ -1580,6 +1580,7 @@ function caseFromWordlist(part) {
 
 async function handleFetchSpaceOut({ requestId, norm }) {
   let suggestion = null;
+  let ready = false;
   // ownedMerged, not the scoped ownedCorpus: it's the full-merge allowed-parts
   // vocab regardless of active scope, so a scoped view still segments against
   // every entry — a scoped corpus would silently thin the splits with no error.
@@ -1590,11 +1591,16 @@ async function handleFetchSpaceOut({ requestId, norm }) {
       try { await loadUnigramCorpus(); } catch { /* offline / fetch failed → no hint */ }
     }
     if (hasUnigramCorpus()) {
+      ready = true;
       const parts = rankedSplits(norm, SPACE_OUT_WINDOWS.one, ownedMerged)[0];
       if (parts && parts.length >= 2) suggestion = parts.map(caseFromWordlist).join(' ');
     }
   }
-  postMessage({ type: 'spaceOut', requestId, suggestion });
+  // `ready` separates "this entry has no better spacing" from "the segmenter couldn't
+  // answer" (syncConfig gap, asset evicted, offline). Both yield a null suggestion, and
+  // callers CACHE the answer — conflating them lets one transient outage stick as the
+  // entry's settled form long after the corpus is back.
+  postMessage({ type: 'spaceOut', requestId, suggestion, ready });
 }
 
 // ─── Provenance + preview fetch ── see docs/worker-protocol.md ────────────────
