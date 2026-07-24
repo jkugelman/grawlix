@@ -1,5 +1,7 @@
 'use strict';
 
+import { toNorm } from './norm.js';
+
 // ─── Unigram corpus & phrase segmenter ───────────────────────────────────────
 
 export const UNIGRAM_CORPUS_URL = 'https://raw.githubusercontent.com/rspeer/wordfreq/master/wordfreq/data/large_en.msgpack.gz';
@@ -14,20 +16,61 @@ export const SPACE_OUT_SUFFIXES = ['s', 'es', 'ed', 'ied', 'ing', 'er', 'est', '
 
 // Manual space-out overrides: a glued part's norm → its forced spacing, applied
 // per segmentation part so `ofthe → of the` fires mid-entry (ageofthepyramids),
-// not just as a whole entry. A value must norm back to its key or it changes the
-// entry's letters, not just its spaces — a unit test pins that.
+// not just as a whole entry. Each row is written as the spacing alone, its glued key
+// derived from it via toNorm, so the two can never drift apart.
+//
+// Rows carry real orthography (`I don't`, `on one's`, `New York`), not bare norms: the
+// table ships to every user, so a rendering must not depend on whether that user's
+// wordlist happens to store `I` capitalised. Dedup folds case and punctuation so a
+// rich row still merges with the same spacing found by the scorer — see rankedSplits.
+//
+// Derived, not hand-picked: every multi-word entry of a real 750k-entry wordlist was
+// segmented, each result diffed against that entry's own spacing, and the parts that
+// swallow a real word boundary collected — ordered here by how many entries each one
+// mis-glues. A fragment earns a row only if it mis-glues in 25+ entries and is either
+// never a legitimate word in that corpus, or wrong-glued at least 10:1 against its
+// real uses (capped at 5) and below a unigram-frequency floor. Those gates are what
+// reject `up on` (100 glued against 258 real `upon`s) and `a long`, both of which read
+// as plausibly as any row here — which is why rows belong to a re-run of the analysis
+// rather than to eyeballing. Method and measured effect: docs/design.md § Space out.
+const SPACE_OUT_SPACINGS = [
+  'of the', 'in the', 'on the', 'out of', 'to the', 'like a', 'in a', 'for the', 'on a',
+  'up to', 'and the', 'at the', 'as a', 'the world', 'to a', 'of a', 'up the', 'off the',
+  'are you', 'for a', 'New York', 'do you', 'to be', 'take a', 'in on', "I don't", 'from the',
+  'make a', 'made a', 'a good', 'the way', 'this is', 'took a', 'have a', 'all the', "I can't",
+  'is that', "it's a", 'I am', 'back to', 'up a', 'by the', 'I have', 'I can', 'under the',
+  'the last', 'it in', 'you know', 'it to', 'of it', "on one's", 'it all', 'can I', 'is a',
+  'at a', 'I know', 'going to', 'the best', 'the day', 'into the', 'out the', 'am I', 'to me',
+  'had a', 'ice cream', 'let me', 'of time', 'the time', 'down to', 'if you', 'got a',
+  "in one's", 'not a', 'for you', 'on your', 'the road', 'what a', 'it a', 'over the',
+  'the same', 'a lot', 'do it', 'of love', 'a bad', 'can you', 'if I', 'of life', 'what you',
+  'get it', "of one's", 'to you', 'what I', 'with a', 'get a', 'I was', 'want to', 'has a',
+  'I do', 'United States', 'the end', 'the house', 'the man', 'the sun', 'with you', 'a little',
+  'end of', 'it on', 'just a', 'to know', 'New Jersey', 'I want', 'you want', 'it is', 'to it',
+  'in love', 'in your', 'is the', 'look at', 'National Park', 'of God', 'to say', 'up and',
+  'with me', 'a day', 'have to', 'I see', 'on it', 'do I', 'I need', 'make it', 'see you',
+  "to one's", "up one's", 'of all', 'the year', 'you can', 'take it', 'the game', 'the right',
+  'a few', 'a joke', 'be a', 'of my', 'you have', 'and a', 'I got', 'into a', 'the truth',
+  'to see', 'all over', 'did I', 'Los Angeles', 'more than', 'with it', 'a bit', 'I could',
+  'I love', "I'm a", 'in for', 'in it', 'in my', 'like it', 'up in', 'best of', 'against the',
+  'by a', 'get out', 'got it', 'it was', 'you are', 'I get', 'of you', 'out with', 'the job',
+  'high school', 'I think', 'the other', 'the red', 'a second', 'as I', 'at home', 'I just',
+  'to an', 'about it', 'back in', 'do not', 'for me', 'I feel', 'need a', 'you think',
+  'a right', 'around the', 'do the', 'of war', 'Star Trek', 'the wall', 'all in', 'a look',
+  'as you', 'a time', 'away from', 'I said', 'the king', 'the whole', 'I say', 'me a',
+  'state of', 'tell me', 'a la', 'a ride', 'from a', 'must be', 'my life', 'on top', 'that was',
+  'to get', 'what is', 'a big', 'a cab', 'a job', 'at it', 'got to', 'is not', 'like the',
+  'the top', 'your life', 'a thing', 'be the', 'for all', "I'm so", 'part of', 'put on',
+  'thank you', 'the first', 'the new', 'a mile', 'and I', 'as the', 'I mean', 'in touch',
+  'I will', 'my heart', 'no one', 'not to', 'we have', 'de la', 'keep it', 'North Carolina',
+  'Star Wars', 'the bed', 'too much', 'we are', 'what the', 'you see',
+];
+
 // A Map, not an object literal: parts are arbitrary wordlist norms, and `constructor`
 // is both a real entry and an inherited Object key, so a plain object resolves it to
 // a function and throws mid-split.
-export const SPACE_OUT_OVERRIDES = new Map([
-  ['alot', 'a lot'],
-  ['ami', 'am I'],
-  ['asa', 'as a'],
-  ['gota', 'got a'],
-  ['hada', 'had a'],
-  ['hasa', 'has a'],
-  ['ofthe', 'of the'],
-]);
+export const SPACE_OUT_OVERRIDES = new Map(
+  SPACE_OUT_SPACINGS.map(spacing => [toNorm(spacing), spacing]));
 
 // Injected so this engine module never imports the data layer (IDB/localStorage).
 let _idbGet = null;
@@ -217,12 +260,20 @@ export function rankedSplits(entry, window, wordlist) {
   // Expand overridden parts after ranking, so `ofthe → of the` re-splits a glued
   // part wherever it lands mid-entry, not only when it's the whole entry. Dedup
   // because two splits can coincide once expanded.
-  const seen = new Set();
+  const seen = new Map();
   const out = [];
+  // Fold case and punctuation out of the dedup key so an override's `I don't` merges
+  // with the scorer's own `i dont` instead of listing both; spaces stay significant,
+  // so genuinely different spacings remain distinct. On a collision keep the richer
+  // rendering, which is the override's — the scorer only ever emits bare norms.
+  const foldKey = ps => ps.map(toNorm).join(' ');
+  const richness = ps => ps.join(' ').replace(/[a-z0-9 ]/g, '').length;
   for (const { parts } of results) {
     const expanded = parts.flatMap(p => SPACE_OUT_OVERRIDES.get(p)?.split(' ') ?? [p]);
-    const key = expanded.join(' ');
-    if (!seen.has(key)) { seen.add(key); out.push(expanded); }
+    const key = foldKey(expanded);
+    const at = seen.get(key);
+    if (at === undefined) { seen.set(key, out.length); out.push(expanded); }
+    else if (richness(expanded) > richness(out[at])) out[at] = expanded;
   }
   return out;
 }

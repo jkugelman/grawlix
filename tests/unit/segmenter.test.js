@@ -243,6 +243,14 @@ test('SPACE_OUT_OVERRIDES: every value norms back to its key', () => {
   }
 });
 
+test('rankedSplits: an override rendering merges with the scorer\'s own bare spacing', () => {
+  // The table ships real orthography, and `i`/`dont` are reachable as bare parts too,
+  // so a case-sensitive dedup would list `I don't` and `i dont` as two results.
+  const { rankedSplits } = corpus([['i', -1], ['dont', -1], ['idont', -5], ['know', -1]]);
+  const out = rankedSplits('idontknow', 10, allowed('i', 'dont', 'idont', 'know'));
+  assert.deepEqual(out, [['I', "don't", 'know']]);
+});
+
 test('rankedSplits: a part named like an inherited Object key splits normally', () => {
   // `constructor` is a real wordlist entry, so it reaches the override lookup as a
   // part; on a plain-object table it resolves to Object itself and throws mid-split.
