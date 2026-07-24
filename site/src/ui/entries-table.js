@@ -3934,6 +3934,15 @@ export const EntryPanel = (() => {
   // value (same gate as Save) so a bad score can't silently drop as you move on.
   function commitForWalk() {
     if (activeReadOnly || activeMode === 'create') return true;
+    // A staged delete is a pending commit like an edit; flush it (as submit() does)
+    // so navigating to a relative doesn't silently drop it. No close() — the caller
+    // navigates instead of dismissing.
+    if (stagedDelete) {
+      const scroller = activeScroller, target = stagedDelete;
+      stagedDelete = null;
+      scroller._onDeleteRow?.(target);
+      return true;
+    }
     const newValues = readNewValues();
     if (!stagedAdopt && !pendingWritesChange(newValues)) return true;
     if (!valuesValid(newValues)) {

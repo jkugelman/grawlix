@@ -206,6 +206,32 @@ test('staging a delete via the row trash strikes it through and is reversible; S
   });
 });
 
+test('clicking a related entry commits a staged delete instead of dropping it', async ({ page }) => {
+  await gotoApp(page);
+  await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
+    name: 'Source', entries: ['bagel', 'bagels'], scores: [50, 50],
+  }));
+
+  // Override BAGEL's score so there is a My Edits row to delete; BAGELS is its relative.
+  await page.locator('.entry-row[data-entry="bagel"] .atom-entry').click();
+  await page.locator('#entry-panel-score').fill('75');
+  await page.locator('#entry-panel-score').press('Enter');
+  await expect.poll(() =>
+    page.evaluate(() => window.__grawlixTest.getWordlist('My Edits').entries.length)
+  ).toBe(1);
+
+  // Stage a delete of BAGEL's My Edits row, then click its relative instead of Save.
+  await page.locator('.entry-row[data-entry="bagel"] .atom-entry').click();
+  await page.locator('.entry-panel-prov-row', { hasText: 'My Edits' }).locator('.entry-panel-prov-trash').click();
+  await expect(page.locator('#entry-panel-score')).toBeDisabled();
+  await page.locator('.entry-family-item:not(.entry-family-item--current)').click();
+
+  await expect(page.locator('#entry-panel-entry')).toHaveValue('bagels');
+  await expect.poll(() =>
+    page.evaluate(() => window.__grawlixTest.getWordlist('My Edits').entries)
+  ).toEqual([]);
+});
+
 // Regression: under parallel load a late worker reply repaints the provenance
 // table between the trash click's mousedown and mouseup; a repaint that detaches
 // the trash node makes the browser fire no click, silently dropping the stage.
