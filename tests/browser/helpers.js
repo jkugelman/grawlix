@@ -78,18 +78,32 @@ async function reloadApp(page) {
   await whenBootSettled(page);
 }
 
+// Chromium under matrix contention drops a frame's main-world context out from
+// under an in-flight evaluate — verified: no navigation, no crash, the document
+// still rendering — and Playwright blames "a navigation" that never happened.
+// So this is a re-ask of a settled condition, not a retry papering over a race.
+async function awaitSettle(page, fn) {
+  try {
+    return await page.evaluate(fn);
+  } catch (e) {
+    if (!/Execution context was destroyed/.test(e.message)) throw e;
+    await page.waitForFunction(() => !!window.__grawlixTest);
+    return await page.evaluate(fn);
+  }
+}
+
 async function whenBootSettled(page) {
   // Wait for init() to fully complete before touching the app — NOT the old
   // `_db !== null` gate. `_db` goes true early (in openDB), before init's tail
   // runs Router.applyURL() + the boot first render; a test resuming on `_db`
   // mutates the stack mid-boot and init's tail then resets it over the test —
   // a stable wrong state polling can't rescue (a boot-vs-test race).
-  await page.evaluate(() => window.__grawlixTest.whenReady());
+  await awaitSettle(page, () => window.__grawlixTest.whenReady());
   // Then let the boot publisher fetches settle: init() kicks them off fire-and-
   // forget at its tail, and each re-renders the panel. Left pending, that
   // re-render lands mid-test on WebKit and races the test's setStack/edit.
-  await page.evaluate(() => window.__grawlixTest.loadIdle());
-  await page.evaluate(() => window.__grawlixTest.pipelineIdle());
+  await awaitSettle(page, () => window.__grawlixTest.loadIdle());
+  await awaitSettle(page, () => window.__grawlixTest.pipelineIdle());
 }
 
 // Scope the table + tools to a source by name (or 'All Wordlists' / omit for the
@@ -101,7 +115,7 @@ async function scopeTo(page, name) {
   // empty; force a re-pull from the settled worker so the read can't race it.
   const changed = await page.evaluate(n => window.__grawlixTest.setScope(n), name);
   if (!changed) await page.evaluate(() => window.__grawlixTest.refreshScroller());
-  await page.evaluate(() => window.__grawlixTest.pipelineIdle());
+  await awaitSettle(page, () => window.__grawlixTest.pipelineIdle());
 }
 
 // Scope by driving the real selector UI, not the test API — use this (over
@@ -111,7 +125,7 @@ async function scopeViaSelector(page, name) {
   await page.locator('#wordlist-bar .wls-menu .wordlist-card')
     .filter({ has: page.locator('.card-name', { hasText: name }) })
     .first().click();
-  await page.evaluate(() => window.__grawlixTest.pipelineIdle());
+  await awaitSettle(page, () => window.__grawlixTest.pipelineIdle());
 }
 
 // Expand the wordlist bar's inline rescore/scoring editor. Its content is keyed
