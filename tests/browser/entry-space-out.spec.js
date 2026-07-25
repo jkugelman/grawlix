@@ -43,6 +43,23 @@ test('suggests a spacing and applies it as a rename', async ({ page }) => {
   await expect(link(page)).toHaveCount(0);
 });
 
+test('suggests a spacing for a brand-new entry from the + button', async ({ page }) => {
+  await seed(page,
+    { name: 'Src', entries: ['has', 'a', 'grasp', 'on'], scores: [50, 50, 50, 50] },
+    { has: -2, a: -2, grasp: -3, on: -2 });
+
+  await page.locator('#add-fab').click();
+  await expect(panel(page)).toBeVisible();
+  await panel(page).locator('.entry-input').fill('hasagraspon');
+  await expect(link(page)).toHaveText('has a grasp on');
+
+  await link(page).click();
+  await expect(panel(page).locator('.entry-input')).toHaveValue('has a grasp on');
+  await expect(panel(page).locator('.entry-panel-title')).toHaveText('Add entry');
+  await expect(panel(page).locator('.entry-panel-save')).toHaveText('Add');
+  await expect(link(page)).toHaveCount(0);
+});
+
 test('offers no spacing for an entry that is already a whole word', async ({ page }) => {
   await seed(page,
     { name: 'Src', entries: ['graspon', 'grasp', 'on'], scores: [50, 50, 50] },

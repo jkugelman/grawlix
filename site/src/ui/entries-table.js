@@ -3855,7 +3855,7 @@ export const EntryPanel = (() => {
       setRenameSuggestion(null);
     }
     const norm = toNorm(display);
-    if (activeReadOnly || activeMode === 'create' || !norm) { setRenameSuggestion(null); return; }
+    if (activeReadOnly || !norm) { setRenameSuggestion(null); return; }
     const bare = display === norm;
     if (bare) {
       fetchWorkerSpaceOut(norm).then(({ suggestion, ready }) => {
