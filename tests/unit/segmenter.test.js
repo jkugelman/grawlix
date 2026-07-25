@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   msgpackDecode, buildCorpusFromMsgpack, morphemeStemLogFreq,
-  unigramLogFreq, rankedSplits, setUnigramCorpus,
+  unigramLogFreq, rankedSplits, setUnigramCorpus, configureSpaceOutBigrams,
   SPACE_OUT_PART_PENALTY, SPACE_OUT_MORPHEME_PENALTY, SPACE_OUT_OOV_PER_LETTER,
   SPACE_OUT_OVERRIDES,
 } from '../../site/src/engine/segmenter.js';
@@ -258,4 +258,42 @@ test('rankedSplits: a part named like an inherited Object key splits normally', 
   assert.deepEqual(
     rankedSplits('crosswordconstructor', 10, allowed('crossword', 'constructor')),
     [['crossword', 'constructor']]);
+});
+
+test('rankedSplits: a bigram promotes an attested pair over the unigram-preferred split', () => {
+  // Frequencies alone rank `these a` over `the sea` (these + a beat the + sea). A shipped
+  // bigram for `the sea` and none for `these a` must flip the winner — the whole point of
+  // the re-rank. The null reset leaves module state clean for later tests.
+  const { rankedSplits } = corpus([['the', -2], ['sea', -8], ['these', -3], ['a', -3]]);
+  const w = allowed('the', 'sea', 'these', 'a');
+  assert.deepEqual(rankedSplits('thesea', 5, w)[0], ['these', 'a']);   // pure unigram
+  try {
+    configureSpaceOutBigrams('the sea 100');
+    assert.deepEqual(rankedSplits('thesea', 5, w)[0], ['the', 'sea']);
+  } finally {
+    configureSpaceOutBigrams('');
+  }
+});
+
+test('configureSpaceOutBigrams: an empty table is a no-op, leaving the unigram order', () => {
+  // Guards the import-time invariant — with no injected table the ranking is exactly the
+  // pure-unigram enumeration, so importing the segmenter changes no behavior on its own.
+  configureSpaceOutBigrams('');
+  const { rankedSplits } = corpus([['the', -2], ['sea', -8], ['these', -3], ['a', -3]]);
+  assert.deepEqual(rankedSplits('thesea', 5, allowed('the', 'sea', 'these', 'a'))[0], ['these', 'a']);
+});
+
+test('rankedSplits: the re-rank only reaches a bigram-favoured split inside the window', () => {
+  // `these a` out-scores `the sea` on unigrams by more than the tightest window spans, so
+  // the bigram rescues `the sea` only once the window is wide enough to enumerate it. This
+  // is why the rename hint segments with `few`, not `one` (worker.js handleFetchSpaceOut).
+  const { rankedSplits } = corpus([['the', -2], ['sea', -6], ['these', -2], ['a', -2.5]]);
+  const w = allowed('the', 'sea', 'these', 'a');
+  try {
+    configureSpaceOutBigrams('the sea 1000');
+    assert.deepEqual(rankedSplits('thesea', 2, w)[0], ['these', 'a']);   // tightest: unreachable
+    assert.deepEqual(rankedSplits('thesea', 5, w)[0], ['the', 'sea']);   // wider: re-rank reaches it
+  } finally {
+    configureSpaceOutBigrams('');
+  }
 });

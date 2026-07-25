@@ -8,7 +8,7 @@ import { GdsCache, RoleCache } from './gds-cache.js';
 import { sortGroups, sortChainRows, activeGroupRow, groupRowComparator, chainRowComparator, chainSortTier, DEFAULT_SORT_BY_TIER } from './sort.js';
 import { PackedRecordJoin, packRecordJoin, materializeRecordRow, recordView, recordComparator, recordInRange, PackedGroupJoin, tryPackGroupJoin, buildGroupFlyweights, materializeGroupRow } from './packed-join.js';
 import {
-  configureIO as configureSegmenterIO, setUnigramCorpus,
+  configureIO as configureSegmenterIO, setUnigramCorpus, configureSpaceOutBigrams,
   rankedSplits, SPACE_OUT_WINDOWS, loadUnigramCorpus, hasUnigramCorpus,
 } from './segmenter.js';
 import { configureIO as configurePhoneticsIO } from './phonetics.js';
@@ -21,6 +21,7 @@ import { sourceAccessor, invalidateSourceAccessor, parseWordlistColumns, columns
 import { buildCorpus, assignFamilies, scopeSourceIds, mergedContributors, resolveEditSeedWinner, mergeKey, mergedNormLowerBound, computeMergedBucket, diffWordlistEntries, isDistinguishing, concreteDisplay } from './corpus.js';
 import { familyKey, generateRelativeNorms, configureCommonWords } from './morphology.js';
 import { COMMON_WORDS } from './common-words-data.js';
+import { SPACE_OUT_BIGRAMS } from './space-out-bigrams-data.js';
 import { getHistogramLayout, invalidateHistogramLayout, bucketCounts } from './histogram.js';
 import { computeStatsRaw } from './stats.js';
 import { makeWidthHintAcc, computeWidthHints, computeCorpusWidthBound } from './width-hints.js';
@@ -30,6 +31,7 @@ import { threeWayMergeEdits, sameEditsEntries } from './edits-merge.js';
 import { applyEditsWriteSet, planEntryWrite } from './edit-plan.js';
 
 configureCommonWords(COMMON_WORDS);
+configureSpaceOutBigrams(SPACE_OUT_BIGRAMS);
 
 // scheduler.yield() (the executor's default) starves the worker's run/cancel
 // message on Chromium and a microtask yield never delivers it — either silently
@@ -1594,7 +1596,11 @@ async function handleFetchSpaceOut({ requestId, norm }) {
     }
     if (hasUnigramCorpus()) {
       ready = true;
-      const parts = rankedSplits(norm, SPACE_OUT_WINDOWS.one, ownedMerged)[0];
+      // `few`, not `one`: we take only the top split, but the bigram re-rank can only
+      // reorder splits the window enumerated, and the tightest window excludes the very
+      // splits bigrams exist to promote (a correct split with one more part scores lower
+      // on unigrams alone). Narrowing this back to `one` silently mutes bigrams here.
+      const parts = rankedSplits(norm, SPACE_OUT_WINDOWS.few, ownedMerged)[0];
       if (parts && parts.length >= 2) suggestion = parts.map(caseFromWordlist).join(' ');
     }
   }

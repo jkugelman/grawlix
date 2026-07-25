@@ -10,6 +10,7 @@ export const UNIGRAM_CORPUS_SIZE_KEY = 'corpus_unigrams_size';
 
 export const SPACE_OUT_WINDOWS = { one: 2, few: 5, many: 10 };
 export const SPACE_OUT_PART_PENALTY = 7;
+export const SPACE_OUT_BIGRAM_WEIGHT = 2;
 export const SPACE_OUT_OOV_PER_LETTER = 1.5 * Math.LN10;
 export const SPACE_OUT_MORPHEME_PENALTY = 1.0;
 export const SPACE_OUT_SUFFIXES = ['s', 'es', 'ed', 'ied', 'ing', 'er', 'est', 'ly', 'ies'];
@@ -71,6 +72,32 @@ const SPACE_OUT_SPACINGS = [
 // a function and throws mid-split.
 export const SPACE_OUT_OVERRIDES = new Map(
   SPACE_OUT_SPACINGS.map(spacing => [toNorm(spacing), spacing]));
+
+// Shipped word-pair table (engine/space-out-bigrams-data.js), injected by the worker.
+// Null until then, so importing the segmenter alone keeps ranking on the pure-unigram
+// path — nothing runs at import. Values are precomputed log(1 + count), summed and
+// weighted in bigramBonus, so the parse never happens twice and the hot path only adds.
+let spaceOutBigrams = null;
+export function configureSpaceOutBigrams(raw) {
+  if (!raw) { spaceOutBigrams = null; return; }
+  const m = new Map();
+  for (const line of raw.trim().split('\n')) {
+    if (!line) continue;
+    const at = line.lastIndexOf(' ');
+    m.set(line.slice(0, at), Math.log(1 + Number(line.slice(at + 1))));
+  }
+  spaceOutBigrams = m.size ? m : null;
+}
+
+function bigramBonus(norms) {
+  if (!spaceOutBigrams) return 0;
+  let bonus = 0;
+  for (let i = 0; i < norms.length - 1; i++) {
+    const b = spaceOutBigrams.get(`${norms[i]} ${norms[i + 1]}`);
+    if (b !== undefined) bonus += b;
+  }
+  return SPACE_OUT_BIGRAM_WEIGHT * bonus;
+}
 
 // Injected so this engine module never imports the data layer (IDB/localStorage).
 let _idbGet = null;
@@ -256,24 +283,28 @@ export function rankedSplits(entry, window, wordlist) {
   }
   enumerate(entry, 0);
 
-  results.sort((a, b) => b.score - a.score);
-  // Expand overridden parts after ranking, so `ofthe → of the` re-splits a glued
-  // part wherever it lands mid-entry, not only when it's the whole entry. Dedup
-  // because two splits can coincide once expanded.
+  // Expand overridden parts, then rank by the enumeration score plus the bigram bonus.
+  // Expanding before the sort lets the bonus see the corrected parts (`of the`, not the
+  // glued `ofthe`) and lets two splits that coincide once expanded de-dup; the override
+  // itself still fires wherever a glued part lands, mid-entry as readily as whole-entry.
+  // With no bigram table the bonus is 0, so the order is the pure-unigram score untouched.
+  const richness = ps => ps.join(' ').replace(/[a-z0-9 ]/g, '').length;
+  const scored = results.map(({ score, parts }) => {
+    const expanded = parts.flatMap(p => SPACE_OUT_OVERRIDES.get(p)?.split(' ') ?? [p]);
+    const norms = expanded.map(toNorm);
+    return { parts: expanded, norms, score: score + bigramBonus(norms) };
+  });
+  scored.sort((a, b) => b.score - a.score);
+  // Dedup on the norm-folded key so an override's `I don't` merges with the scorer's own
+  // `i dont`; spaces stay significant, so distinct spacings stay distinct. On a collision
+  // keep the richer rendering — the override's, since the scorer only emits bare norms.
   const seen = new Map();
   const out = [];
-  // Fold case and punctuation out of the dedup key so an override's `I don't` merges
-  // with the scorer's own `i dont` instead of listing both; spaces stay significant,
-  // so genuinely different spacings remain distinct. On a collision keep the richer
-  // rendering, which is the override's — the scorer only ever emits bare norms.
-  const foldKey = ps => ps.map(toNorm).join(' ');
-  const richness = ps => ps.join(' ').replace(/[a-z0-9 ]/g, '').length;
-  for (const { parts } of results) {
-    const expanded = parts.flatMap(p => SPACE_OUT_OVERRIDES.get(p)?.split(' ') ?? [p]);
-    const key = foldKey(expanded);
+  for (const { parts, norms } of scored) {
+    const key = norms.join(' ');
     const at = seen.get(key);
-    if (at === undefined) { seen.set(key, out.length); out.push(expanded); }
-    else if (richness(expanded) > richness(out[at])) out[at] = expanded;
+    if (at === undefined) { seen.set(key, out.length); out.push(parts); }
+    else if (richness(parts) > richness(out[at])) out[at] = parts;
   }
   return out;
 }

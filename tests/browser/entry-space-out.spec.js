@@ -60,6 +60,19 @@ test('suggests a spacing for a brand-new entry from the + button', async ({ page
   await expect(link(page)).toHaveCount(0);
 });
 
+test('a bigram-favoured split outside the tightest window still wins the hint', async ({ page }) => {
+  // Frequencies tuned so `these a` out-scores `the sea` on unigrams by enough that the
+  // correct split falls outside the tightest window but inside a wider one — the shipped
+  // `the sea` bigram only rescues it if the hint enumerates wide enough to reach it. Flatten
+  // this gap and the test still passes while no longer guarding the hint's window.
+  await seed(page,
+    { name: 'Src', entries: ['thesea', 'the', 'sea', 'these', 'a'], scores: [50, 50, 50, 50, 50] },
+    { the: -2, sea: -6, these: -2, a: -2.5 });
+
+  await openPanelFor(page, 'thesea');
+  await expect(link(page)).toHaveText('the sea');
+});
+
 test('offers no spacing for an entry that is already a whole word', async ({ page }) => {
   await seed(page,
     { name: 'Src', entries: ['graspon', 'grasp', 'on'], scores: [50, 50, 50] },
