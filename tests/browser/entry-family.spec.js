@@ -149,6 +149,23 @@ test('editing the score updates the current entry\'s badge in Related entries', 
   await expect(current(page).locator('.score-badge')).toHaveText('0');
 });
 
+test('an unscored new entry wears no badge in Related entries', async ({ page }) => {
+  await gotoApp(page);
+  await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
+    name: 'Src', entries: ['lather', 'lathered'], scores: [50, 30],
+  }));
+  await page.locator('#add-fab').click();
+  await expect(panel(page)).toBeVisible();
+  await panel(page).locator('.entry-input').fill('lathering');
+
+  await expect(current(page)).toContainText('lathering');
+  await expect(current(page).locator('.score-badge')).toHaveCount(0);
+  await expect(sibling(page).locator('.score-badge')).toHaveText(['50', '30']);
+
+  await page.locator('#entry-panel-score').fill('40');
+  await expect(current(page).locator('.score-badge')).toHaveText('40');
+});
+
 test('a deep-link open shows the entry score on its Related-entries anchor', async ({ page }) => {
   await gotoApp(page);
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({

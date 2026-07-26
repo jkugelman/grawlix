@@ -3779,10 +3779,7 @@ export const EntryPanel = (() => {
   function currentPanelScore() {
     const typed = parseInt(el.querySelector('.score-input')?.value, 10);
     if (Number.isFinite(typed)) return typed;
-    // A deep-link open renders before the async seed lands, when the field is empty
-    // and the URL-placeholder entry carries score '' — coerce to a real number so the
-    // badge never renders blank (refreshFamilyScore fills the true value on seed).
-    return Number.isFinite(activeWlEntry?.score) ? activeWlEntry.score : 0;
+    return Number.isFinite(activeWlEntry?.score) ? activeWlEntry.score : null;
   }
 
   function renderFamily(norm, display) {
@@ -3913,8 +3910,9 @@ export const EntryPanel = (() => {
     if (members.every(m => m.current)) return '';
     const items = members.map((m, i) => {
       const cls = m.current ? 'entry-family-item entry-family-item--current' : 'entry-family-item';
+      const badge = Number.isFinite(m.score) ? ` ${buildScoreBadgeHTML(m.score)}` : '';
       return `<span class="${cls}" data-fam-idx="${i}" tabindex="0">`
-        + `<span class="entry-family-entry">${esc(displayOf(m))}</span> ${buildScoreBadgeHTML(m.score)}</span>`;
+        + `<span class="entry-family-entry">${esc(displayOf(m))}</span>${badge}</span>`;
     }).join(' · ');
     return `<div class="lookup-sec"><div class="lookup-sec-head">Related entries</div>`
       + `<div class="entry-family-list">${items}</div></div>`;
