@@ -13,7 +13,7 @@ test('a grouped sweep reports progress as a rising 0..1 fraction', async () => {
   try {
     const wl = merged(['lives', 'elvis', 'levis', 'evils', 'tops', 'pots', 'opt']);
     const fractions = [];
-    await executePipeline(wl, [makeToolRow('anagrams', {}, true)], null, null, null, f => fractions.push(f));
+    await executePipeline(wl, [makeToolRow('anagrams', {}, true)], null, { onProgress: f => fractions.push(f) });
 
     assert.ok(fractions.length > 0, 'progress was reported during the bucketize sweep');
     assert.ok(fractions.every(f => f >= 0 && f <= 1), 'every fraction is within [0, 1]');

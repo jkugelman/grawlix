@@ -49,7 +49,7 @@ test('emit: a flat search streams disjoint batches that concatenate to the retur
   const batches = [];
   const result = await executePipeline(
     makeCorpus(MATCHING), [makeToolRow('search', { pattern: 'UN*ED' })], null,
-    b => batches.push(b),
+    { emit: b => batches.push(b) },
   );
 
   assert.equal(result.laneKind, 'single', 'fixture must be a flat (ungrouped) run');
@@ -71,7 +71,7 @@ test('emit: a transform stack (head_off) streams its rows', async () => {
   const batches = [];
   const result = await executePipeline(
     corpus, [makeToolRow('head_off', { pattern: '?' })], null,
-    b => batches.push(b),
+    { emit: b => batches.push(b) },
   );
 
   assert.ok(result.rows.length > 0, 'head_off fixture matched nothing');
@@ -90,7 +90,7 @@ test('emit: a tuple run streams tuple-group batches that union to the returned g
   const batches = [];
   const result = await executePipeline(
     corpus, [makeToolRow('umiaq', { query: 'AB;BA' })], null,
-    b => batches.push(b),
+    { emit: b => batches.push(b) },
   );
 
   assert.equal(result.laneKind, 'record', 'fixture must be a tuple run');
@@ -148,7 +148,7 @@ test('emit: a tuple run with a downstream filter streams ONLY the filtered tuple
   const batches = [];
   const result = await executePipeline(
     corpus(), [umiaq(), makeToolRow('search', { pattern: 'pea' })], null,
-    b => batches.push(b),
+    { emit: b => batches.push(b) },
   );
 
   assert.equal(result.laneKind, 'record', 'must be a tuple run');
@@ -171,7 +171,7 @@ test('emit: a ctx-reading filter (caesar) streams after a tuple run, matching th
   const batches = [];
   const result = await executePipeline(
     corpus, [makeToolRow('umiaq', { query: 'AB;BA' }), makeToolRow('caesar', { entry: 'abc', shift: '1' })], null,
-    b => batches.push(b),
+    { emit: b => batches.push(b) },
   );
 
   assert.equal(result.laneKind, 'record', 'must be a tuple run');
@@ -190,7 +190,7 @@ test('emit: a grouped stack is gated off — emit is never called', async () => 
   const batches = [];
   const result = await executePipeline(
     corpus, [makeToolRow('cryptogram', {}, true)], null,
-    b => batches.push(b),
+    { emit: b => batches.push(b) },
   );
 
   assert.equal(result.laneKind, 'set', 'fixture must be a grouped run');
@@ -204,7 +204,7 @@ test('no-emit: the returned rows are identical to those of an emitting run (addi
 
   const buffered = await executePipeline(makeCorpus(MATCHING), stack(), null);
 
-  const streamed = await executePipeline(makeCorpus(MATCHING), stack(), null, () => {});
+  const streamed = await executePipeline(makeCorpus(MATCHING), stack(), null, { emit: () => {} });
 
   assert.equal(buffered.rows.length, MATCHING.length, 'no-emit run must return the full flat result');
   assert.deepStrictEqual(streamed.rows.map(projectRow), buffered.rows.map(projectRow));
@@ -216,7 +216,7 @@ test('emit: a reverse transform (head on) streams each row exactly once', async 
   const batches = [];
   const result = await executePipeline(
     corpus, [makeToolRow('head_off', { pattern: 'catc' }, false, false, true)], null,
-    b => batches.push(b),
+    { emit: b => batches.push(b) },
   );
   const flat = batches.flat();
   assert.equal(new Set(flat).size, flat.length, 'a row was emitted in more than one batch');

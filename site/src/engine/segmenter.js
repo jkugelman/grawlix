@@ -8,7 +8,7 @@ export const UNIGRAM_CORPUS_URL = 'https://raw.githubusercontent.com/rspeer/word
 export const UNIGRAM_CORPUS_IDB_KEY = 'corpus_unigrams_decoded';
 export const UNIGRAM_CORPUS_SIZE_KEY = 'corpus_unigrams_size';
 
-export const SPACE_OUT_WINDOWS = { one: 2, few: 5, many: 10 };
+export const SPACE_OUT_WINDOWS = { few: 5, many: 10 };
 export const SPACE_OUT_PART_PENALTY = 7;
 export const SPACE_OUT_BIGRAM_WEIGHT = 2;
 export const SPACE_OUT_OOV_PER_LETTER = 1.5 * Math.LN10;

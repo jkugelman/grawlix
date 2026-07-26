@@ -124,11 +124,11 @@ function tupleToGroup(tuple) {
   };
 }
 
-async function makeTupleEmit(emit, downstream, mergedWordlist, signal, y) {
+async function makeTupleEmit(emit, downstream, wordlist, vocab, signal, y) {
   const stages = await Promise.all(downstream.map(async row => ({
     row,
     prepared: row.def.prepare
-      ? await row.def.prepare(normalizeParams(row.params, row.def.params), makeCtx(mergedWordlist, signal, y, row.grouped, row.reversed()))
+      ? await row.def.prepare(normalizeParams(row.params, row.def.params), makeCtx(wordlist, vocab, signal, y, row.grouped, row.reversed()))
       : normalizeParams(row.params, row.def.params),
   })));
   return async batch => {
@@ -136,7 +136,7 @@ async function makeTupleEmit(emit, downstream, mergedWordlist, signal, y) {
     for (const { row, prepared } of stages) {
       const kept = [];
       for (const g of groups) {
-        const chains = await runGroupFilterStage(g.chains, row, prepared, mergedWordlist, y);
+        const chains = await runGroupFilterStage(g.chains, row, prepared, wordlist, y);
         if (chains.length) kept.push({ ...g, chains });
       }
       groups = kept;
@@ -173,9 +173,10 @@ function makeWorkingSetView(rows) {
   };
 }
 
-function makeCtx(mergedWordlist, signal, y, grouped = false, reversed = false) {
+function makeCtx(wordlist, vocab, signal, y, grouped = false, reversed = false) {
   return {
-    wordlist: mergedWordlist,
+    wordlist,
+    vocab,
     grouped,
     reversed,
     throwIfAborted: () => throwIfAborted(signal),
@@ -204,7 +205,7 @@ function makeCtx(mergedWordlist, signal, y, grouped = false, reversed = false) {
   };
 }
 
-// Run the tool stack against the merged wordlist, returning
+// Run the tool stack against the run corpus, returning
 // `{ rows, atomCount }`. Each row is a ChainRow — `{ atoms: Atom[] }` — where
 // an Atom is `{ wlEntry, highlights, glyph }`, where `highlights` is a flat
 // list of ranges — or `null` when the atom is not a highlight slot (the
@@ -256,7 +257,14 @@ function cloneState(state) {
 // bare corpus. Its seedState is shared with the cache, so it is CLONED before the suffix
 // mutates it (drop the clone and a suffix run silently corrupts the cached prefix under a
 // later reuse). Every boundary is a uniform tile candidate — no stage gets special caching.
-export async function executePipeline(mergedWordlist, stack, signal, emit = null, resume = null, onProgress = null) {
+//
+// `wordlist` is the run corpus — the entries to process, scoped to the active view.
+// `vocab` is the word-existence corpus tools consult, which stays the full merge under
+// every scope: a tool asking "is this a word" against one scope's entries gets a wrong
+// answer, not an error. They coincide only in the merged scope, which is why defaulting
+// vocab to wordlist reads as harmless and is not.
+export async function executePipeline(wordlist, stack, signal,
+                                      { emit = null, resume = null, onProgress = null, vocab = wordlist } = {}) {
   const y = makeYielder(signal, onProgress);
   for (const stackRow of stack) stackRow._error = null;
 
@@ -276,7 +284,7 @@ export async function executePipeline(mergedWordlist, stack, signal, emit = null
     // never mutate their input array (each returns a fresh `next`), so handing them
     // the live `entries` is safe; a filter-only run carries them through untouched.
     state = {
-      groups: [{ key: undefined, chains: mergedWordlist.entries }],
+      groups: [{ key: undefined, chains: wordlist.entries }],
       grouped: false,
       laneKind: 'single',
       capped: false,
@@ -294,7 +302,7 @@ export async function executePipeline(mergedWordlist, stack, signal, emit = null
   for (let i = from; i < userStackLen; i++) {
     const stackRow = stack[i];
     const t0 = performance.now();
-    await runStackRow(stackRow, state, mergedWordlist, signal, y, stackRow === producer ? emit : null, downstream);
+    await runStackRow(stackRow, state, wordlist, vocab, signal, y, stackRow === producer ? emit : null, downstream);
     if (stackRow.isInert()) continue;
     acc += performance.now() - t0;
     if (resume?.offer && acc >= resume.floorMs) {
@@ -304,7 +312,7 @@ export async function executePipeline(mergedWordlist, stack, signal, emit = null
     }
   }
 
-  await runStackRow(searchRow, state, mergedWordlist, signal, y, searchRow === producer ? emit : null, downstream);
+  await runStackRow(searchRow, state, wordlist, vocab, signal, y, searchRow === producer ? emit : null, downstream);
 
   const { groups, laneKind } = state;
   const multiLane = laneKind !== 'single';
@@ -336,7 +344,7 @@ export async function executePipeline(mergedWordlist, stack, signal, emit = null
   };
 }
 
-async function runStackRow(stackRow, state, mergedWordlist, signal, y, emit = null, downstream = []) {
+async function runStackRow(stackRow, state, wordlist, vocab, signal, y, emit = null, downstream = []) {
   if (stackRow.isInert()) return;
   const { def } = stackRow;
   throwIfAborted(signal);
@@ -344,7 +352,7 @@ async function runStackRow(stackRow, state, mergedWordlist, signal, y, emit = nu
   try {
     if (stackRow.kind() === 'group') {
       const params = normalizeParams(stackRow.params, def.params);
-      const ctx = makeCtx(mergedWordlist, signal, y, stackRow.grouped);
+      const ctx = makeCtx(wordlist, vocab, signal, y, stackRow.grouped);
       const prepared = def.group.prepare
         ? await def.group.prepare(params, ctx, makeWorkingSetView(state.groups[0].chains))
         : params;
@@ -358,8 +366,8 @@ async function runStackRow(stackRow, state, mergedWordlist, signal, y, emit = nu
       const params = normalizeParams(stackRow.params, def.params);
       const poolRows = state.grouped ? state.groups.flatMap(g => g.chains) : state.groups[0].chains;
       const prepared = def.prepare(params);
-      const onBatch = emit ? await makeTupleEmit(emit, downstream, mergedWordlist, signal, y) : null;
-      const { tuples, capped, truncated } = await def.findTuples(poolRows.map(rowLastEntry), prepared, { wordlist: mergedWordlist, y, signal, onBatch });
+      const onBatch = emit ? await makeTupleEmit(emit, downstream, wordlist, vocab, signal, y) : null;
+      const { tuples, capped, truncated } = await def.findTuples(poolRows.map(rowLastEntry), prepared, { wordlist, vocab, y, signal, onBatch });
       state.groups = tuples.map(tupleToGroup);
       state.grouped = true;
       state.laneKind = 'record';
@@ -372,13 +380,13 @@ async function runStackRow(stackRow, state, mergedWordlist, signal, y, emit = nu
       ? state.groups.flatMap(g => g.chains)
       : state.groups[0].chains;
     const prepared = def.prepare
-      ? await def.prepare(params, makeCtx(mergedWordlist, signal, y, stackRow.grouped, stackRow.reversed()), makeWorkingSetView(prepareInput))
+      ? await def.prepare(params, makeCtx(wordlist, vocab, signal, y, stackRow.grouped, stackRow.reversed()), makeWorkingSetView(prepareInput))
       : params;
     const groupFilter = state.grouped && stackRow.kind() === 'filter';
     for (const g of state.groups) {
       g.chains = groupFilter
-        ? await runGroupFilterStage(g.chains, stackRow, prepared, mergedWordlist, y)
-        : await runToolStage(g.chains, stackRow, prepared, mergedWordlist, y, emit);
+        ? await runGroupFilterStage(g.chains, stackRow, prepared, wordlist, y)
+        : await runToolStage(g.chains, stackRow, prepared, wordlist, y, emit);
       if (y.due()) await y.yield();
     }
   } catch (e) {
@@ -394,7 +402,7 @@ function tagCoord(ranges, coord) {
   return ranges.map(r => r.coord ? r : { ...r, coord });
 }
 
-async function runToolStage(rows, stackRow, prepared, mergedWordlist, y, emit = null) {
+async function runToolStage(rows, stackRow, prepared, wordlist, y, emit = null) {
   const { def } = stackRow;
   const kind = stackRow.kind();
   const invert = stackRow.inverted();
@@ -409,7 +417,7 @@ async function runToolStage(rows, stackRow, prepared, mergedWordlist, y, emit = 
     const inputText = matchOn === 'both' ? tailEntry
       : matchOn === 'display' ? displayOf(tailEntry)
       : tailEntry.norm;
-    const result = def.run(inputText, prepared, mergedWordlist);
+    const result = def.run(inputText, prepared, wordlist);
     if (kind === 'filter') {
       if (invert) {
         // A non-match has no ranges, so this opens no highlight slot whatever the
@@ -431,7 +439,7 @@ async function runToolStage(rows, stackRow, prepared, mergedWordlist, y, emit = 
         // Emit one row per (norm, display) spelling sharing this output's norm,
         // so transform results match the base merged view's per-spelling rows; a
         // single-winner lookup would silently drop the other spellings (eta/ETA).
-        const variants = synthetic ? null : mergedRowsForNorm(mergedWordlist, toNorm(text));
+        const variants = synthetic ? null : mergedRowsForNorm(wordlist, toNorm(text));
         const targets = variants && variants.length
           ? variants
           : [synthWlEntry(text, synthetic ? tailEntry : ZERO_SCORE)];
@@ -472,7 +480,7 @@ async function runToolStage(rows, stackRow, prepared, mergedWordlist, y, emit = 
 // Each member also carries `matched`. Its only reader is the worker's score-range
 // gate (drop a cluster the range has stripped of every match), so it looks unused
 // here — prune it and that gate silently goes dead, reviving the orphan cluster.
-async function runGroupFilterStage(rows, stackRow, prepared, mergedWordlist, y) {
+async function runGroupFilterStage(rows, stackRow, prepared, wordlist, y) {
   const { def } = stackRow;
   const invert = stackRow.inverted();
   const glyph = stackRow.glyph();
@@ -485,7 +493,7 @@ async function runGroupFilterStage(rows, stackRow, prepared, mergedWordlist, y) 
     const inputText = matchOn === 'both' ? tailEntry
       : matchOn === 'display' ? displayOf(tailEntry)
       : tailEntry.norm;
-    const result = def.run(inputText, prepared, mergedWordlist);
+    const result = def.run(inputText, prepared, wordlist);
     results[i] = result;
     if (result) anyMatch = true;
     if (y.due()) await y.yield();

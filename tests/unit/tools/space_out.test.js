@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { setUnigramCorpus } from '../../../site/src/engine/segmenter.js';
+import { setUnigramCorpus, configureSpaceOutBigrams } from '../../../site/src/engine/segmenter.js';
 import { visible, sameVisible, run, rowByFirst, atomWord } from './harness.js';
 
 const corpus = freqs => setUnigramCorpus(freqs);
@@ -77,4 +77,37 @@ test('Splits=One returns exactly the top result; Splits=Many surfaces near-tie a
 
   const many = await run(lib, [{ tool: 'space_out', params: { splits: 'many' } }]);
   assert.deepEqual([...new Set(splitsOf(many.rows, 'abcdef'))].sort(), ['abc def', 'abcd ef']);
+});
+
+test('Splits=One keeps one result without narrowing the window bigrams need', async () => {
+  // Splits=One caps the output, not the enumeration: `the sea` is only reachable
+  // once the window is wide, so capping both would hand back `these a`.
+  corpus({ the: -2, sea: -6, these: -2, a: -2.5 });
+  const lib = ['thesea', 'the', 'sea', 'these', 'a'];
+  try {
+    configureSpaceOutBigrams('the sea 1000');
+    const one = await run(lib, [{ tool: 'space_out', params: { splits: 'one' } }]);
+    assert.deepEqual(splitsOf(one.rows, 'thesea'), ['the sea']);
+  } finally {
+    configureSpaceOutBigrams('');
+  }
+});
+
+test('spells each split part from the wordlist', async () => {
+  corpus({ dna: -2, exoneree: -3 });
+  const { rows } = await run(['dnaexoneree', 'DNA', 'exoneree'], [{ tool: 'space_out' }]);
+  assert.deepEqual(splitsOf(rows, 'dnaexoneree'), ['DNA exoneree']);
+});
+
+test('segments against the full merge, not just the scoped entries', async () => {
+  // A scoped view carries only its own entries; parts over two letters must exist
+  // in the vocabulary to be allowed, so a scope-wide vocab silently kills the split.
+  corpus({ has: -2, a: -2, grasp: -3, on: -2 });
+  const scoped = ['hasagraspon'];
+  const everything = ['hasagraspon', 'has', 'a', 'grasp', 'on'];
+
+  const { rows } = await run(scoped, [{ tool: 'space_out' }], { vocab: everything });
+  assert.deepEqual(splitsOf(rows, 'hasagraspon'), ['has a grasp on']);
+
+  sameVisible(await visible(scoped, [{ tool: 'space_out' }]), ['hasagraspon']);
 });

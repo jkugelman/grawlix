@@ -66,12 +66,12 @@ test('flat: seeding from a cached prefix reruns only the suffix, byte-identical 
   ];
 
   const cap = captureResume({ floorMs: 0 });
-  const cold = await executePipeline(corpus, stack(), null, null, cap.resume);
+  const cold = await executePipeline(corpus, stack(), null, { resume: cap.resume });
   const tile = cap.offers.find(o => o.prefixLen === 1);
   assert.ok(tile, 'the [f0] prefix state must be offered as a tile');
 
   const { resume } = captureResume({ seedState: tile.state, seedFrom: 1 });
-  const seeded = await executePipeline(corpus, stack(), null, null, resume);
+  const seeded = await executePipeline(corpus, stack(), null, { resume });
 
   assert.equal(lastPipelineSeedFrom(), 1, 'the seeded run resumed from index 1 — f0 was skipped');
   assert.deepStrictEqual(project(seeded.rows), project(cold.rows));
@@ -87,7 +87,7 @@ test('tiling: offers cover every user-stack prefix (incl. pre-search) but never 
     makeToolRow('search', { pattern: 'UN*2*ED' }),
   ];
   const cap = captureResume({ floorMs: 0 });
-  await executePipeline(corpus, stack, null, null, cap.resume);
+  await executePipeline(corpus, stack, null, { resume: cap.resume });
 
   // 4 rows → userStackLen 3. Tiles cover prefix lengths 1..3 (3 = the pre-search state,
   // reused when a row is added on top); length 4 (the terminal) is the finished cache's job.
@@ -103,7 +103,7 @@ test('tiling: an infinite floor suppresses every tile', async () => {
     makeToolRow('search', { pattern: 'UN*0*ED' }),
   ];
   const cap = captureResume({ floorMs: Infinity });
-  await executePipeline(corpus, stack, null, null, cap.resume);
+  await executePipeline(corpus, stack, null, { resume: cap.resume });
   assert.equal(cap.offers.length, 0);
 });
 
@@ -117,14 +117,14 @@ test('tuple: seeding from a mid-pipeline group state is byte-identical to a cold
   ];
 
   const cap = captureResume({ floorMs: 0 });
-  const cold = await executePipeline(corpus, stack(), null, null, cap.resume);
+  const cold = await executePipeline(corpus, stack(), null, { resume: cap.resume });
   assert.equal(cold.laneKind, 'record', 'fixture must be a tuple run');
   assert.ok(cold.rows.length > 0, 'the downstream filters must keep at least one tuple');
   const tile = cap.offers.find(o => o.prefixLen === 1);
   assert.ok(tile, 'the [umiaq] prefix state must be offered');
 
   const { resume } = captureResume({ seedState: tile.state, seedFrom: 1 });
-  const seeded = await executePipeline(corpus, stack(), null, null, resume);
+  const seeded = await executePipeline(corpus, stack(), null, { resume });
 
   assert.equal(lastPipelineSeedFrom(), 1, 'the expensive Umiaq stage was skipped');
   assert.deepStrictEqual(project(seeded.rows), project(cold.rows));
@@ -148,7 +148,7 @@ function prefixHarness(floorMs = 0) {
         if (e) { seedState = e; seedFrom = len; break; }
       }
       const resume = { seedState, seedFrom, floorMs, offer: (n, st) => cache.set(key(ser, n), st) };
-      return executePipeline(corpus, stack, null, null, resume);
+      return executePipeline(corpus, stack, null, { resume });
     },
   };
 }

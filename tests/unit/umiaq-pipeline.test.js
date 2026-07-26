@@ -29,7 +29,7 @@ function mergedWordlist(norms) {
 
 async function run(query, norms) {
   const wl = mergedWordlist(norms);
-  return executePipeline(wl, [toolRow(umiaqTool, { query: query }), inertSearch], null, null);
+  return executePipeline(wl, [toolRow(umiaqTool, { query: query }), inertSearch], null);
 }
 
 test('pipeline: a single-pattern query is an arity-1 filter', async () => {
@@ -89,7 +89,7 @@ test('pipeline: a tuple run that hit its ceiling propagates capped through the r
     kind: () => 'tuple', isInert: () => false,
     prepare: p => p, findTuples: () => ({ tuples: [], capped: true }),
   };
-  const res = await executePipeline(wl, [toolRow(stubTupleTool, {}), inertSearch], null, null);
+  const res = await executePipeline(wl, [toolRow(stubTupleTool, {}), inertSearch], null);
   assert.equal(res.capped, true);
 });
 
@@ -99,7 +99,7 @@ test('pipeline: a truncated tuple run folds into capped (one "there are more" fa
     kind: () => 'tuple', isInert: () => false,
     prepare: p => p, findTuples: () => ({ tuples: [], capped: false, truncated: true }),
   };
-  const res = await executePipeline(wl, [toolRow(stubTupleTool, {}), inertSearch], null, null);
+  const res = await executePipeline(wl, [toolRow(stubTupleTool, {}), inertSearch], null);
   assert.equal(res.capped, true);
 });
 

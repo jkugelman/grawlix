@@ -1,9 +1,16 @@
 'use strict';
 
-import { toNorm, displayOf } from '../norm.js';
-import {
-  SPACE_OUT_WINDOWS, loadUnigramCorpus, rankedSplits, hasUnigramCorpus,
-} from '../segmenter.js';
+import { displayOf } from '../norm.js';
+import { SPACE_OUT_WINDOWS, loadUnigramCorpus, hasUnigramCorpus } from '../segmenter.js';
+import { spaceOutSplits } from '../space-out.js';
+
+async function ensureCorpus() {
+  try {
+    await loadUnigramCorpus();
+  } catch {
+    throw new Error('Couldn’t load the word-frequency corpus — check your connection.');
+  }
+}
 
 export default {
   name: 'Space out', icon: '🌌', category: 'phrase',
@@ -20,24 +27,26 @@ export default {
   ],
   kind: 'transform', inputHighlights: false, outputHighlights: false,
   glyph: () => '→',
-  async prepare(params) {
-    await loadUnigramCorpus();
+  async prepare(params, ctx) {
+    await ensureCorpus();
     const choice = params.splits || 'few';
-    return { window: SPACE_OUT_WINDOWS[choice] ?? SPACE_OUT_WINDOWS.few, onlyTop: choice === 'one' };
+    return {
+      // The full merge even under a scoped view: a scope carries only its own
+      // entries, and segmenting against those thins every split with no error.
+      vocab: ctx.vocab,
+      window: choice === 'many' ? SPACE_OUT_WINDOWS.many : SPACE_OUT_WINDOWS.few,
+      limit: choice === 'one' ? 1 : Infinity,
+    };
   },
   run(entry, prepared, wordlist) {
     if (!hasUnigramCorpus()) return [];
     const existing = wordlist.byNorm.get(entry);
     if (existing && displayOf(existing).includes(' ')) return [{ entry }];
-    const splits = rankedSplits(entry, prepared.window, wordlist);
-    if (splits.length === 0) return [];
-    const picks = prepared.onlyTop ? splits.slice(0, 1) : splits;
-    return picks.map(parts => {
-      const joined = parts.join(' ');
-      if (joined === entry) return { entry };
-      const hit = wordlist.byNorm.get(toNorm(joined));
-      const hitIsJoined = hit && (hit.display || '').toLowerCase() === joined;
-      return { entry: hitIsJoined ? hit.norm : [joined] };
-    });
+    const { vocab, window, limit } = prepared;
+    // A split re-spaces the entry without changing its letters, so every output
+    // shares the input's norm — the wordlist's own spelling of it is the passthrough
+    // above, and anything this produces is a spacing the list does not carry.
+    return spaceOutSplits(entry, vocab, { window, limit })
+      .map(parts => parts.length === 1 ? { entry } : { entry: [parts.join(' ')] });
   },
 };

@@ -11,6 +11,7 @@ import {
   configureIO as configureSegmenterIO, setUnigramCorpus, configureSpaceOutBigrams,
   rankedSplits, SPACE_OUT_WINDOWS, loadUnigramCorpus, hasUnigramCorpus,
 } from './segmenter.js';
+import { bestSpaceOutSplit } from './space-out.js';
 import { configureIO as configurePhoneticsIO } from './phonetics.js';
 import { DATA_ASSETS, getDataAsset } from './assets.js';
 import { parseWordlist, toNorm, displayOf } from './norm.js';
@@ -311,7 +312,7 @@ async function runOne({ runId, stack: serialized, sort, scope, existsQuery, scor
       : tier === 'transform' ? makeTransformStreamEmitter(runId, viewSpec, scope, stack, signal, streamState, resumeCtx)
       : null;
     const onProgress = fraction => { if (!signal.aborted) postMessage({ type: 'progress', runId, fraction }); };
-    out = await executePipeline(ownedCorpus, stack, signal, emit, resume, onProgress);
+    out = await executePipeline(ownedCorpus, stack, signal, { emit, resume, onProgress, vocab: ownedMerged });
   } catch (e) {
     if (isAbortError(e) || signal.aborted) { stashPartialOnAbort(runId, serialized, scope, t0, genAtStart); return; }
     if (divergenceError(e)) {
@@ -353,7 +354,8 @@ async function runRepatch({ runId, reprojectId, stack: serialized, sort, scoreRa
 
   let out;
   try {
-    out = await executePipeline(ownedCorpus, stack, signal, null, makePrefixResume(serialized, lastFlatResult.scope));   // buffered (no emit): one atomic snapshot, not a strobing re-stream
+    out = await executePipeline(ownedCorpus, stack, signal,   // buffered (no emit): one atomic snapshot, not a strobing re-stream
+      { resume: makePrefixResume(serialized, lastFlatResult.scope), vocab: ownedMerged });
   } catch (e) {
     // Aborted ⇒ a newer run superseded us and refreshes the display, so reply nothing
     // (main's pending reproject self-heals); a real error re-runs.
@@ -1637,12 +1639,6 @@ function handleFetchWinners({ requestId, ids }) {
 // carries plainly is left alone (it, us never force-capitalized) — a distinguishing
 // norm stores that plain spelling as display === norm, so a (norm, norm) byKey row
 // is the lowercase signal.
-function caseFromWordlist(part) {
-  if (ownedMerged.byKey.has(mergeKey(part, part))) return part;
-  const display = ownedMerged.byNorm.get(part)?.display;
-  return display && !/\s/.test(display) ? display : part;
-}
-
 async function handleFetchSpaceOut({ requestId, norm }) {
   let suggestion = null;
   let ready = false;
@@ -1657,12 +1653,8 @@ async function handleFetchSpaceOut({ requestId, norm }) {
     }
     if (hasUnigramCorpus()) {
       ready = true;
-      // `few`, not `one`: we take only the top split, but the bigram re-rank can only
-      // reorder splits the window enumerated, and the tightest window excludes the very
-      // splits bigrams exist to promote (a correct split with one more part scores lower
-      // on unigrams alone). Narrowing this back to `one` silently mutes bigrams here.
-      const parts = rankedSplits(norm, SPACE_OUT_WINDOWS.few, ownedMerged)[0];
-      if (parts && parts.length >= 2) suggestion = parts.map(caseFromWordlist).join(' ');
+      const parts = bestSpaceOutSplit(norm, ownedMerged);
+      if (parts) suggestion = parts.join(' ');
     }
   }
   // `ready` separates "this entry has no better spacing" from "the segmenter couldn't
