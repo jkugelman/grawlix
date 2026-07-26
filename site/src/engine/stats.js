@@ -1,10 +1,5 @@
 'use strict';
 
-const _statsCache = new WeakMap();
-const _mergedStatsKey = {};
-
-export function invalidateStatsCache(key) { _statsCache.delete(key); }
-
 // Accepts rich rows OR a raw numeric scores array: the flat tier feeds the
 // latter so a million-entry stats refresh scans an Int32Array rather than
 // allocating a `{ score }` object per entry.
@@ -26,11 +21,4 @@ export function computeStatsRaw(entries) {
   }
   const distinctScores = Object.keys(freq).map(Number).sort((a, b) => a - b);
   return { count: entries.length, min, max, distinctScores };
-}
-
-export function computeStats(key, entries) {
-  if (_statsCache.has(key)) return _statsCache.get(key);
-  const result = computeStatsRaw(entries);
-  _statsCache.set(key, result);
-  return result;
 }

@@ -834,13 +834,10 @@ export function endPendingEdit() {
 // touch run supersession. A timeout resolves null so main falls back to its
 // local clicked seed rather than hanging the editor.
 let fetchEditSeedRequestId = 0;
-let editSeedFetches = 0;
-export function fetchEditSeedFetchCount() { return editSeedFetches; }
 export async function fetchWorkerEditSeed(norm, display, timeout = 5000) {
   await pendingEditBarrier;
   const w = getWorker();
   const requestId = ++fetchEditSeedRequestId;
-  editSeedFetches++;
   return new Promise(resolve => {
     const timer = setTimeout(() => { w.removeEventListener('message', onMessage); resolve(null); }, timeout);
     function onMessage({ data }) {
@@ -944,13 +941,10 @@ export function fetchWorkerWordCase(norm, timeout = 5000) {
 // lane: an entry-panel query must not touch run or seed supersession. A timeout resolves
 // {preview:null,rows:null} so main falls back to its local corpus reads.
 let fetchProvenanceRequestId = 0;
-let provenanceFetches = 0;
-export function fetchProvenanceFetchCount() { return provenanceFetches; }
 export async function fetchWorkerProvenance(typedRaw, previewRaw, clickedNorm, clickedDisplay, timeout = 5000) {
   await pendingEditBarrier;
   const w = getWorker();
   const requestId = ++fetchProvenanceRequestId;
-  provenanceFetches++;
   return new Promise(resolve => {
     const timer = setTimeout(() => { w.removeEventListener('message', onMessage); resolve({ preview: null, rows: null }); }, timeout);
     function onMessage({ data }) {
@@ -969,12 +963,9 @@ export async function fetchWorkerProvenance(typedRaw, previewRaw, clickedNorm, c
 // plans the edit. A timeout resolves null so the caller falls back rather than
 // hanging — the preview keeps its last-good plan, a save retries then bails.
 let fetchEditPlanRequestId = 0;
-let editPlanFetches = 0;
-export function fetchEditPlanFetchCount() { return editPlanFetches; }
 export function fetchWorkerEditPlan({ mode, clicked, typed, trashScore }, timeout = 5000) {
   const w = getWorker();
   const requestId = ++fetchEditPlanRequestId;
-  editPlanFetches++;
   return new Promise(resolve => {
     const timer = setTimeout(() => { w.removeEventListener('message', onMessage); resolve(null); }, timeout);
     function onMessage({ data }) {

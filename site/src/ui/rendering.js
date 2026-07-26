@@ -7,7 +7,6 @@
 import { MERGED_ID } from '../core/constants.js';
 import { pluralize } from '../core/util.js';
 import { effect } from '../core/signals.js';
-import { invalidateStatsCache } from '../engine/stats.js';
 import { bucketCounts, invalidateHistogramLayout } from '../engine/histogram.js';
 import { PARAM_HELP } from '../engine/tools.js';
 import { streamPlan } from '../engine/executor.js';
@@ -16,7 +15,7 @@ import {
 } from '../data/state.js';
 import { lsSave } from '../data/storage.js';
 import {
-  getSourceCounts, invalidateSourceCounts, _mergedStatsKey, mergedEntryCount,
+  getSourceCounts, invalidateSourceCounts, mergedEntryCount,
 } from '../data/merge.js';
 import { scopedHistogramLayout } from '../data/derived.js';
 import { scoreColor } from '../model/score-display.js';
@@ -222,7 +221,6 @@ export function renderSources() {
 // to paint with the rebuilt counts.
 export function refreshSourceCounts() {
   invalidateSourceCounts();
-  invalidateStatsCache(_mergedStatsKey);
   getSourceCounts();
 }
 

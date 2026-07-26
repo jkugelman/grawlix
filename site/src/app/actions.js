@@ -3,15 +3,14 @@
 import {
   MERGED_ID, MERGED_NAME, EDITS_ICON, WORDLIST_PUBLISHERS, DEFAULT_SCORING,
 } from '../core/constants.js';
-import { esc, pluralize, nameFromPath } from '../core/util.js';
+import { esc, pluralize } from '../core/util.js';
 import { putFetchHandle, dropFetchHandle, bumpFetchStatus } from '../data/fetch-status.js';
 import {
-  toNorm, displayOf, parseWordlist, buildUserWlEntry,
+  toNorm, displayOf, parseWordlist,
 } from '../engine/norm.js';
 import { applyEditsWriteSet } from '../engine/edit-plan.js';
 import { parseRange } from '../engine/range.js';
 import { isLiteralQuery } from '../engine/search.js';
-import { invalidateStatsCache } from '../engine/stats.js';
 import { TOOLS } from '../engine/tools.js';
 import { pendingNewTools, markToolsSeen } from '../data/new-tools.js';
 import { NewToolsReveal } from '../ui/new-tools-reveal.js';
@@ -37,8 +36,7 @@ import {
   editsLegend, reconcileEditsRulesAfterImport, invalidateRescoredCache,
 } from '../data/rescoring.js';
 import {
-  mergedEntryCount, invalidateSourceCounts, _mergedStatsKey,
-  setShippedConfigCounts, setShippedRescoreInputs, sourceTotal, sourceRescoreInputs,
+  mergedEntryCount, invalidateSourceCounts,   setShippedConfigCounts, setShippedRescoreInputs, sourceTotal, sourceRescoreInputs,
 } from '../data/merge.js';
 import { setShippedAllSourcesAxis } from '../data/derived.js';
 import { mergeKey } from '../engine/corpus.js';
@@ -65,7 +63,7 @@ import {
   activeGroupColumns, EntryPanel, handleScoreDigitShortcut,
 } from '../ui/entries-table.js';
 import { ToolStack } from '../ui/tool-stack.js';
-import { buildRulesListHTML, renderScoringRules } from '../ui/rescore-editor.js';
+import { renderScoringRules } from '../ui/rescore-editor.js';
 import { WordlistSelector, buildWordlistNameHTML } from '../ui/scope-selector.js';
 import {
   getEntriesScroller, setScope, renderAll, renderSources, renderMergedDetail,
@@ -994,7 +992,6 @@ export function addNewWordlist(wordlistDef) {
   compileRescoreRules(wordlist);
   state.sources.push(wordlist);
   invalidateSourceCounts();
-  invalidateStatsCache(_mergedStatsKey);
   persistMeta();
   sources$.bump();              // notify cosmetic effect with fresh caches
   return wordlist;
@@ -1071,28 +1068,6 @@ function toggleMatchMode() {
   cb.dispatchEvent(new Event('change', { bubbles: true }));
 }
 
-// ─── Rename ───────────────────────────────────────────────────────────────────
-
-export function startInlineRename(inputEl, originalName, { onCommit, onCancel, onInput }) {
-  let done = false;
-  function commit() {
-    if (done) return;
-    done = true;
-    onCommit(inputEl.value.trim() || originalName);
-  }
-  function cancel() {
-    if (done) return;
-    done = true;
-    onCancel();
-  }
-  if (onInput) inputEl.oninput = () => onInput(inputEl.value || originalName);
-  inputEl.onblur = commit;
-  inputEl.onkeydown = e => {
-    if (e.key === 'Enter') { e.preventDefault(); commit(); }
-    if (e.key === 'Escape') { inputEl.onblur = null; cancel(); }
-  };
-}
-
 // ─── Merge & Download ─────────────────────────────────────────────────────────
 
 // Main keeps only My Edits rawEntries; the merged-corpus splice is the worker's,
@@ -1100,8 +1075,6 @@ export function startInlineRename(inputEl, originalName, { onCommit, onCancel, o
 export function applyEditsChange(edits, mutate) {
   mutate();
   invalidateRescoredCache(edits);
-  invalidateStatsCache(edits);
-  invalidateStatsCache(_mergedStatsKey);
   refreshDerivedDisplays();
 }
 

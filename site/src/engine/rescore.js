@@ -10,13 +10,6 @@ export const OUTPUT_HELP = buildHelpHTML([
   ['50', 'new score'],
 ], { cols: 1 });
 
-export function scoresToRangeStr(scores) {
-  if (!scores.length) return '';
-  const sorted = [...scores].sort((a, b) => a - b);
-  const min = sorted[0], max = sorted[sorted.length - 1];
-  return min === max ? `${min}` : `${min}-${max}`;
-}
-
 // Order-sensitive: rules evaluate first-match-wins in their stored order (the
 // user owns it via drag), so a reorder is a real change — it must flip dirty
 // and survive default propagation.

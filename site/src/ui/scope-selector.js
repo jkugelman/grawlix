@@ -63,22 +63,6 @@ export function buildWordlistCardHTML(icon, name, meta, opts = {}) {
   return `<div class="${classes.join(' ')}" data-wordlist tabindex="0" role="option">${dragHandle}${icon}${cardInfo}${cardActions}</div>`;
 }
 
-// Like a regular wordlist card but with no drag handle, no enable toggle, and
-// not reorderable.
-export function buildMergedCardHTML(selected) {
-  const meta = pluralize(mergedEntryCount(), 'entry', 'entries');
-  const cls = ['wordlist-card', 'merged-card'];
-  if (selected) cls.push('selected');
-  return `<div class="${cls.join(' ')}" data-merged tabindex="0" role="option">
-    <span class="drag-handle" aria-hidden="true">≡</span>
-    ${getMergedIcon()}
-    <div class="card-info">
-      <div class="card-name-row"><div class="card-name">${MERGED_NAME}</div></div>
-      <div class="card-meta">${esc(meta)}</div>
-    </div>
-    <span class="merged-card-spacer" aria-hidden="true"></span>
-  </div>`;
-}
 
 export function buildWordlistNameHTML(wordlist, { bold = true } = {}) {
   const text = esc(wordlist === MERGED_ID ? MERGED_NAME : wordlist.name);

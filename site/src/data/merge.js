@@ -7,8 +7,6 @@
 import { state, bumpConfigSummary } from './state.js';
 import { invalidateHistogramLayout } from '../engine/histogram.js';
 
-export const _mergedStatsKey = {};
-
 export function invalidateSourceCounts() {
   invalidateHistogramLayout();
 }
