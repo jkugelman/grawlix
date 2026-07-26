@@ -14,13 +14,19 @@ import { esc } from '../core/util.js';
 
 const INLINE = LOOKUP_SOURCES.filter(s => s.fetch);
 const LOOKUP_DEBOUNCE_MS = 1000;
+// Deliberate: sources settle separately, so painting each as it lands pops the
+// section open once per source.
+const REVEAL_HOLD_MS = 300;
 
 export const LookupSection = (() => {
   let hostEl = null;
-  let entry = '';        // live entry text — drives the (free) links immediately
+  let entry = '';        // live entry text — the link-outs follow it verbatim
   let norm = '';
   let shownEntry = '';   // entry whose inline results are on screen — swaps lazily
   let debounceTimer = null;
+  let holdTimer = null;
+  let holding = false;
+  let onRender = null;
   const cache = new LruCache(300, 60 * 60 * 1000);
   // entry → resolved canonical form to fall back to (string), null (resolved, no
   // usable alternative), or undefined (not yet resolved). Keyed like `cache`, so
@@ -67,13 +73,20 @@ export const LookupSection = (() => {
   // EntryPanel rebuilds its innerHTML wholesale on open and on resetInputs, so
   // the host is a fresh node each time; remounting re-grabs it while the result
   // cache persists at module scope.
-  function mount(host, entryStr) {
+  // `settleMs` delays the fetches for an open that may be superseded at once (a
+  // walk step): each entry costs three requests, so scrubbing would fan out.
+  function mount(host, entryStr, { settleMs = 0, onChange = null } = {}) {
     hostEl = host;
+    onRender = onChange;
     entry = shownEntry = (entryStr || '').trim();
     norm = toNorm(entry);
     clearTimeout(debounceTimer);
     debounceTimer = null;
-    for (const s of INLINE) ensureLoaded(s.id);
+    clearTimeout(holdTimer);
+    holding = true;
+    holdTimer = setTimeout(() => { holding = false; render(); }, settleMs + REVEAL_HOLD_MS);
+    if (settleMs) debounceTimer = setTimeout(runInlineLookups, settleMs);
+    else runInlineLookups();
     ensureFallback(entry);
     render();
   }
@@ -88,6 +101,8 @@ export const LookupSection = (() => {
     norm = toNorm(entry);
     clearTimeout(debounceTimer);
     debounceTimer = null;
+    clearTimeout(holdTimer);
+    holding = false;
     if (!entry) shownEntry = '';
     else if (inlineSettled(entry)) { shownEntry = entry; ensureFallback(entry); }   // already fetched — show at once
     else debounceTimer = setTimeout(runInlineLookups, LOOKUP_DEBOUNCE_MS);
@@ -162,20 +177,24 @@ export const LookupSection = (() => {
   }
 
   function render() {
-    if (hostEl) hostEl.innerHTML = build();
+    if (!hostEl) return;
+    hostEl.innerHTML = build();
+    onRender?.();
   }
 
   function build() {
     if (!entry && !shownEntry) return '';
     const eff = effectiveEntry();
     const usingAlt = eff !== shownEntry;
+    const settled = shownEntry && inlineSettled(shownEntry) && !fallbackPending(shownEntry);
+    // The whole section is withheld, links included, so it arrives as one animated
+    // block; revealing the free links first just moves the shift to the cards.
+    if (holding && !settled) return '';
     const sections = shownEntry ? INLINE.map(s => sectionHTML(s.id, eff)).filter(Boolean) : [];
-    const loading = shownEntry && (!inlineSettled(shownEntry) || fallbackPending(shownEntry));
     const note = usingAlt && sections.length
       ? `<div class="lookup-alt-note">Showing results for “${esc(eff)}”</div>` : '';
-    const info = sections.length ? note + sections.join('')
-      : loading ? `<div class="lookup-empty">Looking up “${esc(shownEntry)}”…</div>`
-      : '';
+    // Deliberately no in-flight placeholder — sections only ever appear, never retract.
+    const info = sections.length ? note + sections.join('') : '';
     // Wikipedia and Wiktionary need an exact page title, so their links (and
     // inline fetches) follow the resolved form once known — a raw `groundfrost`
     // 404s where `ground frost` resolves. Google/OneLook are searches; XWord is

@@ -70,12 +70,12 @@ async function computeCanonical(display) {
       // plural isn't a redirect), so resolve it from scratch and re-inflect. Its
       // incompleteness taints ours — the plural rode on a possibly-degraded stem.
       const sub = await resolveCached(display.slice(0, -1));
-      if (!sub.complete) return { value: fallback, complete: false };
+      if (!sub.complete) return { value: fallback, complete: false, local: true };
       if (toNorm(sub.value + 's') === norm) return { value: sub.value + 's', complete: caseReady };
     }
-    return { value: fallback, complete: ready };
+    return { value: fallback, complete: ready, local: true };
   } catch {
-    return { value: fallback, complete: false };
+    return { value: fallback, complete: false, local: true };
   }
 }
 
@@ -90,8 +90,11 @@ function resolveCached(display) {
   return p;
 }
 
-// Returns { value, complete }. Callers that memoize the answer must check `complete`
-// — an incomplete one is a degraded snapshot of an outage, not this entry's form.
+// Returns { value, complete, local }. Callers that memoize must check `complete` — an
+// incomplete one is a degraded snapshot of an outage, not this entry's form. `local`
+// marks the value as the segmenter fallback, which makes no reference-derived casing
+// claim: an incomplete-but-local answer is still safe to *show*, an incomplete
+// reference form is not (its leading capital was settled without evidence).
 export function resolveEntryCanonical(display) {
   return resolveCached(display);
 }

@@ -1,8 +1,8 @@
-// Canonical-form resolution in the entry panel: the "Rename to" hint upgrades
-// from raw segmenter spacing to the reference-canonical spelling (Feature A), and
-// empty inline lookups fall back to the resolved form's lookups (Feature B). The
-// reference APIs are stubbed so "helen of troy" resolves to "Helen of Troy" and
-// everything else stays empty — no real network, deterministic casing.
+// Canonical-form resolution in the entry panel: the "Rename to" hint proposes the
+// reference-canonical spelling (Feature A), and empty inline lookups fall back to the
+// resolved form's lookups (Feature B). The reference APIs are stubbed so "helen of
+// troy" resolves to "Helen of Troy" and everything else stays empty — no real network,
+// deterministic casing.
 
 import { test, expect } from '@playwright/test';
 import { stubPublisherFetches, gotoApp } from './helpers.js';
@@ -15,9 +15,9 @@ const panel = page => page.locator('#entry-panel');
 const link = page => panel(page).locator('.entry-panel-suggest-link');
 const lookup = page => panel(page).locator('.entry-panel-lookup');
 
-// The rename hint renders segmenter spacing first, then a 600ms debounce fires the
-// reference resolution that upgrades it. Asserting the pre-upgrade spacing races
-// that debounce and flakes under load, so tests gate the reference route on a latch.
+// The hint posts the resolved form and nothing before it, so the segmenter spacing is
+// observable only while the references are stalled past RENAME_STANDIN_MS. Holding the
+// reference route on a latch is what makes that stand-in reachable at all.
 function referenceLatch() {
   let release;
   const held = new Promise(r => { release = r; });
@@ -66,9 +66,31 @@ test('rename hint upgrades from segmenter spacing to the canonical casing', asyn
   const latch = referenceLatch();
   await seed(page, latch.held);
   await openPanelFor(page, 'helenoftroy');
-  await expect(link(page)).toHaveText('helen of troy');   // stage 1: plain spacing (reference held)
+  await expect(link(page)).toHaveText('helen of troy');   // stand-in: references stalled
   latch.release();
-  await expect(link(page)).toHaveText('Helen of Troy');   // stage 2: canonical, in place
+  await expect(link(page)).toHaveText('Helen of Troy');   // upgraded in place
+});
+
+// Recording every text the link ever holds is what separates "resolved straight to the
+// canonical" from "flickered through the spacing" — an auto-retrying toHaveText cannot
+// see a transient state, so it passes either way.
+test('a healthy resolution posts one answer, never a spacing it then rewrites', async ({ page }) => {
+  await seed(page);
+  await page.evaluate(() => {
+    window.__hintTexts = [];
+    new MutationObserver(() => {
+      const t = document.querySelector('#entry-panel .entry-panel-suggest-link')?.textContent;
+      if (t && window.__hintTexts.at(-1) !== t) window.__hintTexts.push(t);
+    }).observe(document.body, { subtree: true, childList: true, characterData: true });
+  });
+
+  await openPanelFor(page, 'helenoftroy');
+  await expect(link(page)).toHaveText('Helen of Troy');
+  // Past RENAME_STANDIN_MS: a settled answer must survive its own stand-in timer, whose
+  // worker reply lands late and would otherwise demote the canonical back to spacing.
+  await page.waitForTimeout(1300);
+  await expect(link(page)).toHaveText('Helen of Troy');
+  expect(await page.evaluate(() => window.__hintTexts)).toEqual(['Helen of Troy']);
 });
 
 test('an already-rich entry is offered a strictly richer respelling', async ({ page }) => {
@@ -104,7 +126,7 @@ test('a respelling that would strip a capital is suppressed', async ({ page }) =
 
   await openPanelFor(page, 'zoe');
   await expect(link(page)).toHaveCount(0);
-  // Past the debounce: the resolver did find "zoé", so the blank is isRicher's
+  // Past the resolution: the resolver did find "zoé", so the blank is isRicher's
   // suppression, not a not-yet-resolved race.
   await page.waitForTimeout(900);
   await expect(link(page)).toHaveCount(0);
@@ -142,9 +164,9 @@ test('a plural recovers its singular’s casing and re-adds the "s"', async ({ p
     { dna: -3, sequencer: -4, sequencers: -4 });
 
   await openPanelFor(page, 'dnasequencers');
-  await expect(link(page)).toHaveText('dna sequencers');   // stage 1: plain spacing (reference held)
+  await expect(link(page)).toHaveText('dna sequencers');   // stand-in: references stalled
   latch.release();
-  await expect(link(page)).toHaveText('DNA sequencers');   // stage 2: singular's casing + "s"
+  await expect(link(page)).toHaveText('DNA sequencers');   // singular's casing + "s"
 });
 
 // Same entity, but Wiktionary 503s the singular query — a 5xx propagates where a 404
@@ -177,9 +199,9 @@ test('a plural whose singular lookup fails degrades, then upgrades once it recov
     { dna: -3, sequencer: -4, sequencers: -4 });
 
   await openPanelFor(page, 'dnasequencers');
-  await expect(link(page)).toHaveText('dna sequencers');   // stage 1: plain spacing
-  // Still the plain spacing past the debounce — the incomplete singular must not flip
-  // it to a partial "DNA sequencers".
+  // The incomplete resolution renders its own local fallback, so an outage degrades to
+  // the spacing rather than to no hint — and never to a partial "DNA sequencers".
+  await expect(link(page)).toHaveText('dna sequencers');
   await page.waitForTimeout(900);
   await expect(link(page)).toHaveText('dna sequencers');
 
@@ -257,8 +279,8 @@ test('a phrase Wikipedia force-caps but Wiktionary lowercases keeps the lowercas
     { general: -3, assemblies: -4 });
 
   await openPanelFor(page, 'generalassemblies');
-  await expect(link(page)).toHaveText('general assemblies');   // stage 1: plain spacing
-  // Past the debounce: the spaced re-query must bring in Wiktionary and keep the
+  await expect(link(page)).toHaveText('general assemblies');   // stand-in: references stalled
+  // Past the resolution: the spaced re-query must bring in Wiktionary and keep the
   // lowercase, not flip to Wikipedia's bare-match "General assemblies".
   await page.waitForTimeout(900);
   await expect(link(page)).toHaveText('general assemblies');
@@ -290,7 +312,7 @@ test('a real spaceless word is kept whole, retracting the segmenter split', asyn
     { the: -1, irs: -3 });
 
   await openPanelFor(page, 'theirs');
-  await expect(link(page)).toHaveText('the irs');   // stage 1: the segmenter's split (reference held)
+  await expect(link(page)).toHaveText('the irs');   // stand-in: the segmenter's split
   latch.release();
   // Resolved form equals the entry → no rename: the suppressor retracts the split.
   await expect(link(page)).toHaveCount(0);

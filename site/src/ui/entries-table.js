@@ -2844,6 +2844,14 @@ function editBaselineFor(base) {
 // ─── Entry panel ─────────────────────────────────────────────────────────────
 
 export const EntryPanel = (() => {
+  // How long a target must hold still before the panel starts network work. A click
+  // or deep link is already settled; a walk step and a keystroke are scrub gestures,
+  // where firing per target fans a few reference requests out into a few hundred.
+  const OPEN_SETTLE_MS = 0;
+  const WALK_SETTLE_MS = 200;
+  const TYPING_SETTLE_MS = 600;
+  const LOCAL_TIER_MS = 300;   // pair up prov + family so they cost one shift, not two
+
   let el = null;
   let scrim = null;
   let activeRow = null;
@@ -2853,6 +2861,10 @@ export const EntryPanel = (() => {
   let renameSuggestionFor = null;
   let renameToken = 0;
   let renameTimer = null;
+  let renameStandInTimer = null;
+  let localTierOpen = false;
+  let localTierToken = 0;
+  let localTierTimer = null;
   // Non-null bounds the walk to a multi-select ({ members, index }); null is the
   // no-selection walk that steps the table cursor and shows the current family.
   let walkSelection = null;
@@ -2988,6 +3000,12 @@ export const EntryPanel = (() => {
     renameSuggestionFor = null;
     clearTimeout(renameTimer);
     renameTimer = null;
+    clearTimeout(renameStandInTimer);
+    renameStandInTimer = null;
+    clearTimeout(localTierTimer);
+    localTierTimer = null;
+    localTierOpen = false;
+    localTierToken++;
     seedQueryToken++;
     provQueryToken++;
     planQueryToken++;
@@ -3091,7 +3109,8 @@ export const EntryPanel = (() => {
   // `focus` names the field to focus and select, or is null for a view-first open:
   // entry-cell clicks, navigation, and deep links pass null because auto-focusing
   // there only pops the mobile keyboard for what is really a read.
-  function doOpen(wlEntry, rowEl, scroller, focus, mode, route, animate, selectField = true) {
+  function doOpen(wlEntry, rowEl, scroller, focus, mode,
+                  { route = false, animate = true, selectField = true, settleMs = OPEN_SETTLE_MS } = {}) {
     selectFieldOnFocus = selectField;
     // The panel is modal — its scrim covers the page. Dismiss the other floating
     // surfaces (the z-600 popovers and the z-700 find bar) that would otherwise
@@ -3135,12 +3154,14 @@ export const EntryPanel = (() => {
     lastProvHTML = provWrapHTML();
     lastNoteHTML = renderNotesHTML();
     revealModal(animate);
-    wireFields();
-    renderFamily(activeWlEntry.norm, activeWlEntry.display ?? null);
-    refreshRenameSuggestion(activeWlEntry.display ?? activeWlEntry.norm);
+    wireFields(settleMs);
+    armLocalTier(
+      renderFamily(activeWlEntry.norm, activeWlEntry.display ?? null),
+      fireInitialProvenanceQuery(seed.entry),
+    );
+    refreshRenameSuggestion(activeWlEntry.display ?? activeWlEntry.norm, settleMs);
     updateNav();
 
-    fireInitialProvenanceQuery(seed.entry);
     if (!activeReadOnly && needsWorkerSeed(wlEntry, route)) refineScopedSeed(wlEntry, focus);
 
     if (focus && !activeReadOnly) focusSeedField(focus);
@@ -3156,7 +3177,7 @@ export const EntryPanel = (() => {
     walkSelection = null;
     walkToken++;
     lastFocusField = null;
-    doOpen(wlEntry, rowEl, scroller, focus, mode, false, true, selectField);
+    doOpen(wlEntry, rowEl, scroller, focus, mode, { selectField });
     if (reopening) _navigate();
     else {
       ownsHistoryEntry = true;
@@ -3176,7 +3197,8 @@ export const EntryPanel = (() => {
     // A value equal to its own norm is a bare entry rendered as the norm; seed it
     // as bare (display null) so the worker's bare fallback resolves the winner.
     const seedDisplay = display === norm ? null : display;
-    doOpen({ norm, display: seedDisplay, score: '', comment: '', wordlist: null }, null, getEntriesScroller(), null, 'edit', true, animate);
+    doOpen({ norm, display: seedDisplay, score: '', comment: '', wordlist: null },
+      null, getEntriesScroller(), null, 'edit', { route: true, animate });
     // Tagged → an entry we pushed (Back/Forward re-entered it), ours to pop on close.
     // Untagged → a cold deep link with nothing of ours behind it, so close strips.
     ownsHistoryEntry = !!history.state?.entryPanel;
@@ -3524,9 +3546,9 @@ export const EntryPanel = (() => {
           <label for="entry-panel-comment">Comment</label>
           <input id="entry-panel-comment" class="comment-input" type="text" value="${esc(seed.comment)}"${ro}>
         </div>
-        <div class="entry-panel-prov-wrap">${provWrapHTML()}</div>
-        <div class="entry-panel-lookup"></div>
-        <div class="entry-panel-family"></div>
+        <div class="entry-panel-async"><div class="entry-panel-prov-wrap">${provWrapHTML()}</div></div>
+        <div class="entry-panel-async"><div class="entry-panel-family"></div></div>
+        <div class="entry-panel-async"><div class="entry-panel-lookup"></div></div>
       </div>
       <div class="entry-panel-foot">${renderFooterHTML(seed.entry)}</div>`;
   }
@@ -3593,11 +3615,13 @@ export const EntryPanel = (() => {
       lastProvHTML = provWrapHTML();
       lastNoteHTML = renderNotesHTML();
       wireFields();
-      renderFamily(activeWlEntry.norm, activeWlEntry.display ?? null);
-      refreshRenameSuggestion(activeWlEntry.display ?? activeWlEntry.norm);
-      updateNav();
       const inp = el.querySelector('.entry-input');
-      fireProvenanceQuery('', inp ? inp.value : '');
+      armLocalTier(
+        renderFamily(activeWlEntry.norm, activeWlEntry.display ?? null),
+        fireProvenanceQuery('', inp ? inp.value : ''),
+      );
+      refreshRenameSuggestion(activeWlEntry.display ?? activeWlEntry.norm, OPEN_SETTLE_MS);
+      updateNav();
       return;
     }
     refreshDynamicBits();
@@ -3644,12 +3668,40 @@ export const EntryPanel = (() => {
   function renderProvWrap() {
     if (!isOpen()) return;
     renderNoteSlot();
+    if (!localTierOpen) return;
     const provEl = el.querySelector('.entry-panel-prov-wrap');
     if (!provEl) return;
     const html = provWrapHTML();
     if (html === lastProvHTML) return;
     lastProvHTML = html;
     provEl.innerHTML = html;
+    revealBlock(provEl);
+  }
+
+  function armLocalTier(...replies) {
+    const token = ++localTierToken;
+    localTierOpen = false;
+    clearTimeout(localTierTimer);
+    localTierTimer = setTimeout(() => liftLocalTier(token), LOCAL_TIER_MS);
+    Promise.allSettled(replies).then(() => liftLocalTier(token));
+  }
+
+  function liftLocalTier(token) {
+    if (token !== localTierToken || localTierOpen || !isOpen()) return;
+    clearTimeout(localTierTimer);
+    localTierOpen = true;
+    renderProvWrap();
+    paintFamily();
+  }
+
+  // The collapsed→expanded transition needs a frame at the old height to animate from;
+  // setting content and the class in one task lands on the end state with no motion.
+  function revealBlock(node) {
+    const wrap = node?.closest('.entry-panel-async');
+    if (!wrap) return;
+    if (!node.innerHTML) { wrap.classList.remove('revealed'); return; }
+    if (wrap.classList.contains('revealed')) return;
+    requestAnimationFrame(() => wrap.classList.add('revealed'));
   }
 
   // No debounce: every keystroke (and the open) fires. The monotonic token drops
@@ -3663,7 +3715,7 @@ export const EntryPanel = (() => {
     // Raw display, not displayOf's norm fallback: collapsing a bare entry to its norm
     // makes the worker filter drop the concrete siblings it unified with, with no error.
     const clickedDisplay = activeWlEntry?.display ?? null;
-    fetchWorkerProvenance(typedRaw, previewRaw, clickedNorm, clickedDisplay)
+    return fetchWorkerProvenance(typedRaw, previewRaw, clickedNorm, clickedDisplay)
       .then(({ rows }) => {
         // Match by norm, not identity: each run rebuilds activeWlEntry fresh, so an
         // identity check would drop every reply after a re-bind.
@@ -3681,7 +3733,7 @@ export const EntryPanel = (() => {
   // clicked atom, while previewRaw seeds the footer from seed.entry — the two
   // targets the open uses, which a single typedRaw can't express.
   function fireInitialProvenanceQuery(seedEntry) {
-    fireProvenanceQuery('', seedEntry);
+    return fireProvenanceQuery('', seedEntry);
   }
 
   function readNewValues() {
@@ -3769,7 +3821,12 @@ export const EntryPanel = (() => {
     return !!(plan && plan.blockedReason);
   }
 
-  function wireFields() {
+  function mountLookup(entryInp, settleMs) {
+    const host = el.querySelector('.entry-panel-lookup');
+    if (host) LookupSection.mount(host, entryInp.value, { settleMs, onChange: () => revealBlock(host) });
+  }
+
+  function wireFields(settleMs = OPEN_SETTLE_MS) {
     const entryInp = el.querySelector('.entry-input');
     const scoreInp = el.querySelector('.score-input');
     const commentInp = el.querySelector('.comment-input');
@@ -3777,8 +3834,7 @@ export const EntryPanel = (() => {
     if (activeReadOnly) {
       scoreCombo = null;
       wireFooter();
-      const host = el.querySelector('.entry-panel-lookup');
-      if (host) LookupSection.mount(host, entryInp.value);
+      mountLookup(entryInp, settleMs);
       return;
     }
 
@@ -3811,8 +3867,7 @@ export const EntryPanel = (() => {
 
     wireFooter();
 
-    const lookupHost = el.querySelector('.entry-panel-lookup');
-    if (lookupHost) LookupSection.mount(lookupHost, entryInp.value);
+    mountLookup(entryInp, settleMs);
   }
 
   function currentPanelScore() {
@@ -3827,10 +3882,8 @@ export const EntryPanel = (() => {
     // corpus siblings — the panel owns the current row (below) instead.
     const boundNorm = activeWlEntry?.norm ?? norm;
     const boundDisplay = activeWlEntry ? activeWlEntry.display ?? null : display ?? null;
-    fetchWorkerFamily(norm, display ?? null, boundNorm, boundDisplay).then(members => {
+    return fetchWorkerFamily(norm, display ?? null, boundNorm, boundDisplay).then(members => {
       if (token !== familyToken || !isOpen()) return;
-      const h = el?.querySelector('.entry-panel-family');
-      if (!h) return;
       // An editable panel overwrites the anchor with the live edit (typed name and
       // score) so the list reads as the post-save view and holds through a rename;
       // read-only has no pending edit, so the worker's row stands as-is.
@@ -3841,8 +3894,16 @@ export const EntryPanel = (() => {
       }
       familyMembers = members.sort(
         (a, b) => (a.display ?? a.norm).localeCompare(b.display ?? b.norm) || a.norm.localeCompare(b.norm));
-      h.innerHTML = buildFamilyHTML(familyMembers);
+      paintFamily();
     });
+  }
+
+  function paintFamily() {
+    if (!isOpen() || !localTierOpen) return;
+    const h = el?.querySelector('.entry-panel-family');
+    if (!h) return;
+    h.innerHTML = buildFamilyHTML(familyMembers);
+    revealBlock(h);
   }
 
   // A score edit re-queries no siblings (they can't change), so patch the current
@@ -3851,8 +3912,7 @@ export const EntryPanel = (() => {
     const cur = familyMembers.find(m => m.current);
     if (!cur) return;
     cur.score = currentPanelScore();
-    const h = el?.querySelector('.entry-panel-family');
-    if (h) h.innerHTML = buildFamilyHTML(familyMembers);
+    paintFamily();
   }
 
   function renderRenameHTML() {
@@ -3872,16 +3932,18 @@ export const EntryPanel = (() => {
     renderRenameSlot();
   }
 
-  const RENAME_DEBOUNCE_MS = 600;
+  // Set well past a healthy resolution on purpose: a stand-in is a second answer the
+  // resolution then rewrites, so lowering this makes the two-answer flicker routine.
+  const RENAME_STANDIN_MS = 1000;
 
-  // A bare entry (display === norm) gets instant segmenter spacing plus a reference
-  // upgrade, ungated — any canonical only enriches the norm. An already-rich entry
-  // skips the segmenter (norm-based, it would strip the caps) and takes the
-  // reference form only when strictly richer (isRicher), never one that lowercases
-  // or de-accents. Clear *and* return when ineligible or a stale hint lingers.
-  function refreshRenameSuggestion(display) {
+  // A bare entry (display === norm) takes any canonical form, ungated — it only ever
+  // enriches the norm. An already-rich entry takes the reference form only when
+  // strictly richer (isRicher), never one that lowercases or de-accents. Clear *and*
+  // return when ineligible or a stale hint lingers.
+  function refreshRenameSuggestion(display, settleMs = TYPING_SETTLE_MS) {
     const token = ++renameToken;
     clearTimeout(renameTimer);
+    clearTimeout(renameStandInTimer);
     // A hint belongs to the exact text it was computed for, so a changed one drops it
     // up front. Without this the un-ready early-returns below would leave the previous
     // keystroke's hint sitting on the new text, where clicking it renames to the wrong
@@ -3893,25 +3955,32 @@ export const EntryPanel = (() => {
     const norm = toNorm(display);
     if (activeReadOnly || !norm) { setRenameSuggestion(null); return; }
     const bare = display === norm;
-    if (bare) {
-      fetchWorkerSpaceOut(norm).then(({ suggestion, ready }) => {
+    const start = () => {
+      let settled = false;
+      // The spacing is resolveEntryCanonical's own fallback, so firing it up front for
+      // a faster hint just posts an answer the resolution then rewrites.
+      if (bare) renameStandInTimer = setTimeout(() => {
+        fetchWorkerSpaceOut(norm).then(({ suggestion, ready }) => {
+          // An un-ready segmenter knows nothing about this entry, so it must not speak
+          // for it — clearing here would erase a hint the reference pass had upgraded.
+          if (settled || token !== renameToken || !isOpen() || !ready) return;
+          setRenameSuggestion(suggestion && suggestion !== display ? suggestion : null);
+        });
+      }, RENAME_STANDIN_MS);
+      resolveEntryCanonical(display).then(({ value, complete, local }) => {
+        settled = true;
         if (token !== renameToken || !isOpen()) return;
-        // An un-ready segmenter knows nothing about this entry, so it must not speak
-        // for it — clearing here would erase a hint the reference pass had upgraded.
-        if (!ready) return;
-        setRenameSuggestion(suggestion && suggestion !== display ? suggestion : null);
-      });
-    } else {
-      setRenameSuggestion(null);
-    }
-    renameTimer = setTimeout(() => {
-      resolveEntryCanonical(display).then(({ value, complete }) => {
-        if (token !== renameToken || !isOpen()) return;
-        if (!complete) return;
+        clearTimeout(renameStandInTimer);   // past the token check, the pending timer is ours
+        // A degraded answer still shows when it's the local fallback — an outage degrades
+        // to the spacing, not to no hint. A degraded *reference* form is suppressed: its
+        // leading capital was settled with no evidence, so it can force-cap (Ground frost).
+        if (!complete && !local) return;
         const ok = value && value !== display && (bare || isRicher(value, display));
         setRenameSuggestion(ok ? value : null);
       });
-    }, RENAME_DEBOUNCE_MS);
+    };
+    if (settleMs) renameTimer = setTimeout(start, settleMs);
+    else start();
   }
 
   function applyRename() {
@@ -4053,7 +4122,7 @@ export const EntryPanel = (() => {
   // Replace (not push): the whole walk is one history entry, so Back closes the
   // panel rather than rewinding member-by-member.
   function walkTo(target, focus) {
-    doOpen(target, null, activeScroller, focus, 'edit', false, true, false);
+    doOpen(target, null, activeScroller, focus, 'edit', { selectField: false, settleMs: WALK_SETTLE_MS });
     activeScroller?.repaintActiveRow?.();
     _navigate();
   }
