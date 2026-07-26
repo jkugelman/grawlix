@@ -30,7 +30,7 @@ function emptyOn404(err, empty) {
 // list=search, not opensearch: only the search index folds diacritics, so a bare
 // query recovers accented titles (emigre → émigré) that prefix-matching opensearch
 // never surfaces. Wiktionary titles are already true-case ($wgCapitalLinks off).
-export async function wiktionaryTitles(query) {
+async function wiktionaryTitles(query) {
   const url = `${WIKTIONARY_API}?action=query&list=search&srsearch=${encodeURIComponent(query)}&srlimit=8&format=json&origin=*`;
   try {
     const data = await fetchJSON(url);
@@ -38,7 +38,7 @@ export async function wiktionaryTitles(query) {
   } catch (err) { return emptyOn404(err, []); }
 }
 
-export async function wikipediaTitles(query) {
+async function wikipediaTitles(query) {
   const url = `${WIKIPEDIA_API}?action=opensearch&search=${encodeURIComponent(query)}&limit=8&format=json&origin=*`;
   try {
     const data = await fetchJSON(url);
@@ -133,30 +133,73 @@ export function pickSameNorm(titles, norm, prefer) {
 }
 
 // Strip a trailing corporate suffix or parenthetical the lead sometimes appends
-// ("… Inc.", "… (company)") so the norm-guard sees just the name.
-export function firstBold(html) {
+// ("… Inc.", "… (company)") so the norm-guard sees just the name. `atStart` marks a
+// bold opening the extract, whose leading capital is the sentence's and says nothing
+// about the term — only a mid-sentence bold's is the term's own. Tag-stripped rather
+// than a literal `<p><b>`, or a wrapper (`<p><i><b>Café au lait</b></i>`) reads as
+// mid-sentence and re-trusts the very capital this distinguishes.
+export function leadBold(html) {
   const m = /<b>([\s\S]*?)<\/b>/.exec(html);
-  if (!m) return null;
+  if (!m) return { text: null, atStart: false };
   const text = m[1].replace(/<[^>]+>/g, '')
     .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
     .replace(/&quot;/g, '"').replace(/&#0?39;/g, "'").replace(/&nbsp;/g, ' ');
-  return text.replace(/\s*(?:,?\s*(?:Inc|Ltd|LLC|Corp|Co)\.?|\([^)]*\))\s*$/, '').trim() || null;
+  return {
+    text: text.replace(/\s*(?:,?\s*(?:Inc|Ltd|LLC|Corp|Co)\.?|\([^)]*\))\s*$/, '').trim() || null,
+    atStart: !/\S/.test(html.slice(0, m.index).replace(/<[^>]+>/g, '')),
+  };
 }
 
-// Trust a norm-matching bold lead verbatim: it carries true casing even against a
-// force-capped title (title "MacOS" but "<b>macOS</b> is …"), because MediaWiki
-// does not sentence-case the lead. With no matching bold, keep the force-capped
-// title — Wiktionary already had first crack at genuinely-lowercase common words.
+// Prefer a norm-matching bold lead: it carries true casing even against a force-capped
+// title (title "MacOS" but "<b>macOS</b> is …"). With no matching bold, keep the
+// force-capped title — Wiktionary already had first crack at genuinely-lowercase
+// common words. How far the winner is trusted is the caller's call: only its leading
+// capital is ever in doubt, and only when the bold opened the sentence.
 export function decideWikipediaForm(bold, title, norm) {
   return bold && toNorm(bold) === norm ? bold : title;
 }
 
-export async function resolveWikipedia(query, norm) {
+// ─── The leading capital ─────────────────────────────────────────────────────
+//
+// Wikipedia force-caps every article title ($wgCapitalLinks), so a Wikipedia-derived
+// form's FIRST letter is the one character carrying no information — every other
+// capital in it is real.
+
+// Each exclusion protects a form that would be corrupted, not merely mis-cased:
+// a single word has no corroborating evidence (`Zeus` is as plausible as `zeus`),
+// a later capital confirms the leading one (`Helen of Troy`), and an off-position
+// capital means lowercasing position 0 mangles it (`DNA sequencer` → `dNA sequencer`).
+export function firstLetterUncertain(form) {
+  const [head, ...rest] = form.split(/\s+/);
+  if (!rest.length) return false;
+  if (!/^\p{Lu}/u.test(head) || /\p{Lu}/u.test(head.slice(1))) return false;
+  return !isTitleCase(form);
+}
+
+// `wordlistDisplay` is displayOf() for the first word's norm, or null when no enabled
+// source carries it. Absent KEEPS the capital: against corpora of hundreds of thousands
+// of entries, a first word in none of them is likelier a proper noun or foreign term
+// than a common one. Only the leading letter is ruled on — adopting the wordlist's
+// spelling wholesale would flatten a resolved `Café au lait` through a bare `cafe` row.
+export function settleFirstLetter(form, wordlistDisplay) {
+  if (!wordlistDisplay || /^\p{Lu}/u.test(wordlistDisplay)) return form;
+  return form[0].toLowerCase() + form.slice(1);
+}
+
+// `caseOf` (async norm → display) is worker-owned, so it arrives injected; without it
+// every uncertain capital stands.
+async function resolveWikipedia(query, norm, caseOf) {
   const titles = await wikipediaTitles(query);
   const title = titles.find(t => toNorm(t) === norm);
   if (!title) return null;
-  const bold = firstBold((await fetchWikipediaSummary(title)).extractHtml);
-  return decideWikipediaForm(bold, title, norm);
+  const bold = leadBold((await fetchWikipediaSummary(title)).extractHtml);
+  const form = decideWikipediaForm(bold.text, title, norm);
+  // A sentence-initial bold still settles the spelling — accents, internal caps,
+  // punctuation — but forfeits its leading capital to the ladder below.
+  const trusted = bold.text && toNorm(bold.text) === norm && !bold.atStart;
+  if (trusted || !firstLetterUncertain(form)) return form;
+  const head = toNorm(form.split(/\s+/)[0]);
+  return settleFirstLetter(form, caseOf ? await caseOf(head) : null);
 }
 
 // ─── Resolution ──────────────────────────────────────────────────────────────
@@ -172,19 +215,15 @@ export function chooseCanonical(wiktionary, wikipedia) {
 
 // null (no same-norm match) vs a returned form is the signal the whole-word
 // suppressor needs: a word that matched unchanged differs from one that found
-// nothing. Folding this into resolveCanonical's fallback would erase it.
-export async function resolveReference(query, norm) {
+// nothing. Defaulting the null to the query here would erase that distinction.
+export async function resolveReference(query, norm, caseOf) {
   // Both fetches in parallel, then pick Wiktionary's form with Wikipedia's as the
   // corroboration tiebreak (§ pickSameNorm): Wikipedia's curated article title
   // resolves a diacritic ambiguity Wiktionary's cross-language search can't.
   const [wtTitles, wikipedia] = await Promise.all([
     wiktionaryTitles(query),
-    resolveWikipedia(query, norm),
+    resolveWikipedia(query, norm, caseOf),
   ]);
   const wiktionary = pickSameNorm(wtTitles, norm, wikipedia);
   return chooseCanonical(wiktionary, wikipedia);
-}
-
-export async function resolveCanonical(spaced, norm) {
-  return (await resolveReference(spaced, norm)) ?? spaced;
 }

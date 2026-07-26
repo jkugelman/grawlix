@@ -1611,6 +1611,16 @@ async function handleFetchSpaceOut({ requestId, norm }) {
   postMessage({ type: 'spaceOut', requestId, suggestion, ready });
 }
 
+// One norm's spelling, for the rename hint's ruling on a leading capital. `display:
+// null` (no enabled source carries it) is a real answer, distinct from `ready: false`
+// (no corpus to ask) — collapsing them answers "nothing carries it" for EVERY norm,
+// letting a cold worker cache force-capped forms as settled.
+function handleFetchWordCase({ requestId, norm }) {
+  const ready = !!(ownedMerged && ownedCorpusFresh);
+  const row = ready ? ownedMerged.byNorm.get(norm) : null;
+  postMessage({ type: 'wordCase', requestId, display: row ? displayOf(row) : null, ready });
+}
+
 // ─── Provenance + preview fetch ── see docs/worker-protocol.md ────────────────
 // ownedCorpusFresh stands in for an ownedMerged/ownedBuilt freshness flag (cleared
 // synchronously by syncConfig, re-set by a committed syncConfig or an edit command
@@ -2681,6 +2691,10 @@ onmessage = ({ data }) => {
 
     case 'fetchSpaceOut':
       handleFetchSpaceOut(data);
+      break;
+
+    case 'fetchWordCase':
+      handleFetchWordCase(data);
       break;
 
     case 'fetchProvenance':

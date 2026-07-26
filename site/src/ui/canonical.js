@@ -9,7 +9,7 @@
 import { toNorm } from '../engine/norm.js';
 import { resolveReference } from '../engine/canonical.js';
 import { LruCache } from '../core/lru.js';
-import { fetchWorkerSpaceOut } from './pipeline-worker.js';
+import { fetchWorkerSpaceOut, fetchWorkerWordCase } from './pipeline-worker.js';
 
 const cache = new LruCache(100, 60 * 60 * 1000);
 
@@ -30,16 +30,31 @@ async function computeCanonical(display) {
   // which gates out the re-resolve below, so every reference-derived answer here stands
   // on its own — suppressing those too would drop good hints whenever the worker is cold.
   const ready = spaced.ready;
+  // Its own flag rather than `ready` above: an un-ready CORPUS taints reference-derived
+  // answers (it silently reports every first word as uncarried, which the ladder reads
+  // as evidence), where an un-ready SEGMENTER taints only the fallback.
+  let caseReady = true;
+  // The re-resolve below and both plural tiers re-ask about the same first word —
+  // 2–4 identical round-trips per hint without this memo.
+  const asked = new Map();
+  const caseOf = n => {
+    let p = asked.get(n);
+    if (!p) {
+      p = fetchWorkerWordCase(n).then(r => { if (!r.ready) caseReady = false; return r.display; });
+      asked.set(n, p);
+    }
+    return p;
+  };
   try {
-    let ref = await resolveReference(display, norm);
+    let ref = await resolveReference(display, norm, caseOf);
     // A spaced bare reference is a Wikipedia-only fuzz-match across the missing space
     // (generalassemblies → "General assemblies"); Wiktionary's stricter search never
     // matched the concatenation, so re-resolve the spaced fallback to let its correct
     // lowercase form win. The `/\s/` clause is load-bearing — dropping it re-caps.
     if (!hasSpace && (!ref || /\s/.test(ref)) && fallback !== display) {
-      ref = (await resolveReference(fallback, norm)) || ref;
+      ref = (await resolveReference(fallback, norm, caseOf)) || ref;
     }
-    if (ref) return { value: ref, complete: true };
+    if (ref) return { value: ref, complete: caseReady };
     // Plural fallback: a plural can't match its singular's reference form under the
     // exact-norm guard (DNA sequencer ≠ dnasequencers). Re-add the "s" and norm-check
     // the result, so the singular's casing/accents carry over while a wrong stem
@@ -49,14 +64,14 @@ async function computeCanonical(display) {
       // Short-circuit: the plural's own lookup may already hold the singular (a
       // full-text hit or a redirect); fetchJSON caches by URL, so re-resolving
       // `fallback` against the singular norm reuses them at no network cost.
-      const near = await resolveReference(fallback, stem);
-      if (near && toNorm(near + 's') === norm) return { value: near + 's', complete: true };
+      const near = await resolveReference(fallback, stem, caseOf);
+      if (near && toNorm(near + 's') === norm) return { value: near + 's', complete: caseReady };
       // Long path: the singular has a query of its own (a Wikipedia entity whose
       // plural isn't a redirect), so resolve it from scratch and re-inflect. Its
       // incompleteness taints ours — the plural rode on a possibly-degraded stem.
       const sub = await resolveCached(display.slice(0, -1));
       if (!sub.complete) return { value: fallback, complete: false };
-      if (toNorm(sub.value + 's') === norm) return { value: sub.value + 's', complete: true };
+      if (toNorm(sub.value + 's') === norm) return { value: sub.value + 's', complete: caseReady };
     }
     return { value: fallback, complete: ready };
   } catch {

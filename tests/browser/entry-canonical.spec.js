@@ -439,3 +439,55 @@ test('the inline Wiktionary card renders structured definitions', async ({ page 
   await expect(wikt.locator('.lookup-pos')).toHaveText('Noun');
   await expect(wikt.locator('.lookup-def li')).toHaveText('A feline animal & pet.');   // tags stripped, entity decoded
 });
+
+// Wikipedia force-caps its titles ($wgCapitalLinks) and its lead bolds the term
+// sentence-initially through an italic wrapper, so neither the title nor the bold can
+// vouch for the leading capital; Wiktionary (the true-case authority) 404s. The
+// expected "café au lait" is reachable from neither stage alone — the accent proves
+// the reference pass ran, the lowercase "c" proves the ladder ruled on it — so this
+// can't pass off the segmenter's plain "cafe au lait" the way a same-text entry would.
+async function stubCafeAuLait(page) {
+  await page.route(/action=opensearch/, route =>
+    route.fulfill({ status: 200, contentType: 'application/json',
+      body: JSON.stringify(['cafe au lait', ['Café au lait'], [''],
+        ['https://en.wikipedia.org/wiki/Caf%C3%A9_au_lait']]) }));
+  await page.route(/rest_v1\/page\/summary\/Caf/i, route =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
+      title: 'Café au lait', extract: 'Café au lait is coffee with hot milk.',
+      extract_html: '<p><i><b>Café au lait</b></i> is coffee with hot milk.</p>',
+    }) }));
+  await page.route(/en\.wiktionary\.org\/w\/api\.php/, route =>
+    route.fulfill({ status: 404, contentType: 'application/json', body: '{}' }));
+}
+
+test('a force-capped title keeps its accents but loses its leading capital', async ({ page }) => {
+  await gotoApp(page);
+  await stubCafeAuLait(page);
+  await page.evaluate(w => window.__grawlixTest.addCustomWordlist(w),
+    { name: 'Src', entries: ['cafeaulait', 'cafe', 'au', 'lait'], scores: [50, 50, 50, 50] });
+  await page.evaluate(() => window.__grawlixTest.pipelineIdle());
+  await page.evaluate(c => window.__grawlixTest.setWorkerUnigramCorpus(c),
+    { cafe: -3, au: -2, lait: -4 });
+
+  await openPanelFor(page, 'cafeaulait');
+  await expect(link(page)).toHaveText('café au lait');
+});
+
+// The already-rich path reaches the same force-capped title through isRicher, which
+// reads the added capital as an enrichment and offers it. With the leading capital
+// ruled out the resolved form equals what the user typed, so there is nothing to
+// suggest — and no segmenter stage runs here, so a hint could only be reference-derived.
+test('an already-spaced entry is offered no force-capped respelling', async ({ page }) => {
+  await gotoApp(page);
+  await stubCafeAuLait(page);
+  await page.evaluate(w => window.__grawlixTest.addCustomWordlist(w),
+    { name: 'Src', entries: ['café au lait', 'cafe'], scores: [50, 50] });
+  await page.evaluate(() => window.__grawlixTest.pipelineIdle());
+
+  await openPanelFor(page, 'cafeaulait');
+  await expect(link(page)).toHaveCount(0);
+  // Past the debounce: the resolver did answer, so the blank is the ladder's ruling,
+  // not a not-yet-resolved race.
+  await page.waitForTimeout(900);
+  await expect(link(page)).toHaveCount(0);
+});

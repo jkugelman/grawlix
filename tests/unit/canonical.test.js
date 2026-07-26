@@ -2,7 +2,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   hasAccent, startsLowercase, hasInternalCap, isTitleCase,
-  pickSameNorm, firstBold, decideWikipediaForm, chooseCanonical, isRicher,
+  pickSameNorm, leadBold, decideWikipediaForm, chooseCanonical, isRicher,
+  firstLetterUncertain, settleFirstLetter,
 } from '../../site/src/engine/canonical.js';
 import { toNorm } from '../../site/src/engine/norm.js';
 
@@ -89,14 +90,47 @@ test('pickSameNorm uses Wikipedia corroboration only to break an exact tie', () 
   assert.equal(pickSameNorm(['café', 'Cafe'], toNorm('cafe'), 'Cafe'), 'café');
 });
 
-test('firstBold extracts the lead, strips tags/entities and trailing suffixes', () => {
-  assert.equal(firstBold('<p>The <b>iPhone</b> is a line…'), 'iPhone');
-  assert.equal(firstBold('<p><b>macOS</b> is a…'), 'macOS');
-  assert.equal(firstBold('<p><b>Helen of <i>Troy</i></b> was…'), 'Helen of Troy');
-  assert.equal(firstBold('<p><b>AT&amp;T</b> is…'), 'AT&T');
-  assert.equal(firstBold('<p><b>Apple Inc.</b> is…'), 'Apple');
-  assert.equal(firstBold('<p><b>Helen of Troy (company)</b> is…'), 'Helen of Troy');
-  assert.equal(firstBold('<p>no bold here</p>'), null);
+test('leadBold extracts the lead, strips tags/entities and trailing suffixes', () => {
+  assert.equal(leadBold('<p>The <b>iPhone</b> is a line…').text, 'iPhone');
+  assert.equal(leadBold('<p><b>macOS</b> is a…').text, 'macOS');
+  assert.equal(leadBold('<p><b>Helen of <i>Troy</i></b> was…').text, 'Helen of Troy');
+  assert.equal(leadBold('<p><b>AT&amp;T</b> is…').text, 'AT&T');
+  assert.equal(leadBold('<p><b>Apple Inc.</b> is…').text, 'Apple');
+  assert.equal(leadBold('<p><b>Helen of Troy (company)</b> is…').text, 'Helen of Troy');
+  assert.equal(leadBold('<p>no bold here</p>').text, null);
+});
+
+test('leadBold flags a sentence-initial bold through intervening wrappers', () => {
+  assert.equal(leadBold('<p><b>Ground frost</b> is a…').atStart, true);
+  assert.equal(leadBold('<p><i><b>Café au lait</b></i> is coffee…').atStart, true);
+  assert.equal(leadBold('<p>In fashion, an <b>accessory</b> is…').atStart, false);
+  assert.equal(leadBold('<p>The <b>Bunsen burner</b>, named after…').atStart, false);
+  assert.equal(leadBold('<p>no bold here</p>').atStart, false);
+});
+
+test('firstLetterUncertain: only a multiword form capitalized on the first letter alone', () => {
+  assert.equal(firstLetterUncertain('Fashion accessory'), true);
+  assert.equal(firstLetterUncertain('Ground frost'), true);
+  assert.equal(firstLetterUncertain("Parkinson's disease"), true);
+  assert.equal(firstLetterUncertain('Café au lait'), true);
+  assert.equal(firstLetterUncertain('Helen of Troy'), false);  // later capital corroborates
+  assert.equal(firstLetterUncertain('DNA sequencer'), false);  // downcasing would give dNA
+  assert.equal(firstLetterUncertain('macOS'), false);          // single word
+  assert.equal(firstLetterUncertain('Zeus'), false);           // single word — no evidence
+  assert.equal(firstLetterUncertain('iPhone case'), false);    // already lowercase-initial
+  assert.equal(firstLetterUncertain('fashion accessory'), false);
+});
+
+test('settleFirstLetter rules on the leading letter alone, keeping the cap without evidence', () => {
+  assert.equal(settleFirstLetter('Fashion accessory', 'fashion'), 'fashion accessory');
+  assert.equal(settleFirstLetter('Ground frost', 'ground'), 'ground frost');
+  assert.equal(settleFirstLetter("Parkinson's disease", "Parkinson's"), "Parkinson's disease");
+  assert.equal(settleFirstLetter('French toast', 'French'), 'French toast');
+  // Absent → keep. A first word in none of the wordlists is the rare/proper-noun case
+  // the fallback is betting on, so the cap it preserves is the correct one.
+  assert.equal(settleFirstLetter('Chandrasekhar limit', null), 'Chandrasekhar limit');
+  // Only position 0 changes: adopting the wordlist's spelling would flatten the accent.
+  assert.equal(settleFirstLetter('Café au lait', 'cafe'), 'café au lait');
 });
 
 test('decideWikipediaForm trusts a norm-matching bold, else keeps the force-capped title', () => {

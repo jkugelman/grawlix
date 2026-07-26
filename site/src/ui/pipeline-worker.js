@@ -919,6 +919,26 @@ export function fetchWorkerSpaceOut(norm, timeout = 15000) {
   });
 }
 
+let fetchWordCaseRequestId = 0;
+export function fetchWorkerWordCase(norm, timeout = 5000) {
+  const w = getWorker();
+  const requestId = ++fetchWordCaseRequestId;
+  return new Promise(resolve => {
+    const timer = setTimeout(() => {
+      w.removeEventListener('message', onMessage);
+      resolve({ display: null, ready: false });
+    }, timeout);
+    function onMessage({ data }) {
+      if (data?.type !== 'wordCase' || data.requestId !== requestId) return;
+      clearTimeout(timer);
+      w.removeEventListener('message', onMessage);
+      resolve({ display: data.display ?? null, ready: !!data.ready });
+    }
+    w.addEventListener('message', onMessage);
+    w.postMessage({ type: 'fetchWordCase', requestId, norm });
+  });
+}
+
 // ─── Provenance + preview fetch bridge ── see docs/worker-protocol.md ────────
 // Its own requestId space, independent of both the run's runId and the edit-seed
 // lane: an entry-panel query must not touch run or seed supersession. A timeout resolves
