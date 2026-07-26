@@ -1139,6 +1139,25 @@ export function findInResult(runId, query, timeout = 8000) {
   });
 }
 
+// ─── Row-locate bridge ── see docs/worker-protocol.md ────────────────────────
+let locateRequestId = 0;
+export function locateInResult(runId, norm, display, timeout = 8000) {
+  const w = getWorker();
+  const requestId = ++locateRequestId;
+  return new Promise(resolve => {
+    const timer = setTimeout(() => { w.removeEventListener('message', onMessage); resolve(-1); }, timeout);
+    function onMessage({ data }) {
+      if (data?.type !== 'locateResult' || data.requestId !== requestId) return;
+      clearTimeout(timer);
+      w.removeEventListener('message', onMessage);
+      if (runId !== lastResultRunId) { resolve(-1); return; }   // superseded run — drop
+      resolve(data.row);
+    }
+    w.addEventListener('message', onMessage);
+    w.postMessage({ type: 'locate', requestId, runId, norm, display: display ?? null });
+  });
+}
+
 // ─── Windowed grouped-chain fetch bridge ── see docs/worker-protocol.md ──────
 let fetchGroupChainsRequestId = 0;
 export function fetchWorkerGroupChains(runId, groupKey, start, end, timeout = 5000) {

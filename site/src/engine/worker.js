@@ -1481,6 +1481,67 @@ function scanGroupedForFind(matcher) {
   return { matches, capped: false };
 }
 
+// ─── Row locate ── see docs/worker-protocol.md ──────────────────────────────
+// Exact (norm, display) wins, same-norm falls back — findResultEntry's rule, so a
+// link naming a spelling the result no longer carries still lands on the entry.
+function handleLocate({ requestId, runId, norm, display }) {
+  const target = display ?? null;
+  let row;
+  if (fetchResultFresh(runId))          row = locateFlatRow(norm, target);
+  else if (transformResultFresh(runId)) row = locateTransformRow(norm, target);
+  else if (groupedResultFresh(runId))   row = locateGroupedRow(norm, target);
+  else return;
+  postMessage({ type: 'locateResult', requestId, runId, row });
+}
+
+function locateFlatRow(norm, display) {
+  const { indices } = lastFlatResult;
+  const entries = corpusFor(lastFlatResult).entries;
+  let fallback = -1;
+  for (let i = 0; i < indices.length; i++) {
+    const e = entries[indices[i]];
+    if (e.norm !== norm) continue;
+    if ((e.display ?? null) === display) return i;
+    if (fallback < 0) fallback = i;
+  }
+  return fallback;
+}
+
+function locateTransformRow(norm, display) {
+  const { chains } = lastTransformResult;
+  let fallback = -1;
+  for (let i = 0; i < chains.length; i++) {
+    for (const { wlEntry } of rowAtoms(chains[i])) {
+      if (wlEntry.norm !== norm) continue;
+      if ((wlEntry.display ?? null) === display) return i;
+      if (fallback < 0) fallback = i;
+    }
+  }
+  return fallback;
+}
+
+function locateGroupedRow(norm, display) {
+  const r = lastGroupedResult;
+  const corpus = corpusFor(r);
+  const n = groupResultLength(r);
+  let fallback = -1;
+  for (let i = 0; i < n; i++) {
+    const g = r.packed ? materializePackedRow(r, corpus, i) : r.groups[i];
+    if (g.anchor && g.anchor.norm === norm) {
+      if ((g.anchor.display ?? null) === display) return i;
+      if (fallback < 0) fallback = i;
+    }
+    for (const chain of g.chains) {
+      for (const { wlEntry } of rowAtoms(chain)) {
+        if (wlEntry.norm !== norm) continue;
+        if ((wlEntry.display ?? null) === display) return i;
+        if (fallback < 0) fallback = i;
+      }
+    }
+  }
+  return fallback;
+}
+
 // ─── Edit-seed fetch ── see docs/worker-protocol.md ──────────────────────────
 // The seed is ALWAYS the merged winner, even from a scoped view, so it resolves
 // against ownedMerged, never ownedCorpus. ownedMerged carries no freshness flag
@@ -2703,6 +2764,10 @@ onmessage = ({ data }) => {
 
     case 'find':
       handleFind(data);
+      break;
+
+    case 'locate':
+      handleLocate(data);
       break;
 
     case 'planEdit':

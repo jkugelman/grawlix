@@ -46,7 +46,7 @@ import { isRicher } from '../engine/canonical.js';
 import {
   getEntriesScroller, rescorePreviewActive, refreshMergedScroller, reprojectMergedScroller, setScope,
 } from './rendering.js';
-import { fetchWorkerRows, fetchWorkerGroups, fetchWorkerGroupChains, fetchWorkerAllRows, fetchWorkerAllGroups, fetchWorkerTransformRows, fetchWorkerAllTransformRows, lastCompletedRunId, fetchWorkerEditSeed, fetchWorkerFamily, fetchWorkerWinners, fetchWorkerProvenance, fetchWorkerEditPlan, fetchWorkerSpaceOut, sendViewport, findInResult } from './pipeline-worker.js';
+import { fetchWorkerRows, fetchWorkerGroups, fetchWorkerGroupChains, fetchWorkerAllRows, fetchWorkerAllGroups, fetchWorkerTransformRows, fetchWorkerAllTransformRows, lastCompletedRunId, fetchWorkerEditSeed, fetchWorkerFamily, fetchWorkerWinners, fetchWorkerProvenance, fetchWorkerEditPlan, fetchWorkerSpaceOut, sendViewport, findInResult, locateInResult } from './pipeline-worker.js';
 
 let _navigate              = () => {};
 
@@ -746,6 +746,9 @@ export class EntriesScroller extends BaseVirtualScroller {
     this._findDebounce = null;
     this._installFindKey();
 
+    this._pendingReveal = null;
+    this._revealToken = 0;
+
     // Selection is keyed on an atom's (norm, display) identity, never a row index:
     // the flat scroller windows, so an index silently names a different entry after
     // a scroll or re-ingest. The cursor also carries a cached index (for nav/scroll/
@@ -1122,8 +1125,8 @@ export class EntriesScroller extends BaseVirtualScroller {
   // The panel suppresses the scroller's own key nav while modal, so the walk must
   // drive the cursor from here rather than through _onListboxKeydown. Anchor on the
   // panel's active identity, not _cursorIndex: not every open sets the cursor (a touch
-  // tap, a Related-entry click, and a deep link don't) — and the transform tier never
-  // does, so its walk relies entirely on locating the active atom here.
+  // tap and a Related-entry click don't) — and the transform tier never does, so its
+  // walk relies entirely on locating the active atom here.
   _walkBase(fromId) {
     const loc = fromId ? this._locateIdentity(fromId) : { row: -1, atom: 0 };
     return loc.row >= 0 ? loc : { row: this._cursorIndex, atom: loc.atom };
@@ -1365,6 +1368,39 @@ export class EntriesScroller extends BaseVirtualScroller {
     GroupMorePopover.revealMember(g, moreBtn, this, m.member, this._groupMemberFind(this._find.byRow.get(m.row), m.member));
   }
 
+  // ─── Route reveal ─────────────────────────────────────────────────────────
+  // Scrolls a URL-opened entry's row into view — it has no clicked row to have
+  // scrolled there already. Latched rather than run inline because boot opens the
+  // panel as soon as the worker can seed it, which is before the first pipeline
+  // result exists to locate a row in (renderMergedDetail signals firstPaint ahead
+  // of awaiting its run).
+  revealRouteEntry(id) {
+    this._pendingReveal = id;
+    if (this._resolved) this._consumePendingReveal();
+  }
+
+  async _consumePendingReveal() {
+    const id = this._pendingReveal;
+    if (!id) return;
+    this._pendingReveal = null;
+    const token = ++this._revealToken;
+    const runId = this._currentStreamRunId();
+    const row = await locateInResult(runId, id.norm, id.display ?? null);
+    if (row < 0 || token !== this._revealToken || runId !== this._currentStreamRunId()) return;
+    if (!this._rowInView(row)) this._scrollIndexToCenter(row);
+    this._render();
+    await this._windowIdleForTier();
+    if (token !== this._revealToken) return;
+    if (this._flat) this._selectSingleAt(row);
+    else this._render();
+  }
+
+  _rowInView(i) {
+    const stride = this._rowStride();
+    const rowTop = this.host.getBoundingClientRect().top + i * stride;
+    return rowTop >= this._stickyOffsetPx() && rowTop + stride <= window.innerHeight;
+  }
+
   _updateFindBar() {
     if (!this._findBar) return;
     const count = this._findBar.querySelector('.find-count');
@@ -1521,6 +1557,7 @@ export class EntriesScroller extends BaseVirtualScroller {
     // a preserved selection would silently carry one scope's picks into another.
     this._resetSelectionState();
     this._sortAndRender();
+    this._consumePendingReveal();
   }
 
   updateEntries(result, atomCount = this.atomCount, sortTier = this.sortTier) {
@@ -1536,6 +1573,7 @@ export class EntriesScroller extends BaseVirtualScroller {
     // the prior run's window and silently lands the cursor on the wrong row.
     if (this._reconcileSelectionCursor()) this._render();
     EntryPanel.rebindEntry(this);
+    this._consumePendingReveal();
   }
 
   // Empties the table to the tuple-streaming shape with the dots up, ahead of the
@@ -3142,6 +3180,7 @@ export const EntryPanel = (() => {
     // Tagged → an entry we pushed (Back/Forward re-entered it), ours to pop on close.
     // Untagged → a cold deep link with nothing of ours behind it, so close strips.
     ownsHistoryEntry = !!history.state?.entryPanel;
+    activeScroller?.revealRouteEntry({ norm, display: seedDisplay });
   }
 
   // The seed is a correctness input — a save writes FROM it into My Edits — so the
