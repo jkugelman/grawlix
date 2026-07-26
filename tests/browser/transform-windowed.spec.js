@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { stubPublisherFetches, gotoApp } from './helpers.js';
+import { stubPublisherFetches, gotoApp, settleWindow } from './helpers.js';
 
 // The transform tier windows like the flat tier: the worker sorts + retains the
 // full chain list and ships only a first window, serving later windows via
@@ -37,16 +37,10 @@ const inputAtoms = page => page.evaluate(async () =>
 const skeletonCount = page => page.evaluate(() =>
   document.querySelectorAll('#vs-host .entry-row.skeleton').length);
 
-async function settle(page) {
-  await page.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))));
-  await page.evaluate(() => window.__grawlixTest.windowIdle());
-  await page.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))));
-}
-
 test('transform tier windows: the top window fills with real sorted rows', async ({ page }) => {
   await gotoApp(page);
   await seedTransform(page);
-  await settle(page);
+  await settleWindow(page);
 
   expect(await skeletonCount(page)).toBe(0);
   const rows = await inputAtoms(page);
@@ -58,11 +52,11 @@ test('transform tier windows: the top window fills with real sorted rows', async
 test('transform tier windows: a deep scroll past the first window fills real rows', async ({ page }) => {
   await gotoApp(page);
   await seedTransform(page);
-  await settle(page);
+  await settleWindow(page);
 
   // stride = atomCount(2) × ROW_HEIGHT(24) = 48px; scroll well past FIRST_WINDOW (60).
   await page.evaluate(() => window.scrollTo(0, 160 * 48));
-  await settle(page);
+  await settleWindow(page);
 
   expect(await skeletonCount(page)).toBe(0);
   const rows = await inputAtoms(page);

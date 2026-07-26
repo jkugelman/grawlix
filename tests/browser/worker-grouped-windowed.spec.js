@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { stubPublisherFetches, gotoApp } from './helpers.js';
+import { stubPublisherFetches, gotoApp, settleGroupWindow } from './helpers.js';
 
 // Equivalence net for grouped-tier windowing, outliving the pre-windowing
 // all-chains path: the worker ships per-group summaries + a firstChains window
@@ -348,17 +348,11 @@ function visibleGroupRows(page) {
     })));
 }
 
-async function settleGroups(page) {
-  await page.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))));
-  await page.evaluate(() => window.__grawlixTest.groupWindowIdle());
-  await page.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))));
-}
-
 test('grouped: scrolling past the first window fetches later group rows (skeleton → real, in order)', async ({ page }) => {
   await gotoApp(page);
   await seedScoped(page, scrollFetchFixture());
   await runGrouped(page, [{ tool: 'letter_bank', grouped: true }]);
-  await settleGroups(page);
+  await settleGroupWindow(page);
 
   // Above the fold paints fully resident — no group-row skeletons on first screen.
   expect((await visibleGroupRows(page)).filter(r => r.skeleton)).toEqual([]);
@@ -366,7 +360,7 @@ test('grouped: scrolling past the first window fetches later group rows (skeleto
   // Scroll to the bottom (the "xyz" group is the last row, ~index 80) — well past
   // GROUP_ROW_WINDOW, so its row misses the inline window and must be fetched.
   await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-  await settleGroups(page);
+  await settleGroupWindow(page);
 
   // Every visible row is real (no skeleton left), absolute indices contiguous and
   // ascending (no gaps), and the bottom row's index is past the inline window.

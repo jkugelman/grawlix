@@ -176,6 +176,25 @@ async function addTool(page, toolKey) {
   await expect(page.locator('#featured-row')).not.toHaveClass(/expanded/);
 }
 
+async function runSearch(page, pattern) {
+  await page.evaluate(p => window.__grawlixTest.setStack(
+    p === '' ? [] : [{ tool: 'search', params: { pattern: p } }]), pattern);
+  await page.evaluate(() => window.__grawlixTest.pipelineIdle());
+}
+
+async function settleWindow(page) {
+  await page.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))));
+  await page.evaluate(() => window.__grawlixTest.windowIdle());
+  // The fetch reply re-renders; let that paint land before reading the DOM.
+  await page.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))));
+}
+
+async function settleGroupWindow(page) {
+  await page.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))));
+  await page.evaluate(() => window.__grawlixTest.groupWindowIdle());
+  await page.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))));
+}
+
 // ─── Reading async pipeline output ────────────────────────────────────────
 //
 // The entries pipeline is async — setStack / a search / an edit repaints the
@@ -210,6 +229,9 @@ export {
   setEnabledViaPanel,
   barKebabAction,
   addTool,
+  runSearch,
+  settleWindow,
+  settleGroupWindow,
   expectVisible,
   expectGroups,
   readVisible,

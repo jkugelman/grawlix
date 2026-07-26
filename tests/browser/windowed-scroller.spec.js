@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { stubPublisherFetches, gotoApp } from './helpers.js';
+import { stubPublisherFetches, gotoApp, settleWindow } from './helpers.js';
 
 // Stage-2.1b: the flat-tier scroller's windowed render mode (flag-gated, default
 // OFF). It serves the visible window from a cache populated by the worker's
@@ -40,19 +40,12 @@ function skeletonCount(page) {
   return page.evaluate(() => document.querySelectorAll('#vs-host .entry-row.skeleton').length);
 }
 
-async function settle(page) {
-  await page.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))));
-  await page.evaluate(() => window.__grawlixTest.windowIdle());
-  // The fetch reply re-renders; let that paint land before reading the DOM.
-  await page.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))));
-}
-
 
 test('windowed mode fills the top window with real entries (no skeleton left)', async ({ page }) => {
   await gotoApp(page);
   await seedWindowedFlat(page);
 
-  await settle(page);
+  await settleWindow(page);
 
   expect(await skeletonCount(page)).toBe(0);
   const rows = await visibleEntries(page);
@@ -65,11 +58,11 @@ test('windowed mode fills the top window with real entries (no skeleton left)', 
 test('scrolling deep past the buffer fills the correct slice with no skeleton', async ({ page }) => {
   await gotoApp(page);
   await seedWindowedFlat(page);
-  await settle(page);
+  await settleWindow(page);
 
   // Past VS_BUFFER (60) so the window misses the initial cache and re-fetches.
   await page.evaluate(() => window.scrollTo(0, 160 * 24));
-  await settle(page);
+  await settleWindow(page);
 
   expect(await skeletonCount(page)).toBe(0);
   const rows = await visibleEntries(page);
@@ -85,7 +78,7 @@ test('scrolling deep past the buffer fills the correct slice with no skeleton', 
 test('a fast double-scroll settles on the final offset, not the abandoned one', async ({ page }) => {
   await gotoApp(page);
   await seedWindowedFlat(page);
-  await settle(page);
+  await settleWindow(page);
 
   // Jump to A then immediately to B (both past the buffer, far apart). The fetch
   // for A is superseded by B's; the cache must end holding B's window, so the
@@ -96,7 +89,7 @@ test('a fast double-scroll settles on the final offset, not the abandoned one', 
     window.scrollTo(0, 220 * 24);
     window.dispatchEvent(new Event('scroll'));
   });
-  await settle(page);
+  await settleWindow(page);
 
   expect(await skeletonCount(page)).toBe(0);
   const rows = await visibleEntries(page);

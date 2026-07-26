@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { stubPublisherFetches, gotoApp } from './helpers.js';
+import { stubPublisherFetches, gotoApp, settleWindow, runSearch } from './helpers.js';
 
 // Scope-aware-build oracle (setScope): scoping away from merged and back must NOT
 // permanently disable merged rich rows. The pre-setScope model cleared freshness
@@ -35,18 +35,6 @@ async function seedCorpus(page) {
   }, { count: COUNT, stems: STEMS });
 }
 
-async function runSearch(page, pattern) {
-  await page.evaluate(p => window.__grawlixTest.setStack(
-    p === '' ? [] : [{ tool: 'search', params: { pattern: p } }]), pattern);
-  await page.evaluate(() => window.__grawlixTest.pipelineIdle());
-}
-
-async function settle(page) {
-  await page.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))));
-  await page.evaluate(() => window.__grawlixTest.windowIdle());
-  await page.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))));
-}
-
 function skeletonCount(page) {
   return page.evaluate(() => document.querySelectorAll('#vs-host .entry-row.skeleton').length);
 }
@@ -70,7 +58,7 @@ function richRowsConsumed(page) {
 async function mergedRichPass(page, pattern) {
   await runSearch(page, pattern);
   await page.evaluate(() => window.scrollTo(0, 0));
-  await settle(page);
+  await settleWindow(page);
   expect(await skeletonCount(page)).toBe(0);
   // Non-vacuous: a fresh scroller (each search remounts one, zeroing the counter)
   // must consume rich rows, or a silent regression to index-only would still
@@ -80,7 +68,7 @@ async function mergedRichPass(page, pattern) {
   expect(top.length).toBeGreaterThan(0);
 
   await page.evaluate(t => window.scrollTo(0, t), DEEP_TOP);
-  await settle(page);
+  await settleWindow(page);
   expect(await skeletonCount(page)).toBe(0);
   const deep = await captureRows(page);
   expect(deep[0].top).not.toBe(top[0].top);   // we actually scrolled

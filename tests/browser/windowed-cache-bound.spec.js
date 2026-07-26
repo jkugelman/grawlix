@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { stubPublisherFetches, gotoApp } from './helpers.js';
+import { stubPublisherFetches, gotoApp, settleWindow } from './helpers.js';
 
 // The windowed flat scroller (flag-gated, default OFF) caches position→corpus-index
 // rows fetched from the worker. Without eviction that cache grows unbounded as you
@@ -42,12 +42,6 @@ function winCacheSize(page) {
   return page.evaluate(() => window.__grawlixTest.windowedFlatDebug().winCacheSize);
 }
 
-async function settle(page) {
-  await page.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))));
-  await page.evaluate(() => window.__grawlixTest.windowIdle());
-  await page.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))));
-}
-
 async function scrollTo(page, rowPos) {
   await page.evaluate((y) => {
     window.scrollTo(0, y);
@@ -77,7 +71,7 @@ async function expectCorrectWindow(page) {
 test('scrolling a 3000-row result keeps the row cache bounded with correct windows', async ({ page }) => {
   await gotoApp(page);
   await seedWindowedFlat(page);
-  await settle(page);
+  await settleWindow(page);
   await expectCorrectWindow(page);
 
   // Step from the top to near the bottom in row-position chunks, settling at each.
@@ -86,7 +80,7 @@ test('scrolling a 3000-row result keeps the row cache bounded with correct windo
   let maxObserved = 0;
   for (let pos = 0; pos <= COUNT - 60; pos += 400) {
     await scrollTo(page, pos);
-    await settle(page);
+    await settleWindow(page);
     const first = await expectCorrectWindow(page);
     // The visible run tracks the scroll position (minus the prefetch buffer).
     expect(first).toBeGreaterThanOrEqual(Math.max(0, pos - 80));
@@ -102,7 +96,7 @@ test('scrolling a 3000-row result keeps the row cache bounded with correct windo
   // Scroll back to the very top: the early window was pruned long ago, but the
   // re-fetch must repopulate it and render the correct rows again.
   await scrollTo(page, 0);
-  await settle(page);
+  await settleWindow(page);
   const firstAtTop = await expectCorrectWindow(page);
   expect(firstAtTop).toBe(0);
 

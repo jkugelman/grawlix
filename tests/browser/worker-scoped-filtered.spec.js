@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { stubPublisherFetches, gotoApp } from './helpers.js';
+import { stubPublisherFetches, gotoApp, settleWindow, runSearch } from './helpers.js';
 
 // P4 oracle: a SCOPED view under a score filter stays worker-filtered + windowed.
 // Two overlapping lists, scoped to ONE: a single-list corpus makes scoped == merged
@@ -33,19 +33,6 @@ async function seedCorpus(page) {
     window.__grawlixTest.addCustomWordlist({ name: 'Alpha', ...a });
     return window.__grawlixTest.addCustomWordlist({ name: 'Bravo', ...b });
   }, { count: COUNT, stems: STEMS });
-}
-
-async function runSearch(page, pattern) {
-  await page.evaluate(p => window.__grawlixTest.setStack(
-    p === '' ? [] : [{ tool: 'search', params: { pattern: p } }]), pattern);
-  await page.evaluate(() => window.__grawlixTest.pipelineIdle());
-}
-
-async function settle(page) {
-  await page.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))));
-  await page.evaluate(() => window.__grawlixTest.windowIdle());
-  // The fetch reply re-renders; let that paint land before reading the DOM.
-  await page.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))));
 }
 
 function skeletonCount(page) {
@@ -99,7 +86,7 @@ async function assertScopedFilteredWindowed(page, pattern, range) {
   await runSearch(page, pattern);
   await setScoreRange(page, range);
   await page.evaluate(() => window.scrollTo(0, 0));
-  await settle(page);
+  await settleWindow(page);
   const dbg = await page.evaluate(() => window.__grawlixTest.windowedFlatDebug());
   expect(dbg.scoreFilterActive).toBe(true);
   expect(dbg.winCacheSize).toBeGreaterThan(0);
@@ -108,7 +95,7 @@ async function assertScopedFilteredWindowed(page, pattern, range) {
   expect(top.length).toBeGreaterThan(0);
 
   await page.evaluate(t => window.scrollTo(0, t), DEEP_TOP);
-  await settle(page);
+  await settleWindow(page);
   expect(await skeletonCount(page)).toBe(0);
   const deep = await captureRows(page);
   expect(deep[0].top).not.toBe(top[0].top);   // we actually scrolled to a new window

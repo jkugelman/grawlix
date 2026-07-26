@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { stubPublisherFetches, gotoApp } from './helpers.js';
+import { stubPublisherFetches, gotoApp, settleWindow, runSearch } from './helpers.js';
 
 // P1 oracle: a run whose ownedCorpus is fresh and scope-matched executes the
 // pipeline against ownedCorpus, shipping indices into it. The rows render in
@@ -39,18 +39,6 @@ async function seedCorpus(page) {
   }, { count: COUNT, stems: STEMS });
 }
 
-async function runSearch(page, pattern) {
-  await page.evaluate(p => window.__grawlixTest.setStack(
-    p === '' ? [] : [{ tool: 'search', params: { pattern: p } }]), pattern);
-  await page.evaluate(() => window.__grawlixTest.pipelineIdle());
-}
-
-async function settle(page) {
-  await page.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))));
-  await page.evaluate(() => window.__grawlixTest.windowIdle());
-  await page.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))));
-}
-
 function skeletonCount(page) {
   return page.evaluate(() => document.querySelectorAll('#vs-host .entry-row.skeleton').length);
 }
@@ -74,7 +62,7 @@ async function assertRunAgainstOwned(page, pattern, syncScope) {
   await page.evaluate(s => window.__grawlixTest.syncWorkerConfig(s), syncScope);
   await runSearch(page, pattern);
   await page.evaluate(() => window.scrollTo(0, 0));
-  await settle(page);
+  await settleWindow(page);
   expect(await skeletonCount(page)).toBe(0);
   const topDbg = await debug(page);
   expect(topDbg.ranAgainstOwned).toBe(true);   // non-vacuous: the run used ownedCorpus
@@ -83,7 +71,7 @@ async function assertRunAgainstOwned(page, pattern, syncScope) {
   expect((await stats(page)).hasWorkerStats).toBe(true);
 
   await page.evaluate(t => window.scrollTo(0, t), DEEP_TOP);
-  await settle(page);
+  await settleWindow(page);
   expect(await skeletonCount(page)).toBe(0);
   const deep = await captureRows(page);
   expect(deep[0].top).not.toBe(top[0].top);   // we actually scrolled to a new window
