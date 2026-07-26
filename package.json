@@ -8,7 +8,8 @@
   "scripts": {
     "build": "node scripts/build.js",
     "dev": "python3 -m http.server 4173 --directory site",
-    "test": "npm run test:unit && npm run test:dist",
+    "test": "npm run test:unit && npm run build && GRAWLIX_SITE_DIR=dist playwright test --project=chromium",
+    "test:all": "npm run test:unit && npm run test:dist",
     "test:unit": "node --test --test-reporter=dot 'tests/unit/**/*.js'",
     "test:browser": "playwright test",
     "test:dist": "npm run build && GRAWLIX_SITE_DIR=dist npm run test:browser",
