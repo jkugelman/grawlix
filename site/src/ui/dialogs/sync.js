@@ -36,6 +36,8 @@ export const SyncDialog = (() => {
     const name = esc(syncFilename(key));
     const listLabel = buildWordlistNameHTML(target);
 
+    const walkthrough = `<p class="sync-dialog-help"><a href="#/help/ingrid" onclick="SyncDialog.close()">How do I sync wordlists with Ingrid?</a></p>`;
+
     let title, inner;
     if (!Disk.isSupported()) {
       title = 'Saved in your browser';
@@ -49,7 +51,8 @@ export const SyncDialog = (() => {
           ? `<strong>${name}</strong> is shared by Grawlix and your construction software. It will stay up to date as you make changes.`
           : `<strong>${name}</strong> is shared between Grawlix and your construction software. Edit in either place — changes flow both ways.`}</p>
         ${unavailable ? `<p class="sync-dialog-note attention"><span class="sync-dialog-note-icon" aria-hidden="true">⚠️</span><span>Grawlix can't find <strong>${name}</strong> — it may have been moved or deleted, so syncing is paused.</span></p>` : ''}
-        <div class="sync-dialog-actions"><button type="button" class="danger" onclick="SyncDialog.act('stopSync')">Turn off</button></div>`;
+        <div class="sync-dialog-actions"><button type="button" class="danger" onclick="SyncDialog.act('stopSync')">Turn off</button></div>
+        ${walkthrough}`;
     } else {
       title = `Sync ${listLabel} to disk`;
       inner = `${diagram(mirror ? '→' : '⇄')}
@@ -63,7 +66,8 @@ export const SyncDialog = (() => {
             <span class="sync-choice-title">Create a new file</span>
             <span class="sync-choice-sub">Save changes to a fresh file.</span>
           </button>
-        </div>`;
+        </div>
+        ${walkthrough}`;
     }
 
     body.innerHTML = `<button type="button" class="dialog-close-btn" aria-label="Close">✕</button>
@@ -80,6 +84,7 @@ export const SyncDialog = (() => {
   return {
     mount,
     open(target) { render(target); showDialog(el); },
+    close: () => el.close(),
     act,
   };
 })();

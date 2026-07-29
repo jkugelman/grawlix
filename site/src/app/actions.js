@@ -1009,8 +1009,11 @@ function newEntrySeedQuery() {
 
 // ─── Event wiring ─────────────────────────────────────────────────────────────
 
+const HELP_HASH = /^#\/help(?:\/([\w-]+))?$/;
+
 function syncHelp() {
-  if (location.hash === '#/help') HelpDialog.open();
+  const m = HELP_HASH.exec(location.hash);
+  if (m) HelpDialog.open(m[1]);
   else if (HelpDialog.isOpen()) HelpDialog.close();
 }
 

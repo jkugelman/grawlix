@@ -40,6 +40,13 @@ function toolsDiagram() {
   return `<div class="faq-diagram faq-diagram--tools" inert><div class="faq-tools-strip">${cards}</div></div>`;
 }
 
+function screenshot({ file, alt, caption, width, height }) {
+  return `<figure class="faq-shot">
+      <img src="img/${file}" alt="${esc(alt)}" width="${width}" height="${height}" loading="lazy">
+      <figcaption>${caption}</figcaption>
+    </figure>`;
+}
+
 function wordlistCreditsHTML() {
   return [...WORDLIST_PUBLISHERS]
     // John's own list — Grawlix's author, not a third party.
@@ -56,11 +63,14 @@ function wordlistCreditsHTML() {
     .join('');
 }
 
+// Each item's `slug` is a public URL (#/help/<slug>), so renaming one breaks
+// links already shared.
 const SECTIONS = [
   {
     title: 'What even is this?',
     items: [
       {
+        slug: 'what-is-grawlix',
         q: 'Is this a wordlist manager, a search tool, or what?',
         a: `
           <p>Both, really. It's two things sharing one screen.</p>
@@ -68,6 +78,7 @@ const SECTIONS = [
           <p>The second is a word-finding <em>playground</em>. That same merged list is right there to search and slice, and you can stack tools on it (anagrams, rhymes, beheadments, rebus forms, a couple dozen more) to mine for theme ideas, or just shake loose the one entry that fits a stubborn corner.</p>`,
       },
       {
+        slug: 'my-data',
         q: 'Do I need an account? Where does my stuff live?',
         a: `
           <p>No account, no login, nothing to sign into, and no Grawlix server holding your data either. Your wordlists, your edits, and your settings live entirely in your browser, on this device.</p>
@@ -79,6 +90,7 @@ const SECTIONS = [
     title: 'Rescoring & merging',
     items: [
       {
+        slug: 'rescoring',
         q: `What's "rescoring," and why should I care?`,
         a: `
           <p>Different wordlists score on different scales. XWI is usable from 25-60 but STWL is dangerous below 50. Broda and Nediger run top out at 100. Mashing the lists together and sorting by score just gives you nonsense.</p>
@@ -87,12 +99,14 @@ const SECTIONS = [
           <p>Pop open the <strong>Rescoring</strong> panel on any wordlist if you want to change the rules.</p>`,
       },
       {
+        slug: 'score-tiers',
         q: 'What do the score colors and tiers mean?',
         a: `
           <p>Scores show up as colored badges, and the color is the tier. Out of the box: <strong>great</strong> (60+), <strong>good</strong> (50+), <strong>fair</strong> (40+), <strong>meh</strong> (30+), <strong>bad</strong> (below 30). Hover any badge, whether in the table, the entry panel, or the tier picker, and it names the tier.</p>
           <p>Don't like the cutoffs or the labels? They're yours. Switch to All Wordlists and open <strong>Scoring</strong> to rename a tier or move a line. It's optional decoration, though. Unlabeled scores still display fine, you just won't get a name on hover.</p>`,
       },
       {
+        slug: 'rescore-entries',
         q: 'How do I rescore entries?',
         a: () => {
           const maxDigit = Math.max(0, ...buildScoreOptions().map(o => o.hint).filter(h => h != null));
@@ -103,6 +117,7 @@ const SECTIONS = [
         },
       },
       {
+        slug: 'all-wordlists',
         q: `What is "All Wordlists"?`,
         a: () => `
           <p>It's the headline view: every wordlist you've enabled, rescored onto the common scale and merged into one deduped list. It's what you're looking at by default, and it's what you download or sync and hand to your construction software.</p>
@@ -110,12 +125,14 @@ const SECTIONS = [
           <p>When the same word shows up in several lists, the highest-priority list that has it wins. Priority is just the order your lists sit in, which you set under <strong>Manage wordlists</strong>. Search, the tools, the histogram, all of it runs against this merged view unless you deliberately switch to a single list.</p>`,
       },
       {
+        slug: 'sources-column',
         q: `What's the Sources column?`,
         a: `
           <p>Over on the right of the table, each row shows little icons for the wordlists that have that entry: one slot per list, with a gap where a list doesn't have it. A single icon means the entry is unique to that list; several mean it's shared.</p>
           <p>The lists in full color are the ones whose spelling, score, or comment you're actually seeing; any dimmed ones have the entry too, but a higher-priority list won. Click the entry for the full rundown.</p>`,
       },
       {
+        slug: 'my-edits',
         q: `What is "My Edits"?`,
         a: `
           <p>My Edits is your personal layer, created for you automatically the first time you open Grawlix. Any time you change a score, fix a comment, rename an entry, or add a word, it lands here, never in the original wordlist.</p>
@@ -127,6 +144,7 @@ const SECTIONS = [
     title: 'Disk sync',
     items: [
       {
+        slug: 'disk-sync',
         q: 'What is disk sync, and why do I want it?',
         a: () => `
           <p>Grawlix keeps everything in your browser. Disk sync adds a bridge: it ties one of your lists to one file on your hard drive (ideally the exact file your construction software already loads) and keeps the two matched automatically.</p>
@@ -139,17 +157,58 @@ const SECTIONS = [
           <p>Heads up: disk sync needs a Chromium desktop browser. See <em>Why don't I see a sync button?</em></p>`,
       },
       {
+        slug: 'sync-setup',
         q: 'How do I set it up?',
         a: `
           <p>Switch to the list you want, then click on <strong>Sync to disk</strong>. Pick an existing file on your computer, or create a new one. That's it.</p>
-          <p>Changes you make will be written to that file automatically. If your construction software reads from there, changes you make in Grawlix will show up when gridding. It's that easy.</p>`
+          <p>Changes you make will be written to that file automatically. If your construction software reads from there, changes you make in Grawlix will show up when gridding. It's that easy.</p>
+          <p>For the other half of the job, see <a href="#/help/ingrid">How do I sync wordlists with Ingrid?</a></p>`
       },
       {
+        slug: 'ingrid',
+        q: 'How do I sync wordlists with Ingrid?',
+        a: () => `
+          <p>Two files is the setup I recommend: <strong>All Wordlists</strong> to fill from and <strong>My Edits</strong> as the one Ingrid writes back to.</p>
+          <p><strong>First, in Grawlix.</strong></p>
+          <ol>
+            <li>Pick <strong>All Wordlists</strong> and click <strong>Sync to disk</strong>. Save it somewhere you'll find again.</li>
+            <li>Pick <strong>My Edits</strong> and sync that to a second file.</li>
+          </ol>
+          <p><strong>Then, in Ingrid.</strong> Open <strong>Preferences</strong> and pick <strong>Word Lists</strong>.</p>
+          <ol start="3">
+            <li>Click <strong>Add</strong> and choose the file you synced All Wordlists to. Click <strong>Add</strong> again and choose your My Edits file.</li>
+            <li>Use <strong>Move Up</strong> to put My Edits on top. Ingrid lets higher lists override lower ones, and you want your own edits winning.</li>
+            <li>Untick Ingrid's bundled <strong>Spread the Wordlist</strong>. You aren't losing it: as long as it's enabled in Grawlix it's already inside All Wordlists, rescored onto your scale.</li>
+          </ol>
+          ${screenshot({
+            file: 'ingrid-word-lists.png',
+            alt: `Ingrid's Preferences dialog on the Word Lists pane, with My Edits and All Wordlists ticked and Spread the Wordlist unticked`,
+            caption: 'Both synced files loaded, My Edits on top.',
+            width: 626,
+            height: 681,
+          })}
+          <ol start="6">
+            <li>Select <strong>My Edits</strong>, click <strong>Details...</strong>, and tick <strong>Use as Personal List</strong>. It picks up a ✏️ in the list. That's what makes Ingrid write back into the file when you score or add a word mid-fill, which is how your changes find their way home to Grawlix.</li>
+            <li>While you're in there, choose <strong>Remove diacritics</strong> and <strong>Skip punctuation</strong>. Grawlix writes entries out in full, accents and hyphens and all, and these two let Ingrid fit them into a grid. RÉSUMÉ fills as RESUME, CO-OP fills as COOP.</li>
+          </ol>
+          ${screenshot({
+            file: 'ingrid-list-details.png',
+            alt: `Ingrid's per-list details dialog showing Use as Personal List ticked, Remove diacritics selected, and Skip punctuation selected`,
+            caption: 'The three settings that matter, on My Edits.',
+            width: 466,
+            height: 663,
+          })}
+          <p>That's the whole setup. Rescore something in Grawlix and Ingrid's fill list has it. Score something in Ingrid while you're filling and it turns up in My Edits back in Grawlix, usually before you've finished the corner.</p>
+          <p>Crossfire and Crossword Compiler load the same two files perfectly well. You just have to refresh them by hand to pick up changes, which is why I reach for Ingrid.</p>`,
+      },
+      {
+        slug: 'two-computers',
         q: 'Can I use the same wordlist across two computers?',
         a: `
           <p>Yes, with a little help from a cloud drive. Grawlix itself ships zero cloud code; your data is per-browser. But disk sync points at a <em>file</em>, and if that file lives in Dropbox, iCloud Drive, OneDrive, or Google Drive, your cloud client shuttles it between machines for you. On each computer, sync the same list to that same file.</p>`,
       },
       {
+        slug: 'no-sync-button',
         q: `Why don't I see a sync button, or why is it grayed out?`,
         a: `
           <p>Disk sync rides on a browser feature called the File System Access API, and today only Chromium desktop browsers have it: Chrome, Edge, Brave, Arc, and the like. So where you are decides what you get:</p>
@@ -165,6 +224,7 @@ const SECTIONS = [
     title: 'Tools & chaining',
     items: [
       {
+        slug: 'all-mode',
         q: `What's the ✱ "all-mode" button for?`,
         a: `
           <p>A lot of tools take an input string. Anagram takes a word to rearrange, Letter bank takes a set of letters, Rhymes takes a word to rhyme with. Normally you hand it one input and get back that input's results.</p>
@@ -172,6 +232,7 @@ const SECTIONS = [
           <p>Tools that can do this wear a small ✱ in the corner of their gallery card. Click the ✱ on the tool's input in your stack to toggle it on. Only one tool can be in all-mode at a time.</p>`,
       },
       {
+        slug: 'stacking-tools',
         q: `What's the deal with stacking tools?`,
         a: () => `
           <p>Tools chain. The gallery sits at the top of the screen; click a tool's card and it drops onto a <strong>stack</strong>. Click another and it stacks below. The stack runs top to bottom like a pipeline: the first tool reads whatever you're looking at (usually All Wordlists), and each tool after it works on the output of the one above. Search is always pinned as the last step.</p>
@@ -180,6 +241,7 @@ const SECTIONS = [
           <p>What's that good for? Heck if I know. Try it, let me know what you come up with.</p>`,
       },
       {
+        slug: 'umiaq',
         q: 'What are Umiaq and those capital-letter patterns?',
         a: `
           <p>Umiaq is search with <strong>variables</strong>. A capital letter stands for a chunk of letters that has to come out the same everywhere it appears. So <code>ABBA</code> finds words whose halves mirror, like NOON and DEED, and <code>AA</code> finds doubled words like MAMA and TUTU.</p>
@@ -192,6 +254,7 @@ const SECTIONS = [
     title: 'Other',
     items: [
       {
+        slug: 'credits',
         q: 'Who can I thank for this?',
         a: () => `
           <p>Grawlix is made with ♥ by John Kugelman. Got feedback? <a href="mailto:john@kugelman.name?subject=Grawlix">E-mail me</a>.</p>
@@ -214,7 +277,7 @@ export const HelpDialog = (() => {
   function sectionHTML(section) {
     const items = section.items.map(it => {
       const answer = typeof it.a === 'function' ? it.a() : it.a;
-      return `<details class="faq-item"><summary>${it.q}</summary><div class="faq-answer">${answer}</div></details>`;
+      return `<details class="faq-item" id="faq-${it.slug}"><summary>${it.q}</summary><div class="faq-answer">${answer}</div></details>`;
     }).join('');
     return `<section class="faq-section"><h3>${section.title}</h3>${items}</section>`;
   }
@@ -229,16 +292,25 @@ export const HelpDialog = (() => {
       </div>`;
   }
 
+  function reveal(slug) {
+    if (!slug) return;
+    const item = body.querySelector(`#faq-${CSS.escape(slug)}`);
+    if (!item) return;
+    item.open = true;
+    item.scrollIntoView({ block: 'start' });
+  }
+
   // The dialog mirrors the #/help hash so it's deep-linkable: closing strips the
   // hash, and the boot/hashchange sync (in actions) drives open/close from it.
   function clearHash() {
-    if (location.hash === '#/help') history.replaceState(null, '', location.pathname + location.search);
+    if (location.hash.startsWith('#/help')) history.replaceState(null, '', location.pathname + location.search);
   }
 
-  function open() {
-    if (el.open) return;
+  function open(slug) {
+    if (el.open) { reveal(slug); return; }
     render();
     showDialog(el, clearHash);
+    reveal(slug);
   }
 
   return {

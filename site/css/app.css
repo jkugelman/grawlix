@@ -872,6 +872,9 @@ button.header-icon-btn:hover:not(:disabled) { background: var(--hdr-bg-dark); co
 .sync-dialog-note-icon { flex-shrink: 0; }
 .sync-dialog-note.attention { color: var(--warn-fg); }
 .sync-dialog-actions { display: flex; justify-content: flex-end; gap: 8px; }
+.sync-dialog-help { font-size: 12px; text-align: center; margin: 16px 0 0; }
+.sync-dialog-help a { color: var(--accent); text-decoration: none; }
+.sync-dialog-help a:hover { text-decoration: underline; }
 .sync-choices { display: flex; flex-direction: column; gap: 10px; }
 .sync-choice { display: block; width: 100%; text-align: left; padding: 12px 14px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); cursor: pointer; font-family: inherit; }
 .sync-choice:hover { border-color: var(--accent); background: var(--hover); }
@@ -1007,7 +1010,7 @@ dialog h2 { font-size: 16px; margin-bottom: 14px; padding-right: 24px; }
 .faq-answer { padding: 0 2px 13px 20px; }
 .faq-answer p { font-size: 13px; line-height: 1.55; color: var(--muted); margin: 0 0 10px; }
 .faq-answer p:last-child { margin-bottom: 0; }
-.faq-answer ul { margin: 0 0 10px; padding-left: 18px; }
+.faq-answer ul, .faq-answer ol { margin: 0 0 10px; padding-left: 18px; }
 .faq-answer li { font-size: 13px; line-height: 1.5; color: var(--muted); margin-bottom: 5px; }
 .faq-answer li:last-child { margin-bottom: 0; }
 .faq-answer strong { color: var(--text); font-weight: 600; }
@@ -1016,6 +1019,9 @@ dialog h2 { font-size: 16px; margin-bottom: 14px; padding-right: 24px; }
 .faq-answer kbd { font-family: var(--font-mono); font-size: 11px; font-weight: 600; color: var(--text); background: var(--surface); border: 1px solid var(--border2); border-bottom-width: 2px; border-radius: 4px; padding: 1px 6px; white-space: nowrap; }
 .faq-answer a { color: var(--accent); text-decoration: none; }
 .faq-answer a:hover { text-decoration: underline; }
+.faq-shot { margin: 0 0 12px; }
+.faq-shot img { display: block; max-width: 100%; height: auto; border: 1px solid var(--border2); border-radius: 8px; }
+.faq-shot figcaption { font-size: 12px; line-height: 1.45; color: var(--faint); margin-top: 5px; }
 
 /* Import guide dialog */
 #import-guide-dialog { --dialog-w: 480px; }

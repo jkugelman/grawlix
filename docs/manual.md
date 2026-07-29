@@ -62,6 +62,8 @@ You sync each list from its wordlist bar, list by list. Two kinds of sync, depen
 - **Use an existing file** (a one-way list calls it **Overwrite an existing file**) — point at the file your software already reads. For My Edits, Grawlix loads it in and keeps both in sync; for a one-way list it overwrites that file with the rescored output.
 - **Create a new file** — name a fresh file for Grawlix to write to.
 
+**The other half: your construction software.** Syncing a file only does half the job; your software still has to be pointed at it. The sync dialog links to a step-by-step **Ingrid** walkthrough with screenshots (also at `grawlix.wtf/#/help/ingrid`): sync All Wordlists and My Edits to two files, add both in Ingrid's **Word Lists** preferences, mark My Edits as Ingrid's **Personal List** so your mid-fill scoring flows back to Grawlix, and set Ingrid to **Remove diacritics** and **Skip punctuation** so rich entries fit a grid. Do that and the round trip is live in both directions. Crossfire and Crossword Compiler read the same two files, but you refresh them by hand.
+
 **While synced.** The pill names the synced file. Clicking it again offers **Turn off**; turning sync off leaves the file on disk untouched — it just disconnects. To point a list at a different file, turn sync off and set it up again. **Download** is always there too, in every state.
 
 **When edits collide (My Edits only).** If the same entry was changed both in Grawlix and in the file since they last agreed, Grawlix asks which to keep — **Keep this device** or **Keep the file** — and applies your choice. Changes that touched different entries merge silently; this prompt appears only on a true conflict, so it's rare. Deleting an entry on either side stays deleted — it isn't resurrected by the merge.
@@ -293,7 +295,9 @@ Each carries an **Import** button and a ✕ to dismiss; once dismissed, a banner
 
 ## Help
 
-The header `?` button opens **Help** — an FAQ covering what Grawlix is, rescoring and merging, disk sync, and the tools, with a few small diagrams along the way. An **Acknowledgements** question credits the constructors whose wordlists Grawlix is built to combine, and Wordlisted, whose search catalog inspired the tools. Help is deep-linkable: opening it puts `#/help` in the URL, so `grawlix.wtf/#/help` opens straight to it.
+The header `?` button opens **Help** — an FAQ covering what Grawlix is, rescoring and merging, disk sync, and the tools, with a few small diagrams along the way. An **Acknowledgements** question credits the constructors whose wordlists Grawlix is built to combine, and Wordlisted, whose search catalog inspired the tools. One answer is a step-by-step **Ingrid walkthrough** with screenshots, covering the half of disk sync that happens outside Grawlix (see [Disk sync](#disk-sync)).
+
+Help is deep-linkable, and so is each individual answer: opening Help puts `#/help` in the URL, so `grawlix.wtf/#/help` opens straight to it, and every question has its own address — `grawlix.wtf/#/help/ingrid` opens Help with the Ingrid walkthrough already expanded. Paste one into a chat and the other person lands on the answer, not the top of the FAQ. A link to an answer that no longer exists just opens Help.
 
 ## Sharing & links
 
