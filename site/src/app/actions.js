@@ -1,7 +1,7 @@
 'use strict';
 
 import {
-  MERGED_ID, MERGED_NAME, EDITS_ICON, WORDLIST_PUBLISHERS, DEFAULT_SCORING,
+  MERGED_ID, EDITS_ICON, WORDLIST_PUBLISHERS, DEFAULT_SCORING,
 } from '../core/constants.js';
 import { esc, pluralize } from '../core/util.js';
 import { putFetchHandle, dropFetchHandle, bumpFetchStatus } from '../data/fetch-status.js';
@@ -1300,7 +1300,7 @@ export function buildCopyLinkMarkdown(stack) {
     if (row.inverted()) label = '🚫 ' + label;
     labels.push(label);
   });
-  const desc = labels.length ? labels.join(' → ') : MERGED_NAME;
+  const desc = labels.length ? labels.join(' → ') : 'Grawlix';
   return `[${desc}](${url})`;
 }
 

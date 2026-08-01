@@ -204,7 +204,7 @@ test.describe('stats-bar Share control and download menu', () => {
     const pop = page.locator('.copy-popover.open');
     await expect(pop).toBeVisible();
 
-    await expect(pop.locator('[data-field="mdlink"]')).toHaveValue(/^\[All Wordlists\]\(http/);
+    await expect(pop.locator('[data-field="mdlink"]')).toHaveValue(/^\[Grawlix\]\(http/);
     await expect(pop.locator('[data-field="link"]')).toHaveValue(page.url());
     await expect(pop.locator('[data-label="results"]')).toHaveText('Results');
   });
@@ -228,7 +228,7 @@ test.describe('stats-bar Share control and download menu', () => {
 
     const copied = await page.evaluate(() => window.__copied);
     expect(copied[0]).toBe(page.url());
-    expect(copied[1]).toMatch(/^\[All Wordlists\]\(http/);
+    expect(copied[1]).toMatch(/^\[Grawlix\]\(http/);
     expect(copied[2]).not.toMatch(/^\[/);   // results body carries no link header
   });
 });

@@ -82,13 +82,13 @@ test('Markdown link omits backticks around numeric params', async ({ page }) => 
   expect(text).toMatch(/^\[Caesar shift 3\]\(http/);
 });
 
-test('Markdown link for empty pipeline uses [All Wordlists](URL)', async ({ page }) => {
+test('Markdown link for empty pipeline uses [Grawlix](URL)', async ({ page }) => {
   await gotoApp(page);
   await addFixture(page);
   await setStack(page, []);
 
   const text = await getExport(page, 'markdown-link');
-  expect(text).toMatch(/^\[All Wordlists\]\(http/);
+  expect(text).toMatch(/^\[Grawlix\]\(http/);
 });
 
 test('Wordlist dumps tail entries with chain-min score, alphabetically sorted', async ({ page }) => {
