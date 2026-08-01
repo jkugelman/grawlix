@@ -33,12 +33,28 @@ test('serializeEntries: within a norm the highest score leads — the consumer k
   assert.equal(out, 'café;70\nCAFE;50\ncafe;30\n');
 });
 
-test('serializeEntries: on an equal-score tie the variant carrying a comment leads', () => {
+test('serializeEntries (as-is): on an equal-score tie the written text sorts, comment or not', () => {
+  const out = serializeEntries([
+    { norm: 'cafe', display: 'café', score: 60, comment: 'drink' },
+    { norm: 'cafe', display: 'cafe', score: 60, comment: '' },
+  ], RICH);
+  assert.equal(out, 'cafe;60\ncafé;60;drink\n');
+});
+
+test('serializeEntries (as-is): a punctuated variant follows the bare spelling of its norm', () => {
+  const out = serializeEntries([
+    { norm: 'any', display: 'any%', score: 50, comment: 'Speedrunning category' },
+    { norm: 'any', display: null,   score: 50, comment: '' },
+  ], RICH);
+  assert.equal(out, 'any;50\nany%;50;Speedrunning category\n');
+});
+
+test('serializeEntries: variants stripped onto one text tie, so the commented one leads', () => {
   const out = serializeEntries([
     { norm: 'cafe', display: 'cafe', score: 60, comment: '' },
     { norm: 'cafe', display: 'café', score: 60, comment: 'drink' },
-  ], RICH);
-  assert.equal(out, 'café;60;drink\ncafe;60\n');
+  ], NO_ACCENTS);
+  assert.equal(out, 'cafe;60;drink\ncafe;60\n');
 });
 
 test('serializeEntries (as-is): same-norm distinct displays write verbatim — no collapse', () => {
