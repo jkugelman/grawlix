@@ -53,6 +53,15 @@ function foreignHasSpelling(sources, norm, display) {
   return false;
 }
 
+// A junk upsert matches My Edits on (norm, displayOf), so junking a spelling some
+// OTHER My Edits entry renders as lands on that entry's own row and silently
+// rewrites the user's score to trash. A rename orphans only its own leftovers.
+function heldBySibling(edits, norm, origDisplay, display) {
+  const group = edits ? (sourceAccessor(edits).rescoredForNorm(norm) ?? []) : [];
+  const rendered = display ?? norm;
+  return group.some(e => displayOf(e) === rendered && displayOf(e) !== origDisplay);
+}
+
 // Shared by create and rename so the two gestures stay symmetric: a typed entry
 // that would hide under (or absorb) a foreign spelling of its norm copies the other
 // form in. A My Edits sibling already at this norm is distinguishing — no copy.
@@ -121,12 +130,14 @@ export function planEntryWrite({ mode, clicked, typed, sources, trashScore = 0 }
   // A rename should replace the old spelling, not sit beside a foreign copy of it.
   if (renamed && foreignHasNorm(sources, origNorm)) {
     const junk = (display, noted = display) => {
+      if (heldBySibling(edits, origNorm, origDisplay, display)) return;
       upserts.push({ norm: origNorm, display, score: trashScore, comment: '' });
       notes.push({ kind: 'downscore', norm: origNorm, display: noted, score: trashScore });
     };
     if (newNorm !== origNorm) {
-      // My Edits has vacated origNorm, so a bare wildcard (not origDisplay) junks every
-      // foreign spelling still left there — without it they'd resurface un-replaced.
+      // The renamed entry has vacated origNorm, so a bare wildcard (not origDisplay)
+      // junks every foreign spelling still left there — without it they'd resurface
+      // un-replaced.
       junk(null, origDisplay);
     } else {
       // Deleting a My Edits bare un-unifies the foreign spellings it was covering, which

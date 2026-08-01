@@ -263,6 +263,65 @@ test('edit: respelling a My Edits bare junks a foreign rich sibling but leaves f
   assert.deepStrictEqual(p.notes, [{ kind: 'downscore', norm: 'standupguy', display: 'standup guy', score: 0 }]);
 });
 
+test('edit: a same-norm respell leaves a My Edits sibling that holds the spelling itself alone', () => {
+  // Nediger also spelling ETA doesn't make it an orphan of this rename, and a junk
+  // upsert there lands on My Edits' own row (norm + displayOf), zeroing the user's 40.
+  const sources = [
+    edits([wlEntry('eta', 50, { display: 'Eta', comment: 'Greek letter' }),
+           wlEntry('eta', 40, { display: 'ETA', comment: 'Estimated time of arrival' })]),
+    src('XWI', [wlEntry('eta', 50)]),
+    src('Nediger', [wlEntry('eta', 50, { display: 'ETA' })]),
+  ];
+  const clicked = { norm: 'eta', display: 'Eta', score: 50, comment: 'Greek letter' };
+  const p = planEntryWrite({ mode: 'edit', clicked, typed: typed('eta', 50, 'Greek letter'), sources, trashScore: 0 });
+  assert.deepStrictEqual(p.deletes, [{ norm: 'eta', display: 'Eta' }]);
+  assert.deepStrictEqual(p.upserts, [{ norm: 'eta', display: null, score: 50, comment: 'Greek letter' }]);
+  assert.deepStrictEqual(p.notes, []);
+});
+
+test('edit: a same-norm respell leaves the My Edits bare sibling it does not orphan alone', () => {
+  // The bare renders as `ebay` (its group is distinguishing) and keeps doing so after
+  // eBay is respelled — junking that spelling would zero the bare via displayOf.
+  const sources = [
+    edits([wlEntry('ebay', 50), wlEntry('ebay', 60, { display: 'eBay' })]),
+    src('X', [wlEntry('ebay', 20), wlEntry('ebay', 40, { display: 'eBay' })]),
+  ];
+  const clicked = { norm: 'ebay', display: 'eBay', score: 60, comment: '' };
+  const p = planEntryWrite({ mode: 'edit', clicked, typed: typed('e-Bay', 60), sources, trashScore: 0 });
+  assert.deepStrictEqual(p.deletes, [{ norm: 'ebay', display: 'eBay' }]);
+  assert.deepStrictEqual(p.upserts, [
+    { norm: 'ebay', display: 'e-Bay', score: 60, comment: '' },
+    { norm: 'ebay', display: 'eBay', score: 0, comment: '' },
+  ]);
+  assert.deepStrictEqual(p.notes, [{ kind: 'downscore', norm: 'ebay', display: 'eBay', score: 0 }]);
+});
+
+test('edit: renaming to a NEW norm leaves the My Edits sibling still holding the old one alone', () => {
+  // The vacate-the-norm wildcard junks display null, which is the bare sibling's own
+  // (norm, displayOf) row — zeroing an entry the rename never touched.
+  const sources = [
+    edits([wlEntry('eta', 50, { comment: 'Greek letter' }),
+           wlEntry('eta', 60, { display: 'Eta', comment: 'capitalized' })]),
+    src('XWI', [wlEntry('eta', 50)]),
+  ];
+  const clicked = { norm: 'eta', display: 'Eta', score: 60, comment: 'capitalized' };
+  const p = planEntryWrite({ mode: 'edit', clicked, typed: typed('theta', 60, 'capitalized'), sources, trashScore: 0 });
+  assert.deepStrictEqual(p.deletes, [{ norm: 'eta', display: 'Eta' }]);
+  assert.deepStrictEqual(p.upserts, [{ norm: 'theta', display: null, score: 60, comment: 'capitalized' }]);
+  assert.deepStrictEqual(p.notes, []);
+});
+
+test('edit: renaming to a NEW norm still junks the vacated norm when nothing of My Edits stays', () => {
+  const sources = [edits([wlEntry('eta', 60, { display: 'Eta' })]), src('XWI', [wlEntry('eta', 50)])];
+  const clicked = { norm: 'eta', display: 'Eta', score: 60, comment: '' };
+  const p = planEntryWrite({ mode: 'edit', clicked, typed: typed('theta', 60), sources, trashScore: 0 });
+  assert.deepStrictEqual(p.upserts, [
+    { norm: 'theta', display: null, score: 60, comment: '' },
+    { norm: 'eta', display: null, score: 0, comment: '' },
+  ]);
+  assert.deepStrictEqual(p.notes, [{ kind: 'downscore', norm: 'eta', display: 'Eta', score: 0 }]);
+});
+
 test('edit: respelling a foreign BARE entry within its norm (case/spacing) does NOT downscore — it enriches', () => {
   const sources = [edits([]), src('Broda', [wlEntry('gabrielknight', 20)])];   // foreign bare
   const clicked = { norm: 'gabrielknight', display: null, score: 20, comment: '' };
