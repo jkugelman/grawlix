@@ -2,15 +2,18 @@
 
 // ─── Serialize (My Edits / wordlist text output) ──────────────────────────────
 
-import { stripAccents } from './norm.js';
+import { stripAccents, stripDiacritics } from './norm.js';
 
-export const AS_IS_FORMAT = { spaces: true, punctuation: true, accents: true, comments: true };
+export const AS_IS_FORMAT = { spaces: true, punctuation: true, diacritics: true, ascii: true, comments: true };
 
 export function formatEntryText(e, fmt) {
   let s = e.display ?? e.norm;
-  if (!fmt.accents)     s = stripAccents(s);
+  // NFKD both creates ASCII punctuation (℅ → c/o) and conjures spaces out of
+  // lone diacritics (´ → space), so ascii must precede punctuation and spaces.
+  if (!fmt.diacritics)  s = stripDiacritics(s);
+  if (!fmt.ascii)       s = stripAccents(s).replace(/[^\x00-\x7f]/g, '');
+  if (!fmt.punctuation) s = s.replace(/\p{P}/gu, '');
   if (!fmt.spaces)      s = s.replace(/\s+/g, '');
-  if (!fmt.punctuation) s = s.replace(/[^\p{L}\p{N}\s]/gu, '');
   return s;
 }
 

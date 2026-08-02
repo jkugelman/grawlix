@@ -25,6 +25,13 @@ export function stripAccents(s) {
           .replace(/\p{M}/gu, '');
 }
 
+export function stripDiacritics(s) {
+  if (!/[^\x00-\x7f]/.test(s)) return s;
+  return s.replace(FOLD_RE, c => FOLD_MAP[c])
+          .normalize('NFD')
+          .replace(/\p{M}/gu, '');
+}
+
 export function toNorm(s) {
   return stripAccents(s).toLowerCase().replace(/[^a-z0-9]/g, '');
 }

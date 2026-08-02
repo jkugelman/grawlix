@@ -2,9 +2,11 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { serializeEntries, formatEntryText } from '../../site/src/engine/serialize.js';
 
-const RICH       = { spaces: true,  punctuation: true,  accents: true,  comments: true };
-const STRIPPED   = { spaces: false, punctuation: false, accents: false, comments: true };
-const NO_ACCENTS = { spaces: true,  punctuation: true,  accents: false, comments: true };
+const RICH       = { spaces: true,  punctuation: true,  diacritics: true,  ascii: true, comments: true };
+const STRIPPED   = { spaces: false, punctuation: false, diacritics: false, ascii: true, comments: true };
+const NO_ACCENTS = { spaces: true,  punctuation: true,  diacritics: false, ascii: true, comments: true };
+
+const only = axis => ({ spaces: true, punctuation: true, diacritics: true, ascii: true, comments: true, [axis]: false });
 
 test('serializeEntries (as-is): preserves display, spaces, accents, case, and comments verbatim', () => {
   const out = serializeEntries([
@@ -65,7 +67,7 @@ test('serializeEntries (as-is): same-norm distinct displays write verbatim — n
   assert.equal(out, 'café;60\ncafe;50\n');
 });
 
-test('serializeEntries (strip everything): removes spaces, punctuation, and accents (case untouched)', () => {
+test('serializeEntries (spaces, punctuation, diacritics off): case untouched', () => {
   const out = serializeEntries([
     { norm: 'theirs', display: 'the IRS', score: 60, comment: '' },
     { norm: 'cafe',   display: 'café',    score: 50, comment: '' },
@@ -102,14 +104,14 @@ test('serializeEntries: with comments off, lines differing only by comment colla
   const out = serializeEntries([
     { norm: 'cafe', display: 'café', score: 60, comment: 'drink' },
     { norm: 'cafe', display: 'cafe', score: 60, comment: 'the band' },
-  ], { spaces: true, punctuation: true, accents: false, comments: false });
+  ], { spaces: true, punctuation: true, diacritics: false, ascii: true, comments: false });
   assert.equal(out, 'cafe;60\n');
 });
 
 test('serializeEntries: comments off drops the third field even when stripping', () => {
   const out = serializeEntries([
     { norm: 'cafe', display: 'café', score: 60, comment: 'drink' },
-  ], { spaces: true, punctuation: true, accents: false, comments: false });
+  ], { spaces: true, punctuation: true, diacritics: false, ascii: true, comments: false });
   assert.equal(out, 'cafe;60\n');
 });
 
@@ -131,8 +133,62 @@ test('serializeEntries: sorts a copy — callers pass live rawEntries, which mus
 test('formatEntryText: each strip axis acts independently on the display', () => {
   const e = { norm: 'cafeaulait', display: 'café au lait' };
   assert.equal(formatEntryText(e, RICH), 'café au lait');
-  assert.equal(formatEntryText(e, { spaces: true, punctuation: true, accents: false }), 'cafe au lait');
-  assert.equal(formatEntryText(e, { spaces: false, punctuation: true, accents: true }), 'caféaulait');
-  assert.equal(formatEntryText({ norm: 'coop', display: 'co-op' }, { spaces: true, punctuation: false, accents: true }), 'coop');
+  assert.equal(formatEntryText(e, only('diacritics')), 'cafe au lait');
+  assert.equal(formatEntryText(e, only('spaces')), 'caféaulait');
+  assert.equal(formatEntryText({ norm: 'coop', display: 'co-op' }, only('punctuation')), 'coop');
   assert.equal(formatEntryText({ norm: 'cat', display: null }, RICH), 'cat');
+});
+
+test('diacritics axis folds real diacritics and leaves compatibility forms alone', () => {
+  const f = s => formatEntryText({ norm: 'x', display: s }, only('diacritics'));
+  assert.equal(f('café'), 'cafe');
+  assert.equal(f('Việt'), 'Viet');
+  assert.equal(f('Ørsted'), 'Orsted');
+  assert.equal(f('Αθήνα'), 'Αθηνα');
+  assert.equal(f('hoⓤse'), 'hoⓤse');
+  assert.equal(f('ﬁnest'), 'ﬁnest');
+  assert.equal(f('E=MC²'), 'E=MC²');
+  assert.equal(f('Xerox™'), 'Xerox™');
+});
+
+test('punctuation axis strips punctuation and nothing else', () => {
+  const f = s => formatEntryText({ norm: 'x', display: s }, only('punctuation'));
+  assert.equal(f('don’t'), 'dont');
+  assert.equal(f('e-mail'), 'email');
+  assert.equal(f('R&B'), 'RB');
+  assert.equal(f('a—b'), 'ab');
+  assert.equal(f('D.N.A.'), 'DNA');
+  assert.equal(f('hoⓤse'), 'hoⓤse');
+  assert.equal(f('route ①'), 'route ①');
+  assert.equal(f('poop 💩'), 'poop 💩');
+  assert.equal(f('a→b'), 'a→b');
+  assert.equal(f('café'), 'café');
+});
+
+test('ascii axis compatibility-folds first, then drops what is left', () => {
+  const f = s => formatEntryText({ norm: 'x', display: s }, only('ascii'));
+  assert.equal(f('hoⓤse'), 'house');
+  assert.equal(f('ﬁnest'), 'finest');
+  assert.equal(f('route ①'), 'route 1');
+  assert.equal(f('Xerox™'), 'XeroxTM');
+  assert.equal(f('café'), 'cafe');
+  assert.equal(f('Việt'), 'Viet');
+  assert.equal(f('€100'), '100');
+  assert.equal(f('漢字'), '');
+});
+
+test('ascii runs before punctuation, so punctuation NFKD creates is still stripped', () => {
+  const fmt = { spaces: true, punctuation: false, diacritics: true, ascii: false, comments: true };
+  assert.equal(formatEntryText({ norm: 'x', display: '℅' }, fmt), 'co');
+  assert.equal(formatEntryText({ norm: 'x', display: '⒈' }, fmt), '1');
+});
+
+test('spaces run last, so a space NFKD conjures out of a lone diacritic is still removed', () => {
+  const fmt = { spaces: false, punctuation: true, diacritics: true, ascii: false, comments: true };
+  assert.equal(formatEntryText({ norm: 'ab', display: 'a´b' }, fmt), 'ab');
+});
+
+test('diacritics runs before ascii, so an accented letter survives as its base', () => {
+  const fmt = { spaces: true, punctuation: true, diacritics: false, ascii: false, comments: true };
+  assert.equal(formatEntryText({ norm: 'x', display: 'café' }, fmt), 'cafe');
 });
