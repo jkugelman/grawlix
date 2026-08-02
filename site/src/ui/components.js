@@ -10,10 +10,21 @@ import { esc } from '../core/util.js';
 export function buildSegCtrlHTML(id, options, activeValue) {
   // type="button" so a seg control placed inside a <form method="dialog"> (the
   // download dialog) doesn't submit and close the dialog on selection.
-  const buttons = options.map(({ value, label }) =>
-    `<button type="button" class="seg-btn${value === activeValue ? ' active' : ''}" data-val="${value}">${label}</button>`
-  ).join('');
+  const buttons = options.map(({ value, label }) => {
+    const on = value === activeValue;
+    return `<button type="button" class="seg-btn${on ? ' active' : ''}" data-val="${value}" aria-pressed="${on}">${label}</button>`;
+  }).join('');
   return `<div class="seg-ctrl"${id ? ` id="${id}"` : ''}>${buttons}</div>`;
+}
+
+// Toggling `.active` inline instead of calling this leaves aria-pressed stale —
+// drift that is invisible on screen and to any test not asserting on it.
+export function setSegCtrlActive(container, target) {
+  for (const b of container.querySelectorAll('.seg-btn')) {
+    const on = typeof target === 'string' ? b.dataset.val === target : b === target;
+    b.classList.toggle('active', on);
+    b.setAttribute('aria-pressed', String(on));
+  }
 }
 
 const OUTPUT_FLAGS = ['spaces', 'punctuation', 'accents', 'comments'];

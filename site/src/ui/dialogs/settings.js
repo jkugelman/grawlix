@@ -6,7 +6,7 @@ import { lsSave, lsLoad, resetAllDataAndReload } from '../../data/storage.js';
 import { getOutputFormat, setOutputFormat, getTrashScore, setTrashScore } from '../../data/serialize.js';
 import { showToast } from '../toasts.js';
 import {
-  buildSegCtrlHTML, buildOutputFormatControlsHTML,
+  buildSegCtrlHTML, setSegCtrlActive, buildOutputFormatControlsHTML,
   readOutputFormatControls, wireOutputFormatControls,
 } from '../components.js';
 import { createDialog, showDialog } from './dialog.js';
@@ -43,7 +43,7 @@ export function cycleDarkMode() {
   lsSave('darkMode', next);
   applyDarkMode(next);
   const seg = document.getElementById('dark-mode-seg');
-  if (seg) seg.querySelectorAll('.seg-btn').forEach(b => b.classList.toggle('active', b.dataset.val === next));
+  if (seg) setSegCtrlActive(seg, next);
   showToast(`Dark mode: ${DARK_MODE_LABELS[next]}`);
 }
 
@@ -102,7 +102,7 @@ export const SettingsDialog = (() => {
         const val = btn.dataset.val;
         lsSave('darkMode', val);
         applyDarkMode(val);
-        seg.querySelectorAll('.seg-btn').forEach(b => b.classList.toggle('active', b === btn));
+        setSegCtrlActive(seg, btn);
       };
     });
     window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
@@ -116,7 +116,7 @@ export const SettingsDialog = (() => {
     ], _getAutoUpdate() ? 'on' : 'off');
     autoSeg.querySelectorAll('.seg-btn').forEach(btn => {
       btn.onclick = () => {
-        autoSeg.querySelectorAll('.seg-btn').forEach(b => b.classList.toggle('active', b === btn));
+        setSegCtrlActive(autoSeg, btn);
         lsSave('autoUpdate', btn.dataset.val);
         if (btn.dataset.val === 'on') _checkForUpdates();
       };

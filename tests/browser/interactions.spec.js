@@ -55,6 +55,12 @@ test('the gear button opens Settings', async ({ page }) => {
   const dialog = page.locator('#settings-dialog');
   await expect(dialog).toBeVisible();
   await expect(dialog.locator('#dark-mode-seg .seg-btn', { hasText: 'Dark' })).toBeVisible();
+
+  const seg = dialog.locator('#dark-mode-seg .seg-btn');
+  await expect(seg.filter({ hasText: 'Auto' })).toHaveAttribute('aria-pressed', 'true');
+  await seg.filter({ hasText: 'Dark' }).click();
+  await expect(seg.filter({ hasText: 'Dark' })).toHaveAttribute('aria-pressed', 'true');
+  await expect(seg.filter({ hasText: 'Auto' })).toHaveAttribute('aria-pressed', 'false');
 });
 
 test('the ? button opens Help: collapsible questions, folded-in acknowledgements, #/help hash', async ({ page }) => {
