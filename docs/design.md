@@ -876,7 +876,7 @@ core  <  engine  <  data  <  model  <  ui  <  app
 - **`engine/`** — the pure, DOM-free, worker-ready core: normalization, ranges, search/regex compilation, the phrase segmenter, the tool catalog (each of the ~23 tools in its own `engine/tools/<slug>.js`, see below), the pipeline executor, and the pure stats/histogram cores. Nothing here touches `document`, `window`, `localStorage`, or `navigator`.
 - **`data/`** — `state` plus *everything derived from it*: storage (IDB + localStorage), schema migrations, rescoring, merge, the state-reading stats/histogram wrappers, disk sync, persistence, publishers. The governing rule is that `data/` is state-and-derivations; `model/` is the thin band above it.
 - **`model/`** — the thin domain band: tier-label logic (`scoring.js`) and the state-coupled score-display helpers (`score-display.js`). Small on purpose (rescoring lives *below* it in `data/`, not above — see § *Cycle-breaking* below).
-- **`ui/`** — components, dialogs, scrollers, and rendering. Owns all DOM.
+- **`ui/`** — components, dialogs, scrollers, and rendering. Owns all DOM. The reusable pieces are catalogued in [`components.md`](components.md).
 - **`app/`** — orchestration: the URL router and the action dispatcher (fetch/import/update, My Edits add/delete, merge & download, export, rename).
 
 Two modules sit outside the layer stack. `main.js` is a thin boot entry (imports everything, runs the ordered `boot()` — below). `test-api.js` is the **only** every-layer importer: it assembles `window.__grawlixTest` from bindings across core/engine/data/model/ui/app, so `main.js` imports it *last*, after every layer it reaches into is initialized.
