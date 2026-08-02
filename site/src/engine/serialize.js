@@ -35,6 +35,7 @@ export function serializeEntries(entries, fmt = AS_IS_FORMAT) {
   const seen = new Set();
   const lines = [];
   for (const { e, text } of sortedEntries(entries, fmt)) {
+    if (!text) continue;
     const line = (fmt.comments && e.comment) ? `${text};${e.score};${e.comment}` : `${text};${e.score}`;
     if (seen.has(line)) continue;   // only stripping can collide two entries onto one line
     seen.add(line);

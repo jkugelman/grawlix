@@ -1483,12 +1483,14 @@ export const openCopyPopover = (() => {
 
 export function buildWordlistText(rows, grouped, fmt = AS_IS_FORMAT) {
   const best = new Map();
-  let skipped = 0;
+  let skipped = 0, emptied = 0;
   for (const { chain } of iterDisplayChains(rows, grouped)) {
     const content = chainContentEntries(chain);
     if (!content.length) continue;
     const tail = content[content.length - 1];
-    if (formatEntryText(tail, fmt).includes(';')) { skipped++; continue; }
+    const formatted = formatEntryText(tail, fmt);
+    if (formatted.includes(';')) { skipped++; continue; }
+    if (!formatted) { emptied++; continue; }
     let chainMin = Infinity;
     for (const wlE of content) if (wlE.score < chainMin) chainMin = wlE.score;
     const key = displayOf(tail);
@@ -1496,17 +1498,20 @@ export function buildWordlistText(rows, grouped, fmt = AS_IS_FORMAT) {
     if (cur === undefined || chainMin > cur.score) best.set(key, { ...tail, score: chainMin });
   }
   const text = serializeEntries([...best.values()], fmt);
-  return { text, count: text.split('\n').length - 1, skipped };
+  return { text, count: text.split('\n').length - 1, skipped, emptied };
 }
 
 export async function exportWordlist() {
   const scroller = getEntriesScroller();
   if (!scroller) return;
   const grouped = isMultiLaneTier(scroller.sortTier);
-  const { text, count, skipped } = buildWordlistText(await scroller.exportRows(), grouped, getOutputFormat());
+  const { text, count, skipped, emptied } = buildWordlistText(await scroller.exportRows(), grouped, getOutputFormat());
   triggerDownload(text, exportFilename(ToolStack.getStack(), 'txt'));
+  const notes = [];
+  if (skipped) notes.push(`${pluralize(skipped, 'entry', 'entries')} skipped due to semicolons`);
+  if (emptied) notes.push(`${pluralize(emptied, 'entry', 'entries')} skipped as empty after stripping`);
   let msg = `Downloaded ${pluralize(count, 'entry', 'entries')}`;
-  if (skipped) msg += ` (${pluralize(skipped, 'entry', 'entries')} skipped due to semicolons)`;
+  if (notes.length) msg += ` (${notes.join(', ')})`;
   showToast(msg);
 }
 

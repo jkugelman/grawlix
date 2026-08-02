@@ -188,6 +188,19 @@ test('spaces run last, so a space NFKD conjures out of a lone diacritic is still
   assert.equal(formatEntryText({ norm: 'ab', display: 'a´b' }, fmt), 'ab');
 });
 
+test('serializeEntries drops an entry that strips to nothing rather than writing ";50"', () => {
+  const fmt = { spaces: true, punctuation: true, diacritics: true, ascii: false, comments: true };
+  const out = serializeEntries([
+    { norm: 'cat',   display: null,   score: 40, comment: '' },
+    { norm: 'hanzi', display: '漢字', score: 50, comment: '' },
+  ], fmt);
+  assert.equal(out, 'cat;40\n');
+});
+
+test('serializeEntries drops an all-punctuation entry under the punctuation axis', () => {
+  assert.equal(serializeEntries([{ norm: 'x', display: '!!!', score: 10, comment: '' }], only('punctuation')), '');
+});
+
 test('diacritics runs before ascii, so an accented letter survives as its base', () => {
   const fmt = { spaces: true, punctuation: true, diacritics: false, ascii: false, comments: true };
   assert.equal(formatEntryText({ norm: 'x', display: 'café' }, fmt), 'cafe');
