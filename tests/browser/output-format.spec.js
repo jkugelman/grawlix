@@ -16,30 +16,30 @@ test.describe('output format setting', () => {
   test('getOutputFormat defaults to fully rich and round-trips through mergedSettings', async ({ page }) => {
     await gotoApp(page);
     expect(await page.evaluate(() => getOutputFormat())).toMatchObject(
-      { spaces: true, punctuation: true, accents: true, comments: true });
+      { spaces: true, punctuation: true, diacritics: true, ascii: true, comments: true });
 
     const got = await page.evaluate(() => {
-      const stripped = { spaces: false, punctuation: false, accents: false, comments: false };
+      const stripped = { spaces: false, punctuation: false, diacritics: false, ascii: true, comments: false };
       Storage.writeMergedSettings({ ...Storage.readMergedSettings(), outputFormat: stripped });
       return getOutputFormat();
     });
-    expect(got).toMatchObject({ spaces: false, punctuation: false, accents: false, comments: false });
+    expect(got).toMatchObject({ spaces: false, punctuation: false, diacritics: false, ascii: true, comments: false });
   });
 });
 
 test.describe('output format UI', () => {
-  test('Settings exposes the four flag checkboxes and no case toggle', async ({ page }) => {
+  test('Settings exposes the five flag checkboxes and no case toggle', async ({ page }) => {
     await gotoApp(page);
     await page.evaluate(() => SettingsDialog.open());
-    await expect(page.locator('#output-format-ctrls .of-flag')).toHaveCount(4);
+    await expect(page.locator('#output-format-ctrls .of-flag')).toHaveCount(5);
     await expect(page.locator('#output-format-ctrls .seg-btn')).toHaveCount(0);
   });
 
   test('changing a flag in Settings persists immediately, before closing', async ({ page }) => {
     await gotoApp(page);
     await page.evaluate(() => SettingsDialog.open());
-    await page.locator('#output-format-ctrls input[data-flag="accents"]').uncheck();
-    expect(await page.evaluate(() => getOutputFormat().accents)).toBe(false);
+    await page.locator('#output-format-ctrls input[data-flag="diacritics"]').uncheck();
+    expect(await page.evaluate(() => getOutputFormat().diacritics)).toBe(false);
   });
 
   test('a source downloads immediately, applying the global output format with no dialog', async ({ page }) => {
@@ -53,7 +53,7 @@ test.describe('output format UI', () => {
     expect(rich.suggestedFilename()).toBe('Src rescored.txt');
     expect(await readDownload(rich)).toContain('BLUE JAY;80');
 
-    await page.evaluate(() => setOutputFormat({ spaces: false, punctuation: false, accents: false, comments: true }));
+    await page.evaluate(() => setOutputFormat({ spaces: false, punctuation: false, diacritics: false, ascii: true, comments: true }));
     const strippedDl = page.waitForEvent('download');
     await page.evaluate(() => downloadSourceWordlist(state.sources.find(w => w.name === 'Src')));
     expect(await readDownload(await strippedDl)).toContain('BLUEJAY;80');
@@ -62,7 +62,7 @@ test.describe('output format UI', () => {
   test('My Edits Download applies the output format like any source; Download original is the editable file verbatim', async ({ page }) => {
     await gotoApp(page);
     await page.evaluate(() => saveEdit({ norm: '', display: '', score: 0, comment: '' }, { raw: 'BLUE JAY', score: 50, comment: '' }));
-    await page.evaluate(() => setOutputFormat({ spaces: false, punctuation: false, accents: false, comments: true }));
+    await page.evaluate(() => setOutputFormat({ spaces: false, punctuation: false, diacritics: false, ascii: true, comments: true }));
     await page.evaluate(async () => { await persistEdits(state.sources.find(w => w.type === 'edits')); });
 
     const dl = page.waitForEvent('download');
@@ -124,9 +124,9 @@ test.describe('results exports follow the output format', () => {
     }));
   }
 
-  const STRIP = { spaces: false, punctuation: false, accents: false, comments: true };
+  const STRIP = { spaces: false, punctuation: false, diacritics: false, ascii: true, comments: true };
 
-  test('Results as wordlist strips spaces, punctuation, and accents', async ({ page }) => {
+  test('Results as wordlist strips spaces, punctuation, and diacritics', async ({ page }) => {
     await gotoApp(page);
     await addRichFixture(page);
     await page.evaluate(f => setOutputFormat(f), STRIP);
@@ -142,7 +142,7 @@ test.describe('results exports follow the output format', () => {
   test('Results as wordlist drops comments when the comments flag is off', async ({ page }) => {
     await gotoApp(page);
     await addRichFixture(page);
-    await page.evaluate(() => setOutputFormat({ spaces: true, punctuation: true, accents: true, comments: false }));
+    await page.evaluate(() => setOutputFormat({ spaces: true, punctuation: true, diacritics: true, ascii: true, comments: false }));
 
     const { text } = await page.evaluate(() => window.__grawlixTest.exportText('wordlist'));
     expect(text).toContain('BLUE JAY;50\n');

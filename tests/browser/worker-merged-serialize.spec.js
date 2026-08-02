@@ -82,11 +82,11 @@ async function seedCorpus(page) {
 }
 
 const FORMATS = {
-  rich:     { spaces: true,  punctuation: true,  accents: true,  comments: true },
-  noAccent: { spaces: true,  punctuation: true,  accents: false, comments: true },
-  noSpace:  { spaces: false, punctuation: true,  accents: true,  comments: true },
-  stripped: { spaces: false, punctuation: false, accents: false, comments: true },
-  noComment:{ spaces: true,  punctuation: true,  accents: true,  comments: false },
+  rich:     { spaces: true, punctuation: true, diacritics: true, ascii: true, comments: true },
+  noAccent: { spaces: true, punctuation: true, diacritics: false, ascii: true, comments: true },
+  noSpace:  { spaces: false, punctuation: true, diacritics: true, ascii: true, comments: true },
+  stripped: { spaces: false, punctuation: false, diacritics: false, ascii: true, comments: true },
+  noComment:{ spaces: true, punctuation: true, diacritics: true, ascii: true, comments: false },
 };
 
 const setFormat = (page, fmt) => page.evaluate(f => setOutputFormat(f), fmt);

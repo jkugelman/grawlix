@@ -27,11 +27,12 @@ export function setSegCtrlActive(container, target) {
   }
 }
 
-const OUTPUT_FLAGS = ['spaces', 'punctuation', 'accents', 'comments'];
+const OUTPUT_FLAGS = ['spaces', 'punctuation', 'diacritics', 'ascii', 'comments'];
+const OUTPUT_FLAG_LABELS = { ascii: 'ASCII' };
 
 export function buildOutputFormatControlsHTML(fmt) {
   const flags = OUTPUT_FLAGS.map(k =>
-    `<label class="of-flag"><input type="checkbox" data-flag="${k}"${fmt[k] ? ' checked' : ''}> ${k[0].toUpperCase() + k.slice(1)}</label>`
+    `<label class="of-flag"><input type="checkbox" data-flag="${k}"${fmt[k] ? ' checked' : ''}> ${OUTPUT_FLAG_LABELS[k] ?? k[0].toUpperCase() + k.slice(1)}</label>`
   ).join('');
   return `<div class="of-flags">${flags}</div>`;
 }
