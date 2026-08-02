@@ -1,7 +1,7 @@
 'use strict';
 
 import { buildHelpHTML } from '../../core/util.js';
-import { UMIAQ_CAP_MOBILE } from '../../core/constants.js';
+import { TUPLE_CAP_MOBILE } from '../../core/constants.js';
 import { parseUmiaqQuery, matchPattern, findTuples, variableColors, variableHighlights, varsForcedNonEmpty } from '../umiaq.js';
 
 // Memory ceiling, not a UX cap: the worker retains every streamed tuple for
@@ -9,10 +9,10 @@ import { parseUmiaqQuery, matchPattern, findTuples, variableColors, variableHigh
 // conservative mobile cap, raised on desktop at boot. The default must be the SAFE
 // one: the worker can't detect mobile itself (no window.matchMedia), so a missed
 // boot message has to under-retain, not over-retain into an iOS reload.
-let umiaqMaxResults = UMIAQ_CAP_MOBILE;
+let tupleMaxResults = TUPLE_CAP_MOBILE;
 
 export function configureUmiaq({ maxResults } = {}) {
-  if (Number.isFinite(maxResults) && maxResults > 0) umiaqMaxResults = maxResults;
+  if (Number.isFinite(maxResults) && maxResults > 0) tupleMaxResults = maxResults;
 }
 
 export const UMIAQ_HELP = buildHelpHTML([
@@ -82,6 +82,6 @@ export default {
     return variableHighlights(entry, parsed.bindings[0], matches[0], parsed.varColor);
   },
   findTuples(pool, parsed, ctx) {
-    return findTuples(parsed, pool, { numResults: umiaqMaxResults, onBatch: ctx.onBatch, y: ctx.y, signal: ctx.signal });
+    return findTuples(parsed, pool, { numResults: tupleMaxResults, onBatch: ctx.onBatch, y: ctx.y, signal: ctx.signal });
   },
 };

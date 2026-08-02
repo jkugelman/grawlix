@@ -1,7 +1,7 @@
 // ─── Pipeline worker host ── see docs/worker-protocol.md ─────────────────────
 
 import { MERGED_ID } from '../core/constants.js';
-import { TOOLS, makeToolRow, configureUmiaq } from './tools.js';
+import { TOOLS, makeToolRow, configureUmiaq, configureWeave } from './tools.js';
 import { executePipeline, configureExecutorYield, lastPipelineSeedFrom, lastPipelineTailMs, bottomLineAtoms, applyScoreRangeToRows, rowLastEntry, rowAtoms, collapseRepeatAtoms, streamPlan, cacheGroupStats, currentAtomCount } from './executor.js';
 import { GdsCache, RoleCache } from './gds-cache.js';
 import { sortGroups, sortChainRows, activeGroupRow, groupRowComparator, chainRowComparator, chainSortTier, DEFAULT_SORT_BY_TIER } from './sort.js';
@@ -2683,7 +2683,8 @@ onmessage = ({ data }) => {
     }
 
     case 'configTools':
-      configureUmiaq({ maxResults: data.umiaqMaxResults });
+      configureUmiaq({ maxResults: data.tupleMaxResults });
+      configureWeave({ maxResults: data.tupleMaxResults });
       break;
 
     case 'fetchRows':

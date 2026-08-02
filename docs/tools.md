@@ -29,6 +29,7 @@ Source material: shipped catalog lives in `TOOLS` in [`site/src/engine/tools.js`
 | ✓ | Optional | 🎈 Optional letters | Letters that can be dropped to leave another entry | hard ⓟass |
 | ✓ | Pairs | 🦘 Kangaroos | Words containing the input spread out | kanga → milk and sugar |
 | ✓ | Pairs | 🍼 Joeys | Words contained in the input spread out | major key → joey |
+| ✓ | Pairs | 🧬 Weave | Two entries interwoven, each keeping its letter order | wallet + socks → wall sockets |
 |   | Pairs | 🪺 Nested | One word inside another | mari(juan)a |
 | ✓ | Palindrome | 🪞 Palindromes | Read the same when mirrored | racecar · civic |
 | ✓ | Palindrome | ⬅️ Semordnilap | Reverse to get a different word | stressed ↔ desserts |

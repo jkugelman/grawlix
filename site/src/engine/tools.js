@@ -22,6 +22,7 @@ import consonantcy, { consonantSkeleton } from './tools/consonantcy.js';
 import vowelcy, { vowelSkeleton } from './tools/vowelcy.js';
 import kangaroos from './tools/kangaroos.js';
 import joeys from './tools/joeys.js';
+import weave, { configureWeave } from './tools/weave.js';
 import palindromes from './tools/palindromes.js';
 import semordnilap from './tools/semordnilap.js';
 import rhymes from './tools/rhymes.js';
@@ -38,7 +39,7 @@ import remove from './tools/remove.js';
 import optional_letters from './tools/optional_letters.js';
 import { reverseString, sortLetters } from './tools/shared.js';
 
-export { reverseString, sortLetters, consonantSkeleton, vowelSkeleton, wordSplits, caesarKey, caesarShift, patternKey, configureUmiaq };
+export { reverseString, sortLetters, consonantSkeleton, vowelSkeleton, wordSplits, caesarKey, caesarShift, patternKey, configureUmiaq, configureWeave };
 
 export const TOOL_CATEGORIES = [
   { id: 'anagram',    label: 'Anagram' },
@@ -78,6 +79,7 @@ export const TOOLS = {
   vowelcy,
   kangaroos,
   joeys,
+  weave,
   palindromes,
   semordnilap,
   rhymes,

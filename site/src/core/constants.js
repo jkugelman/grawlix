@@ -5,12 +5,13 @@
 export const ROW_HEIGHT   = 24;
 export const VS_BUFFER    = 60;
 
-// Umiaq tuple-result ceilings — a *memory* cap on retained tuples, not a UX cap.
-// At ~0.9 KB/tuple for a 4-lane result, desktop's 500K is ~425 MB; mobile stays
-// low because the corpus already crowds iOS's jetsam budget. Device is chosen at
-// boot and injected into the worker (configureUmiaq); mobile is the safe default.
-export const UMIAQ_CAP_MOBILE  = 100_000;
-export const UMIAQ_CAP_DESKTOP = 500_000;
+// Tuple-result ceilings, shared by every tuple tool (Umiaq, Weave) — a *memory*
+// cap on retained tuples, not a UX cap. At ~0.9 KB/tuple for a 4-lane result,
+// desktop's 500K is ~425 MB; mobile stays low because the corpus already crowds
+// iOS's jetsam budget. Device is chosen at boot and injected into the worker
+// (configTools); mobile is the safe default.
+export const TUPLE_CAP_MOBILE  = 100_000;
+export const TUPLE_CAP_DESKTOP = 500_000;
 // Duplicated in the <head> FOUC script on purpose: that script must run before
 // first paint, so it can't import a shared binding from this deferred module.
 export const LS_PREFIX    = 'grawlix_';
