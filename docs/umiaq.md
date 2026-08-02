@@ -147,3 +147,15 @@ With [anagram](#anagram--letters) now shipped — `/word` as a binding and `A=/w
 1. **Anagram flavors** — subset `/(…)` (an anagram of *some* of the letters) and letter bank `//…` (each letter reusable). The plain anagram shipped; these two variants build on it.
 2. **`EXCLUDE`** — small, but wants a spelling that avoids the length-prefix colon.
 3. **Longer tail:** neighbor/misprint, subsequence, consonantcy, n-ary/ordered difference (`!=ABCDEF`, `!=A<B<C`), `*` in a term-equals RHS, dictionary-word tokens, boolean algebra. Qategories need external data and are likely out of scope.
+
+## Known inconsistency: spelling collapse differs by strategy
+
+Umiaq builds its own norm→entry indexes (`umiaq.js:1163`, `:1214`) with **first-in-pool-order** semantics, which is a third rule alongside `norms` (membership) and `bestRowForNorm` (the shared representative pick, `engine/corpus.js`). The comment at `:1263` claims the index must match the corpus's own, which it does not.
+
+Worse, the three strategies disagree with each other about whether a norm's several spellings survive at all:
+
+- **Affix path** — `scanPrefix`/`scanSuffix` skip duplicate norms (`:1272`, `:1283`), and `emitAffix` dedupes on `lanes.map(l => l.entry.norm)` (`:1256`), so two spellings of one norm collapse.
+- **Probe path** — the driver iterates the full pool (`:1174`) and keeps both spellings on the driver lane, while probed lanes go through the private index and collapse.
+- **Bucket path** — iterates the full pool per solver (`:1386`) and does not collapse.
+
+So the same query shows one spelling or both depending on which strategy the planner picks (`:1158`, `:1209`). Found while replacing the corpus's `byNorm` map with a membership set; left alone there because it is a separate question from what that change was about. Deciding it means first deciding what a Umiaq result *should* show when a norm has several spellings — probably all of them, matching the entries table, but that is a design call rather than a cleanup.
