@@ -27,6 +27,8 @@ test('a run marks each droppable letter and drops entries that have none', async
   await gotoApp(page);
   await addFixture(page);
   await addTool(page, 'optional_letters');
-  // cat has no droppable letter, so its absence is part of the assertion.
-  await expectVisible(page, [['hart', 'haⓡt'], ['house', 'hoⓤse']]);
+  // One atom per row, not a hart → haⓡt pair: input: 'hidden' drops the source
+  // entry, whose only difference from the output is the mark itself. cat has no
+  // droppable letter, so its absence is part of the assertion too.
+  await expectVisible(page, ['haⓡt', 'hoⓤse']);
 });

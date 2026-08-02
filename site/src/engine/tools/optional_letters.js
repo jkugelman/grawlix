@@ -17,8 +17,7 @@ export default {
   params: [],
   kind: 'transform',
   matchOn: 'both',
-  input: 'highlight', output: 'plain',
-  glyph: () => '→',
+  input: 'hidden', output: 'plain',
   run(wlEntry, prepared, wordlist) {
     const norm = wlEntry.norm;
     if (norm.length < 2) return [];

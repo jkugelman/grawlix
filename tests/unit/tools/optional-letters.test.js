@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { run, rowByFirst, atomWord, highlightTexts } from './harness.js';
+import { run, rowByFirst, atomWord } from './harness.js';
 import { toNorm } from '../../../site/src/engine/norm.js';
 
 const stack = [{ tool: 'optional_letters' }];
@@ -65,28 +65,29 @@ test('a display character backing two norm characters is skipped', async () => {
 
 test('the marked form norms back to the source entry, not the short one', async () => {
   const { rows } = await run(['hart', 'hat'], stack);
-  const out = rowByFirst(rows, 'hart').atoms.at(-1).wlEntry;
+  const out = rowByFirst(rows, 'haⓡt').atoms.at(-1).wlEntry;
   assert.equal(out.norm, 'hart');
   assert.equal(toNorm(atomWord({ wlEntry: out })), 'hart');
 });
 
-test('the output is synthetic and its input marks the removed letter', async () => {
+test('the row is one synthetic atom -- the source entry is not shown', async () => {
   const { rows } = await run(['hart', 'hat'], stack);
-  const row = rowByFirst(rows, 'hart');
-  assert.equal(row.atoms.at(-1).wlEntry.wordlist, null);
-  assert.deepEqual(highlightTexts(row.atoms[0]), ['r']);
+  const row = rowByFirst(rows, 'haⓡt');
+  assert.equal(row.atoms.length, 1);
+  assert.equal(row.atoms[0].wlEntry.wordlist, null);
+  assert.equal(row.atoms[0].glyph, null);
 });
 
 // ─── Scoring ─────────────────────────────────────────────────────────────────
 
 test('the score is the min of the two entries when the long one is weaker', async () => {
   const { rows } = await run([{ entry: 'hart', score: 20 }, { entry: 'hat', score: 90 }], stack);
-  assert.equal(rowByFirst(rows, 'hart').atoms.at(-1).wlEntry.score, 20);
+  assert.equal(rowByFirst(rows, 'haⓡt').atoms.at(-1).wlEntry.score, 20);
 });
 
 test('the score is the min of the two entries when the short one is weaker', async () => {
   const { rows } = await run([{ entry: 'hart', score: 90 }, { entry: 'hat', score: 20 }], stack);
-  assert.equal(rowByFirst(rows, 'hart').atoms.at(-1).wlEntry.score, 20);
+  assert.equal(rowByFirst(rows, 'haⓡt').atoms.at(-1).wlEntry.score, 20);
 });
 
 test('the short entry contributes its BEST spelling, not the canonical one', async () => {
@@ -97,7 +98,7 @@ test('the short entry contributes its BEST spelling, not the canonical one', asy
     { entry: 'HAT', score: 5 },
     { entry: 'hat', score: 60 },
   ], stack);
-  assert.equal(rowByFirst(rows, 'hart').atoms.at(-1).wlEntry.score, 60);
+  assert.equal(rowByFirst(rows, 'haⓡt').atoms.at(-1).wlEntry.score, 60);
 });
 
 test('a norm with several spellings emits one row, from its best-scored spelling', async () => {
