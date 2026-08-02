@@ -1,7 +1,7 @@
 'use strict';
 
 import { buildSearchPattern, patternLengthRange, isLiteralQuery } from '../search.js';
-import { SEARCH_HELP } from './shared.js';
+import { SEARCH_HELP, looksPlural } from './shared.js';
 
 function affixSpec(pattern) {
   const m = buildSearchPattern(pattern || '', 'full');   // ^(?:pat)$ — full-segment test
@@ -58,7 +58,7 @@ export function makeAffixTool({ name, icon, reverseName, reverseSlug, category, 
       }
       const { spec, pluralSkip } = prepared;
       // deliberate: the plural→singular skip (a wildcard cut of a lone -s).
-      if (pluralSkip && entry.endsWith('s') && !entry.endsWith('ss')) return [];
+      if (pluralSkip && looksPlural(entry)) return [];
       const out = [];
       const hi = Math.min(spec.max, entry.length - 1);
       for (let k = spec.min; k <= hi; k++) {

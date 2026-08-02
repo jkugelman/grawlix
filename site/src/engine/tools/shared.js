@@ -36,6 +36,10 @@ export const SEARCH_HELP = buildHelpHTML([
   ['[a-m]', 'character range'],
 ]);
 
+export function looksPlural(word) {
+  return word.endsWith('s') && !word.endsWith('ss');
+}
+
 export function reverseString(s) {
   let out = '';
   for (let i = s.length - 1; i >= 0; i--) out += s[i];

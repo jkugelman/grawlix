@@ -43,3 +43,4 @@ test('reversed, back_off grows the back — PETS to PET SCAN in norm space, mark
   assert.deepEqual(highlightTexts(row.atoms[1]), ['can']);
   assert.equal(row.atoms[1].highlights[0].kind, 'search:0');
 });
+

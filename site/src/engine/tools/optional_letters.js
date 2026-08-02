@@ -1,7 +1,8 @@
 'use strict';
 
-import { displayOf, normToDisplayMap } from '../norm.js';
+import { displayOf, normToDisplayMap, toNorm } from '../norm.js';
 import { bestRowForNorm } from '../corpus.js';
+import { looksPlural } from './shared.js';
 
 const CIRCLED = (() => {
   const m = { '0': '⓪' };
@@ -10,11 +11,33 @@ const CIRCLED = (() => {
   return m;
 })();
 
+// Not in looksPlural: that answers "is this a plural", while this answers "is the
+// mark worth a row". yours/theirs/its are not plurals either and stay skipped --
+// a hidden possessive S is as dull as a hidden plural one.
+const KEEP_S = new Set(['his', 'as', 'is', 'has', 'yes', 'does', 'news']);
+
+// Each plural-looking word's last norm index. Offsets simply accumulate: the norm
+// is the words' norms run together, so a space costs no index.
+function pluralWordEnds(display) {
+  const ends = new Set();
+  let off = 0;
+  for (const word of display.split(/\s+/)) {
+    const wordNorm = toNorm(word);
+    if (!wordNorm) continue;
+    off += wordNorm.length;
+    if (looksPlural(wordNorm) && !KEEP_S.has(wordNorm)) ends.add(off - 1);
+  }
+  return ends;
+}
+
 export default {
   name: 'Optional letters', icon: '🎈', category: 'optional',
   desc: 'Letters that can be dropped to leave another entry',
   example: 'hart → haⓡt',
-  params: [],
+  params: [
+    { key: 'plurals', type: 'checkbox', label: 'Include plurals',
+      title: 'Also offer a trailing S that leaves the singular' },
+  ],
   kind: 'transform',
   matchOn: 'both',
   input: 'hidden', output: 'plain',
@@ -23,10 +46,12 @@ export default {
     if (norm.length < 2) return [];
     const display = displayOf(wlEntry);
     const map = normToDisplayMap(wlEntry);
+    const pluralS = prepared.plurals ? null : pluralWordEnds(display);
 
     const hits = [];
     for (let i = 0; i < norm.length; i++) {
       if (norm[i] === norm[i - 1]) continue;
+      if (pluralS && pluralS.has(i)) continue;
       const reduced = norm.slice(0, i) + norm.slice(i + 1);
       if (!wordlist.norms.has(reduced)) continue;
       const d = map ? map[i] : i;

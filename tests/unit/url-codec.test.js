@@ -237,3 +237,21 @@ test('no tool slug, reverse slug, or param key collides with a reserved word or 
   }
   assert.equal(new Set(reverseSlugs).size, reverseSlugs.length, 'two tools share a reverse slug');
 });
+
+test('a tool whose first param is a checkbox keeps the slug bare', () => {
+  // Collapsing would write the boolean into the tool key (?optional_letters=true,
+  // or a bare `=` when off), which is neither readable nor round-trippable.
+  assert.equal(query(makeToolRow('optional_letters')), 'optional_letters');
+  assert.equal(query(makeToolRow('optional_letters', { plurals: true })),
+    'optional_letters&plurals');
+});
+
+test('a bare leading checkbox round-trips both ways', () => {
+  for (const qs of ['optional_letters', 'optional_letters&plurals']) {
+    const { rows } = decode(qs);
+    assert.equal(rows.length, 1);
+    assert.equal(rows[0].tool, 'optional_letters');
+    assert.equal(!!rows[0].params.plurals, qs.includes('plurals'));
+    assert.equal(query(rows[0]), qs);
+  }
+});

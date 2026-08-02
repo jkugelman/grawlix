@@ -27,9 +27,9 @@ const LEGACY_SLUGS = {
   add_suffix:    { tool: 'back_off', reverse: true,  migrate: false },
 };
 
-function encodeTailParams(row, schema) {
+function encodeTailParams(row, schema, start = 1) {
   const parts = [];
-  for (const p of schema.slice(1)) {
+  for (const p of schema.slice(start)) {
     if (p.repeat) continue;
     const v = row.params[p.key];
     if (v === p.default && !p.alwaysEncode) continue;   // a value at its default decodes from absence; don't serialize it
@@ -66,7 +66,13 @@ export function encodeRow(row) {
   const schema = def.params;
   const slug = encodeURIComponent(row.reversed() ? def.reverseSlug : row.tool);
   if (row.grouped) return [slug, 'all', ...encodeTailParams(row, schema)];
+  // A checkbox has no text to ride the tool key: collapsing it writes the boolean
+  // into the slug (?optional_letters=true, or a bare `=` when off) and a valued one
+  // loses its key entirely. The slug alone is already the anchor, so it keeps every
+  // param in the tail.
+  const leadCheckbox = schema.length > 0 && schema[0].type === 'checkbox';
   const parts = !schema.length ? [slug]
+    : leadCheckbox ? [slug, ...encodeTailParams(row, schema, 0)]
     : schema.some(p => p.repeat) ? encodeRepeatRow(row, schema, slug)
     : [slug + '=' + encodeURIComponent(row.params[schema[0].key] || ''), ...encodeTailParams(row, schema)];
   if (row.inverted()) parts.push('not');   // at the row's tail: decode binds a bare flag to the current row
@@ -82,7 +88,7 @@ function makeSlugRow(tool, value, reverse, migrate) {
   const row = makeToolRow(tool);
   for (const p of def.params) if (p.repeat) row.params[p.key] = [];
   const first = def.params[0];
-  if (first) {
+  if (first && first.type !== 'checkbox') {
     const v = value || '';
     row.params[first.key] = first.repeat ? [v] : (migrate && def.decodeFirstParam ? def.decodeFirstParam(v) : v);
   }
