@@ -23,7 +23,10 @@ import { URL_REMAPS } from '../core/constants.js';
 //                     list maps behead/add_prefix/remove_prefix → head_off and
 //                     curtail/add_suffix/remove_suffix → back_off, so renamed
 //                     tools don't re-reveal.
-export const SCHEMA_VERSION = 13;
+//   v14 (2026-08-02): the output format's accents axis became diacritics (NFD
+//                     rather than NFKD) and gained an ascii axis, so the stored
+//                     outputFormat renames one key and adds another.
+export const SCHEMA_VERSION = 14;
 
 // MIGRATIONS[v] upgrades stored data from schema v to v+1 via an optional `ls`
 // step and/or `idb` step. The two run in separate boot phases (the array is
@@ -34,6 +37,17 @@ export const SCHEMA_VERSION = 13;
 // migrateLocalStorage assembles): it reshapes the blob, touches other standalone
 // keys via lsLoad/lsSave/lsDel, or both.
 export const MIGRATIONS = {
+  13: {
+    ls: blob => {
+      const fmt = blob.mergedSettings?.outputFormat;
+      if (!fmt) return;
+      // Keep, not strip: the new axis is stricter than anything the old two
+      // could express, so defaulting it off would gut existing files.
+      fmt.diacritics = fmt.accents ?? true;
+      fmt.ascii = true;
+      delete fmt.accents;
+    },
+  },
   9: {
     ls: blob => {                               // dropped the 'ignore' rescore output
       for (const w of blob.sources || []) {

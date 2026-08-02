@@ -138,3 +138,28 @@ test('splitSyncRecord treats an empty-string baseline as real (My Edits empty an
   const after = splitSyncRecord({ handle: HANDLE, baseline: '' });
   assert.deepEqual(after.worker, { baseline: '' });   // '' !== undefined → a record, not null
 });
+
+test('v13 → v14 renames the accents axis to diacritics and adds ascii, carrying values verbatim', () => {
+  const blob = { mergedSettings: { outputFormat: { spaces: true, punctuation: false, accents: false, comments: true } } };
+  migrateLs(blob, 13);
+  assert.deepEqual(blob.mergedSettings.outputFormat,
+    { spaces: true, punctuation: false, diacritics: false, ascii: true, comments: true });
+});
+
+test('v13 → v14 defaults ascii to keep, so nothing that survives today is newly stripped', () => {
+  const blob = { mergedSettings: { outputFormat: { spaces: false, punctuation: false, accents: false, comments: false } } };
+  migrateLs(blob, 13);
+  assert.equal(blob.mergedSettings.outputFormat.ascii, true);
+});
+
+test('v13 → v14 no-ops when no output format was ever stored', () => {
+  const blob = { mergedSettings: {} };
+  migrateLs(blob, 13);
+  assert.equal(blob.mergedSettings.outputFormat, undefined);
+});
+
+test('v13 → v14 tolerates a missing mergedSettings', () => {
+  const blob = {};
+  migrateLs(blob, 13);
+  assert.equal(blob.mergedSettings, undefined);
+});
