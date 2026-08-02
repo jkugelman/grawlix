@@ -2,6 +2,7 @@
 
 import { CONSONANTS, VOWELS, escapeRegex, escapeRegexClass } from './search.js';
 import { parseRange } from './range.js';
+import { preferRow } from './corpus.js';
 
 // ─── Umiaq — variable/pattern search ────────────────────────────────────────
 // A JS reimplementation of Umiaq's pattern language (Alex Boisvert / Crossword
@@ -1106,6 +1107,17 @@ async function solveAnagram(parsed, pool, { numResults, maxMatchesPerPattern, on
 // not just the output count — has to be bounded.
 // `strategy` is a test/debug seam: 'bucket' forces the general path, so a parity test
 // can compare an index path's output against the exhaustive bucket join for one query.
+function canonicalPool(pool) {
+  const best = new Map();
+  for (const e of pool) {
+    const cur = best.get(e.norm);
+    if (!cur || preferRow(e, cur)) best.set(e.norm, e);
+  }
+  // Insertion order is the pool's order, so a norm-sorted pool stays sorted --
+  // the affix path's prefix scans depend on that.
+  return best.size === pool.length ? pool : [...best.values()];
+}
+
 export async function findTuples(parsed, pool, {
   numResults = 100,
   maxMatchesPerPattern = 200_000,
@@ -1121,6 +1133,14 @@ export async function findTuples(parsed, pool, {
   const termEquals = constraints.termEquals || [];
   const termNotEquals = constraints.termNotEquals || [];
   const termCompare = constraints.termCompare || [];
+
+  // One entry per norm once a query emits a tuple. Umiaq matches on norm, so
+  // several spellings do identical work and then collapse -- but each strategy
+  // collapsed differently (probe kept the first in pool order, affix deduped
+  // tuples by norm, bucket never collapsed at all), so which spelling survived
+  // depended on the planner's choice. A single pattern still shows every
+  // spelling, as the entries table and every other tool do.
+  if (bindings.length > 1) pool = canonicalPool(pool);
 
   const solvers = [
     ...bindings.map((p, i) => ({ p, pool, emit: true, outIdx: i })),

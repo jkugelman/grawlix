@@ -887,3 +887,4 @@ test('find: a sub-pattern and A!=B filter anagram-split lanes', async () => {
   assert.ok(all.some(([a, b]) => a === b));                          // ab+ab, ba+ba present
   assert.ok((await tupleNorms('A;B;AB=/aabb;A!=B', ['ab', 'ba', 'aa', 'bb'])).every(([a, b]) => a !== b));
 });
+

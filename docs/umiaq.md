@@ -148,14 +148,11 @@ With [anagram](#anagram--letters) now shipped — `/word` as a binding and `A=/w
 2. **`EXCLUDE`** — small, but wants a spelling that avoids the length-prefix colon.
 3. **Longer tail:** neighbor/misprint, subsequence, consonantcy, n-ary/ordered difference (`!=ABCDEF`, `!=A<B<C`), `*` in a term-equals RHS, dictionary-word tokens, boolean algebra. Qategories need external data and are likely out of scope.
 
-## Known inconsistency: spelling collapse differs by strategy
 
-Umiaq builds its own norm→entry indexes (`umiaq.js:1163`, `:1214`) with **first-in-pool-order** semantics, which is a third rule alongside `norms` (membership) and `bestRowForNorm` (the shared representative pick, `engine/corpus.js`). The comment at `:1263` claims the index must match the corpus's own, which it does not.
+## One spelling per norm in a tuple
 
-Worse, the three strategies disagree with each other about whether a norm's several spellings survive at all:
+A norm can carry several spellings (`eta`/`ETA`), and Umiaq matches on norm, so every spelling of one norm does identical work and then has to collapse. Each strategy used to collapse differently — the probe path kept the first entry in pool order, the affix path deduped whole tuples by norm, and the bucket path never collapsed at all — so which spelling survived depended on which strategy the planner happened to choose, an optimization decision the user never sees.
 
-- **Affix path** — `scanPrefix`/`scanSuffix` skip duplicate norms (`:1272`, `:1283`), and `emitAffix` dedupes on `lanes.map(l => l.entry.norm)` (`:1256`), so two spellings of one norm collapse.
-- **Probe path** — the driver iterates the full pool (`:1174`) and keeps both spellings on the driver lane, while probed lanes go through the private index and collapse.
-- **Bucket path** — iterates the full pool per solver (`:1386`) and does not collapse.
+A query that emits a **tuple** now reduces its pool to one entry per norm up front, picked by `preferRow` (`engine/corpus.js`) — the same rule that decides which spelling represents a norm everywhere else: highest score, then the shorter spelling, then code-unit order. All three strategies see the canonical pool, so the existing norm-keyed dedupes become no-ops rather than tiebreakers, and the answer no longer depends on the plan.
 
-So the same query shows one spelling or both depending on which strategy the planner picks (`:1158`, `:1209`). Found while replacing the corpus's `byNorm` map with a membership set; left alone there because it is a separate question from what that change was about. Deciding it means first deciding what a Umiaq result *should* show when a norm has several spellings — probably all of them, matching the entries table, but that is a design call rather than a cleanup.
+A **single** pattern is left alone and still shows every spelling, matching the entries table and every other tool. The asymmetry is deliberate: a tuple is a combination, so preserving spellings there multiplies results (two spellings across two lanes is four tuples saying the same thing), while a single pattern lists entries and the spellings *are* the distinction.

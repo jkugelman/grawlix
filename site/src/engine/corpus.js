@@ -231,14 +231,17 @@ export function mergedNormLowerBound(entries, norm) {
 
 // Last tiebreak is code-unit order, not localeCompare: it ranks capitals above
 // lowercase, which the rename hint's casing is tuned against.
+export function preferRow(row, best) {
+  const a = row.display ?? '', b = best.display ?? '';
+  if (row.score !== best.score) return row.score > best.score;
+  if (a.length !== b.length) return a.length < b.length;
+  return a < b;
+}
+
 export function bestRowForNorm(merged, norm) {
   let best = null;
   for (const row of mergedRowsForNorm(merged, norm)) {
-    if (!best) { best = row; continue; }
-    const a = row.display ?? '', b = best.display ?? '';
-    if (row.score !== best.score) { if (row.score > best.score) best = row; continue; }
-    if (a.length !== b.length)    { if (a.length < b.length) best = row; continue; }
-    if (a < b) best = row;
+    if (!best || preferRow(row, best)) best = row;
   }
   return best;
 }
