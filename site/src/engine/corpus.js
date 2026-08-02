@@ -3,7 +3,6 @@
 // ─── Corpus ──────────────────────────────────────────────────────────────────
 
 import { sourceAccessor } from './sources.js';
-import { buildByNorm } from './snapshot.js';
 import { displayOf } from './norm.js';
 import { familyKey, collectVocab } from './morphology.js';
 
@@ -78,14 +77,15 @@ export function resolveCorpus(buckets, sourceList) {
   }
 
   // Equivalence to localeCompare holds only because norm is strictly [a-z0-9];
-  // widen toNorm's alphabet and this silently mis-orders. The display tie-break
-  // must stay localeCompare — buildByNorm's canonical-row pick depends on it.
+  // widen toNorm's alphabet and this silently mis-orders. The display tie-break must
+  // stay localeCompare to match computeMergedBucket/recomputeScopedBucket, whose rows
+  // the splice writes positionally — diverge and its identity check drops cache tiles.
   entries.sort((a, b) => a.norm < b.norm ? -1 : a.norm > b.norm ? 1
     : (a.display ?? '').localeCompare(b.display ?? ''));
 
   const sourceCounts = sourceList.map(wl => ({ wordlist: wl, count: sourceCountMap.get(wl) || 0 }));
 
-  return { entries, sourceCounts, byNorm: buildByNorm(entries), byKey };
+  return { entries, sourceCounts, norms: new Set(entries.map(e => e.norm)), byKey };
 }
 
 export function buildCorpus(sourceList) {
@@ -229,6 +229,20 @@ export function mergedNormLowerBound(entries, norm) {
   return lo;
 }
 
+// Last tiebreak is code-unit order, not localeCompare: it ranks capitals above
+// lowercase, which the rename hint's casing is tuned against.
+export function bestRowForNorm(merged, norm) {
+  let best = null;
+  for (const row of mergedRowsForNorm(merged, norm)) {
+    if (!best) { best = row; continue; }
+    const a = row.display ?? '', b = best.display ?? '';
+    if (row.score !== best.score) { if (row.score > best.score) best = row; continue; }
+    if (a.length !== b.length)    { if (a.length < b.length) best = row; continue; }
+    if (a < b) best = row;
+  }
+  return best;
+}
+
 export function mergedRowsForNorm(merged, norm) {
   const { entries } = merged;
   const rows = [];
@@ -249,7 +263,7 @@ export function resolveEditSeedWinner(merged, norm, display) {
   if (!row && display == null) {
     const variants = mergedRowsForNorm(merged, norm).filter(r => r.display != null);
     variants.sort((a, b) => a.display.localeCompare(b.display));
-    row = variants[0] || merged.byNorm.get(norm) || null;
+    row = variants[0] || bestRowForNorm(merged, norm);
   }
   return row ?? null;
 }

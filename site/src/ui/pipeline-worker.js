@@ -454,7 +454,7 @@ function rebuildRebindEntry(row) {
   };
 }
 
-// `{ s }` is a synthetic, deliberately NOT resolved through byNorm (that would
+// `{ s }` is a synthetic, deliberately NOT resolved against the corpus (that would
 // alias it to a real entry of the same norm); anything else is a rich
 // self-contained atom (the worker always ships rich post-flip).
 function decodeAtom(atom, sourceById) {

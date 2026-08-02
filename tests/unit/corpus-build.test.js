@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildCorpus, assignFamilies, scopeSourceIds, mergedContributors } from '../../site/src/engine/corpus.js';
+import { buildCorpus, assignFamilies, scopeSourceIds, mergedContributors, bestRowForNorm } from '../../site/src/engine/corpus.js';
 import { compileRescoreRules } from '../../site/src/engine/rescore.js';
 
 // rawScore is absent from raw entries; bucketContributors carries it through, so
@@ -36,7 +36,7 @@ test('buildCorpus: multi-source priority, dedup, sort, and source counts', () =>
     wlEntry('crane', 88),
   ]);
 
-  const { entries, sourceCounts, byNorm, byKey } = buildCorpus([A, B]);
+  const { entries, sourceCounts, norms, byKey } = buildCorpus([A, B]);
 
   assert.deepStrictEqual(project(entries), [
     { norm: 'able',  display: null, score: 30, rawScore: undefined, comment: '',        source: 'A' },
@@ -48,9 +48,9 @@ test('buildCorpus: multi-source priority, dedup, sort, and source counts', () =>
   // Winner-deduped: A contributes 3 winning rows, B only the lone 'delta'.
   assert.deepStrictEqual(counts(sourceCounts), [['A', 3], ['B', 1]]);
 
-  assert.equal(byNorm.size, 4);
+  assert.equal(norms.size, 4);
   assert.equal(byKey.size, 4);
-  assert.equal(byNorm.get('bird'), entries[1]);
+  assert.equal(bestRowForNorm({ entries }, 'bird'), entries[1]);
 });
 
 test('buildCorpus: a scoped single source still builds even when disabled', () => {
@@ -257,10 +257,10 @@ test('scopeSourceIds: norm-level cross-list set — enabled lists plus the scope
 });
 
 test('buildCorpus: an empty source list yields an empty corpus', () => {
-  const { entries, sourceCounts, byNorm, byKey } = buildCorpus([]);
+  const { entries, sourceCounts, norms, byKey } = buildCorpus([]);
   assert.deepStrictEqual(entries, []);
   assert.deepStrictEqual(sourceCounts, []);
-  assert.equal(byNorm.size, 0);
+  assert.equal(norms.size, 0);
   assert.equal(byKey.size, 0);
 });
 
@@ -275,4 +275,36 @@ test('assignFamilies: stamps each row a family key and stores the corpus vocab',
   assert.notEqual(fam.bus, fam.cat, 'bus is its own family');
   assert.equal(fam.bus, 'bus', 'an irreducible word keys to itself');
   assert.ok(corpus.vocab.has('cats') && corpus.vocab.has('bus'));
+});
+
+test('bestRowForNorm: score leads, so the canonical spelling loses to a better-scored sibling', () => {
+  // 'ETA' is the code-unit-minimum display, and deliberately the worse score: a
+  // canonical-row implementation passes every other assertion but fails this one.
+  const W = src('W', [wlEntry('eta', 20, { display: 'ETA' }), wlEntry('eta', 70, { display: 'eta' })]);
+  const merged = buildCorpus([W]);
+  assert.equal(bestRowForNorm(merged, 'eta').score, 70);
+  assert.equal(bestRowForNorm(merged, 'eta').display, 'eta');
+});
+
+test('bestRowForNorm: on equal score the shorter spelling wins', () => {
+  const W = src('W', [wlEntry('dna', 50, { display: 'D.N.A.' }), wlEntry('dna', 50, { display: 'DNA' })]);
+  const merged = buildCorpus([W]);
+  assert.equal(bestRowForNorm(merged, 'dna').display, 'DNA');
+});
+
+test('bestRowForNorm: on equal score and length the capitalized spelling wins', () => {
+  // The rename hint's tuned behavior: code-unit order ranks capitals above lowercase.
+  const W = src('W', [wlEntry('cat', 50, { display: 'Cat' }), wlEntry('cat', 50, { display: 'CAT' })]);
+  const merged = buildCorpus([W]);
+  assert.equal(bestRowForNorm(merged, 'cat').display, 'CAT');
+});
+
+test('bestRowForNorm: a worse-scored shorter spelling still loses to score', () => {
+  const W = src('W', [wlEntry('dna', 99, { display: 'D.N.A.' }), wlEntry('dna', 10, { display: 'DNA' })]);
+  const merged = buildCorpus([W]);
+  assert.equal(bestRowForNorm(merged, 'dna').display, 'D.N.A.');
+});
+
+test('bestRowForNorm: an absent norm yields null', () => {
+  assert.equal(bestRowForNorm(buildCorpus([]), 'nope'), null);
 });

@@ -25,7 +25,7 @@ export default {
         { value: 'many', label: 'Many' },
       ] },
   ],
-  kind: 'transform', inputHighlights: false, outputHighlights: false,
+  kind: 'transform', matchOn: 'both', inputHighlights: false, outputHighlights: false,
   glyph: () => '→',
   async prepare(params, ctx) {
     await ensureCorpus();
@@ -38,10 +38,13 @@ export default {
       limit: choice === 'one' ? 1 : Infinity,
     };
   },
-  run(entry, prepared, wordlist) {
+  run(wlEntry, prepared) {
     if (!hasUnigramCorpus()) return [];
-    const existing = wordlist.byNorm.get(entry);
-    if (existing && displayOf(existing).includes(' ')) return [{ entry }];
+    const entry = wlEntry.norm;
+    // This row's own spelling, not the norm's canonical one: asking the corpus
+    // which spelling represents the norm answers about a sibling row, so a spaced
+    // entry sitting beside an unspaced one re-splits into a synthetic duplicate.
+    if (displayOf(wlEntry).includes(' ')) return [{ entry }];
     const { vocab, window, limit } = prepared;
     // A split re-spaces the entry without changing its letters, so every output
     // shares the input's norm — the wordlist's own spelling of it is the passthrough

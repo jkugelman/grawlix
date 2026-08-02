@@ -23,9 +23,7 @@ const wlEntry = s => {
 
 function makeCorpus(words) {
   const entries = words.map(wlEntry);
-  const byNorm = new Map();
-  for (const e of entries) if (!byNorm.has(e.norm)) byNorm.set(e.norm, e);
-  return { entries, byNorm };
+  return { entries, norms: new Set(entries.map(e => e.norm)) };
 }
 
 // A row projection stable across tiers: flat chain rows, group rows (with .chains), and

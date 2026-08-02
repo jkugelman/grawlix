@@ -52,12 +52,11 @@ test('bare-display quirk: a bare click with no bare merged row picks the first-a
   });
 });
 
-test('bare-display quirk falls back to byNorm when there are no spelled variants', () => {
-  // A bare norm whose only row is itself bare: byKey hits directly, no variant walk.
+test('a bare norm whose only row is bare resolves through byKey, no variant walk', () => {
   const W = src('W', [wlEntry('apple', 42)]);
   const merged = buildCorpus([W]);
   const winner = resolveEditSeedWinner(merged, 'apple', null);
-  assert.equal(winner, merged.byNorm.get('apple'));
+  assert.equal(winner.display, null);
   assert.equal(winner.score, 42);
 });
 

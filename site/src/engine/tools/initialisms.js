@@ -1,4 +1,5 @@
 'use strict';
+import { bestRowForNorm } from '../corpus.js';
 
 export function wordSplits(display) {
   const stripped = display.split(/[ ]+/).filter(Boolean);
@@ -38,7 +39,7 @@ export default {
       for (const w of words) initialism += w[0].toLowerCase();
       return initialism;
     },
-    anchor: (key, wordlist) => wordlist.byNorm.get(key) || null,
+    anchor: (key, wordlist) => bestRowForNorm(wordlist, key),
     anchorLabel: 'Initialism',
   },
 };

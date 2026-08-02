@@ -24,7 +24,7 @@ const inertSearch = {
 
 function mergedWordlist(norms) {
   const entries = norms.map((n, i) => ({ norm: n, display: null, score: 100 - i, comment: '', _i: i }));
-  return { entries, byNorm: new Map(entries.map(e => [e.norm, e])) };
+  return { entries, norms: new Set(entries.map(e => e.norm)) };
 }
 
 async function run(query, norms) {

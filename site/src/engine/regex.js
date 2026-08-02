@@ -234,7 +234,7 @@ export function runReplace(wlEntry, prepared, wordlist) {
   outDisp += tailD;
   // A norm-preserving rewrite (`\s` → `-`) never resolves in-list — the lookup
   // would just re-emit the input row; only the coined display form means anything.
-  const inList = outNorm !== norm && wordlist.byNorm.has(outNorm);
+  const inList = outNorm !== norm && wordlist.norms.has(outNorm);
   if (inList) return [{ entry: outNorm, inputHighlights, outputHighlights: normHl }];
   if (!allowUnlisted || (outNorm === norm && outDisp === display)) return [];
   // Array-wrap is load-bearing: it's the executor's synthetic-entry signal, so

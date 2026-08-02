@@ -2,7 +2,6 @@ import assert from 'node:assert/strict';
 import { makeToolRow } from '../../../site/src/engine/tools.js';
 import { displayOf, toNorm } from '../../../site/src/engine/norm.js';
 import { mergeKey } from '../../../site/src/engine/corpus.js';
-import { buildByNorm } from '../../../site/src/engine/snapshot.js';
 import { executePipeline, rowAtoms, rowLastEntry } from '../../../site/src/engine/executor.js';
 
 export function wlEntry(spec) {
@@ -30,12 +29,9 @@ export function merged(specs) {
   // norm by binary-searching entries, which silently misreads an unsorted mock.
   entries.sort((a, b) => a.norm < b.norm ? -1 : a.norm > b.norm ? 1
     : (a.display ?? '').localeCompare(b.display ?? ''));
-  // The shipped builders, not a local rule: byNorm's winner is the spelling every
-  // casing decision reads, so a fixture that elects a different row than the real
-  // corpus would test a rendering the app never produces.
   return {
     entries,
-    byNorm: buildByNorm(entries),
+    norms: new Set(entries.map(e => e.norm)),
     byKey: new Map(entries.map(e => [mergeKey(e.norm, e.display), e])),
   };
 }

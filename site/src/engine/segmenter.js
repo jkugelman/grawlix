@@ -239,7 +239,7 @@ export function hasUnigramCorpus() {
 
 export function rankedSplits(entry, window, wordlist) {
   if (entry.length < 1) return [];
-  const isAllowedPart = p => p.length <= 2 || wordlist.byNorm.has(p);
+  const isAllowedPart = p => p.length <= 2 || wordlist.norms.has(p);
   const isDigit = c => c >= '0' && c <= '9';
   const splitsMidDigit = (s, i) => i < s.length && isDigit(s[i - 1]) && isDigit(s[i]);
 

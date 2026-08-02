@@ -54,7 +54,7 @@ export default {
     const all = params.mode !== 'one';
     if (!(ctx && ctx.reversed)) return { pat, all, reversed: false };
     const index = new Map();
-    for (const w of ctx.wordlist.byNorm.keys()) {
+    for (const w of ctx.wordlist.norms) {
       for (const r of removals(w, pat, all)) push(index, r.word, { word: w, spans: r.spans });
       if (ctx.due()) await ctx.yield();
     }
@@ -72,7 +72,7 @@ export default {
     const { pat, all } = prepared;
     const out = [];
     for (const r of removals(entry, pat, all)) {
-      if (!wordlist.byNorm.has(r.word)) continue;
+      if (!wordlist.norms.has(r.word)) continue;
       out.push({ entry: r.word, inputHighlights: r.spans.map(([s, e]) => ({ start: s, end: e, kind: 'removed' })) });
     }
     return out;

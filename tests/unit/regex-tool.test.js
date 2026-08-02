@@ -6,7 +6,7 @@ import {
 } from '../../site/src/engine/regex.js';
 import regexTool from '../../site/src/engine/tools/regex.js';
 
-const corpus = keys => ({ byNorm: new Map(keys.map(k => [k, true])) });
+const corpus = keys => ({ norms: new Set(keys) });
 const wl = (norm, display = null) => ({ norm, display });
 
 test('analyzeRegexPattern: a fully-literal pattern is one run, no capture', () => {

@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { buildCorpus, isDistinguishing, concreteDisplay } from '../../site/src/engine/corpus.js';
 import { compileRescoreRules, getRescoredByNorm, groupEntries } from '../../site/src/engine/rescore.js';
+import { bestRowForNorm } from '../../site/src/engine/corpus.js';
 import { toNorm } from '../../site/src/engine/norm.js';
 
 // handleFetchProvenance isn't importable (worker.js module scope), so this
@@ -57,16 +58,13 @@ function localGatherProvenance(sources, norm, targetDisplay) {
   return rows;
 }
 const localPreview = (merged, raw) =>
-  raw && raw.trim() ? (merged.byNorm.get(toNorm(raw)) || null) : null;
+  raw && raw.trim() ? bestRowForNorm(merged, toNorm(raw)) : null;
 
 // provenanceTarget(): preview for typed text, else typed norm, else clicked. The
 // display is the clicked entry's raw display — a bare click stays null (whole norm) —
 // or null while typing.
 function localProvTarget(merged, typedRaw, clicked) {
-  const preview = localPreview(merged, typedRaw);
-  const norm = preview ? preview.norm
-    : typedRaw && typedRaw.trim() ? toNorm(typedRaw)
-    : clicked.norm;
+  const norm = typedRaw && typedRaw.trim() ? toNorm(typedRaw) : clicked.norm;
   const display = typedRaw && typedRaw.trim() ? null : clicked.display ?? null;
   return { norm, display };
 }
@@ -76,14 +74,9 @@ function localProvTarget(merged, typedRaw, clicked) {
 function workerFetchProvenance(ownedBuilt, ownedMerged, { typedRaw, previewRaw, clickedNorm, clickedDisplay }) {
   const previewSrc = previewRaw ?? typedRaw;
   const preview = previewSrc && previewSrc.trim()
-    ? (ownedMerged.byNorm.get(toNorm(previewSrc)) || null)
+    ? bestRowForNorm(ownedMerged, toNorm(previewSrc))
     : null;
-  const provPreview = typedRaw && typedRaw.trim()
-    ? (ownedMerged.byNorm.get(toNorm(typedRaw)) || null)
-    : null;
-  const targetNorm = provPreview ? provPreview.norm
-    : typedRaw && typedRaw.trim() ? toNorm(typedRaw)
-    : clickedNorm;
+  const targetNorm = typedRaw && typedRaw.trim() ? toNorm(typedRaw) : clickedNorm;
   const targetDisplay = typedRaw && typedRaw.trim() ? null : clickedDisplay ?? null;
 
   const rows = [];

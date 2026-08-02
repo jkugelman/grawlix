@@ -1,7 +1,6 @@
 // ─── Pipeline worker host ── see docs/worker-protocol.md ─────────────────────
 
 import { MERGED_ID } from '../core/constants.js';
-import { canonicalNormRow } from './snapshot.js';
 import { TOOLS, makeToolRow, configureUmiaq } from './tools.js';
 import { executePipeline, configureExecutorYield, lastPipelineSeedFrom, lastPipelineTailMs, bottomLineAtoms, applyScoreRangeToRows, rowLastEntry, rowAtoms, collapseRepeatAtoms, streamPlan, cacheGroupStats, currentAtomCount } from './executor.js';
 import { GdsCache, RoleCache } from './gds-cache.js';
@@ -19,7 +18,7 @@ import { findOccurrences, findEntryOccurrences, buildFindMatcher, FIND_MATCH_CAP
 import { parseRange, matchesRange } from './range.js';
 import { compileRescoreRules } from './rescore.js';
 import { sourceAccessor, invalidateSourceAccessor, parseWordlistColumns, columnsFromEntries } from './sources.js';
-import { buildCorpus, assignFamilies, scopeSourceIds, mergedContributors, resolveEditSeedWinner, mergeKey, mergedNormLowerBound, computeMergedBucket, diffWordlistEntries, isDistinguishing, concreteDisplay } from './corpus.js';
+import { buildCorpus, assignFamilies, scopeSourceIds, mergedContributors, resolveEditSeedWinner, mergeKey, bestRowForNorm, mergedNormLowerBound, computeMergedBucket, diffWordlistEntries, isDistinguishing, concreteDisplay } from './corpus.js';
 import { familyKey, generateRelativeNorms, configureCommonWords } from './morphology.js';
 import { COMMON_WORDS } from './common-words-data.js';
 import { SPACE_OUT_BIGRAMS } from './space-out-bigrams-data.js';
@@ -1669,7 +1668,7 @@ async function handleFetchSpaceOut({ requestId, norm }) {
 // letting a cold worker cache force-capped forms as settled.
 function handleFetchWordCase({ requestId, norm }) {
   const ready = !!(ownedMerged && ownedCorpusFresh);
-  const row = ready ? ownedMerged.byNorm.get(norm) : null;
+  const row = ready ? bestRowForNorm(ownedMerged, norm) : null;
   postMessage({ type: 'wordCase', requestId, display: row ? displayOf(row) : null, ready });
 }
 
@@ -1689,15 +1688,10 @@ function handleFetchProvenance({ requestId, typedRaw, previewRaw, clickedNorm, c
   // the clicked atom (typedRaw ''); collapsing them would mis-pick the open table.
   const previewSrc = previewRaw ?? typedRaw;
   const preview = previewSrc && previewSrc.trim()
-    ? (ownedMerged.byNorm.get(toNorm(previewSrc)) || null)
+    ? bestRowForNorm(ownedMerged, toNorm(previewSrc))
     : null;
 
-  const provPreview = typedRaw && typedRaw.trim()
-    ? (ownedMerged.byNorm.get(toNorm(typedRaw)) || null)
-    : null;
-  const targetNorm = provPreview ? provPreview.norm
-    : typedRaw && typedRaw.trim() ? toNorm(typedRaw)
-    : clickedNorm;
+  const targetNorm = typedRaw && typedRaw.trim() ? toNorm(typedRaw) : clickedNorm;
   // A concrete click scopes provenance to that spelling (rival spellings ride
   // Related entries); a bare click (clickedDisplay null) is a wildcard, so it lists
   // every spelling it unified with. Typing a rename stays norm-scoped as a collision check.
@@ -1936,7 +1930,7 @@ function computeGroupWidthHints(rows, stack) {
 // answers can't drift: a FULL-corpus lookup that re-anchors even to an entry
 // filtered OUT of the visible (range-filtered) view.
 function resolveRebindExists(existsQuery, rebindQuery) {
-  const existsInScope = existsQuery ? ownedCorpus.byNorm.has(toNorm(existsQuery)) : null;
+  const existsInScope = existsQuery ? ownedCorpus.norms.has(toNorm(existsQuery)) : null;
   let rebindEntry = null, rebindExists = null;
   if (rebindQuery) {
     const { norm, display } = rebindQuery;
@@ -1945,7 +1939,7 @@ function resolveRebindExists(existsQuery, rebindQuery) {
       norm, display: row.display ?? null, score: row.score, rawScore: row.rawScore,
       comment: row.comment || '', sourceId: row.wordlist.dbKey,
     };
-    rebindExists = ownedCorpus.byNorm.has(norm);
+    rebindExists = ownedCorpus.norms.has(norm);
   }
   return { existsInScope, rebindEntry, rebindExists };
 }
@@ -2042,7 +2036,7 @@ function recomputeScopedBucket(norm, source) {
   return { rows, winners };
 }
 
-// In-place per-norm splice of an owned corpus: entries/byKey/byNorm all take the
+// In-place per-norm splice of an owned corpus: entries/byKey/norms all take the
 // same splice or they silently desync, and sourceCounts shifts by the winner delta.
 // bucketFn recomputes one norm's resolved rows. (The pipeline seeds straight off
 // `entries`, so there is no separate chain array to keep in lockstep.)
@@ -2050,7 +2044,7 @@ function recomputeScopedBucket(norm, source) {
 // `replaced` is true when any norm swapped its row objects; the caller keeps the
 // prefix cache's tiles (their chains hold those objects) only while it stays false.
 function spliceOwnedCorpus(cache, affectedNorms, bucketFn) {
-  const { entries, byNorm, byKey, sourceCounts } = cache;
+  const { entries, norms, byKey, sourceCounts } = cache;
   const countDelta = new Map();
   let replaced = false;
   for (const norm of affectedNorms) {
@@ -2078,14 +2072,13 @@ function spliceOwnedCorpus(cache, affectedNorms, bucketFn) {
         old.wordlist = r.wordlist; old.family = r.family;
         if ('rawScore' in r) old.rawScore = r.rawScore;
       }
-      byNorm.set(norm, canonicalNormRow(entries.slice(lo, hi)));
     } else {
       replaced = true;
       for (let i = lo; i < hi; i++) byKey.delete(mergeKey(norm, entries[i].display));
       entries.splice(lo, hi - lo, ...rows);
       for (const r of rows) byKey.set(mergeKey(norm, r.display), r);
-      if (rows.length) byNorm.set(norm, canonicalNormRow(rows)); else byNorm.delete(norm);
     }
+    if (rows.length) norms.add(norm); else norms.delete(norm);
   }
   for (const [wl, d] of countDelta) {
     if (!d) continue;
@@ -2594,7 +2587,7 @@ async function handleQueryEntry({ requestId, scope, norm, display }) {
     const corpus = await corpusForScope(scope);
     const e = display !== undefined
       ? corpus.byKey.get(mergeKey(norm, display))
-      : corpus.byNorm.get(norm);
+      : bestRowForNorm(corpus, norm);
     const entry = e ? [e.norm, e.display, e.score, e.rawScore, e.comment, e.wordlist.dbKey] : null;
     postMessage({ type: 'entry', requestId, entry });
   } catch {

@@ -1,6 +1,6 @@
 'use strict';
 
-import { mergeKey } from './corpus.js';
+import { mergeKey, bestRowForNorm } from './corpus.js';
 import { SPACE_OUT_WINDOWS, rankedSplits } from './segmenter.js';
 
 // ─── Wordlist-aware spacing ──────────────────────────────────────────────────
@@ -18,7 +18,7 @@ export function casePart(part, wordlist) {
   // An explicit all-lowercase row is the wordlist vouching for lowercase. Without
   // this, every ordinary word takes the code-unit-minimum display below and shouts.
   if (wordlist.byKey.has(mergeKey(part, part))) return part;
-  const display = wordlist.byNorm.get(part)?.display;
+  const display = bestRowForNorm(wordlist, part)?.display;
   // A spaced display would re-split the very part it is meant to spell.
   return display && !/\s/.test(display) ? display : part;
 }

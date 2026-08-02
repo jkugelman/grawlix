@@ -15,9 +15,7 @@ const wlEntry = (norm, { display = null, score = 0 } = {}) => ({ norm, display, 
 // A fresh corpus per executePipeline call: executePipeline caches _initialChains
 // on the wordlist object, so reusing one would mask a seed bug.
 function makeCorpus(entries) {
-  const byNorm = new Map();
-  for (const e of entries) byNorm.set(e.norm, e);
-  return { entries, byNorm };
+  return { entries, norms: new Set(entries.map(e => e.norm)) };
 }
 
 const CORPUS_ENTRIES = [

@@ -131,11 +131,11 @@ test('resolveCorpus: a non-empty winner comment is kept (no fall-through)', () =
   assert.equal(resolveCorpus(buckets, [hi, lo]).entries[0].comment, 'mine');
 });
 
-test('resolveCorpus: byNorm and byKey index the resolved row', () => {
+test('resolveCorpus: norms and byKey index the resolved row', () => {
   const a = { name: 'A' };
   const buckets = new Map([['cat', bucket(contributor(a, { display: 'Cat' }))]]);
-  const { entries, byNorm, byKey } = resolveCorpus(buckets, [a]);
-  assert.equal(byNorm.get('cat'), entries[0]);
+  const { entries, norms, byKey } = resolveCorpus(buckets, [a]);
+  assert.equal(norms.has('cat'), true);
   assert.equal(byKey.get(mergeKey('cat', 'Cat')), entries[0]);
 });
 
@@ -230,9 +230,9 @@ test('resolveCorpus: entries are sorted by norm then display (localeCompare)', (
 
 test('resolveCorpus: an empty bucket Map yields an empty corpus with zeroed source counts', () => {
   const a = { name: 'A' };
-  const { entries, byNorm, byKey, sourceCounts } = resolveCorpus(new Map(), [a]);
+  const { entries, norms, byKey, sourceCounts } = resolveCorpus(new Map(), [a]);
   assert.deepEqual(entries, []);
-  assert.equal(byNorm.size, 0);
+  assert.equal(norms.size, 0);
   assert.equal(byKey.size, 0);
   assert.deepEqual(sourceCounts.map(s => [s.wordlist.name, s.count]), [['A', 0]]);
 });

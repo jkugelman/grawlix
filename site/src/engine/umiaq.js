@@ -1260,7 +1260,7 @@ export async function findTuples(parsed, pool, {
       pending?.push(lanes);
     };
 
-    // Yields one entry per distinct norm, and it must be byNorm's (the first in pool
+    // Yields one entry per distinct norm, and it must be this index's (the first in pool
     // order — a stable sort keeps ties in place), or an emitted lane would differ from
     // what the probe/bucket paths pick for the same norm and parity would break.
     const scanPrefix = (prefix, visit) => {

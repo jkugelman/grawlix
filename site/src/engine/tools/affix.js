@@ -34,16 +34,16 @@ export function makeAffixTool({ name, icon, reverseName, reverseSlug, category, 
         return { spec, reversed: false, pluralSkip: !front && !isLiteralQuery(params.pattern || '') };
       }
       const index = new Map();
-      const byNorm = ctx.wordlist.byNorm;
-      for (const w of byNorm.keys()) {
+      const norms = ctx.wordlist.norms;
+      for (const w of norms) {
         const hi = Math.min(spec.max, w.length - 1);
         for (let k = spec.min; k <= hi; k++) {
           if (front) {
             const suf = w.slice(k);
-            if (byNorm.has(suf) && spec.matches(w.slice(0, k))) push(index, suf, { word: w, s: 0, e: k });
+            if (norms.has(suf) && spec.matches(w.slice(0, k))) push(index, suf, { word: w, s: 0, e: k });
           } else {
             const pre = w.slice(0, w.length - k);
-            if (byNorm.has(pre) && spec.matches(w.slice(w.length - k))) push(index, pre, { word: w, s: w.length - k, e: w.length });
+            if (norms.has(pre) && spec.matches(w.slice(w.length - k))) push(index, pre, { word: w, s: w.length - k, e: w.length });
           }
         }
         if (ctx.due()) await ctx.yield();
@@ -65,7 +65,7 @@ export function makeAffixTool({ name, icon, reverseName, reverseSlug, category, 
         const seg = front ? entry.slice(0, k) : entry.slice(entry.length - k);
         if (!spec.matches(seg)) continue;
         const rem = front ? entry.slice(k) : entry.slice(0, entry.length - k);
-        if (wordlist.byNorm.has(rem)) {
+        if (wordlist.norms.has(rem)) {
           const s = front ? 0 : entry.length - k;
           const e = front ? k : entry.length;
           out.push({ entry: rem, inputHighlights: [{ start: s, end: e, kind: 'removed' }] });

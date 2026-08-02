@@ -61,7 +61,7 @@ export default {
       case 'rot': {
         const out = caesarShift(entry, p.n);
         if (out === entry) return [];
-        return wordlist.byNorm.has(out) ? [{ entry: out }] : [];
+        return wordlist.norms.has(out) ? [{ entry: out }] : [];
       }
     }
   },

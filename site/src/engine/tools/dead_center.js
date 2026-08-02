@@ -1,6 +1,7 @@
 'use strict';
 
 import { toNorm } from '../norm.js';
+import { bestRowForNorm } from '../corpus.js';
 
 // Step by 2: a centered core's length matches the word's parity, so stepping by
 // 1 would emit off-center substrings that still pass downstream as dead-center.
@@ -31,7 +32,7 @@ export default {
   },
   group: {
     key: entry => centeredCores(entry),
-    anchor: (key, wordlist) => wordlist.byNorm.get(key) || null,
+    anchor: (key, wordlist) => bestRowForNorm(wordlist, key),
     anchorLabel: 'Center',
     memberHighlights: (member, key) => {
       const start = (member.length - key.length) / 2;

@@ -57,7 +57,7 @@ export default {
     return { pairs: activePairs(params) };
   },
   // Emits a synthetic entry — the symbol forms aren't looked up in any wordlist,
-  // so (unlike Search/Regex replace) there is no byNorm existence check.
+  // so (unlike Search/Regex replace) there is no corpus existence check.
   run(wlEntry, prepared) {
     const display = displayOf(wlEntry);
     const spans = [];

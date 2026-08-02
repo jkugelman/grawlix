@@ -23,7 +23,7 @@ const corpus = (entries, minLog = -10) => {
 
 const pure = corpus([]);
 const decode = (...bytes) => pure.msgpackDecode(new Uint8Array(bytes));
-const allowed = (...words) => ({ byNorm: new Set(words) });
+const allowed = (...words) => ({ norms: new Set(words) });
 
 test('msgpackDecode: positive fixint covers 0x00..0x7f verbatim', () => {
   assert.equal(decode(0x00), 0);

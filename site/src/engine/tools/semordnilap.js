@@ -17,7 +17,7 @@ export default {
     // Palindromes are skipped — reversing them yields the same word.
     const reversed = reverseString(entry);
     if (reversed === entry) return [];
-    if (!wordlist.byNorm.has(reversed)) return [];
+    if (!wordlist.norms.has(reversed)) return [];
     return [{ entry: reversed }];
   },
 };

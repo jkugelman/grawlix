@@ -16,13 +16,12 @@ const wlEntry = s => {
 
 function makeCorpus(words) {
   const entries = words.map(wlEntry);
-  const byNorm = new Map();
-  for (const e of entries) if (!byNorm.has(e.norm)) byNorm.set(e.norm, e);
+
   // Norm-sorted like the real corpus: the executor binary-searches entries to
   // resolve a transform output to every spelling of its norm (see harness.js).
   entries.sort((a, b) => a.norm < b.norm ? -1 : a.norm > b.norm ? 1
     : (a.display ?? '').localeCompare(b.display ?? ''));
-  return { entries, byNorm };
+  return { entries, norms: new Set(entries.map(e => e.norm)) };
 }
 
 const MATCHING = Array.from({ length: 200 }, (_, i) => `un${String(i).padStart(4, '0')}ed`);
