@@ -5,7 +5,7 @@ export default {
   desc: 'Words contained in the input spread out',
   example: 'major key → joey',
   params: [{ placeholder: 'entry' }],
-  kind: 'filter', inputHighlights: false, outputHighlights: false,
+  kind: 'filter', input: 'plain', output: 'plain',
   isInert: params => !((params && params.entry || '').trim()),
   prepare(params) { return params.entry.trim(); },
   run(entry, kangaroo, wordlist) {

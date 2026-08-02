@@ -5,7 +5,7 @@ export default {
   desc: 'Words containing the input spread out',
   example: 'kanga → milk and sugar',
   params: [{ placeholder: 'entry' }],
-  kind: 'filter', inputHighlights: true, outputHighlights: false,
+  kind: 'filter', input: 'highlight', output: 'plain',
   isInert: params => !((params && params.entry || '').trim()),
   prepare(params) { return params.entry.trim(); },
   run(entry, joey, wordlist) {

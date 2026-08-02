@@ -10,7 +10,7 @@ export default {
   desc: 'Same vowels in order; consonants may differ',
   example: 'outhouse → out of use',
   params: [{ placeholder: 'entry' }],
-  kind: 'filter', inputHighlights: false, outputHighlights: false,
+  kind: 'filter', input: 'plain', output: 'plain',
   prepare(params) { return vowelSkeleton(params.entry); },
   run(entry, skeleton, wordlist) {
     if (!skeleton) return true;

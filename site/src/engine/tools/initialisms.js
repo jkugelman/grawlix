@@ -15,7 +15,7 @@ export default {
   desc: 'Starting letters spell a word',
   example: 'hot → Helen of Troy',
   params: [{ placeholder: 'word' }],
-  kind: 'filter', inputHighlights: false, outputHighlights: false,
+  kind: 'filter', input: 'plain', output: 'plain',
   matchOn: 'display',
   isInert: params => !((params && params['word'] || '').trim()),
   prepare(params) { return (params['word'] || '').trim().toLowerCase(); },

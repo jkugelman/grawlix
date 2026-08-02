@@ -39,8 +39,12 @@ export function currentAtomCount(stack) {
       count = 1;
       tailSlot = true;
     } else if (row.kind() === 'transform') {
-      if (row.inputHi() && tailSlot) count++;   // input mark can't fold into a slot tail
-      count++;                                  // output atom (new word)
+      if (!row.inputShown()) {
+        count = 1;                              // output only; upstream atoms dropped
+      } else {
+        if (row.inputHi() && tailSlot) count++; // input mark can't fold into a slot tail
+        count++;                                // output atom (new word)
+      }
       tailSlot = row.outputHi();
     } else if (row.kind() === 'group') {
       // A bare group producer emits members carrying the upstream atoms unchanged —
@@ -445,9 +449,10 @@ async function runToolStage(rows, stackRow, prepared, wordlist, y, emit = null) 
         const targets = variants && variants.length
           ? variants
           : [synthWlEntry(text, scoreSrc)];
+        const showInput = stackRow.inputShown();
         for (const wlEntry of targets) {
-          const atoms = rowAtoms(row).slice();
-          if (stackRow.inputHi()) {
+          const atoms = showInput ? rowAtoms(row).slice() : [];
+          if (showInput && stackRow.inputHi()) {
             atoms.push({ wlEntry: tailEntry, highlights: tagCoord(out.inputHighlights || [], coord), glyph: null });
           }
           atoms.push({
@@ -511,7 +516,7 @@ async function runGroupFilterStage(rows, stackRow, prepared, wordlist, y) {
   if (!anyMatch) return [];
   // `matched` has no home on a bare row, so promote every member to a chain here —
   // the grouped path is off the steady-state hot path, so the wrapper is affordable.
-  if (!def.inputHighlights) return rows.map((row, i) => ({ atoms: rowAtoms(row), matched: !!results[i] }));
+  if (def.input !== 'highlight') return rows.map((row, i) => ({ atoms: rowAtoms(row), matched: !!results[i] }));
   const next = new Array(rows.length);
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i];

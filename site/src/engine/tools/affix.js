@@ -21,7 +21,7 @@ export function makeAffixTool({ name, icon, reverseName, reverseSlug, category, 
     name, icon, category, desc, example, reverseName, reverseSlug,
     params: [{ key: 'pattern', placeholder: 'letters or ???', help: SEARCH_HELP }],
     kind: 'transform', reversible: true,
-    inputHighlights: true, outputHighlights: false,   // forward = cut (marks removed span); reversed() flips to grow
+    input: 'highlight', output: 'plain',   // forward = cut (marks removed span); reversed() flips to grow
     glyph: () => '→',
     // Legacy ?behead=3 was an integer count; decode digits to N wildcards so old
     // links keep working now that bare integers are literals in the input.

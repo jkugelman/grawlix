@@ -11,28 +11,30 @@ import {
 // A minimal stack-row factory — only the members currentAtomCount and the chain
 // predicates read: kind(), isInert(), inverted(), reversed(), inputHi(), outputHi().
 // No `state`, no catalog: shipped makeToolRow reads TOOLS, so it can't be fenced.
-function makeToolRow({ kind = 'filter', inert = false, inputHighlights = false, outputHighlights = false, invert = false, reverse = false } = {}) {
-  const def = { inputHighlights, outputHighlights, reversible: reverse };
+function makeToolRow({ kind = 'filter', inert = false, input = 'plain', output = 'plain', invert = false, reverse = false } = {}) {
+  const def = { input, output, reversible: reverse };
   const reversed = () => reverse;
   return {
     kind: () => kind,
     isInert: () => inert,
     inverted: () => invert && kind === 'filter',
     reversed,
-    inputHi: () => reversed() ? !!def.outputHighlights : !!def.inputHighlights,
-    outputHi: () => reversed() ? !!def.inputHighlights : !!def.outputHighlights,
+    inputHi: () => (reversed() ? def.output : def.input) === 'highlight',
+    outputHi: () => (reversed() ? def.input : def.output) === 'highlight',
+    inputShown: () => (reversed() ? def.output : def.input) !== 'hidden',
+    outputShown: () => (reversed() ? def.input : def.output) !== 'hidden',
     def,
   };
 }
-const search        = () => makeToolRow({ kind: 'filter', inputHighlights: true });
-const notSearch     = () => makeToolRow({ kind: 'filter', inputHighlights: true, invert: true });
+const search        = () => makeToolRow({ kind: 'filter', input: 'highlight' });
+const notSearch     = () => makeToolRow({ kind: 'filter', input: 'highlight', invert: true });
 const notPlain      = () => makeToolRow({ kind: 'filter', invert: true });
-const plainFilter   = () => makeToolRow({ kind: 'filter', inputHighlights: false });
-const plainXform    = () => makeToolRow({ kind: 'transform', inputHighlights: false, outputHighlights: false });
-const markedXform   = () => makeToolRow({ kind: 'transform', inputHighlights: true, outputHighlights: true });
-const inputXform    = () => makeToolRow({ kind: 'transform', inputHighlights: true, outputHighlights: false });
+const plainFilter   = () => makeToolRow({ kind: 'filter', input: 'plain' });
+const plainXform    = () => makeToolRow({ kind: 'transform', input: 'plain', output: 'plain' });
+const markedXform   = () => makeToolRow({ kind: 'transform', input: 'highlight', output: 'highlight' });
+const inputXform    = () => makeToolRow({ kind: 'transform', input: 'highlight', output: 'plain' });
 const groupRow      = () => makeToolRow({ kind: 'group' });
-const inertSearch   = () => makeToolRow({ kind: 'filter', inert: true, inputHighlights: true });
+const inertSearch   = () => makeToolRow({ kind: 'filter', inert: true, input: 'highlight' });
 
 const wl = (norm, score = 0) => ({ norm, display: null, score, comment: '' });
 // `slot` true => the atom holds a highlight slot (highlights an array); false =>
@@ -59,9 +61,9 @@ function emitAtoms(stack) {
     if (row.isInert()) continue;
     const tail = atoms[atoms.length - 1];
     if (row.kind() === 'transform') {
-      if (row.def.inputHighlights) atoms.push(atom(tail.wlEntry.norm, { slot: true }));
-      atoms.push(atom('w' + (++wordSeq), { slot: !!row.def.outputHighlights, glyph: '→' }));
-    } else if (row.def.inputHighlights && !row.inverted()) {   // highlighting filter
+      if (row.def.input === 'highlight') atoms.push(atom(tail.wlEntry.norm, { slot: true }));
+      atoms.push(atom('w' + (++wordSeq), { slot: row.def.output === 'highlight', glyph: '→' }));
+    } else if (row.def.input === 'highlight' && !row.inverted()) {   // highlighting filter
       atoms.push(atom(tail.wlEntry.norm, { slot: true }));
     }
   }
@@ -122,7 +124,7 @@ test('currentAtomCount: a plain (non-highlighting) filter adds no atom', () => {
 });
 
 test('currentAtomCount: a marked transform after a search adds input-mark + output', () => {
-  // search leaves a slot tail (count 1). Marked transform: inputHighlights &&
+  // search leaves a slot tail (count 1). Marked transform: input highlight &&
   // tailSlot => +1 (the input mark can't fold into a slot tail), then +1 output.
   assert.equal(currentAtomCount([search(), markedXform()]), 3);
 });

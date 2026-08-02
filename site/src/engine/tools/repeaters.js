@@ -5,7 +5,7 @@ export default {
   desc: 'Left and right halves are the same',
   example: 'tartar · hotshots',
   params: [],
-  kind: 'filter', inputHighlights: false, outputHighlights: false,
+  kind: 'filter', input: 'plain', output: 'plain',
   run(entry) {
     const n = entry.length;
     if (n < 2 || n % 2 !== 0) return false;

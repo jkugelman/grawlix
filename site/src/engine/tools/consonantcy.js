@@ -10,7 +10,7 @@ export default {
   desc: 'Same consonants in order; vowels may differ',
   example: 'I said no → so done',
   params: [{ placeholder: 'entry' }],
-  kind: 'filter', inputHighlights: false, outputHighlights: false,
+  kind: 'filter', input: 'plain', output: 'plain',
   prepare(params) { return consonantSkeleton(params.entry); },
   run(entry, skeleton, wordlist) {
     if (!skeleton) return true;

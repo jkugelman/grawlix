@@ -7,7 +7,7 @@ export default {
   desc: 'Left and right halves are anagrams',
   example: 'stuck one\'s neck out',
   params: [],
-  kind: 'filter', inputHighlights: false, outputHighlights: false,
+  kind: 'filter', input: 'plain', output: 'plain',
   run(entry) {
     const n = entry.length;
     if (n < 2 || n % 2 !== 0) return false;

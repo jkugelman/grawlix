@@ -8,7 +8,7 @@ export default {
   desc: 'Anagrams hidden inside longer words',
   example: 'inside → windiest',
   params: [{ placeholder: 'entry' }, SPAN_PARAM],
-  kind: 'filter', inputHighlights: true, outputHighlights: false,
+  kind: 'filter', input: 'highlight', output: 'plain',
   matchOn: 'both',
   isInert: params => !toNorm((params && params.entry) || ''),
   prepare(params) {

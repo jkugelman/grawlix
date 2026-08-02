@@ -48,7 +48,7 @@ export default {
   },
   // Filter-mode only: lights a single binding's matched variables. Drop it and that
   // silently stops; the tuple path (other kind) colors its own lanes, ignoring this.
-  inputHighlights: true, outputHighlights: false,
+  input: 'highlight', output: 'plain',
   isInert: params => !parseUmiaqQuery(params?.query || '').ok,
   error(params) {
     const parsed = parseUmiaqQuery(params?.query || '');

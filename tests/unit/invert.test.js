@@ -23,7 +23,7 @@ test('inverting a param-less filter negates its verdict', async () => {
   assert.deepEqual(norms(rows), ['level']);
 });
 
-// The trap the design flagged: search declares inputHighlights, but a non-match has
+// The trap the design flagged: search declares input: 'highlight', but a non-match has
 // no ranges. If the stage opened a slot anyway the row would carry an atom
 // currentAtomCount never reserved, and the scroller's stride math would overlap rows.
 test('an inverted highlighting filter opens no highlight slot', async () => {

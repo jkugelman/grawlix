@@ -5,7 +5,7 @@ export default {
   desc: 'Can be spelled with the given tiles',
   example: 'parental → plane, rent',
   params: [{ key: 'tiles', placeholder: 'tiles' }],
-  kind: 'filter', inputHighlights: false, outputHighlights: false,
+  kind: 'filter', input: 'plain', output: 'plain',
   isInert: params => !((params && params.tiles || '').trim()),
   prepare(params) {
     const bank = new Map();

@@ -5,7 +5,7 @@ export default {
   desc: 'Letters in reverse alphabetical order',
   example: 'spoofed · yuppie',
   params: [],
-  kind: 'filter', inputHighlights: false, outputHighlights: false,
+  kind: 'filter', input: 'plain', output: 'plain',
   run(entry) {
     let prev = null;
     for (const ch of entry) {

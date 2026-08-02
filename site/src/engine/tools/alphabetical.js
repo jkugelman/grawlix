@@ -5,7 +5,7 @@ export default {
   desc: 'Letters in alphabetical order',
   example: 'chintz · knotty',
   params: [],
-  kind: 'filter', inputHighlights: false, outputHighlights: false,
+  kind: 'filter', input: 'plain', output: 'plain',
   run(entry) {
     let prev = null;
     for (const ch of entry) {

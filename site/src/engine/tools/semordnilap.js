@@ -7,7 +7,7 @@ export default {
   desc: 'Reverse to get a different word',
   example: 'stressed → desserts',
   params: [],
-  kind: 'transform', inputHighlights: false, outputHighlights: false,
+  kind: 'transform', input: 'plain', output: 'plain',
   glyph: () => '→',
   run(entry, params, wordlist) {
     // Bidirectional emit — a row whenever the reverse is also an entry, in

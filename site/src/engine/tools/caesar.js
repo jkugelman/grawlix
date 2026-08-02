@@ -42,7 +42,7 @@ export default {
     { label: 'Shift', type: 'number', placeholder: 'any' },
   ],
   kind: (params, all) => all ? (fixedShift(params) != null ? 'transform' : 'group') : 'filter',
-  inputHighlights: false, outputHighlights: false,
+  input: 'plain', output: 'plain',
   glyph: () => '→',
   isInert: params => !seedOf(params),
   prepare(params, ctx) {

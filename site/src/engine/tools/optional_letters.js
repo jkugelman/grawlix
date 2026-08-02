@@ -17,7 +17,7 @@ export default {
   params: [],
   kind: 'transform',
   matchOn: 'both',
-  inputHighlights: true, outputHighlights: false,
+  input: 'highlight', output: 'plain',
   glyph: () => '→',
   run(wlEntry, prepared, wordlist) {
     const norm = wlEntry.norm;

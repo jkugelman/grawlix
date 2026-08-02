@@ -177,8 +177,12 @@ export function makeToolRow(tool, params = {}, grouped = false, invert = false, 
     // reversed() swaps which side highlights: the converse of a front-cut that marks
     // its INPUT is a front-grow that marks its OUTPUT. Read the wrong side and the
     // atom count reserves a slot on the wrong atom — rows overlap in the scroller, no error.
-    inputHi() { return row.reversed() ? !!def.outputHighlights : !!def.inputHighlights; },
-    outputHi() { return row.reversed() ? !!def.inputHighlights : !!def.outputHighlights; },
+    inputSide()  { return (row.reversed() ? def.output : def.input) ?? 'plain'; },
+    outputSide() { return (row.reversed() ? def.input : def.output) ?? 'plain'; },
+    inputHi() { return row.inputSide() === 'highlight'; },
+    outputHi() { return row.outputSide() === 'highlight'; },
+    inputShown() { return row.inputSide() !== 'hidden'; },
+    outputShown() { return row.outputSide() !== 'hidden'; },
     isInert() {
       if (row.grouped) return false;
       return def.isInert ? def.isInert(row.params) : false;

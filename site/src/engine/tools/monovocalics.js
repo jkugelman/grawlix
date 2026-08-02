@@ -5,7 +5,7 @@ export default {
   desc: 'Only one distinct vowel',
   example: 'too cool for school',
   params: [],
-  kind: 'filter', inputHighlights: false, outputHighlights: false,
+  kind: 'filter', input: 'plain', output: 'plain',
   run(entry) {
     let vowel = '';
     let prevWasLetter = false;

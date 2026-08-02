@@ -49,7 +49,7 @@ export default {
   // Blank replacement reads as filter mode, not "delete the match" — a blank
   // field is indistinguishable from one that was never touched.
   kind: params => (params.replace ? 'transform' : 'filter'),
-  inputHighlights: true, outputHighlights: true,
+  input: 'highlight', output: 'highlight',
   glyph: params => (params.replace ? '→' : null),
   // A half-typed, invalid pattern is inert like an empty one, so the view
   // neither blanks nor churns mid-keystroke.

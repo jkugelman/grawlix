@@ -11,13 +11,15 @@ function toolRow(def, params) {
     glyph: () => (def.glyph ? def.glyph(params) : null),
     inverted: () => false,
     reversed: () => false,
-    inputHi: () => !!def.inputHighlights,
-    outputHi: () => !!def.outputHighlights,
+    inputHi: () => def.input === 'highlight',
+    outputHi: () => def.output === 'highlight',
+    inputShown: () => def.input !== 'hidden',
+    outputShown: () => def.output !== 'hidden',
   };
 }
 
 const inertSearch = {
-  tool: 'search', def: { inputHighlights: true }, params: {}, grouped: false, invert: false,
+  tool: 'search', def: { input: 'highlight' }, params: {}, grouped: false, invert: false,
   kind: () => 'filter', isInert: () => true, glyph: () => null, inverted: () => false,
   reversed: () => false, inputHi: () => true, outputHi: () => false,
 };

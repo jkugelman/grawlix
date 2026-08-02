@@ -23,7 +23,7 @@ export default {
         { value: 'loose', label: 'Loose' },
       ] },
   ],
-  kind: 'filter', inputHighlights: false, outputHighlights: false,
+  kind: 'filter', input: 'plain', output: 'plain',
   matchOn: 'display',
   isInert: params => !(params.entry || '').trim(),
   async prepare(params) {

@@ -5,7 +5,7 @@ export default {
   desc: 'Uses only the given letters',
   example: 'spot → stoop, top, pop',
   params: [{ placeholder: 'letters' }],
-  kind: 'filter', inputHighlights: false, outputHighlights: false,
+  kind: 'filter', input: 'plain', output: 'plain',
   isInert: params => !((params && params.letters || '').trim()),
   prepare(params) { return new Set(params.letters.trim()); },
   run(entry, alphabet, wordlist) {

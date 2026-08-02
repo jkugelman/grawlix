@@ -19,7 +19,7 @@ export default {
   desc: 'Input sits at the exact center of a longer word',
   example: 'abe → alphabetize',
   params: [{ placeholder: 'entry' }],
-  kind: 'filter', inputHighlights: true, outputHighlights: false,
+  kind: 'filter', input: 'highlight', output: 'plain',
   isInert: params => !toNorm((params && params.entry) || ''),
   prepare: params => toNorm(params.entry || ''),
   run(entry, core, wordlist) {

@@ -16,7 +16,7 @@ export default {
     ALLOW_UNLISTED_PARAM,
   ],
   kind: params => (params.replace ? 'transform' : 'filter'),
-  inputHighlights: true, outputHighlights: true,
+  input: 'highlight', output: 'highlight',
   glyph: params => (params.replace ? '→' : null),
   // An empty (or invalid, e.g. a reversed range) query is a no-op: the row is
   // transparent — no filtering, no lens — so an empty permanent search bar

@@ -5,7 +5,7 @@ export default {
   desc: 'No repeated letters',
   example: 'cyberpunk · juxtapose',
   params: [],
-  kind: 'filter', inputHighlights: false, outputHighlights: false,
+  kind: 'filter', input: 'plain', output: 'plain',
   run(entry) {
     const seen = new Set();
     for (const ch of entry) {

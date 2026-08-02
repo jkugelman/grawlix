@@ -49,7 +49,7 @@ export default {
     { key: 'symbol', placeholder: 'symbol', repeat: true, raw: true },
   ],
   kind: 'transform',
-  inputHighlights: true, outputHighlights: true,
+  input: 'highlight', output: 'highlight',
   glyph: () => '→',
   isInert: params => !hasActivePair(params),
   matchOn: 'both',

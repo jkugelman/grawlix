@@ -2,7 +2,7 @@
 
 // ─── Tool stack ───────────────────────────────────────────────────────────────
 // Tools are catalog records ({ name, icon, category, desc, example, params,
-// kind, inputHighlights, outputHighlights, glyph?, run?, group?, isInert?,
+// kind, input, output, glyph?, run?, group?, isInert?,
 // error?, quickFix? }).
 // A filter or transform tool carries a `run`; a group tool carries a `group`.
 //
@@ -16,10 +16,11 @@
 // It may instead be a `(params, allMode) => kind` function: such a tool reads
 // the `✱` flag and decides its own all-mode kind, rather than a grouped row
 // defaulting to 'group' (Caesar's all-mode is a transform when a shift is set).
-// `inputHighlights` / `outputHighlights` are static booleans: each one means
-// the tool highlights the atom it reads / the atom it creates. `currentAtomCount`
-// reads them to derive the static atom count; transforms also carry a relation
-// `glyph`.
+// `input` / `output` each say what the row does with one side of the relation:
+// `'highlight'` (the atom is shown and marked), `'plain'` (shown, unmarked), or
+// `'hidden'` (no atom at all — the row shows only the other side). Default is
+// `'plain'`. `currentAtomCount` reads them to derive the static atom count;
+// transforms also carry a relation `glyph`.
 //
 // An optional `async prepare(params, ctx)` runs once per stage, after every
 // upstream stage has finished; its return value is handed to `run` in place of

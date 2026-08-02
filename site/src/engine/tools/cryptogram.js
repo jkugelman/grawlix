@@ -20,7 +20,7 @@ export default {
   desc: 'Same letter-pattern shape',
   example: 'level · rotor',
   params: [{ placeholder: 'entry' }],
-  kind: 'filter', inputHighlights: false, outputHighlights: false,
+  kind: 'filter', input: 'plain', output: 'plain',
   prepare(params) { return patternKey(params.entry); },
   run(entry, key, wordlist) {
     if (!key) return true;

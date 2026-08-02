@@ -7,6 +7,6 @@ export default {
   desc: 'Read the same forwards and back',
   example: 'racecar · kayak',
   params: [],
-  kind: 'filter', inputHighlights: false, outputHighlights: false,
+  kind: 'filter', input: 'plain', output: 'plain',
   run(entry) { return entry === reverseString(entry); },
 };

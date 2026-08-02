@@ -7,7 +7,7 @@ export default {
   desc: 'Same letters, rearranged',
   example: 'elvis → lives',
   params: [{ placeholder: 'entry' }],
-  kind: 'filter', inputHighlights: false, outputHighlights: false,
+  kind: 'filter', input: 'plain', output: 'plain',
   prepare(params) { return sortLetters(params.entry); },
   run(entry, target, wordlist) {
     if (!target) return true;

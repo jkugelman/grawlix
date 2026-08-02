@@ -5,7 +5,7 @@ export default {
   desc: 'Each of A E I O U exactly once',
   example: 'air quote · euphoria',
   params: [],
-  kind: 'filter', inputHighlights: false, outputHighlights: false,
+  kind: 'filter', input: 'plain', output: 'plain',
   run(entry) {
     let a = 0, e = 0, i = 0, o = 0, u = 0;
     for (const ch of entry) {

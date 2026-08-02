@@ -45,7 +45,7 @@ export default {
       choices: [{ value: 'all', label: 'All' }, { value: 'one', label: 'One' }] },
   ],
   kind: 'transform', reversible: true,
-  inputHighlights: true, outputHighlights: false,   // forward = cut (marks the removed span); reversed() flips to grow
+  input: 'highlight', output: 'plain',   // forward = cut (marks the removed span); reversed() flips to grow
   glyph: () => '→',
   isInert: params => !toNorm((params && params.pattern) || ''),
   async prepare(params, ctx) {

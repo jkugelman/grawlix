@@ -25,7 +25,7 @@ export default {
         { value: 'many', label: 'Many' },
       ] },
   ],
-  kind: 'transform', matchOn: 'both', inputHighlights: false, outputHighlights: false,
+  kind: 'transform', matchOn: 'both', input: 'plain', output: 'plain',
   glyph: () => '→',
   async prepare(params, ctx) {
     await ensureCorpus();
