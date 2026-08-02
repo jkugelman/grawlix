@@ -35,6 +35,7 @@ import back_off from './tools/back_off.js';
 import dead_center from './tools/dead_center.js';
 import rebus from './tools/rebus.js';
 import remove from './tools/remove.js';
+import optional_letters from './tools/optional_letters.js';
 import { reverseString, sortLetters } from './tools/shared.js';
 
 export { reverseString, sortLetters, consonantSkeleton, vowelSkeleton, wordSplits, caesarKey, caesarShift, patternKey, configureUmiaq };
@@ -45,6 +46,7 @@ export const TOOL_CATEGORIES = [
   { id: 'cipher',     label: 'Cipher' },
   { id: 'halves',     label: 'Halves' },
   { id: 'letters',    label: 'Letters' },
+  { id: 'optional',   label: 'Optional' },
   { id: 'pairs',      label: 'Pairs' },
   { id: 'palindrome', label: 'Palindrome' },
   { id: 'phonetic',   label: 'Phonetic' },
@@ -89,6 +91,7 @@ export const TOOLS = {
   dead_center,
   rebus,
   remove,
+  optional_letters,
 };
 
 // A param's `key` defaults to a slug of its label (or placeholder); declare

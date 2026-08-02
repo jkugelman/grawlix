@@ -205,3 +205,13 @@ test('diacritics runs before ascii, so an accented letter survives as its base',
   const fmt = { spaces: true, punctuation: true, diacritics: false, ascii: false, comments: true };
   assert.equal(formatEntryText({ norm: 'x', display: 'café' }, fmt), 'cafe');
 });
+
+test('a circled mark survives diacritics and punctuation, and reduces only under ascii', () => {
+  // The whole reason the axes were reworked: Optional letters emits ⓤ, which the
+  // old accents axis folded to u and the old punctuation axis deleted outright.
+  const e = { norm: 'house', display: 'hoⓤse' };
+  assert.equal(formatEntryText(e, RICH), 'hoⓤse');
+  assert.equal(formatEntryText(e, only('diacritics')), 'hoⓤse');
+  assert.equal(formatEntryText(e, only('punctuation')), 'hoⓤse');
+  assert.equal(formatEntryText(e, only('ascii')), 'house');
+});

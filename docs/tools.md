@@ -26,6 +26,7 @@ Source material: shipped catalog lives in `TOOLS` in [`site/src/engine/tools.js`
 | ✓ | Letters | 📉 Reverse alphabetical | Letters in reverse alphabetical order | spoofed · yuppie |
 | ✓ | Letters | 🅱️ Consonantcy | Same consonants in order; vowels may differ | I said no → so done |
 | ✓ | Letters | 🅰️ Vowelcy | Same vowels in order; consonants may differ | outhouse → out of use |
+| ✓ | Optional | 🎈 Optional letters | Letters that can be dropped to leave another entry | hart → haⓡt |
 | ✓ | Pairs | 🦘 Kangaroos | Words containing the input spread out | kanga → milk and sugar |
 | ✓ | Pairs | 🍼 Joeys | Words contained in the input spread out | major key → joey |
 |   | Pairs | 🪺 Nested | One word inside another | mari(juan)a |

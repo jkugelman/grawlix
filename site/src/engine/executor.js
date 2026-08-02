@@ -440,9 +440,11 @@ async function runToolStage(rows, stackRow, prepared, wordlist, y, emit = null) 
         // so transform results match the base merged view's per-spelling rows; a
         // single-winner lookup would silently drop the other spellings (eta/ETA).
         const variants = synthetic ? null : mergedRowsForNorm(wordlist, toNorm(text));
+        const scoreSrc = synthetic && out.entry.length > 1 ? { score: out.entry[1] }
+          : synthetic ? tailEntry : ZERO_SCORE;
         const targets = variants && variants.length
           ? variants
-          : [synthWlEntry(text, synthetic ? tailEntry : ZERO_SCORE)];
+          : [synthWlEntry(text, scoreSrc)];
         for (const wlEntry of targets) {
           const atoms = rowAtoms(row).slice();
           if (stackRow.inputHi()) {
