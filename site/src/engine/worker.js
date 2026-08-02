@@ -1584,10 +1584,9 @@ async function handleFetchFamily({ requestId, norm, display, boundNorm = norm, b
   let members = [];
   if (ownedMerged && ownedCorpusFresh) {
     // `bound` is the entry the panel is on, flagged `current` so it renders as the
-    // bold inert anchor. It is never dropped mid-rename: an editable panel overwrites
-    // this row with the live edit, and a read-only one wants the winner's spelling a
-    // bare click resolves to (byNorm), which the panel itself cannot name.
-    const bound = ownedMerged.byKey.get(mergeKey(boundNorm, boundDisplay ?? null)) ?? ownedMerged.byNorm.get(boundNorm) ?? null;
+    // bold inert anchor. Mid-rename an editable panel overwrites this row with the
+    // live edit, so a miss here is a genuinely absent entry, not a stale spelling.
+    const bound = ownedMerged.byKey.get(mergeKey(boundNorm, boundDisplay ?? null)) ?? null;
     // Re-key family from the query text, not bound.family: a live rename types a
     // spelling not yet in the corpus, whose family must pull the relatives. Equals
     // the stamped family on a real click (familyKey(displayOf(e))), so clicks are unchanged.
@@ -1934,14 +1933,14 @@ function computeGroupWidthHints(rows, stack) {
 }
 
 // Shared by the flat and transform branches so their entry-panel re-anchor + exists
-// answers can't drift: a FULL-corpus byKey→byNorm lookup that re-anchors even to an
-// entry filtered OUT of the visible (range-filtered) view.
+// answers can't drift: a FULL-corpus lookup that re-anchors even to an entry
+// filtered OUT of the visible (range-filtered) view.
 function resolveRebindExists(existsQuery, rebindQuery) {
   const existsInScope = existsQuery ? ownedCorpus.byNorm.has(toNorm(existsQuery)) : null;
   let rebindEntry = null, rebindExists = null;
   if (rebindQuery) {
     const { norm, display } = rebindQuery;
-    const row = ownedCorpus.byKey.get(mergeKey(norm, display)) ?? ownedCorpus.byNorm.get(norm) ?? null;
+    const row = ownedCorpus.byKey.get(mergeKey(norm, display)) ?? null;
     rebindEntry = row && {
       norm, display: row.display ?? null, score: row.score, rawScore: row.rawScore,
       comment: row.comment || '', sourceId: row.wordlist.dbKey,

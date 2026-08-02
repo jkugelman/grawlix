@@ -2765,13 +2765,10 @@ export class EntriesScroller extends BaseVirtualScroller {
       if (this._rebindAnswerApplies(norm, display)) return this._rebindEntry;
       return null;
     }
-    let normFallback = null;
     for (const a of rowSetAtoms(this._rebindSearchRows())) {
-      if (a.wlEntry.norm !== norm) continue;
-      if (a.wlEntry.display === display) return a.wlEntry;
-      if (!normFallback) normFallback = a.wlEntry;
+      if (a.wlEntry.norm === norm && a.wlEntry.display === display) return a.wlEntry;
     }
-    return normFallback;
+    return null;
   }
 }
 
@@ -4156,6 +4153,15 @@ export const EntryPanel = (() => {
     rowEl.classList.add('active');
   }
 
+  // Must move in step with renameInSelection: unpaired, the panel silently keeps
+  // the pre-rename spelling and every lookup keyed on it misses.
+  function renameActive(oldId, nextId) {
+    if (!activeWlEntry) return;
+    if (activeWlEntry.norm !== oldId.norm) return;
+    if ((activeWlEntry.display ?? null) !== (oldId.display ?? null)) return;
+    activeWlEntry = { ...activeWlEntry, norm: nextId.norm, display: nextId.display ?? null };
+  }
+
   // Rides the run (mirrors existsInScope) instead of awaiting the worker at
   // rebind time: rebindEntry runs in updateEntries' synchronous render, so
   // async-ifying findResultEntry/resultHasEntry would ripple a dual path through
@@ -4175,7 +4181,7 @@ export const EntryPanel = (() => {
     refresh({ resetInputs: !editing, skipExistsCheck: true });
   }
 
-  return { open, openSelectionWalk, openForCreate, openFromRoute, close, isOpen, containsFocus, activeNorm, rebindRow, rebindEntry, rebindQuery, routeValue, setScoreByDigit, seedDebug, provenanceDebug };
+  return { open, openSelectionWalk, openForCreate, openFromRoute, close, isOpen, containsFocus, activeNorm, rebindRow, rebindEntry, rebindQuery, renameActive, routeValue, setScoreByDigit, seedDebug, provenanceDebug };
 })();
 
 export function entryPanelRebindQuery() {

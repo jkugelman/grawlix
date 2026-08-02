@@ -546,7 +546,11 @@ export async function saveEntry(mode, clicked, { raw, score, comment }, refreshF
     const writes = { deletes: plan.deletes, upserts: plan.upserts, primary: plan.primary };
     let inverse;
     applyEditsChange(edits, () => { inverse = applyEditsWriteSet(edits.rawEntries, writes); });
-    if (clicked) getEntriesScroller()?.renameInSelection({ norm: clicked.norm, display: clicked.display ?? null }, plan.primary);
+    if (clicked) {
+      const from = { norm: clicked.norm, display: clicked.display ?? null };
+      getEntriesScroller()?.renameInSelection(from, plan.primary);
+      EntryPanel.renameActive(from, plan.primary);
+    }
     const ack = sendEditEntry(writes).then(a => { applyConfigAck(a); return a; });
     persistEditsMetaOnly(edits);
     refreshAfterEdit(refreshFn, ack);
@@ -556,7 +560,11 @@ export async function saveEntry(mode, clicked, { raw, score, comment }, refreshF
       const undoWrites = { deletes: inverse.deletes, upserts: inverse.upserts, primary: plan.primary };
       showUndoToast(msg, () => {
         applyEditsChange(edits, () => applyEditsWriteSet(edits.rawEntries, undoWrites));
-        if (clicked) getEntriesScroller()?.renameInSelection(plan.primary, { norm: clicked.norm, display: clicked.display ?? null });
+        if (clicked) {
+          const back = { norm: clicked.norm, display: clicked.display ?? null };
+          getEntriesScroller()?.renameInSelection(plan.primary, back);
+          EntryPanel.renameActive(plan.primary, back);
+        }
         const undoAck = sendEditEntry(undoWrites).then(a => { applyConfigAck(a); return a; });
         persistEditsMetaOnly(edits);
         refreshAfterEdit(refreshFn, undoAck);
