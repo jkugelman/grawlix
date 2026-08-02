@@ -35,6 +35,14 @@ Sub-sections inside a component or other indented scope use a shorter form, two 
   // ── Event delegation ─────────────────────────────────────────────────────
 ```
 
+[`app.css`](../site/css/app.css) carries the same banners in CSS comment syntax, one per family of rules, all padded to a uniform width:
+
+```
+/* ─── Tool rows ─────────────────────────────────────────────────────────────── */
+```
+
+Clusters within a section keep their own short label (`/* Split button */`, `/* Segmented control */`). Those name the concept in plain English, which is what a search for an existing component lands on — see [`components.md`](components.md).
+
 These are anchors for grepping and for orientation; keep them stable. A small single-purpose module needs no banner; use them where a file has several distinct sections.
 
 ## Comments
