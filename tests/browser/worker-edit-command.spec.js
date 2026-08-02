@@ -301,8 +301,10 @@ test('a kept pre-search cache surfaces a live synthetic score after a score edit
   const synthScore = () => page.evaluate(async () => {
     const T = window.__grawlixTest;
     const reply = await T.fetchWorkerAllTransformRows(T.lastCompletedRunId());
-    const row = reply.rows.find(c => c.atoms[0].wlEntry.norm === 'barstool');
-    return row.atoms.at(-1).wlEntry.score;   // the synthetic output atom
+    // Rebus hides its input, so the row is the synthetic output alone. Its norm
+    // is barst, not bars: NFKD decomposes the circled T back to a plain t.
+    const row = reply.rows.find(c => c.atoms.at(-1).wlEntry.norm === 'barst');
+    return row.atoms.at(-1).wlEntry.score;
   });
 
   expect(await synthScore()).toBe(70);

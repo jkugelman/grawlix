@@ -36,7 +36,7 @@ test('typing a pair produces a synthetic entry absent from the corpus', async ({
   const row = rebusRow(page);
   await row.locator('input[data-key="string"]').fill('tool');
   await row.locator('input[data-key="symbol"]').fill('Ⓣ');
-  await expectVisible(page, [['barstool', 'barsⓉ']]);
+  await expectVisible(page, ['barsⓉ']);
 });
 
 test('add/remove pairs — the × appears only past the first pair', async ({ page }) => {
@@ -53,12 +53,12 @@ test('add/remove pairs — the × appears only past the first pair', async ({ pa
   await expect(row.locator('.rebus-pair-remove')).toHaveCount(0);
 });
 
-test('focusing the string box shows the Search wildcard cheat sheet', async ({ page }) => {
+test('the string box offers no cheat sheet — the find is a literal', async ({ page }) => {
   await gotoApp(page);
   await addRebusFixture(page);
   await addTool(page, 'rebus');
   await rebusRow(page).locator('input[data-key="string"]').focus();
-  await expect(page.locator('.popup-help.open', { hasText: 'any string' })).toBeVisible();
+  await expect(page.locator('.popup-help.open')).toHaveCount(0);
 });
 
 test('focusing the symbol box opens the suggestions popup; clicking inserts', async ({ page }) => {
@@ -85,7 +85,7 @@ test('two pairs round-trip through the URL and apply simultaneously', async ({ p
   expect(params.string).toEqual(['tool', 'star']);
   expect(params.symbol).toEqual(['Ⓣ', '★']);
 
-  await expectVisible(page, [['barstool', 'barsⓉ'], ['costar', 'co★']]);
+  await expectVisible(page, ['barsⓉ', 'co★']);
 
   const search = await page.evaluate(() => { Router.navigate(); return location.search; });
   expect(search).toBe('?rebus=tool&symbol=' + encodeURIComponent('Ⓣ') + '&string=star&symbol=' + encodeURIComponent('★'));
