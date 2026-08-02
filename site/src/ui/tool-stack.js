@@ -45,7 +45,7 @@ import { runOnWorker, preloadWorkerAsset } from './pipeline-worker.js';
 import { resetPipelineProgress } from './entries-table.js';
 import { bumpPipelineVersion, setResultsStale } from '../data/state.js';
 import {
-  buildTextInputHTML, buildParamHTML, syncClearButton,
+  buildTextInputHTML, buildParamHTML, syncClearButton, setSegCtrlActive,
   buildDragHandleHTML, makeReorderable, positionPopover,
 } from './components.js';
 
@@ -879,6 +879,20 @@ export const ToolStack = (() => {
       if (allBtn) {
         if (allBtn.classList.contains('disabled')) return;
         toggleAllMode(parseInt(allBtn.dataset.allToggle, 10));
+        return;
+      }
+      const segBtn = e.target.closest('.tool-row-param[data-row] .seg-btn');
+      if (segBtn) {
+        const host = segBtn.closest('.tool-row-param[data-row]');
+        const token = host.dataset.row;
+        const row = token === 'bar' ? getSearchBarRow() : stack[parseInt(token, 10)];
+        const pick = segBtn.dataset.val;
+        if (!row || row.params[host.dataset.key] === pick) return;
+        row.params[host.dataset.key] = pick;
+        setSegCtrlActive(segBtn.parentElement, segBtn);
+        row._error = null;
+        bumpPipelineVersion();
+        _navigate();
         return;
       }
       const reverseBtn = e.target.closest('.tool-row-reverse[data-reverse]');

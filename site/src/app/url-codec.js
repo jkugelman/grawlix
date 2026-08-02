@@ -32,7 +32,7 @@ function encodeTailParams(row, schema) {
   for (const p of schema.slice(1)) {
     if (p.repeat) continue;
     const v = row.params[p.key];
-    if (v === p.default) continue;   // a value at its default decodes from absence; don't serialize it
+    if (v === p.default && !p.alwaysEncode) continue;   // a value at its default decodes from absence; don't serialize it
     if (p.type === 'checkbox') { if (v) parts.push(p.value ? encodeURIComponent(p.key) + '=' + encodeURIComponent(p.value) : encodeURIComponent(p.key)); }
     else if (v)                parts.push(encodeURIComponent(p.key) + '=' + encodeURIComponent(v));
   }

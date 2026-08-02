@@ -99,6 +99,11 @@ export function buildParamHTML(param, value, toolKey, wiring) {
       + ` aria-haspopup="menu" aria-expanded="false" aria-label="Change match mode">`
       + `<svg class="more-menu-caret" aria-hidden="true" viewBox="0 0 8 5"><use href="#icon-arrow"/></svg></button></span>`;
   }
+  if (param.type === 'segmented') {
+    const cur = String(value ?? param.default ?? param.choices[0].value);
+    return `<span class="tool-row-param" role="group" aria-label="${esc(param.label)}"${titleAttr}${wiring}>`
+      + `${buildSegCtrlHTML(null, param.choices, cur)}</span>`;
+  }
   const labelHTML = param.label ? `<label>${esc(param.label)}</label>` : '';
   if (param.type === 'number') {
     return `<span class="tool-row-param">${labelHTML}<input type="number" min="1" class="tool-row-num"`

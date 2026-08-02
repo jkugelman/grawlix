@@ -51,6 +51,7 @@ Source material: shipped catalog lives in `TOOLS` in [`site/src/engine/tools.js`
 |   | Thesaurus | ⚔️ Antonyms | Words opposite in meaning | TBD |
 |   | Thesaurus | 📚 Category | Words in the same semantic category | TBD |
 |   | Thesaurus | 🧠 Synonym kangaroo | Kangaroo whose joey is a synonym | TBD |
+| ✓ | Transform | ✂️ Remove string | Remove a string from anywhere — all occurrences or one — reverse for Add string | Xbox One → Boone |
 |   | Transform | 🃏 Replace anything | Insert *with* in place of any deleted substring | TBD |
 |   | Transform | 🔀 Letter changes | Differs from input by exactly *n* single-letter substitutions | TBD |
 |   | Transform | 🔁 Letter swap | Swap two letters throughout | TBD |

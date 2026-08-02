@@ -145,6 +145,32 @@ test('a reverse slug decodes to the reversed tool and round-trips', () => {
   assert.equal(back.params.pattern, 's');
 });
 
+test('remove carries its occurrence mode as a value, not the reserved `all` key', () => {
+  assert.equal(query(makeToolRow('remove', { pattern: 'er', mode: 'one' })), 'remove=er&mode=one');
+  assert.equal(query(makeToolRow('remove', { pattern: 'er', mode: 'all' }, false, false, true)),
+    'add=er&mode=all');
+});
+
+test('remove serializes its occurrence mode even when it sits at the default', () => {
+  assert.equal(query(makeToolRow('remove', { pattern: 'er' })), 'remove=er&mode=all');
+  assert.equal(makeToolRow('remove', { pattern: 'er' }).params.mode, 'all');
+});
+
+test('remove round-trips through its slugs in both directions', () => {
+  const bare = decode('remove=er').rows[0];
+  assert.equal(bare.tool, 'remove');
+  assert.equal(bare.reversed(), false);
+  assert.equal(bare.params.mode, 'all');
+  assert.equal(query(bare), 'remove=er&mode=all');
+
+  const single = decode('add=er&mode=one').rows[0];
+  assert.equal(single.tool, 'remove');
+  assert.equal(single.reversed(), true);
+  assert.equal(single.params.pattern, 'er');
+  assert.equal(single.params.mode, 'one');
+  assert.equal(query(single), 'add=er&mode=one');
+});
+
 test('joeys is its own forward tool, not a Kangaroos reverse slug', () => {
   const joey = decode('joeys=kanga').rows[0];
   assert.equal(joey.tool, 'joeys');

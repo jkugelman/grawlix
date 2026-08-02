@@ -34,6 +34,7 @@ import head_off from './tools/head_off.js';
 import back_off from './tools/back_off.js';
 import dead_center from './tools/dead_center.js';
 import rebus from './tools/rebus.js';
+import remove from './tools/remove.js';
 import { reverseString, sortLetters } from './tools/shared.js';
 
 export { reverseString, sortLetters, consonantSkeleton, vowelSkeleton, wordSplits, caesarKey, caesarShift, patternKey, configureUmiaq };
@@ -51,6 +52,7 @@ export const TOOL_CATEGORIES = [
   { id: 'rebus',      label: 'Rebus' },
   { id: 'search',     label: 'Search' },
   { id: 'side',       label: 'Side' },
+  { id: 'transform',  label: 'Transform' },
 ];
 
 export const FEATURED_TOOLS = ['regex', 'umiaq', 'rebus', 'anagrams', 'initialisms', 'rhymes'];
@@ -86,6 +88,7 @@ export const TOOLS = {
   back_off,
   dead_center,
   rebus,
+  remove,
 };
 
 // A param's `key` defaults to a slug of its label (or placeholder); declare
