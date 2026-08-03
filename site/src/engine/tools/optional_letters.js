@@ -33,7 +33,7 @@ function pluralWordEnds(display) {
 export default {
   name: 'Optional letters', icon: '🎈', category: 'optional',
   desc: 'Letters that can be dropped to leave another entry',
-  example: 'hart → haⓡt',
+  example: 'hard ⓟass',
   params: [
     { key: 'plurals', type: 'checkbox', label: 'Include plurals',
       title: 'Also offer a trailing S that leaves the singular' },
@@ -49,8 +49,9 @@ export default {
     const pluralS = prepared.plurals ? null : pluralWordEnds(display);
 
     const hits = [];
+    // Doubled letters get a row each, not one: the circled cell crosses a different
+    // entry, so hoⓛly and holⓛy are different fills despite the same reduction.
     for (let i = 0; i < norm.length; i++) {
-      if (norm[i] === norm[i - 1]) continue;
       if (pluralS && pluralS.has(i)) continue;
       const reduced = norm.slice(0, i) + norm.slice(i + 1);
       if (!wordlist.norms.has(reduced)) continue;

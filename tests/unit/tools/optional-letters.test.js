@@ -32,9 +32,14 @@ test('several droppable letters emit one row each', async () => {
   assert.deepEqual(marked(rows), ['beⓐst', 'bⓔast']);
 });
 
-test('a run of identical letters emits once, marking the first', async () => {
+test('a run of identical letters marks each one, not just the first', async () => {
   const { rows } = await run(['holly', 'holy'], stack);
-  assert.deepEqual(marked(rows), ['hoⓛly']);
+  assert.deepEqual(marked(rows), ['holⓛy', 'hoⓛly']);
+});
+
+test('a doubled letter split across two words marks each side', async () => {
+  const { rows } = await run([{ entry: 'so old' }, { entry: 'sold' }], stack);
+  assert.deepEqual(marked(rows), ['so ⓞld', 'sⓞ old']);
 });
 
 test('the circle is always lowercase; the rest keeps the entry case', async () => {
@@ -132,9 +137,9 @@ test('skipping the plural S still offers the entry\'s other letters', async () =
 });
 
 test('a double S is not treated as a plural', async () => {
-  // GLASS is not the plural of GLAS, so the S is offered like any other letter.
+  // GLASS is not the plural of GLAS, so each S is offered like any other letter.
   const { rows } = await run(['glass', 'glas'], stack);
-  assert.deepEqual(marked(rows), ['glaⓢs']);
+  assert.deepEqual(marked(rows), ['glasⓢ', 'glaⓢs']);
 });
 
 test('a non-plural entry is unaffected by the default', async () => {
