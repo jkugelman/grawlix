@@ -1,6 +1,19 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { run, rowWords } from './harness.js';
+import { makeToolRow } from '../../../site/src/engine/tools.js';
+import { executePipeline } from '../../../site/src/engine/executor.js';
+import { configureWeave } from '../../../site/src/engine/tools/weave.js';
+import { merged, run, rowWords } from './harness.js';
+
+// `retainLimit` is module-global, so every streaming test sets it rather than
+// inheriting whatever the previous one left behind.
+async function streamWeave(specs, retainLimit) {
+  configureWeave({ retainLimit });
+  const batches = [];
+  const out = await executePipeline(merged(specs), [makeToolRow('weave', {})], null,
+    { emit: b => batches.push(b) });
+  return { out, batches };
+}
 
 async function weaves(specs, params = {}) {
   const res = await run(specs, [{ tool: 'weave', params }]);
@@ -76,6 +89,19 @@ test('the target lane is highlighted in two alternating colors covering every le
   }
   assert.ok(hl.length >= 4, 'a weave has at least four alternating runs');
   assert.deepEqual([...new Set(hl.map(r => r.kind))].sort(), ['search:0', 'search:1']);
+});
+
+test('past the retain limit the stream is the only copy — terminal rows are empty', async () => {
+  const { out, batches } = await streamWeave(['wallsockets', 'wallet', 'socks'], 0);
+  assert.equal(out.laneKind, 'record');
+  assert.equal(out.rows.length, 0, 'the tuple set must not be built a second time');
+  assert.deepEqual(batches.flat().map(g => g.key), ['wallsockets wallet socks']);
+});
+
+test('under the retain limit rows survive, so the run stays prefix-cacheable', async () => {
+  const { out, batches } = await streamWeave(['wallsockets', 'wallet', 'socks'], 50_000);
+  assert.equal(out.rows.length, 1);
+  assert.deepEqual(out.rows.map(g => g.key), batches.flat().map(g => g.key));
 });
 
 test('the two parts are carried as their own lanes so the score range can gate them', async () => {

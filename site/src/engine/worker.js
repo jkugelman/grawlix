@@ -542,14 +542,14 @@ function makeTupleStreamEmitter(runId, viewSpec, scope, stack, signal, streamSta
     for (const g of batchGroups) { cacheGroupStats(g); join.push(g); }
 
     const visible = intervals ? applyScoreRangeToRows(batchGroups, intervals, 'record') : batchGroups;
-    if (visible.length === 0) return;   // join grew but no in-range tuple — no view change
-
     const sortedBatch = cmp ? [...visible].sort(cmp) : visible;
     if (!streamState.streamed) {
       streamState.streamed = true;
       lastFlatResult = null;
       lastTransformResult = null;
       lastGroupedResult = { runId, version: 0, groups: sortedBatch, join, scope, viewSpec, stack, laneKind: 'record', summaries: null };
+    } else if (visible.length === 0) {
+      return;   // join grew but no in-range tuple — no view change
     } else {
       lastGroupedResult.groups = cmp
         ? mergeSortedGroups(lastGroupedResult.groups, sortedBatch, cmp)
@@ -611,14 +611,18 @@ function makePackedTupleStreamEmitter(runId, viewSpec, scope, stack, signal, str
       if (intervals && !recordInRange(join, ownedCorpus, ord, intervals)) continue;
       batchOrds.push(ord);
     }
-    if (batchOrds.length === 0) return;   // join grew but no in-range tuple — no view change
     const batchView = Int32Array.from(batchOrds);
     if (cmp) batchView.sort(cmp);
     if (!streamState.streamed) {
+      // Claim the slot on the first batch even with nothing in range. A filter that
+      // admits no tuple would otherwise leave the run looking like it never streamed,
+      // and it would be rebuilt from terminal rows the producer no longer retains.
       streamState.streamed = true;
       lastFlatResult = null;
       lastTransformResult = null;
       lastGroupedResult = { runId, version: 0, packed: true, join, view: batchView, scope, viewSpec, stack, laneKind: 'record', summaries: null };
+    } else if (batchOrds.length === 0) {
+      return;   // join grew but no in-range tuple — no view change
     } else {
       lastGroupedResult.view = cmp
         ? mergeSortedIndices(lastGroupedResult.view, batchView, cmp)

@@ -309,7 +309,9 @@ export async function executePipeline(wordlist, stack, signal,
     await runStackRow(stackRow, state, wordlist, vocab, signal, y, stackRow === producer ? emit : null, downstream);
     if (stackRow.isInert()) continue;
     acc += performance.now() - t0;
-    if (resume?.offer && acc >= resume.floorMs) {
+    // An elided state prices at zero bytes, so the cache would always admit it — and
+    // every later run seeding from that tile would return nothing.
+    if (resume?.offer && !state.elided && acc >= resume.floorMs) {
       resume.offer(i + 1, cloneState(state), acc);
       acc = 0;
       tailStart = performance.now();
@@ -371,8 +373,11 @@ async function runStackRow(stackRow, state, wordlist, vocab, signal, y, emit = n
       const poolRows = state.grouped ? state.groups.flatMap(g => g.chains) : state.groups[0].chains;
       const prepared = def.prepare(params);
       const onBatch = emit ? await makeTupleEmit(emit, downstream, wordlist, vocab, signal, y) : null;
-      const { tuples, capped, truncated } = await def.findTuples(poolRows.map(rowLastEntry), prepared, { wordlist, vocab, y, signal, onBatch });
-      state.groups = tuples.map(tupleToGroup);
+      const { tuples, capped, truncated, retained } = await def.findTuples(poolRows.map(rowLastEntry), prepared, { wordlist, vocab, y, signal, onBatch });
+      // Empty rows are the result here, not a gap to repair: the stream already carried
+      // every tuple, and rebuilding them reinstates the peak packing exists to avoid.
+      state.elided = retained === false;
+      state.groups = state.elided ? [] : tuples.map(tupleToGroup);
       state.grouped = true;
       state.laneKind = 'record';
       state.capped = !!capped || !!truncated;

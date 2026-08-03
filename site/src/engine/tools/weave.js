@@ -11,8 +11,14 @@ import { SEARCH_KINDS } from '../search.js';
 // over-retain into a reload.
 let weaveMaxResults = TUPLE_CAP_MOBILE;
 
-export function configureWeave({ maxResults } = {}) {
+// Above this the streamed set is the only copy. Raising it reinstates the peak the
+// packed join exists to avoid (~1172 B/tuple retained); lowering it past an
+// entry-pinned result costs that run its prefix tile, and its interactivity.
+let weaveRetainLimit = 50_000;
+
+export function configureWeave({ maxResults, retainLimit } = {}) {
   if (Number.isFinite(maxResults) && maxResults > 0) weaveMaxResults = maxResults;
+  if (Number.isFinite(retainLimit) && retainLimit >= 0) weaveRetainLimit = retainLimit;
 }
 
 const MIN_PART = 4;
@@ -138,12 +144,13 @@ export default {
     const index = buildIndex(pool);
     const search = makeSearch(index);
     const { byNorm } = index;
-    const tuples = [];
     const pending = ctx.onBatch ? [] : null;
+    let retained = [];
+    let found = 0;
     const flush = async () => { if (pending?.length) await ctx.onBatch(pending.splice(0)); };
 
     for (const entry of pool) {
-      if (tuples.length >= weaveMaxResults) break;
+      if (found >= weaveMaxResults) break;
       if (entry.norm.length < MIN_PART * 2) continue;
       for (const w of findWeaves(entry.norm, index, search, fixed)) {
         const lanes = [
@@ -151,13 +158,20 @@ export default {
           { entry: byNorm.get(w.a), highlights: null },
           { entry: byNorm.get(w.b), highlights: null },
         ];
-        tuples.push(lanes);
+        found++;
         pending?.push(lanes);
-        if (tuples.length >= weaveMaxResults) break;
+        // Dropped whole rather than truncated: a partly-filled set still looks like a
+        // complete result to the executor, and would be cached as a prefix tile that
+        // answers later runs with silently missing tuples.
+        if (retained) {
+          if (!pending || retained.length < weaveRetainLimit) retained.push(lanes);
+          else retained = null;
+        }
+        if (found >= weaveMaxResults) break;
       }
       if (ctx.y.due()) { await flush(); await ctx.y.yield(); }
     }
     await flush();
-    return { tuples, truncated: false, capped: tuples.length >= weaveMaxResults };
+    return { tuples: retained ?? [], retained: retained !== null, truncated: false, capped: found >= weaveMaxResults };
   },
 };

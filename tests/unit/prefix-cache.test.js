@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { makeToolRow } from '../../site/src/engine/tools.js';
+import { configureWeave } from '../../site/src/engine/tools/weave.js';
 import { toNorm } from '../../site/src/engine/norm.js';
 import {
   executePipeline,
@@ -126,6 +127,35 @@ test('tuple: seeding from a mid-pipeline group state is byte-identical to a cold
 
   assert.equal(lastPipelineSeedFrom(), 1, 'the expensive Umiaq stage was skipped');
   assert.deepStrictEqual(project(seeded.rows), project(cold.rows));
+});
+
+test('tuple: a state elided by streaming is never offered as a tile', async () => {
+  forceDeterministicYields();
+  configureWeave({ retainLimit: 0 });
+  const corpus = makeCorpus(['wallsockets', 'wallet', 'socks']);
+  const stack = [makeToolRow('weave', {}), makeToolRow('search', { pattern: '*' })];
+
+  const cap = captureResume({ floorMs: 0 });
+  const batches = [];
+  await executePipeline(corpus, stack, null, { emit: b => batches.push(b), resume: cap.resume });
+
+  assert.ok(batches.flat().length > 0, 'fixture must actually stream, else the test is vacuous');
+  // An elided state holds no groups, so it prices at zero bytes and the cache admits it
+  // unconditionally; every later run seeding from that tile would return nothing.
+  assert.equal(cap.offers.length, 0);
+});
+
+test('tuple: a retained streamed state is still offered as a tile', async () => {
+  forceDeterministicYields();
+  configureWeave({ retainLimit: 50_000 });
+  const corpus = makeCorpus(['wallsockets', 'wallet', 'socks']);
+  const stack = [makeToolRow('weave', {}), makeToolRow('search', { pattern: '*' })];
+
+  const cap = captureResume({ floorMs: 0 });
+  await executePipeline(corpus, stack, null, { emit: () => {}, resume: cap.resume });
+
+  assert.deepEqual(cap.offers.map(o => o.prefixLen), [1]);
+  assert.ok(cap.offers[0].state.groups.length > 0, 'the tile must carry the tuples it claims to');
 });
 
 // ─── Multi-run workflows (faithful cache stand-in) ────────────────────────────
