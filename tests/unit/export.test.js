@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   csvCell, exportFilenameSegment, exportFilename,
-  flatCopyLines, chainContentEntries, buildWordlistText, buildTupleCSV,
+  flatCopyLines, buildCopyResults, chainContentEntries, buildWordlistText, buildTupleCSV,
   exportCountPhrase,
 } from '../../site/src/app/actions.js';
 
@@ -249,6 +249,23 @@ test('flatCopyLines: consecutive same-norm atoms (multi-search row) collapse to 
 
 test('flatCopyLines: an empty chain list returns no lines', () => {
   assert.deepEqual(flatCopyLines([]), []);
+});
+
+// 200k because spreading into a call (Math.max, push) only breaks above ~125k args
+// in V8 — shrink this and the pins silently stop testing anything.
+const CORPUS_SCALE = 200_000;
+const manyChains = () =>
+  Array.from({ length: CORPUS_SCALE }, (_, i) => chain(atom('e' + String(i).padStart(6, '0'))));
+
+test('flatCopyLines: a corpus-sized result formats without a call-arity RangeError', () => {
+  const out = flatCopyLines(manyChains());
+  assert.equal(out.length, CORPUS_SCALE);
+  assert.equal(out[0], '7 E000000');
+});
+
+test('buildCopyResults: a corpus-sized flat result joins without a call-arity RangeError', () => {
+  const text = buildCopyResults(manyChains(), false);
+  assert.equal(text.split('\n').length, CORPUS_SCALE);
 });
 
 // ─── exportCountPhrase — toast count by tier ─────────────────────────────────

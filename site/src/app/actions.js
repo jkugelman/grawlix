@@ -1313,13 +1313,8 @@ export function buildCopyLinkMarkdown(stack) {
 }
 
 export function buildCopyResults(rows, grouped) {
-  const body = [];
-  if (grouped) {
-    for (const g of rows) body.push(g.chains.map(chainCopyText).join(', '));
-  } else {
-    body.push(...flatCopyLines(rows));
-  }
-  return body.join('\n');
+  if (grouped) return rows.map(g => g.chains.map(chainCopyText).join(', ')).join('\n');
+  return flatCopyLines(rows).join('\n');
 }
 
 export function flatCopyLines(chains) {
@@ -1336,7 +1331,10 @@ export function flatCopyLines(chains) {
     return pieces;
   });
 
-  const maxCols = Math.max(0, ...piecesPerChain.map(p => p.length));
+  // The whole result reaches here, and spreading it into Math.max past ~125k args
+  // is a RangeError, not a slow path.
+  let maxCols = 0;
+  for (const pieces of piecesPerChain) if (pieces.length > maxCols) maxCols = pieces.length;
   const lenW = new Array(maxCols).fill(0);
   const entryW = new Array(maxCols).fill(0);
   for (const pieces of piecesPerChain) {

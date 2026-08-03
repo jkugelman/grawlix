@@ -2714,13 +2714,14 @@ export class EntriesScroller extends BaseVirtualScroller {
     return reply.rows.map(r => this._richRowToChain(r, sourceById));
   }
 
-  // Only the flat tier needs bounding: its full result can be the whole merged
-  // corpus, so a full fetch+format for a few preview lines stalls. Grouped/transform
-  // are already windowed and small, so exportRows is cheap for them.
+  // Transform is corpus-sized like flat, so both bound: a full fetch+format for a few
+  // preview lines stalls. Grouped/tuple are few enough that exportRows stays cheap.
   async exportPreviewRows(n) {
-    if (isMultiLaneTier(this.sortTier) || this._transform) return this.exportRows();
-    const reply = await fetchWorkerRows(this._currentStreamRunId(), 0, n);
+    if (isMultiLaneTier(this.sortTier)) return this.exportRows();
+    const fetch = this._transform ? fetchWorkerTransformRows : fetchWorkerRows;
+    const reply = await fetch(this._currentStreamRunId(), 0, n);
     if (!reply) return [];
+    if (this._transform) return reply.rows;   // transform windows arrive decoded
     const sourceById = new Map(state.sources.map(w => [w.dbKey, w]));
     return reply.rows.map(r => this._richRowToChain(r, sourceById));
   }
