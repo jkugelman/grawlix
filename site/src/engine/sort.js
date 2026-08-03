@@ -5,7 +5,7 @@
 // sorts every tier exactly the way main labels its headers. `stack` is always an
 // explicit argument, never a ToolStack default, because the engine has no ToolStack.
 
-import { rowLastEntry, rowAtoms, isGroupChain, isTupleChain, isFilterOnlyChain } from './executor.js';
+import { rowLastEntry, rowAtoms, isGroupChain, isTupleChain, isFilterOnlyChain, currentAtomCount } from './executor.js';
 import { displayOf } from './norm.js';
 import { TOOLS } from './tools.js';
 
@@ -148,14 +148,13 @@ export const DEFAULT_SORT_BY_TIER = { single: 'entry', multi: 'entry', group: 'e
 // bare fixed-N lanes). Callers branch on this where the shared machinery applies.
 export function isMultiLaneTier(tier) { return tier === 'group' || tier === 'tuple'; }
 
-// The sort tier is single-atom when the chain is filter-only and multi-atom once
-// a transform is in play — transforms are what give a row genuinely distinct
-// atoms to sort across. Highlight-only repeat atoms don't promote the tier:
-// they're all the same word and score.
+// Multi needs a transform AND more than one atom: min/max collapse onto one number
+// on a lone atom, which hiding either side leaves — so the count, not a side check,
+// is the gate. Filter-only stays single at >1 atom: repeats are the same word.
 export function chainSortTier(stack) {
   if (isGroupChain(stack)) return 'group';
   if (isTupleChain(stack)) return 'tuple';
-  return isFilterOnlyChain(stack) ? 'single' : 'multi';
+  return isFilterOnlyChain(stack) || currentAtomCount(stack) === 1 ? 'single' : 'multi';
 }
 export function sortAxes(tier, stack) {
   return isMultiLaneTier(tier) ? groupSortAxes(stack) : SORT_AXES[tier];

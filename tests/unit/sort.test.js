@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { sortGroups, composeSortAxis, compareItems, sortAxes, chainRowComparator } from '../../site/src/engine/sort.js';
+import { sortGroups, composeSortAxis, compareItems, sortAxes, chainRowComparator, chainSortTier } from '../../site/src/engine/sort.js';
 import { applyScoreRangeToRows, cacheGroupStats } from '../../site/src/engine/executor.js';
 import { parseRange } from '../../site/src/engine/range.js';
 
@@ -10,6 +10,18 @@ const GROUP_STACK = [{
 }];
 const chain = (norm, score) => ({ atoms: [{ wlEntry: { norm, display: norm, score } }] });
 const norms = g => g.chains.map(c => c.atoms[0].wlEntry.norm);
+
+const transformRow = (input = 'plain', output = 'plain') => ({
+  kind: () => 'transform', isInert: () => false, def: {},
+  inputShown:  () => input  !== 'hidden',
+  outputShown: () => output !== 'hidden',
+  inputHi:  () => input  === 'highlight',
+  outputHi: () => output === 'highlight',
+});
+const searchRow = () => ({
+  kind: () => 'filter', isInert: () => false,
+  inputHi: () => true, inverted: () => false, outputHi: () => false,
+});
 
 // Chains seeded in the executor's bucketize order (tail-score desc), which differs
 // from the designed Entry order (seed-norm asc) so the two are distinguishable.
@@ -24,7 +36,7 @@ function freshGroup() {
 // display, same tail) yet be distinct — here only the first atom's norm differs — so
 // the joined-atom-norm tiebreak must give a stable, input-order-independent order.
 test('chainRowComparator: ties on the chain axes break to a total, stable order', () => {
-  const TX_STACK = [{ kind: () => 'transform', isInert: () => false, def: {} }];
+  const TX_STACK = [transformRow()];
   const row = (n0, d0, n1) => ({ atoms: [
     { wlEntry: { norm: n0, display: d0, score: 5 } },
     { wlEntry: { norm: n1, display: n1, score: 5 } },
@@ -141,4 +153,20 @@ test('composeSortAxis: unknown keys are dropped; an all-unknown list is null', (
   assert.equal(axis.primary, AXES.count.primary); // 'nope' filtered, count promoted to primary
   assert.equal(composeSortAxis([{ key: 'nope', dir: 'asc' }], AXES), null);
   assert.equal(composeSortAxis([], AXES), null);
+});
+
+test('chainSortTier: a transform showing both sides earns the multi-atom axes', () => {
+  const stack = [transformRow()];
+  assert.equal(chainSortTier(stack), 'multi');
+  assert.ok('min-length' in sortAxes('multi', stack));
+});
+
+test('chainSortTier: a transform hiding its input stays single -- min/max would be one number', () => {
+  const stack = [transformRow('hidden')];
+  assert.equal(chainSortTier(stack), 'single');
+  assert.deepEqual(Object.keys(sortAxes('single', stack)), ['entry', 'length', 'score', 'comment']);
+});
+
+test('chainSortTier: repeat highlight atoms still do not promote a filter-only chain', () => {
+  assert.equal(chainSortTier([searchRow(), searchRow()]), 'single');
 });

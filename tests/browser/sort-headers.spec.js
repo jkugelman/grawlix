@@ -78,6 +78,23 @@ test('transform tier: the Len column keeps Length and adds the Min/Max length sp
   await expect(page.locator('.col-len .col-sort')).toContainText('↑');
 });
 
+test('hidden-input tier: Len and Score drop their spreads -- one atom, one number', async ({ page }) => {
+  await gotoApp(page);
+  await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
+    name: 'HiddenInput', entries: ['hart', 'hat', 'house', 'hose'], scores: [70, 60, 80, 50],
+  }));
+  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'optional_letters' }]));
+  await expectVisible(page, ['haⓡt', 'hoⓤse']);
+
+  for (const col of ['.col-len', '.col-score']) {
+    await expect(page.locator(`${col} .col-sort`)).not.toHaveAttribute('aria-haspopup', 'listbox');
+  }
+  await page.locator('.col-len .col-sort').click();
+  expect(await sortState(page)).toEqual({ key: 'length', dir: 'asc' });
+  await page.locator('.col-score .col-sort').click();
+  expect(await sortState(page)).toEqual({ key: 'score', dir: 'asc' });
+});
+
 test('group tier: Min/Max score live on the Entries menu; Count sorts on click', async ({ page }) => {
   await gotoApp(page);
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
