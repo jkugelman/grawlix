@@ -358,21 +358,21 @@ test('buildWordlistText: an empty chain (no content) is silently ignored', () =>
 
 test('buildWordlistText: the output format strips the entry text', () => {
   const rows = [chain(atom('cafe', { display: 'café', score: 50 }))];
-  const fmt = { spaces: true, punctuation: true, diacritics: false, ascii: true, comments: true };
+  const fmt = { spaces: true, punctuation: true, diacritics: false, unicode: true, comments: true };
   assert.equal(buildWordlistText(rows, false, fmt).text, 'cafe;50\n');
 });
 
 test('buildWordlistText: a comment rides along only when the format keeps comments', () => {
   const rows = [chain({ wlEntry: wl('cat', { score: 50, comment: 'feline' }), glyph: null })];
-  const keep = { spaces: true, punctuation: true, diacritics: true, ascii: true, comments: true };
-  const drop = { spaces: true, punctuation: true, diacritics: true, ascii: true, comments: false };
+  const keep = { spaces: true, punctuation: true, diacritics: true, unicode: true, comments: true };
+  const drop = { spaces: true, punctuation: true, diacritics: true, unicode: true, comments: false };
   assert.equal(buildWordlistText(rows, false, keep).text, 'cat;50;feline\n');
   assert.equal(buildWordlistText(rows, false, drop).text, 'cat;50\n');
 });
 
 test('buildWordlistText: stripping punctuation rescues an entry that would be skipped for its semicolon', () => {
   const rows = [chain(atom('semibad', { display: 'A;B', score: 5 }))];
-  const stripped = { spaces: false, punctuation: false, diacritics: false, ascii: true, comments: true };
+  const stripped = { spaces: false, punctuation: false, diacritics: false, unicode: true, comments: true };
   const { text, count, skipped } = buildWordlistText(rows, false, stripped);
   assert.equal(text, 'AB;5\n');
   assert.equal(count, 1);
@@ -384,7 +384,7 @@ test('buildWordlistText: two entries stripped onto one line count once, best sco
     chain(atom('cafe', { display: 'café', score: 60 })),
     chain(atom('cafe', { display: 'cafe', score: 30 })),
   ];
-  const fmt = { spaces: true, punctuation: true, diacritics: false, ascii: true, comments: true };
+  const fmt = { spaces: true, punctuation: true, diacritics: false, unicode: true, comments: true };
   const { text, count } = buildWordlistText(rows, false, fmt);
   assert.equal(text, 'cafe;60\ncafe;30\n');
   assert.equal(count, 2);

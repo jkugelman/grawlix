@@ -85,7 +85,7 @@ const V10_AFTER = {
     { input: '50', note: 'Fine' },
   ],
   scoringDirty: false,
-  mergedSettings: { outputFormat: { spaces: true, punctuation: true, diacritics: true, ascii: true, comments: true } },
+  mergedSettings: { outputFormat: { spaces: true, punctuation: true, diacritics: true, unicode: true, comments: true } },
 };
 
 test('migration v9→v10 rewrites every "ignore" rescore output to "0"', async ({ page }) => {
@@ -148,5 +148,5 @@ test('an old v9 store migrates forward on boot and stamps the new version', asyn
   expect(wl.rescoreRules).toEqual([{ input: '70', length: '', output: '0' }]);
 
   const stamped = await page.evaluate(() => localStorage.getItem('grawlix_schemaVersion'));
-  expect(stamped).toBe('14');
+  expect(stamped).toBe(String(await page.evaluate(() => window.__grawlixTest.SCHEMA_VERSION)));
 });

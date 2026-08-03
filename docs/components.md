@@ -22,7 +22,7 @@ Generic, layer-agnostic builders. Anything reusable across surfaces belongs here
 | --- | --- |
 | `buildSegCtrlHTML(id, options, activeValue)` | A segmented control — a joined row of mutually exclusive buttons. Reach for this for any small either/or or three-way pick (All \| One, dark/light/auto). |
 | `setSegCtrlActive(container, target)` | Moves the active button, by value or by element. Always use this instead of toggling `.active` yourself; it keeps `aria-pressed` in step. |
-| `buildOutputFormatControlsHTML(fmt)` | The Spaces / Punctuation / Accents / Comments checkbox grid used wherever a wordlist is written out. |
+| `buildOutputFormatControlsHTML(fmt)` | The Spaces / Punctuation / Diacritics / Unicode / Comments checkbox grid used wherever a wordlist is written out. |
 | `readOutputFormatControls(container)` | Reads that grid back into a `fmt` object. |
 | `wireOutputFormatControls(container, onChange)` | Fires `onChange` whenever that grid changes. |
 | `buildBadgeHTML(severity, { title })` | The small colored status dot, `.badge[data-severity]`, with an optional tooltip and matching `aria-label`. |

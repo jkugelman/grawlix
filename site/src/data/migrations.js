@@ -26,7 +26,9 @@ import { URL_REMAPS } from '../core/constants.js';
 //   v14 (2026-08-02): the output format's accents axis became diacritics (NFD
 //                     rather than NFKD) and gained an ascii axis, so the stored
 //                     outputFormat renames one key and adds another.
-export const SCHEMA_VERSION = 14;
+//   v15 (2026-08-02): the output format's ascii axis became unicode, so the
+//                     stored outputFormat renames the key, value verbatim.
+export const SCHEMA_VERSION = 15;
 
 // MIGRATIONS[v] upgrades stored data from schema v to v+1 via an optional `ls`
 // step and/or `idb` step. The two run in separate boot phases (the array is
@@ -37,6 +39,14 @@ export const SCHEMA_VERSION = 14;
 // migrateLocalStorage assembles): it reshapes the blob, touches other standalone
 // keys via lsLoad/lsSave/lsDel, or both.
 export const MIGRATIONS = {
+  14: {
+    ls: blob => {                               // outputFormat.ascii → outputFormat.unicode
+      const fmt = blob.mergedSettings?.outputFormat;
+      if (!fmt) return;
+      fmt.unicode = fmt.ascii ?? true;
+      delete fmt.ascii;
+    },
+  },
   13: {
     ls: blob => {
       const fmt = blob.mergedSettings?.outputFormat;

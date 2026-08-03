@@ -19,7 +19,7 @@ import { setUnigramCorpus as segmenterSetCorpus } from './engine/segmenter.js';
 import { TOOLS, makeToolRow } from './engine/tools.js';
 import { state, newDbKey, syncKey, getEditsWordlist, pipelineVersion$ } from './data/state.js';
 import { getDb, Storage } from './data/storage.js';
-import { migrateLs } from './data/migrations.js';
+import { migrateLs, SCHEMA_VERSION } from './data/migrations.js';
 import {
   invalidateSourceCounts, getSourceCounts, mergedEntryCount, shippedConfigCountsVersion,
 } from './data/merge.js';
@@ -628,6 +628,7 @@ const __grawlixTest = {
   setFetchRevealDelay(ms) { setFetchRevealDelayForTest(ms); },
 
   migrateLs,
+  SCHEMA_VERSION,
 };
 
 window.__grawlixTest = __grawlixTest;
