@@ -110,7 +110,7 @@ The at-rest results display below the search bar. "Table" is loose: it's a div-b
 
 ### Other conventions
 
-- **Download** — output only. Saving from Grawlix to disk (`downloadMergedWordlistFromPanel`, `downloadIndividualWordlist`).
+- **Download** — output only. Saving from Grawlix to disk (`downloadMergedWordlistFromPanel`, `downloadSourceWordlist`).
 - **Fetch** — pulling a wordlist into Grawlix from a URL (`fetchWordlist`).
 - **Import** — the user loading a file from disk into Grawlix.
 - **Source page** — third-party page that hosts a wordlist; the property is `sourcePage` / `sourceNote`.
