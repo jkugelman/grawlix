@@ -91,6 +91,30 @@ test('the target lane is highlighted in two alternating colors covering every le
   assert.deepEqual([...new Set(hl.map(r => r.kind))].sort(), ['search:0', 'search:1']);
 });
 
+test('the Runs param sets how finely interwoven a split has to be', async () => {
+  const specs = ['wallsockets', 'wallet', 'socks'];
+  assert.deepEqual(await weaves(specs, { runs: '4' }), ['wallsockets = wallet = socks']);
+  assert.deepEqual(await weaves(specs, { runs: '6' }), []);
+});
+
+test('Runs at 3 admits the insertion the default rejects', async () => {
+  const specs = ['beringen', 'been', 'ring'];
+  assert.deepEqual(await weaves(specs), []);
+  assert.deepEqual(await weaves(specs, { runs: '3' }), ['beringen = been = ring']);
+});
+
+test('Runs below the floor clamps to 3, so a concatenation is never woven', async () => {
+  const specs = ['birdfish', 'bird', 'fish'];
+  assert.deepEqual(await weaves(specs, { runs: '2' }), []);
+  assert.deepEqual(await weaves(specs, { runs: '1' }), []);
+});
+
+test('a blank or garbled Runs falls back to the default rather than matching everything', async () => {
+  const specs = ['beringen', 'been', 'ring'];
+  assert.deepEqual(await weaves(specs, { runs: '' }), []);
+  assert.deepEqual(await weaves(specs, { runs: 'x' }), []);
+});
+
 test('past the retain limit the stream is the only copy — terminal rows are empty', async () => {
   const { out, batches } = await streamWeave(['wallsockets', 'wallet', 'socks'], 0);
   assert.equal(out.laneKind, 'record');

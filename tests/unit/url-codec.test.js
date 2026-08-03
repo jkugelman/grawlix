@@ -73,6 +73,13 @@ test('a param at its default value stays out of the URL', () => {
   assert.equal(query(makeToolRow('rhymes', { entry: 'cat', match: 'strict' })), 'rhymes=cat&match=strict');
 });
 
+test("weave's numeric Runs elides at its default, which the number input types as a string", () => {
+  assert.equal(query(makeToolRow('weave', { entry: 'socks' })), 'weave=socks');
+  assert.equal(decode('weave=socks').rows[0].params.runs, '4');
+  assert.equal(query(makeToolRow('weave', { entry: 'socks', runs: '6' })), 'weave=socks&runs=6');
+  assert.equal(decode('weave=socks&runs=6').rows[0].params.runs, '6');
+});
+
 test('a grouped row keeps its secondary params through the `all` toggle', () => {
   const row = makeToolRow('rhymes', { match: 'strict' }, true);
   assert.equal(query(row), 'rhymes&all&match=strict');

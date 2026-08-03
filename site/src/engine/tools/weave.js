@@ -20,9 +20,10 @@ export function configureWeave({ maxResults, retainLimit } = {}) {
 
 const MIN_PART = 4;
 // Chunks alternate, so the two piece-counts differ by at most one; "both parts in
-// >=2 pieces" is therefore exactly runs >= 4. Below that a split is a concatenation
-// (2) or a plain insertion (3), neither of which is a weave.
-const MIN_RUNS = 4;
+// >=2 pieces" is therefore exactly runs >= 4.
+const DEFAULT_RUNS = 4;
+// Stops at 3 because 2 runs is a concatenation with nothing woven.
+const RUNS_FLOOR = 3;
 // Deeper ranges are narrow and there are millions of them, so memoizing past this
 // costs the memory the trie below is avoiding.
 const MEMO_DEPTH = 3;
@@ -89,8 +90,8 @@ function pathHighlights(path) {
 
 // Scored by the FEWEST runs any assignment of this pair achieves. Repeated letters
 // let a plain concatenation also be read as a 4-run weave, so taking the best-looking
-// assignment would admit exactly the splits MIN_RUNS exists to reject.
-export function findWeaves(word, index, search, fixed = null) {
+// assignment would admit exactly the splits `minRuns` exists to reject.
+export function findWeaves(word, index, search, fixed = null, minRuns = DEFAULT_RUNS) {
   const { complete, narrow, N } = search;
   const best = new Map();
   const L = word.length;
@@ -121,7 +122,7 @@ export function findWeaves(word, index, search, fixed = null) {
       }
     }
   })(0, '', 0, N, '', 0, N, 0, '', '');
-  return [...best.values()].filter(w => w.runs >= MIN_RUNS);
+  return [...best.values()].filter(w => w.runs >= minRuns);
 }
 
 // ─── Tool ────────────────────────────────────────────────────────────────────
@@ -130,14 +131,22 @@ export default {
   name: 'Weave', icon: '🧬', category: 'pairs',
   desc: 'Two entries interwoven, each keeping its letter order',
   example: 'wallet + socks → wall sockets',
-  params: [{ placeholder: 'entry' }],
+  params: [
+    { placeholder: 'entry' },
+    { key: 'runs', label: 'Runs', type: 'number', default: String(DEFAULT_RUNS),
+      min: RUNS_FLOOR, placeholder: String(DEFAULT_RUNS) },
+  ],
   kind: 'tuple',
   isInert: () => false,
   prepare(params) {
-    return { fixed: toNorm((params?.entry || '').trim()) || null };
+    const n = parseInt(params?.runs, 10);
+    return {
+      fixed: toNorm((params?.entry || '').trim()) || null,
+      minRuns: Number.isFinite(n) ? Math.max(RUNS_FLOOR, n) : DEFAULT_RUNS,
+    };
   },
   async findTuples(pool, prepared, ctx) {
-    const { fixed } = prepared;
+    const { fixed, minRuns } = prepared;
     const index = buildIndex(pool);
     const search = makeSearch(index);
     const { byNorm } = index;
@@ -149,7 +158,7 @@ export default {
     for (const entry of pool) {
       if (found >= weaveMaxResults) break;
       if (entry.norm.length < MIN_PART * 2) continue;
-      for (const w of findWeaves(entry.norm, index, search, fixed)) {
+      for (const w of findWeaves(entry.norm, index, search, fixed, minRuns)) {
         const lanes = [
           { entry, highlights: pathHighlights(w.path) },
           { entry: byNorm.get(w.a), highlights: null },

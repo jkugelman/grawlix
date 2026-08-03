@@ -107,7 +107,7 @@ export function buildParamHTML(param, value, toolKey, wiring) {
   }
   const labelHTML = param.label ? `<label>${esc(param.label)}</label>` : '';
   if (param.type === 'number') {
-    return `<span class="tool-row-param">${labelHTML}<input type="number" min="1" class="tool-row-num"`
+    return `<span class="tool-row-param">${labelHTML}<input type="number" min="${param.min ?? 1}" class="tool-row-num"`
       + ` placeholder="${esc(param.placeholder || '')}" value="${esc(value || '')}"${wiring}></span>`;
   }
   if (param.type === 'range') {
