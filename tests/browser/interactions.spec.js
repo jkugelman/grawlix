@@ -203,3 +203,29 @@ test('with an explicit light override, the OS flipping to dark is ignored', asyn
   await expect(html).toHaveClass(/light-mode/);
   await expect(html).not.toHaveClass(/dark-mode/);
 });
+
+test('clicking the logo clears the pipeline, the sort and the URL without reloading', async ({ page }) => {
+  await gotoApp(page);
+  await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
+    name: 'LogoReset',
+    entries: ['lindsey', 'snidely', 'cat', 'act'],
+    scores: [60, 50, 40, 40],
+  }));
+  await page.evaluate(() => {
+    history.replaceState(null, '', '?anagrams=LINDSEY&sort=score:desc');
+    Router.applyURL();
+    renderMergedDetail();
+  });
+  await expectVisible(page, ['lindsey', 'snidely']);
+  await expect(page.locator('#tool-stack .tool-row')).toHaveCount(1);
+
+  // Survives the in-place reset but not a reload, so it's what distinguishes the
+  // two — every other assertion below holds either way.
+  await page.evaluate(() => { window.__neverReloaded = true; });
+  await page.locator('.header-logo-link').click();
+
+  await expectVisible(page, ['act', 'cat', 'lindsey', 'snidely']);
+  await expect(page.locator('#tool-stack .tool-row')).toHaveCount(0);
+  expect(await page.evaluate(() => [location.search, AppView.sortKey, AppView.sortDir, window.__neverReloaded]))
+    .toEqual(['', 'entry', 'asc', true]);
+});

@@ -10,6 +10,8 @@ This is the user-facing manual. Eventually it'll be turned into an in-app manual
 
 **Header.** Wordmark, the personal "Made with…" byline, settings, and a `?` button that opens Help (an FAQ with acknowledgements). Sticks at the top while you scroll.
 
+**Start over.** Click the wordmark to clear every tool, drop back to the default sort, empty the URL, and scroll to the top. Your wordlists, your scope, and your score filter stay where they are. It's a link, so ⌘/Ctrl-click still opens a clean Grawlix in a new tab.
+
 **One screen.** Everything lives on a single screen. The page itself scrolls — there's only one scrollbar.
 
 The screen, top to bottom:

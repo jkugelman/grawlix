@@ -62,7 +62,7 @@ import { isMultiLaneTier } from '../engine/sort.js';
 import {
   activeGroupColumns, EntryPanel, handleScoreDigitShortcut,
 } from '../ui/entries-table.js';
-import { ToolStack } from '../ui/tool-stack.js';
+import { ToolStack, ToolPicker } from '../ui/tool-stack.js';
 import { renderScoringRules } from '../ui/rescore-editor.js';
 import { WordlistSelector, buildWordlistNameHTML } from '../ui/scope-selector.js';
 import {
@@ -1025,9 +1025,26 @@ function syncHelp() {
   else if (HelpDialog.isOpen()) HelpDialog.close();
 }
 
+// Deliberately partial: scope and score range are localStorage, not URL state, so
+// a reload keeps them and so does this.
+function resetView() {
+  ToolPicker.close();
+  if (window.scrollY > 0) window.scrollTo({ top: 0, behavior: 'smooth' });
+  if (!location.search) return;   // every resettable bit round-trips the URL, so a bare one is already reset
+  history.replaceState(history.state, '', location.pathname);
+  Router.applyURL();
+  renderMergedDetail();
+}
+
 export function bindEvents() {
   // Header chrome
-  document.querySelector('.header-logo-link').href = location.pathname;
+  const logo = document.querySelector('.header-logo-link');
+  logo.href = location.pathname;   // kept despite the handler below: ⌘-click and middle-click must still open a clean app
+  logo.onclick = e => {
+    if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+    e.preventDefault();
+    resetView();
+  };
   document.getElementById('btn-settings').onclick = () => SettingsDialog.open();
   document.getElementById('btn-help').onclick = () => { location.hash = '/help'; };
   window.addEventListener('hashchange', syncHelp);
