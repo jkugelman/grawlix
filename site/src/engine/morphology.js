@@ -23,9 +23,11 @@ for (const line of WORDNET_IRREGULARS.trim().split('\n')) {
 }
 // Forms WordNet's exception lists omit: the suppletions it models as separate
 // lemmas (people, women) and a couple of irregular plurals it lacks. Without
-// these they silently split from their singulars.
+// these they silently split from their singulars. being/doing look regular, but
+// the -ing rule's silent-e restoration outranks the bare stem on length: bee, doe.
 for (const [base, forms] of Object.entries({
   woman: ['women'], person: ['people'], die: ['dice'], bacterium: ['bacteria'],
+  be: ['being'], do: ['doing'],
 })) {
   for (const form of forms) addIrregular(form, base);
 }
@@ -58,10 +60,15 @@ function candidates(word) {
   return set;
 }
 
+// Gates the irregulars lookup only: that table is keyed on whole words, and the
+// strip can forge one ("we're" → were → be). Suffix reduction stays open to
+// contractions — it only ever shortens, and is gated on the list's own vocab.
+const ELIDING_APOSTROPHE = /['’](?=\p{L})/u;
+
 // Irregulars resolve to base first; without that, men/ate have no shorter
 // candidate and silently split from man/eat.
-function reduceToken(word, vocab) {
-  const base = IRREGULARS.get(word);
+function reduceToken(word, vocab, raw = word) {
+  const base = ELIDING_APOSTROPHE.test(raw) ? undefined : IRREGULARS.get(word);
   if (base !== undefined) return base;
   // A common candidate outranks a longer one, else a spurious longer stem in the
   // list (French `calle` for `called`) beats the true base `call` on length and
@@ -85,16 +92,20 @@ function tokenize(text) {
   return text.split(/\s+/).map(toNorm).filter(Boolean);
 }
 
+function familyWords(text) {
+  const words = text.split(/\s+/).map(raw => ({ raw, norm: toNorm(raw) })).filter(w => w.norm);
+  while (words.length > 1 && ARTICLES.has(words[0].norm)) words.shift();
+  return words;
+}
+
 export function familyTokens(text) {
-  const tokens = tokenize(text);
-  while (tokens.length > 1 && ARTICLES.has(tokens[0])) tokens.shift();
-  return tokens;
+  return familyWords(text).map(w => w.norm);
 }
 
 export function familyKey(text, vocab) {
-  const tokens = familyTokens(text);
-  if (!tokens.length) return text.toLowerCase();
-  return tokens.map(t => reduceToken(t, vocab) ?? t).join(' ');
+  const words = familyWords(text);
+  if (!words.length) return text.toLowerCase();
+  return words.map(w => reduceToken(w.norm, vocab, w.raw) ?? w.norm).join(' ');
 }
 
 // ─── Name relatives ──────────────────────────────────────────────────────────

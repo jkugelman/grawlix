@@ -74,6 +74,25 @@ test('familyTokens strips a leading article but keeps a lone article', () => {
   assert.deepEqual(familyTokens('a'), ['a']);
 });
 
+test('a bare two-letter auxiliary keeps its base against the homographic +e word', () => {
+  const v = collectVocab(['be', 'being', 'bee', 'bees', 'do', 'doing', 'doe', 'does']);
+  assert.equal(familyKey('being', v), 'be');
+  assert.equal(familyKey('doing', v), 'do');
+  assert.notEqual(familyKey('being', v), familyKey('bee', v));
+  assert.notEqual(familyKey('doing', v), familyKey('doe', v));
+});
+
+test('a contraction does not reduce through the word its apostrophe-strip spells', () => {
+  const v = collectVocab(["we're", 'were', 'be', "i's", 'is', 'wizard']);
+  assert.equal(familyKey("We're Off to See the Wizard", v), 'were off to see the wizard');
+  assert.equal(familyKey("i's", v), 'is');
+});
+
+test('a trailing possessive apostrophe still reduces (the word itself is intact)', () => {
+  const v = collectVocab(['wife', 'wives', 'tale', 'tales']);
+  assert.equal(familyKey("old wives' tale", v), 'old wife tale');
+});
+
 test('accents fold into the key (café groups with cafe)', () => {
   const v = collectVocab(['cafe', 'cafes']);
   assert.equal(familyKey('café', v), familyKey('cafe', v));
