@@ -11,7 +11,7 @@ import { anyAssetAutoUpdates } from '../engine/assets.js';
 import { state, bumpErrorMarks } from '../data/state.js';
 import { setShippedAllSourcesAxis, setShippedScopedLayout } from '../data/derived.js';
 import { setShippedConfigCounts, setShippedRescoreInputs } from '../data/merge.js';
-import { MERGED_ID, TUPLE_CAP_MOBILE, TUPLE_CAP_DESKTOP } from '../core/constants.js';
+import { MERGED_ID, TUPLE_CAP_MOBILE, TUPLE_CAP_DESKTOP, WEAVE_CAP_MOBILE, WEAVE_CAP_DESKTOP } from '../core/constants.js';
 import { isMobile } from '../core/platform.js';
 import { AppView, activeScoreRange } from './app-view.js';
 import { entryPanelRebindQuery, streamFlatBatchToScroller, streamGroupBatchToScroller, streamTransformBatchToScroller, ingestReprojectToScroller, setPipelineProgress } from './entries-table.js';
@@ -58,7 +58,12 @@ function getWorker() {
     worker.addEventListener('error', onWorkerCrash);
     worker.addEventListener('messageerror', onWorkerCrash);
     // FIFO-first so the cap is set before any run; a respawn re-sends it here.
-    worker.postMessage({ type: 'configTools', tupleMaxResults: isMobile() ? TUPLE_CAP_MOBILE : TUPLE_CAP_DESKTOP });
+    const mobile = isMobile();
+    worker.postMessage({
+      type: 'configTools',
+      tupleMaxResults: mobile ? TUPLE_CAP_MOBILE : TUPLE_CAP_DESKTOP,
+      weaveMaxResults: mobile ? WEAVE_CAP_MOBILE : WEAVE_CAP_DESKTOP,
+    });
   }
   return worker;
 }

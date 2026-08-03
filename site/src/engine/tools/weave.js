@@ -1,15 +1,12 @@
 'use strict';
 
-import { TUPLE_CAP_MOBILE } from '../../core/constants.js';
+import { WEAVE_CAP_MOBILE } from '../../core/constants.js';
 import { toNorm } from '../norm.js';
 import { SEARCH_KINDS } from '../search.js';
 
-// The same memory ceiling Umiaq's tuple tier carries: the worker retains every
-// tuple for scrollback, and the cap is sized for the eager worst case — a stack
-// `packableRecordStack` rejects keeps them as objects rather than typed arrays.
 // Mobile is the safe default: a missed boot message has to under-retain, not
 // over-retain into a reload.
-let weaveMaxResults = TUPLE_CAP_MOBILE;
+let weaveMaxResults = WEAVE_CAP_MOBILE;
 
 // Above this the streamed set is the only copy. Raising it reinstates the peak the
 // packed join exists to avoid (~1172 B/tuple retained); lowering it past an

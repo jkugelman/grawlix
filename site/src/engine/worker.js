@@ -2688,7 +2688,7 @@ onmessage = ({ data }) => {
 
     case 'configTools':
       configureUmiaq({ maxResults: data.tupleMaxResults });
-      configureWeave({ maxResults: data.tupleMaxResults });
+      configureWeave({ maxResults: data.weaveMaxResults });
       break;
 
     case 'fetchRows':

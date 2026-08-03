@@ -5,13 +5,15 @@
 export const ROW_HEIGHT   = 24;
 export const VS_BUFFER    = 60;
 
-// Tuple-result ceilings, shared by every tuple tool (Umiaq, Weave) — a *memory*
-// cap on retained tuples, not a UX cap. At ~0.9 KB/tuple for a 4-lane result,
-// desktop's 500K is ~425 MB; mobile stays low because the corpus already crowds
-// iOS's jetsam budget. Device is chosen at boot and injected into the worker
-// (configTools); mobile is the safe default.
+// Memory ceilings on retained tuples, not UX caps; the device is chosen at boot and
+// injected into the worker (configTools), mobile being the safe default. The two pairs
+// are calibrated against different per-tuple costs and must not be merged: Umiaq
+// retains its whole set at ~1172 B/tuple, Weave streams and packs at 136 B/tuple
+// (both measured), so Weave buys more tuples for less peak than Umiaq's smaller cap.
 export const TUPLE_CAP_MOBILE  = 100_000;
 export const TUPLE_CAP_DESKTOP = 500_000;
+export const WEAVE_CAP_MOBILE  = 750_000;
+export const WEAVE_CAP_DESKTOP = 2_000_000;
 // Duplicated in the <head> FOUC script on purpose: that script must run before
 // first paint, so it can't import a shared binding from this deferred module.
 export const LS_PREFIX    = 'grawlix_';
