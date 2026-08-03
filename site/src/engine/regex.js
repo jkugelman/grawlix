@@ -1,7 +1,7 @@
 'use strict';
 
 import { toNorm, displayOf, normToDisplayMap } from './norm.js';
-import { HL_COLORS, groupSpansToRanges, matchModeOk } from './search.js';
+import { HL_COLORS, SEARCH_KINDS, groupSpansToRanges, matchModeOk } from './search.js';
 
 // ─── Regex tool helpers ─────────────────────────────────────────────────────
 
@@ -129,7 +129,7 @@ export function parseReplacement(str) {
 // A capture group and its `$N` echoes must resolve to the same color so
 // rearranged text visibly moves between the input and output atoms.
 export function kindForGroup(g) {
-  return 'search:' + (g <= 0 ? 0 : (g - 1) % HL_COLORS);
+  return SEARCH_KINDS[g <= 0 ? 0 : (g - 1) % HL_COLORS];
 }
 
 export function regexExecAll(re, text, matchOk = null) {
@@ -207,7 +207,7 @@ export function runReplace(wlEntry, prepared, wordlist) {
       if (tok.lit !== undefined) {
         normVal = toNorm(tok.lit);
         dispVal = tok.lit;
-        if (!groups) kind = `search:${litIdx++ % HL_COLORS}`;
+        if (!groups) kind = SEARCH_KINDS[litIdx++ % HL_COLORS];
       } else {
         if (armNorm) {
           const span = m.indices[tok.group];

@@ -159,6 +159,11 @@ export function searchRangesFor(text, hlRe, matchOk = null) {
 // emits search:N kinds with no matching color.
 export const HL_COLORS = 9;
 
+// Interpolating the kind per range allocates a fresh string for one of nine values,
+// on every match of every highlighted scan. Indexing a shared table costs a pointer.
+export const SEARCH_KINDS = Object.freeze(
+  Array.from({ length: HL_COLORS }, (_, i) => `search:${i}`));
+
 export function groupSpansToRanges(m) {
   if (!m?.indices) return [];
   const ranges = [];
@@ -166,7 +171,7 @@ export function groupSpansToRanges(m) {
   for (let g = 1; g < m.indices.length; g++) {
     if (!m.indices[g]) continue;
     const [start, end] = m.indices[g];
-    ranges.push({ start, end, kind: `search:${colorIdx % HL_COLORS}` });
+    ranges.push({ start, end, kind: SEARCH_KINDS[colorIdx % HL_COLORS] });
     colorIdx++;
   }
   return ranges;

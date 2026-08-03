@@ -19,6 +19,8 @@ const NORM_CHARS = 'abcdefghijklmnopqrstuvwxyz0123456789';
 // Variable highlight palette size — cycles the shared --hl0..N colors (CSS
 // .hl-umiaq-var-N) so a query with more variables than colors still renders.
 const VAR_HL_COLORS = 9;
+const VAR_KINDS = Object.freeze(
+  Array.from({ length: VAR_HL_COLORS }, (_, i) => `umiaq-var-${i}`));
 
 // ─── Parsing ─────────────────────────────────────────────────────────────────
 
@@ -769,7 +771,7 @@ export function variableColors(variables) {
 export function variableHighlights(word, pattern, assignment, varColor) {
   return variableRanges(word, pattern, assignment)
     .filter(r => r.len > 0)   // a zero-length variable spans nothing to color
-    .map(r => ({ start: r.start, end: r.start + r.len, kind: 'umiaq-var-' + varColor[r.name] }));
+    .map(r => ({ start: r.start, end: r.start + r.len, kind: VAR_KINDS[varColor[r.name]] }));
 }
 
 // ─── Finding tuples ──────────────────────────────────────────────────────────

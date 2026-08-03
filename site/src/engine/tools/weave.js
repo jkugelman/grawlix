@@ -2,10 +2,13 @@
 
 import { TUPLE_CAP_MOBILE } from '../../core/constants.js';
 import { toNorm } from '../norm.js';
+import { SEARCH_KINDS } from '../search.js';
 
-// The same memory ceiling Umiaq's tuple tier carries, for the same reason: the
-// worker retains every streamed tuple for scrollback. Mobile is the safe default —
-// a missed boot message has to under-retain, not over-retain into a reload.
+// The same memory ceiling Umiaq's tuple tier carries: the worker retains every
+// tuple for scrollback, and the cap is sized for the eager worst case — a stack
+// `packableRecordStack` rejects keeps them as objects rather than typed arrays.
+// Mobile is the safe default: a missed boot message has to under-retain, not
+// over-retain into a reload.
 let weaveMaxResults = TUPLE_CAP_MOBILE;
 
 export function configureWeave({ maxResults } = {}) {
@@ -69,16 +72,12 @@ function makeSearch({ norms, memo }) {
 
 // ─── Weave search ────────────────────────────────────────────────────────────
 
-// Interpolating the kind per range allocates a fresh string for one of two values,
-// once per range of every retained tuple — ~16% of a tuple's memory for nothing.
-const PILE_KIND = ['search:0', 'search:1'];
-
 function pathHighlights(path) {
   const out = [];
   let start = 0;
   for (let i = 1; i <= path.length; i++) {
     if (i === path.length || path[i] !== path[start]) {
-      out.push({ start, end: i, kind: PILE_KIND[+path[start]] });
+      out.push({ start, end: i, kind: SEARCH_KINDS[+path[start]] });
       start = i;
     }
   }
