@@ -1,5 +1,5 @@
-// Persistence + URL state — see CLAUDE.md § Persistence and § Stable links,
-// docs/design.md, and site/index.html § Init, § Storage, § Router.
+// Persistence + URL state — see CLAUDE.md § Persistence and docs/design.md
+// § Stable links; the code is main.js boot(), data/storage.js, app/router.js.
 //
 // These tests pin the durable-state contracts:
 //

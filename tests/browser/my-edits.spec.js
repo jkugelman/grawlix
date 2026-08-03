@@ -1,6 +1,6 @@
 // My Edits seam — the panel edit/upsert path and the Add-entry/delete
-// surface, both of which route through `applyEditsChange` (see
-// site/index.html § My Edits: add entry & delete and § Merge & Download).
+// surface, both of which route through `applyEditsChange` (app/actions.js;
+// see CLAUDE.md § Key concepts and docs/design.md § Entries table).
 //
 // These tests pin the contract that ALL user edits — whether the underlying
 // row was sourced from another wordlist or from My Edits itself — land in

@@ -1,6 +1,6 @@
 // The File System Access API can't be driven headless, so these tests install an
 // in-memory fake for the file pickers and run the app's real attach/reconcile
-// code against it. See site/index.html § Disk sync and docs/design.md § Disk sync.
+// code against it. See data/disk-sync.js and docs/design.md § Disk sync.
 
 import { test, expect } from '@playwright/test';
 import { gotoApp, stubPublisherFetches, scopeTo } from './helpers.js';

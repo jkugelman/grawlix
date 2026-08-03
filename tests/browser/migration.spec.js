@@ -1,4 +1,4 @@
-// Storage migrations — see docs/migration.md and site/index.html § Storage.
+// Storage migrations — see docs/migration.md, data/migrations.js, data/storage.js.
 //
 // Each migrated SCHEMA_VERSION ships a frozen before→after fixture, captured
 // verbatim and never edited again: the day a shared helper churns and a step

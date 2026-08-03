@@ -1,4 +1,4 @@
-// Merge seam — see docs/design.md and site/index.html § buildMergedWordlist.
+// Merge seam — see docs/design.md and engine/corpus.js (buildCorpus/resolveCorpus).
 //
 // These tests pin the central contract of the app: when multiple enabled
 // wordlists share an entry, which one wins, and what does the merged All Wordlists
