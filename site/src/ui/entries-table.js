@@ -2965,7 +2965,7 @@ export const EntryPanel = (() => {
   // close()→back() and the help-hash both fire popstate, and both must no-op here.
   function onPopState() {
     const value = new URLSearchParams(location.search).get('entry');
-    if (!value) { if (isOpen()) { commitOnDismiss(); hideAndClear(); } return; }
+    if (!value) { if (isOpen()) { commitPending(); hideAndClear(); } return; }
     const norm = toNorm(value);
     if (isOpen() && activeWlEntry && activeWlEntry.norm === norm && displayOf(activeWlEntry) === value) return;
     openFromRoute({ norm, display: value }, { animate: true });
@@ -3042,22 +3042,40 @@ export const EntryPanel = (() => {
     if (!submit()) nudgeFooter();
   }
 
-  // Back's commit. NOT submit(): its close() would fire a second history.back() on a
-  // navigation that already happened. A write that won't go through is dropped rather
-  // than refused — the pop already landed, so there's no panel left to hold open.
-  function commitOnDismiss() {
-    if (activeReadOnly) return;
+  // The one write path behind every commit: Save/Enter, a walk step, a dismissal.
+  // False means a pending edit CANNOT be written — invalid values, or a plan the
+  // worker blocked — and the offending field has been focused; true means nothing is
+  // pending any more, whether it wrote or there was nothing to write. It deliberately
+  // never closes, because the callers end differently: submit() closes, a walk step
+  // navigates, and Back has already left — which is also why Back can ignore a false
+  // where the others must not. Folding close() in here would fire a second
+  // history.back() on that already-completed pop.
+  function commitPending() {
+    if (activeReadOnly) return true;
     if (stagedDelete) {
       const scroller = activeScroller, target = stagedDelete;
       stagedDelete = null;
       scroller._onDeleteRow?.(target);
-      return;
+      return true;
     }
     const vals = readNewValues();
-    if (activeMode !== 'create' && !stagedAdopt && !pendingWritesChange(vals)) return;
-    if (!valuesValid(vals) || saveBlocked()) return;
+    if (activeMode === 'edit' && !stagedAdopt && !pendingWritesChange(vals)) return true;
+    if (!valuesValid(vals)) {
+      el.querySelector(vals.raw.length === 0 ? '.entry-input' : '.score-input')?.focus();
+      return false;
+    }
+    if (saveBlocked()) { el.querySelector('.entry-input')?.focus(); return false; }
     const mode = stagedAdopt ? 'adopt' : activeMode;
     activeScroller._onSave?.(mode, mode === 'create' ? null : editBaselineFor(saveBaseline()), vals);
+    syncWalkMember(vals);
+    return true;
+  }
+
+  // A multi-select walk holds its members as an in-memory copy, so a commit has to
+  // land on the one we're standing on or stepping back would repaint the stale value.
+  function syncWalkMember({ raw, score, comment }) {
+    const m = walkSelection?.members[walkSelection.index];
+    if (m) { m.score = score; m.comment = comment; m.display = raw; m.norm = toNorm(raw); }
   }
 
   function nudgeFooter() {
@@ -3785,28 +3803,8 @@ export const EntryPanel = (() => {
     panelHasChanges() ? submit() : close();
   }
 
-  // Returns whether the panel committed and closed; a bail — read-only, invalid, or
-  // blocked — leaves it open with the offending field focused, which dismiss()
-  // turns into a nudge.
   function submit() {
-    if (activeReadOnly) return false;
-    if (stagedDelete) {
-      const scroller = activeScroller;
-      const target = stagedDelete;
-      close();
-      scroller._onDeleteRow?.(target);
-      return true;
-    }
-    const newValues = readNewValues();
-    if (!valuesValid(newValues)) {
-      const focusTarget = newValues.raw.length === 0 ? '.entry-input' : '.score-input';
-      el.querySelector(focusTarget).focus();
-      return false;
-    }
-    if (saveBlocked()) { el.querySelector('.entry-input')?.focus(); return false; }
-    const mode = stagedAdopt ? 'adopt' : activeMode;
-    const baseline = mode === 'create' ? null : editBaselineFor(saveBaseline());
-    activeScroller._onSave?.(mode, baseline, newValues);
+    if (!commitPending()) return false;
     close();
     return true;
   }
@@ -4073,34 +4071,6 @@ export const EntryPanel = (() => {
     return null;
   }
 
-  // Auto-commit the current member on a walk step. Blocks the step on an invalid
-  // value (same gate as Save) so a bad score can't silently drop as you move on.
-  function commitForWalk() {
-    if (activeReadOnly || activeMode === 'create') return true;
-    // A staged delete is a pending commit like an edit; flush it (as submit() does)
-    // so navigating to a relative doesn't silently drop it. No close() — the caller
-    // navigates instead of dismissing.
-    if (stagedDelete) {
-      const scroller = activeScroller, target = stagedDelete;
-      stagedDelete = null;
-      scroller._onDeleteRow?.(target);
-      return true;
-    }
-    const newValues = readNewValues();
-    if (!stagedAdopt && !pendingWritesChange(newValues)) return true;
-    if (!valuesValid(newValues)) {
-      el.querySelector(newValues.raw.length === 0 ? '.entry-input' : '.score-input')?.focus();
-      return false;
-    }
-    if (saveBlocked()) { el.querySelector('.entry-input')?.focus(); return false; }
-    activeScroller._onSave?.(stagedAdopt ? 'adopt' : 'edit', editBaselineFor(saveBaseline()), newValues);
-    if (walkSelection) {
-      const m = walkSelection.members[walkSelection.index];
-      if (m) { m.score = newValues.score; m.comment = newValues.comment; m.display = newValues.raw; m.norm = toNorm(newValues.raw); }
-    }
-    return true;
-  }
-
   function memberTarget(m) {
     const wl = state.sources.find(s => s.dbKey === m.sourceId) ?? null;
     return { norm: m.norm, display: m.display ?? null, score: m.score, comment: m.comment, wordlist: wl };
@@ -4109,7 +4079,7 @@ export const EntryPanel = (() => {
   async function walkStep(delta) {
     if (!isOpen() || activeMode === 'create') return;
     const focus = lastFocusField;
-    if (!commitForWalk()) return;
+    if (!commitPending()) return;
     if (walkSelection) {
       const target = walkSelection.index + delta;
       if (target < 0 || target >= walkSelection.members.length) return;
@@ -4131,7 +4101,7 @@ export const EntryPanel = (() => {
   function clickFamilyRow(i) {
     const m = familyMembers[i];
     if (!m || m.current) return;
-    if (!commitForWalk()) return;
+    if (!commitPending()) return;
     // A relative can sit outside the current result, so open it fresh (a history push,
     // Back returns here) instead of moving the table cursor onto a maybe-absent row.
     const wordlist = state.sources.find(s => s.dbKey === m.sourceId) ?? null;
