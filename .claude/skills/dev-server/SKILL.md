@@ -5,7 +5,7 @@ description: Grawlix local dev server. Serves the module graph from a stable ser
 
 # Dev server
 
-The local dev server for Grawlix. **All the logic lives in [`dev-server.sh`](dev-server.sh) — run it, don't re-derive it step by step.** It serves the raw module graph over plain HTTP with caching disabled so the browser never serves stale JS/CSS (edit, reload, done — no `Ctrl-Shift-R`, no HMR). The whys — the serve-root symlink, `setsid`, the worktree takeover — are documented in the script's header comment; read it if you need the model.
+The local dev server for Grawlix. **All the logic lives in [`dev-server.sh`](dev-server.sh) — run it, don't re-derive it step by step.** It serves the raw module graph over plain HTTP with caching disabled so the browser never serves stale JS/CSS (edit, reload, done — no `Ctrl-Shift-R`, no HMR). The whys — the serve-root symlink, the detached session, the worktree takeover — are documented in the script's header comment; read it if you need the model.
 
 ## Run it
 
@@ -27,13 +27,13 @@ Run from **within a Grawlix checkout** (the no-arg case reads your working direc
 
 The script prints `Serving: …`, `Desktop: http://localhost:8000/`, and — if a personal port-bridge is present — the LAN/phone URL. **Relay those lines.** On failure it prints the tail of `/tmp/grawlix-devserver-<port>.log` and exits non-zero; surface that.
 
-`npm run dev` runs this too (defaults to serving main).
+`npm run dev` runs this too, with no argument — so it serves whichever checkout you run it from: main from the repo root, that worktree from inside one.
 
 ## What the script handles for you
 
 - Derives every path from git; resolves the arg to a target `site/`; self-heals a removed-worktree target back to main.
 - Serves a stable symlink (not `site/` directly), so a repoint — the worktree takeover — is picked up on the next request with **no restart**.
-- Starts the server detached with `setsid` so it survives `pkill claude`. It is deliberately **not** an agent-owned task: don't launch it with `run_in_background`, don't keep a task ID, and stop it with `stop` (by port), not by killing an agent.
+- Starts the server in its own session so it survives `pkill claude` (via `setsid` where there is one, else the same syscall through `python3` — macOS ships no `setsid` binary). It is deliberately **not** an agent-owned task: don't launch it with `run_in_background`, don't keep a task ID, and stop it with `stop` (by port), not by killing an agent.
 - Soft hook: after start it runs `~/.claude/skills/mobile-bridge/mobile-bridge.sh <port>` if present (a personal, machine-local LAN bridge), else skips silently.
 
 ## Notes

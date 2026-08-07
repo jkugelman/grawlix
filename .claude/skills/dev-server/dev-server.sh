@@ -14,10 +14,11 @@
 # next request with no restart (reload-only). That is what lets a worktree
 # "take over" the server instantly.
 #
-# The server is started with `setsid` so it lands in its own session and
-# survives `pkill claude` and the agent/editor restarting — a plain background
-# child of the agent process dies with it (that was the "server keeps stopping"
-# bug). So it is deliberately NOT an agent-owned task; stop it by port.
+# The server is put in its own session (setsid(2)) so it survives `pkill claude`
+# and the agent/editor restarting — a plain background child of the agent process
+# dies with it (that was the "server keeps stopping" bug). So it is deliberately
+# NOT an agent-owned task; stop it by port. macOS ships no setsid binary, so the
+# syscall is reached through python3 there; see start_server.
 #
 # Usage: dev-server.sh [ <no-arg> | main | <worktree-name> | <path> | <port> | status | stop ]
 
@@ -70,11 +71,69 @@ if [ -n "$TARGET_SITE" ] && [ ! -d "$TARGET_SITE" ]; then
 fi
 
 # ─── Helpers ─────────────────────────────────────────────────────────────────
-port_in_use() { ss -tlnp 2>/dev/null | grep -q ":$1 "; }
+# Nothing below assumes a platform: macOS has no ss/setsid and its fuser rejects
+# the port/tcp syntax, while a lean Linux box may have no lsof. Each helper picks
+# whatever is present. Silent misbehaviour is the thing to avoid -- macOS pgrep
+# has no -a and matches *everything* when handed one, which is why the
+# "is the right server up?" check reads args off the listening pid instead.
+
+listener_pids() {   # pids listening on $1, newline-separated (may be empty)
+  # The `|| true` matters under `set -e`: lsof exits 1 when nothing matches, and
+  # a bare `pids=$(listener_pids ...)` adopts that status and aborts the script.
+  if command -v lsof >/dev/null 2>&1; then
+    lsof -nP -iTCP:"$1" -sTCP:LISTEN -t 2>/dev/null || true
+  elif command -v ss >/dev/null 2>&1; then
+    ss -tlnp 2>/dev/null | grep ":$1 " | grep -o 'pid=[0-9]*' | cut -d= -f2 | sort -u || true
+  fi
+}
+
+port_in_use() { [ -n "$(listener_pids "$1")" ]; }
+
+serves_link() {   # true if something on $1 is an http-server rooted at $SERVE_LINK
+  # Check each listener *and its ancestors*: node rewrites the listening
+  # process's title to a bare "http-server", so the path we need to match only
+  # survives on the `npm exec http-server <path> ...` parent that spawned it.
+  local pid depth
+  for pid in $(listener_pids "$1"); do
+    depth=0
+    while [ -n "$pid" ] && [ "$pid" != 0 ] && [ "$pid" != 1 ] && [ "$depth" -lt 4 ]; do
+      if ps -o args= -p "$pid" 2>/dev/null | grep -qF "$SERVE_LINK"; then return 0; fi
+      pid=$(ps -o ppid= -p "$pid" 2>/dev/null | tr -d ' ' || true)
+      depth=$((depth + 1))
+    done
+  done
+  return 1
+}
+
+kill_port() {   # replaces `fuser -k <port>/tcp`, which macOS fuser does not accept
+  local pids
+  pids=$(listener_pids "$1")
+  [ -n "$pids" ] || return 0
+  kill $pids 2>/dev/null || true
+  sleep 1
+  pids=$(listener_pids "$1")
+  [ -n "$pids" ] && kill -9 $pids 2>/dev/null || true
+  return 0
+}
 
 start_server() {
-  setsid npx -y http-server "$SERVE_LINK" -a 0.0.0.0 -p "$PORT" -c-1 \
-    >"$LOG" 2>&1 </dev/null &
+  # setsid(2) is the load-bearing part (see the header). macOS ships no setsid
+  # binary, so reach for the syscall through python3 -- already required here,
+  # since it is what serves the site under test.
+  if command -v setsid >/dev/null 2>&1; then
+    setsid npx -y http-server "$SERVE_LINK" -a 0.0.0.0 -p "$PORT" -c-1 \
+      >"$LOG" 2>&1 </dev/null &
+  elif command -v python3 >/dev/null 2>&1; then
+    python3 -c 'import os,sys; os.setsid(); os.execvp(sys.argv[1], sys.argv[1:])' \
+      npx -y http-server "$SERVE_LINK" -a 0.0.0.0 -p "$PORT" -c-1 \
+      >"$LOG" 2>&1 </dev/null &
+  else
+    # Last resort: the subshell exits at once, orphaning the server onto init.
+    # It survives the agent, but shares its process group, so a group-wide kill
+    # would still take it down.
+    ( npx -y http-server "$SERVE_LINK" -a 0.0.0.0 -p "$PORT" -c-1 \
+        >"$LOG" 2>&1 </dev/null & )
+  fi
 }
 
 describe_target() {   # main | "worktree: <name>" | <path> | dangling note
@@ -109,10 +168,10 @@ do_start() {
   # 2. Ensure the perma-server is up AND serving $SERVE_LINK.
   local need_start=0
   if port_in_use "$PORT"; then
-    if pgrep -af http-server | grep -qF "$SERVE_LINK"; then
+    if serves_link "$PORT"; then
       :   # already on the symlink root → the repoint above is the whole job
     else
-      fuser -ks "$PORT"/tcp 2>/dev/null || true  # foreign/old-style server → replace
+      kill_port "$PORT"                          # foreign/old-style server → replace
       sleep 1
       need_start=1
     fi
@@ -143,7 +202,7 @@ do_status() {
 }
 
 do_stop() {
-  fuser -ks "$PORT"/tcp 2>/dev/null || true
+  kill_port "$PORT"
   sleep 1
   if port_in_use "$PORT"; then
     echo "dev-server: port $PORT still in use" >&2; exit 1
