@@ -44,11 +44,10 @@ export default defineConfig({
     { name: 'webkit',   use: { ...devices['Desktop Safari']  } },
   ],
   webServer: {
-    // Equivalent to `python3 -m http.server`, but with log_message stubbed out
-    // so per-request access logs don't flood the test output. Genuine failures
-    // (port in use, missing file) raise exceptions rather than routing through
-    // log_message, so stderr: 'pipe' still surfaces real errors.
-    command: `python3 -c "import http.server as h,functools; h.SimpleHTTPRequestHandler.log_message=lambda *a:None; h.test(HandlerClass=functools.partial(h.SimpleHTTPRequestHandler,directory='${siteDir}'),port=${port},bind='127.0.0.1')"`,
+    // Quiet `python3 -m http.server` that also reaps itself once orphaned -- a
+    // SIGKILLed run can't stop it, and a survivor holds this port and wedges
+    // every later run on the same directory. See scripts/test-server.py.
+    command: `python3 scripts/test-server.py ${siteDir} ${port}`,
     url: `${origin}/index.html`,
     reuseExistingServer: false,
     stdout: 'ignore',
