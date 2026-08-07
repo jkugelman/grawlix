@@ -120,10 +120,10 @@ test('Shift+ArrowDown extends a contiguous range', async ({ page }) => {
 test('Ctrl+click toggles non-contiguous rows in and out', async ({ page }) => {
   await setup(page);
   await row(page, 'alpha').locator('.atom-len').click();
-  await row(page, 'charlie').locator('.atom-entry').click({ modifiers: ['Control'] });
-  await row(page, 'echo').locator('.atom-entry').click({ modifiers: ['Control'] });
+  await row(page, 'charlie').locator('.atom-entry').click({ modifiers: ['ControlOrMeta'] });
+  await row(page, 'echo').locator('.atom-entry').click({ modifiers: ['ControlOrMeta'] });
   expect((await selection(page)).sort()).toEqual(['alpha', 'charlie', 'echo']);
-  await row(page, 'charlie').locator('.atom-entry').click({ modifiers: ['Control'] });
+  await row(page, 'charlie').locator('.atom-entry').click({ modifiers: ['ControlOrMeta'] });
   expect((await selection(page)).sort()).toEqual(['alpha', 'echo']);
 });
 
@@ -161,14 +161,14 @@ test('renaming a selected entry keeps it selected at its new name', async ({ pag
 test('Ctrl+A selects every row in the view', async ({ page }) => {
   await setup(page);
   await row(page, 'alpha').locator('.atom-len').click();
-  await page.keyboard.press('Control+a');
+  await page.keyboard.press('ControlOrMeta+a');
   await expect.poll(() => selection(page).then(s => s.length)).toBe(ENTRIES.length);
 });
 
 test('Escape clears the selection', async ({ page }) => {
   await setup(page);
   await row(page, 'alpha').locator('.atom-len').click();
-  await row(page, 'bravo').locator('.atom-entry').click({ modifiers: ['Control'] });
+  await row(page, 'bravo').locator('.atom-entry').click({ modifiers: ['ControlOrMeta'] });
   expect(await selection(page)).toHaveLength(2);
   await page.keyboard.press('Escape');
   expect(await selection(page)).toEqual([]);
@@ -188,8 +188,8 @@ test('Enter opens the panel and closing returns focus to the listbox', async ({ 
 test('Alt+# rescores the whole selection in one write-set and one toast', async ({ page }) => {
   await setup(page);
   await row(page, 'alpha').locator('.atom-len').click();
-  await row(page, 'charlie').locator('.atom-entry').click({ modifiers: ['Control'] });
-  await row(page, 'echo').locator('.atom-entry').click({ modifiers: ['Control'] });
+  await row(page, 'charlie').locator('.atom-entry').click({ modifiers: ['ControlOrMeta'] });
+  await row(page, 'echo').locator('.atom-entry').click({ modifiers: ['ControlOrMeta'] });
 
   await page.keyboard.press('Alt+Digit2');   // top tier, 90
 
@@ -215,7 +215,7 @@ test('rescoring a single row names the entry, not a count', async ({ page }) => 
 test('the batch rescore toast undoes all of it at once', async ({ page }) => {
   await setup(page);
   await row(page, 'alpha').locator('.atom-len').click();
-  await row(page, 'bravo').locator('.atom-entry').click({ modifiers: ['Control'] });
+  await row(page, 'bravo').locator('.atom-entry').click({ modifiers: ['ControlOrMeta'] });
   await page.keyboard.press('Alt+Digit2');
   await expect.poll(() => myEdits(page).then(es => es.length)).toBe(2);
 
@@ -234,7 +234,7 @@ test('Delete removes the selection in the My Edits scope, with undo', async ({ p
   await scopeTo(page, 'My Edits');
 
   await row(page, 'one').locator('.atom-len').click();
-  await row(page, 'three').locator('.atom-entry').click({ modifiers: ['Control'] });
+  await row(page, 'three').locator('.atom-entry').click({ modifiers: ['ControlOrMeta'] });
   await page.keyboard.press('Delete');
 
   await expect(toast(page)).toContainText('Deleted 2 entries');
@@ -256,7 +256,7 @@ test('Delete does nothing outside the My Edits scope', async ({ page }) => {
 test('a search edit clears the selection, even rows the search keeps', async ({ page }) => {
   await setup(page, { entries: ['cat', 'catalog', 'category', 'dog'] });
   await row(page, 'cat').locator('.atom-len').click();
-  await row(page, 'catalog').locator('.atom-entry').click({ modifiers: ['Control'] });
+  await row(page, 'catalog').locator('.atom-entry').click({ modifiers: ['ControlOrMeta'] });
   expect((await selection(page)).sort()).toEqual(['cat', 'catalog']);
 
   await page.locator('input[data-key="pattern"]').fill('cat*');
@@ -285,7 +285,7 @@ test('Alt+# cannot rescore a row a search filtered out of sight', async ({ page 
 test('a re-sort keeps the selection — the same rows, just reordered', async ({ page }) => {
   await setup(page);
   await row(page, 'alpha').locator('.atom-len').click();
-  await row(page, 'charlie').locator('.atom-entry').click({ modifiers: ['Control'] });
+  await row(page, 'charlie').locator('.atom-entry').click({ modifiers: ['ControlOrMeta'] });
   expect((await selection(page)).sort()).toEqual(['alpha', 'charlie']);
 
   await page.evaluate(() => window.__grawlixTest.applySort('score', 'desc'));
@@ -296,7 +296,7 @@ test('a re-sort keeps the selection — the same rows, just reordered', async ({
 test('a score-range filter clears the selection, even rows it keeps', async ({ page }) => {
   await setup(page);   // every entry scores 50
   await row(page, 'alpha').locator('.atom-len').click();
-  await row(page, 'bravo').locator('.atom-entry').click({ modifiers: ['Control'] });
+  await row(page, 'bravo').locator('.atom-entry').click({ modifiers: ['ControlOrMeta'] });
   expect((await selection(page)).sort()).toEqual(['alpha', 'bravo']);
 
   // 40-60 keeps every score-50 row, so an empty selection is the clear, not a 0-row view.
@@ -309,7 +309,7 @@ test('a score-range filter clears the selection, even rows it keeps', async ({ p
 test('a rescore-rule edit clears the selection, even rows it keeps', async ({ page }) => {
   await setup(page);   // every entry scores 50
   await row(page, 'alpha').locator('.atom-len').click();
-  await row(page, 'bravo').locator('.atom-entry').click({ modifiers: ['Control'] });
+  await row(page, 'bravo').locator('.atom-entry').click({ modifiers: ['ControlOrMeta'] });
   expect((await selection(page)).sort()).toEqual(['alpha', 'bravo']);
 
   // 50->80 keeps every row visible, so an empty selection is the clear, not a 0-row view.

@@ -98,7 +98,7 @@ test('the table walk stops at the ends: Prev disabled on the first row, Next on 
 test('a multi-select bounds the walk to just those members, starting at the first', async ({ page }) => {
   await setup(page);
   await row(page, 'alpha').locator('.atom-len').click();
-  await row(page, 'charlie').locator('.atom-entry').click({ modifiers: ['Control'] });
+  await row(page, 'charlie').locator('.atom-entry').click({ modifiers: ['ControlOrMeta'] });
   await page.keyboard.press('Enter');
   await expect(panel(page)).toBeVisible();
 
@@ -117,7 +117,7 @@ test('a multi-select bounds the walk to just those members, starting at the firs
 test('a multi-select walk moves the cursor but keeps the whole selection highlighted', async ({ page }) => {
   await setup(page);
   await row(page, 'alpha').locator('.atom-len').click();
-  await row(page, 'charlie').locator('.atom-entry').click({ modifiers: ['Control'] });
+  await row(page, 'charlie').locator('.atom-entry').click({ modifiers: ['ControlOrMeta'] });
   await page.keyboard.press('Enter');
   await expect(walkpos(page)).toHaveText('1 / 2');   // opened on alpha
 
@@ -144,7 +144,7 @@ test('walking selects the current entry in the table, so Esc then Enter reopens 
 test('moving to another member auto-commits the current edit into My Edits', async ({ page }) => {
   await setup(page);
   await row(page, 'alpha').locator('.atom-len').click();
-  await row(page, 'charlie').locator('.atom-entry').click({ modifiers: ['Control'] });
+  await row(page, 'charlie').locator('.atom-entry').click({ modifiers: ['ControlOrMeta'] });
   await page.keyboard.press('Enter');
   await expect(walkpos(page)).toHaveText('1 / 2');   // on alpha
 

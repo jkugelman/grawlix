@@ -87,8 +87,10 @@ Then:
 ```sh
 npm install
 npx playwright install
-sudo npx playwright install-deps   # first time only — installs OS-level browser deps
+sudo npx playwright install-deps   # Linux only, first time — installs OS-level browser deps
 ```
+
+On macOS `install-deps` is neither needed nor supported; `npx playwright install` is the whole story. Add `brew install flock` there, though — macOS ships no `flock`, and without it [`with-test-lock.sh`](../scripts/with-test-lock.sh) warns and runs **unserialized**, which is precisely the oversubscribed-machine case its timeouts can't survive.
 
 ## Cheat sheet
 
@@ -176,6 +178,8 @@ test('feature does the right thing', async ({ page }) => {
 ```
 
 **Don't use `waitForTimeout`.** Use `expect.poll` or auto-retrying assertions (`expect(locator).toBeVisible()`). The smoke suite has zero hardcoded sleeps; keep it that way.
+
+**Reach for `ControlOrMeta`, not `Control`, when you mean "the platform's primary modifier"** — multi-select, select-all, find. Playwright resolves it to Control on Windows/Linux and Meta (⌘) on macOS, matching the `e.ctrlKey || e.metaKey` the handlers test for. A hardcoded `'Control'` **click** passes on Linux CI and fails on a Mac: macOS delivers Ctrl+click to the OS as a secondary click, so the page receives `mousedown` + `contextmenu` and no `click` at all, and the assertion sees an empty selection. Keep a literal `'Control'` only where a test deliberately enumerates one modifier at a time — [`sort-headers.spec.js`](../tests/browser/sort-headers.spec.js) does, and skips that one combination on darwin.
 
 ### Per-tool specs live in the unit tier
 

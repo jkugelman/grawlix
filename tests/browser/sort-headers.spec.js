@@ -207,6 +207,11 @@ test('a modifier-click adds a secondary sort axis with numbered rank badges', as
 
 for (const mod of ['Control', 'Alt', 'Meta']) {
   test(`${mod}-click extends the sort the same as Shift`, async ({ page }) => {
+    // macOS routes Ctrl+click to the OS as a secondary click: the page gets
+    // mousedown + contextmenu and no click at all, so the gesture can't reach
+    // the handler. Cmd is the Mac equivalent and covers the same branch.
+    test.skip(mod === 'Control' && process.platform === 'darwin',
+              'Ctrl+click is a right-click on macOS; the Meta case covers it');
     await gotoApp(page);
     await addFixture(page);
 
