@@ -88,7 +88,9 @@ test('the browser Back gesture closes the panel without navigating away', async 
   expect(page.url()).toBe(url);
 });
 
-test('browser Back closes a dirty panel outright, discarding the edit without a prompt', async ({ page }) => {
+// Back is the phone's primary exit and the panel is full-screen there, so it commits
+// like the scrim rather than discarding — see entry-editing.spec.js § Dismissal.
+test('browser Back saves a dirty panel without a prompt', async ({ page }) => {
   await gotoApp(page);
   await addList(page, { name: 'W', entries: ['ocean'], scores: [50] });
   await scopeTo(page, 'All Wordlists');
@@ -98,6 +100,24 @@ test('browser Back closes a dirty panel outright, discarding the edit without a 
   await page.goBack();
   await expect(page.locator('#entry-panel')).toBeHidden();
   await expect(page).not.toHaveURL(/entry=/);
+  await expect.poll(() => page.evaluate(() =>
+    window.__grawlixTest.getWordlist('My Edits').entries.find(e => e.entry === 'ocean')?.score ?? null,
+  )).toBe(60);
+});
+
+// Back fires one pop, so committing must not route through submit()'s close() — that
+// would fire a second history.back() and rewind past the app entirely.
+test('browser Back on a dirty panel rewinds exactly one entry', async ({ page }) => {
+  await gotoApp(page);
+  await addList(page, { name: 'W', entries: ['ocean'], scores: [50] });
+  await scopeTo(page, 'All Wordlists');
+  const url = page.url();
+  await openPanelOnEntry(page, 'ocean');
+  await page.locator('#entry-panel-score').fill('60');
+
+  await page.goBack();
+  await expect(page.locator('#entry-panel')).toBeHidden();
+  expect(page.url()).toBe(url);
 });
 
 test('a Forward-reopened panel closes consistently, leaving it Forward-reachable again', async ({ page }) => {

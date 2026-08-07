@@ -2924,13 +2924,13 @@ export const EntryPanel = (() => {
     if (el) return el;
     scrim = document.createElement('div');
     scrim.id = 'entry-panel-backdrop';
-    scrim.addEventListener('click', requestClose);
+    scrim.addEventListener('click', dismiss);
     document.body.appendChild(scrim);
 
     el = document.createElement('div');
     el.id = 'entry-panel';
     el.addEventListener('click', e => {
-      if (e.target.closest('.dialog-close-btn')) { close(); return; }
+      if (e.target.closest('.dialog-close-btn')) { dismiss(); return; }
       if (e.target.closest('.entry-panel-note-link')) { editExisting(); return; }
       if (e.target.closest('.entry-panel-suggest-link')) { applyRename(); return; }
       if (e.target.closest('.entry-panel-prov-untrash')) { toggleStagedAdopt(); return; }
@@ -2963,11 +2963,9 @@ export const EntryPanel = (() => {
 
   // Reconcile the panel to the URL on Back/Forward. Idempotent on purpose — our own
   // close()→back() and the help-hash both fire popstate, and both must no-op here.
-  // No misclick guard here by design: Back is explicit like Cancel/✕/Esc and discards
-  // outright — only the scrim's possibly-accidental click is held back (requestClose).
   function onPopState() {
     const value = new URLSearchParams(location.search).get('entry');
-    if (!value) { if (isOpen()) hideAndClear(); return; }
+    if (!value) { if (isOpen()) { commitOnDismiss(); hideAndClear(); } return; }
     const norm = toNorm(value);
     if (isOpen() && activeWlEntry && activeWlEntry.norm === norm && displayOf(activeWlEntry) === value) return;
     openFromRoute({ norm, display: value }, { animate: true });
@@ -3036,11 +3034,30 @@ export const EntryPanel = (() => {
     return activeMode === 'create' ? valuesValid(vals) : pendingWritesChange(vals);
   }
 
-  // Only the scrim's click can be a misclick, so a dirty panel refuses it where every
-  // explicit close — Cancel, ✕, Escape, Back — discards outright (see close()).
-  function requestClose() {
-    if (hasUnsavedChanges()) { nudgeFooter(); return; }
-    close();
+  // Wired to the scrim and to the ✕, which `app.css` swaps for a back arrow below
+  // 1000px — a back arrow that discarded would contradict its own glyph. Hence the ✕
+  // commits and only Cancel/Escape discard; re-pairing it with them breaks mobile.
+  function dismiss() {
+    if (!hasUnsavedChanges()) { close(); return; }
+    if (!submit()) nudgeFooter();
+  }
+
+  // Back's commit. NOT submit(): its close() would fire a second history.back() on a
+  // navigation that already happened. A write that won't go through is dropped rather
+  // than refused — the pop already landed, so there's no panel left to hold open.
+  function commitOnDismiss() {
+    if (activeReadOnly) return;
+    if (stagedDelete) {
+      const scroller = activeScroller, target = stagedDelete;
+      stagedDelete = null;
+      scroller._onDeleteRow?.(target);
+      return;
+    }
+    const vals = readNewValues();
+    if (activeMode !== 'create' && !stagedAdopt && !pendingWritesChange(vals)) return;
+    if (!valuesValid(vals) || saveBlocked()) return;
+    const mode = stagedAdopt ? 'adopt' : activeMode;
+    activeScroller._onSave?.(mode, mode === 'create' ? null : editBaselineFor(saveBaseline()), vals);
   }
 
   function nudgeFooter() {
@@ -3768,26 +3785,30 @@ export const EntryPanel = (() => {
     panelHasChanges() ? submit() : close();
   }
 
+  // Returns whether the panel committed and closed; a bail — read-only, invalid, or
+  // blocked — leaves it open with the offending field focused, which dismiss()
+  // turns into a nudge.
   function submit() {
-    if (activeReadOnly) return;
+    if (activeReadOnly) return false;
     if (stagedDelete) {
       const scroller = activeScroller;
       const target = stagedDelete;
       close();
       scroller._onDeleteRow?.(target);
-      return;
+      return true;
     }
     const newValues = readNewValues();
     if (!valuesValid(newValues)) {
       const focusTarget = newValues.raw.length === 0 ? '.entry-input' : '.score-input';
       el.querySelector(focusTarget).focus();
-      return;
+      return false;
     }
-    if (saveBlocked()) { el.querySelector('.entry-input')?.focus(); return; }
+    if (saveBlocked()) { el.querySelector('.entry-input')?.focus(); return false; }
     const mode = stagedAdopt ? 'adopt' : activeMode;
     const baseline = mode === 'create' ? null : editBaselineFor(saveBaseline());
     activeScroller._onSave?.(mode, baseline, newValues);
     close();
+    return true;
   }
 
   function wireFooter() {

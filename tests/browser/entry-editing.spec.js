@@ -25,6 +25,10 @@ const myEditsForNorm = (page, norm) => page.evaluate(n =>
     .filter(e => e.entry === n).map(e => e.display).sort(),
   norm);
 
+const myEditsScoreForNorm = (page, norm) => page.evaluate(n =>
+  window.__grawlixTest.getWordlist('My Edits').entries.find(e => e.entry === n)?.score ?? null,
+  norm);
+
 const importIntoEdits = (page, text) =>
   page.evaluate(t => applyWordlistText(getEditsWordlist(), t, { source: 'mine.txt', silent: true }), text);
 
@@ -469,20 +473,37 @@ test('a rescore under a score sort re-runs so the row re-orders', async ({ page 
   await expectVisible(page, ['bravo', 'charlie', 'alpha'], { ordered: true });
 });
 
-// ─── Dismissal & the misclick guard ─────────────────────────────────────────────
+// ─── Dismissal: closing saves, canceling discards ───────────────────────────────
 
-// The asymmetry below is deliberate, not an oversight to unify: every explicit cancel
-// (Escape, the X, Cancel, and browser Back — last in entry-panel-shell.spec.js)
-// discards outright; only an outside click, a possible misclick, is refused on a
-// dirty panel (it nudges the footer instead of closing).
-const explicitCancels = {
-  Escape:    page => page.keyboard.press('Escape'),
-  'the X':   page => page.locator('#entry-panel .dialog-close-btn').click(),
-  Cancel:    page => page.locator('#entry-panel .entry-panel-cancel').click(),
+// The split is deliberate, not an oversight to unify. Cancel and Escape repudiate the
+// edit; the scrim, the ✕, and browser Back (entry-panel-shell.spec.js) are "leave this
+// surface" gestures that commit it. The ✕ sits on the saving side because app.css
+// renders it as a back arrow below 1000px, where it is the phone's close button.
+const cancels = {
+  Escape: page => page.keyboard.press('Escape'),
+  Cancel: page => page.locator('#entry-panel .entry-panel-cancel').click(),
 };
 
-for (const [name, dismiss] of Object.entries(explicitCancels)) {
+const savingDismissals = {
+  'an outside click': page => page.locator('#entry-panel-backdrop').click({ position: { x: 5, y: 5 } }),
+  'the ✕':            page => page.locator('#entry-panel .dialog-close-btn').click(),
+};
+
+for (const [name, cancel] of Object.entries(cancels)) {
   test(`dismissing a dirty entry panel via ${name} discards outright`, async ({ page }) => {
+    await gotoApp(page);
+    await addList(page, { name: 'W', entries: ['ocean'], scores: [50] });
+    await openPanelOnEntry(page, 'ocean');
+    await page.locator('#entry-panel-score').fill('60');
+
+    await cancel(page);
+    await expect(page.locator('#entry-panel')).toBeHidden();
+    await expect.poll(() => myEditsForNorm(page, 'ocean')).toEqual([]);
+  });
+}
+
+for (const [name, dismiss] of Object.entries(savingDismissals)) {
+  test(`dismissing a dirty entry panel via ${name} saves the edit and closes`, async ({ page }) => {
     await gotoApp(page);
     await addList(page, { name: 'W', entries: ['ocean'], scores: [50] });
     await openPanelOnEntry(page, 'ocean');
@@ -490,21 +511,48 @@ for (const [name, dismiss] of Object.entries(explicitCancels)) {
 
     await dismiss(page);
     await expect(page.locator('#entry-panel')).toBeHidden();
-    await expect.poll(() => myEditsForNorm(page, 'ocean')).toEqual([]);
+    await expect.poll(() => myEditsScoreForNorm(page, 'ocean')).toBe(60);
   });
 }
 
-test('an outside click on a dirty entry panel is refused, keeping the edit intact', async ({ page }) => {
+test('an outside click commits a rename', async ({ page }) => {
   await gotoApp(page);
   await addList(page, { name: 'W', entries: ['ocean'], scores: [50] });
   await openPanelOnEntry(page, 'ocean');
-  await page.locator('#entry-panel-score').fill('60');
+  await page.locator('#entry-panel-entry').fill('oceanic');
+
+  await page.locator('#entry-panel-backdrop').click({ position: { x: 5, y: 5 } });
+  await expect(page.locator('#entry-panel')).toBeHidden();
+  await expect.poll(() => myEditsForNorm(page, 'oceanic')).toEqual([null]);
+});
+
+test('an outside click commits a staged deletion', async ({ page }) => {
+  await gotoApp(page);
+  await page.evaluate(() => window.__grawlixTest.createMyEntry('ocean', 50));
+  await scopeTo(page, 'All Wordlists');
+  await openPanelOnEntry(page, 'ocean');
+  await page.locator('.entry-panel-prov-row', { hasText: 'My Edits' }).locator('.entry-panel-prov-trash').click();
+
+  await page.locator('#entry-panel-backdrop').click({ position: { x: 5, y: 5 } });
+  await expect(page.locator('#entry-panel')).toBeHidden();
+  await expect.poll(() => myEditsForNorm(page, 'ocean')).toEqual([]);
+});
+
+// The save-on-close rule can't apply to an edit that has nowhere to go, so the old
+// refuse-and-nudge survives as the fallback for exactly those.
+test('an outside click on an unsavable entry panel is refused, keeping the edit intact', async ({ page }) => {
+  await gotoApp(page);
+  await page.evaluate(() => window.__grawlixTest.createMyEntry('ocean', 50));
+  await page.locator('#add-fab').click();
+  await page.locator('#entry-panel-entry').fill('ocean');
+  await page.locator('#entry-panel-score').fill('50');
+  await expect(page.locator('#entry-panel .entry-panel-save')).toBeDisabled();
 
   await page.locator('#entry-panel-backdrop').click({ position: { x: 5, y: 5 } });
   await expect(page.locator('#entry-panel')).toBeVisible();
-  await expect(page.locator('#entry-panel-score')).toHaveValue('60');
+  await expect(page.locator('#entry-panel-entry')).toHaveValue('ocean');
   await expect(page.locator('.entry-panel-foot')).toHaveClass(/nudge/);   // pulses toward Save/Cancel
-  await expect.poll(() => myEditsForNorm(page, 'ocean')).toEqual([]);
+  await expect.poll(() => myEditsScoreForNorm(page, 'ocean')).toBe(50);
 });
 
 test('an outside click on an unedited entry panel closes it immediately', async ({ page }) => {
