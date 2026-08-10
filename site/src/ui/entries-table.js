@@ -3034,12 +3034,22 @@ export const EntryPanel = (() => {
     return activeMode === 'create' ? valuesValid(vals) : pendingWritesChange(vals);
   }
 
+  // The gate every leave gesture shares — the scrim, the ✕, a Related-entry click.
+  // hasUnsavedChanges is what makes an incomplete create leavable: it has nothing to
+  // write, so it must not block the way a refused write does. The nudge is what keeps
+  // a genuine refusal from reading as a dead click.
+  function commitBeforeLeaving() {
+    if (!hasUnsavedChanges()) return true;
+    if (commitPending()) return true;
+    nudgeFooter();
+    return false;
+  }
+
   // Wired to the scrim and to the ✕, which `app.css` swaps for a back arrow below
   // 1000px — a back arrow that discarded would contradict its own glyph. Hence the ✕
   // commits and only Cancel/Escape discard; re-pairing it with them breaks mobile.
   function dismiss() {
-    if (!hasUnsavedChanges()) { close(); return; }
-    if (!submit()) nudgeFooter();
+    if (commitBeforeLeaving()) close();
   }
 
   // The one write path behind every commit: Save/Enter, a walk step, a dismissal.
@@ -3905,8 +3915,14 @@ export const EntryPanel = (() => {
       // score) so the list reads as the post-save view and holds through a rename;
       // read-only has no pending edit, so the worker's row stands as-is.
       if (!activeReadOnly) {
-        const cur = members.find(m => m.current);
-        if (cur) { cur.display = display ?? null; cur.score = currentPanelScore(); }
+        // Matched on rendered text, not the worker's `current` flag alone: a create
+        // panel binds to its empty seed, so the flag never lands — and typing an entry
+        // that already exists would append a second, badge-less twin beside the real
+        // row, inert by the anchor rule and so a dead click.
+        const rendered = display ?? norm;
+        const cur = members.find(m => m.current)
+                 ?? members.find(m => m.norm === norm && (m.display ?? m.norm) === rendered);
+        if (cur) { cur.current = true; cur.display = display ?? null; cur.score = currentPanelScore(); }
         else members.push({ norm, display: display ?? null, score: currentPanelScore(), current: true });
       }
       familyMembers = members.sort(
@@ -4101,7 +4117,7 @@ export const EntryPanel = (() => {
   function clickFamilyRow(i) {
     const m = familyMembers[i];
     if (!m || m.current) return;
-    if (!commitPending()) return;
+    if (!commitBeforeLeaving()) return;
     // A relative can sit outside the current result, so open it fresh (a history push,
     // Back returns here) instead of moving the table cursor onto a maybe-absent row.
     const wordlist = state.sources.find(s => s.dbKey === m.sourceId) ?? null;

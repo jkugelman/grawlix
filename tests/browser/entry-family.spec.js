@@ -166,6 +166,40 @@ test('an unscored new entry wears no badge in Related entries', async ({ page })
   await expect(current(page).locator('.score-badge')).toHaveText('40');
 });
 
+test('an unscored new entry can still click through to a relative', async ({ page }) => {
+  await gotoApp(page);
+  await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
+    name: 'Src', entries: ['lather', 'lathered'], scores: [50, 30],
+  }));
+  await page.locator('#add-fab').click();
+  await expect(panel(page)).toBeVisible();
+  await panel(page).locator('.entry-input').fill('lathering');
+  await expect(sibling(page)).toHaveCount(2);
+
+  // Nothing savable has been typed (no score), so leaving discards the create the
+  // way the scrim and the X do — it must not block the navigation.
+  await sibling(page).first().click();
+  await expect(panel(page).locator('.entry-input')).toHaveValue('lather');
+  await expect(current(page)).toContainText('lather');
+});
+
+test('typing an existing entry in the Add panel lists it once, not beside a twin', async ({ page }) => {
+  await gotoApp(page);
+  await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
+    name: 'Src', entries: ['lather', 'lathered'], scores: [50, 30],
+  }));
+  await page.locator('#add-fab').click();
+  await expect(panel(page)).toBeVisible();
+  await panel(page).locator('.entry-input').fill('lathered');
+
+  // The anchor IS the corpus row it renders as — appending a second, badge-less copy
+  // beside it puts an inert look-alike where the real (clickable) row should be.
+  await expect(items(page)).toHaveCount(2);
+  await expect(current(page)).toHaveCount(1);
+  await expect(current(page)).toContainText('lathered');
+  await expect(sibling(page)).toContainText('lather');
+});
+
 test('a deep-link open shows the entry score on its Related-entries anchor', async ({ page }) => {
   await gotoApp(page);
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
