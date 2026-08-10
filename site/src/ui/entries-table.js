@@ -3725,6 +3725,15 @@ export const EntryPanel = (() => {
   // detaches the trash node, and a detach between a click's mousedown and mouseup
   // makes the browser fire no click at all — silently dropping the staged-delete
   // toggle when an async reply (a plan/prov fetch) lands mid-click.
+  //
+  // The reveal is asserted on EVERY pass, outside that memo (mirroring paintFamily),
+  // because it lives in DOM state the memo doesn't track: `revealed` on the async
+  // wrapper, which any re-render of the panel shell drops. A re-bind re-render
+  // (refresh({resetInputs: true})) paints already-shipped rows inline into a fresh,
+  // collapsed wrapper, so the re-fired query's identical markup hit the memo and
+  // returned before revealing — a fully rendered Appears-in table at 0fr/opacity 0.
+  // revealBlock is idempotent and self-correcting (it un-reveals an empty block),
+  // so calling it on an unchanged block costs a classList check.
   function renderProvWrap() {
     if (!isOpen()) return;
     renderNoteSlot();
@@ -3732,9 +3741,10 @@ export const EntryPanel = (() => {
     const provEl = el.querySelector('.entry-panel-prov-wrap');
     if (!provEl) return;
     const html = provWrapHTML();
-    if (html === lastProvHTML) return;
-    lastProvHTML = html;
-    provEl.innerHTML = html;
+    if (html !== lastProvHTML) {
+      lastProvHTML = html;
+      provEl.innerHTML = html;
+    }
     revealBlock(provEl);
   }
 
