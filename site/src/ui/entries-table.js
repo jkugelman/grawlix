@@ -3178,6 +3178,7 @@ export const EntryPanel = (() => {
     if (rowEl) rowEl.classList.add('active');
     shippedProvRows = null;
     _cachedPlan = null;
+    lastNoteHTML = null;
     // Reset per-target state here, not only in close(): a route reopen (Back/Forward
     // or a deep link landing on a different entry) reuses the panel without closing,
     // so a stale staged delete or focus ref from the previous target must clear here.
@@ -3427,17 +3428,29 @@ export const EntryPanel = (() => {
   // the duplicate block is structural, so it must show before a score is typed;
   // previewPlan would re-couple it to the score field being valid.
   function renderNotesHTML() {
-    return hasEditToPlan() && _cachedPlan?.blockedReason === 'exists'
-      ? `<div class="entry-panel-note entry-panel-note--block">That entry already exists. `
-        + `<button type="button" class="entry-panel-note-link">Edit it instead.</button></div>`
-      : '';
+    if (!hasEditToPlan()) return '';
+    const link = '<button type="button" class="entry-panel-note-link">Edit it instead.</button>';
+    const note = lead => `<div class="entry-panel-note">${lead} ${link}</div>`;
+    // Both notes read the same and look the same — they say the same helpful thing, and
+    // the Save button already carries the one difference (My Edits' own duplicate is the
+    // only one that can't be added). Styling the save-gate twice would be the tell that
+    // isn't needed, and would make the common, perfectly fine case look like a fault.
+    if (_cachedPlan?.blockedReason === 'exists') return note('That entry already exists.');
+    // The entry is on some other wordlist, where adding it is legitimate (that's an
+    // override). Named when the merged spelling differs from what's typed — that's the
+    // case worth reading, and the reason to jump rather than add a rival spelling.
+    const existing = _cachedPlan?.existing;
+    if (!existing) return '';
+    const rendered = existing.display ?? existing.norm;
+    const typed = _cachedPlan.primary.display ?? _cachedPlan.primary.norm;
+    return note(rendered === typed ? 'That entry already exists.' : `${esc(rendered)} already exists.`);
   }
 
   // Pass the backing row's full seed, not just {norm, display}: seedFromWinnerRow
   // re-derives the score from rawEntries but not the comment, so a partial seed
   // would silently blank a commented entry's comment field.
   function editExisting() {
-    if (_cachedPlan?.blockedReason !== 'exists') return;
+    if (_cachedPlan?.blockedReason !== 'exists') { editExistingElsewhere(); return; }
     const edits = getEditsWordlist();
     if (!edits) return;
     const { norm, display } = _cachedPlan.primary;
@@ -3700,8 +3713,12 @@ export const EntryPanel = (() => {
     if (!slot) return;
     const html = renderNotesHTML();
     if (html === lastNoteHTML) return;
+    const had = !!lastNoteHTML;
     lastNoteHTML = html;
     slot.innerHTML = html;
+    // The hint below is suppressed while a note shows, so its slot has to follow the
+    // note's async arrival — the plan routinely lands after the rename suggestion did.
+    if (had !== !!html) renderRenameSlot();
   }
 
   // Skip the rewrite when the markup is unchanged. An identical rewrite still
@@ -3949,7 +3966,9 @@ export const EntryPanel = (() => {
   }
 
   function renderRenameHTML() {
-    if (!renameSuggestion) return '';
+    // A live note outranks the hint: "this already exists, edit it" beats "rename it
+    // to X", and two stacked ↳ lines under one field read as a pile, not a suggestion.
+    if (!renameSuggestion || renderNotesHTML()) return '';
     return `<div class="entry-panel-suggest">Rename to `
       + `<button type="button" class="entry-panel-suggest-link">${esc(renameSuggestion)}</button></div>`;
   }
@@ -4122,6 +4141,17 @@ export const EntryPanel = (() => {
     // Back returns here) instead of moving the table cursor onto a maybe-absent row.
     const wordlist = state.sources.find(s => s.dbKey === m.sourceId) ?? null;
     open({ norm: m.norm, display: m.display ?? null, score: m.score, comment: m.comment, wordlist }, null, getEntriesScroller(), null);
+  }
+
+  // The advisory note's jump. Deliberately the same gesture as a Related-entries
+  // click — leave gate included, so a savable create commits on the way out and an
+  // unwritable one nudges instead of dying — since it lands on the same kind of row.
+  function editExistingElsewhere() {
+    const existing = _cachedPlan?.existing;
+    if (!existing || !commitBeforeLeaving()) return;
+    const wordlist = state.sources.find(s => s.dbKey === existing.sourceId) ?? null;
+    open({ norm: existing.norm, display: existing.display ?? null, score: existing.score,
+           comment: existing.comment, wordlist }, null, getEntriesScroller(), null);
   }
 
   // Replace (not push): the whole walk is one history entry, so Back closes the

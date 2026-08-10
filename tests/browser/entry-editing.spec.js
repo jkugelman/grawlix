@@ -138,7 +138,7 @@ test('creating an entry that already exists in My Edits is hard-blocked', async 
   await page.evaluate(() => window.__grawlixTest.createMyEntry('ocean', 50));
   await page.locator('#add-fab').click();
   await page.locator('#entry-panel-entry').fill('ocean');
-  await expect(page.locator('#entry-panel .entry-panel-note--block')).toBeVisible();
+  await expect(page.locator('#entry-panel .entry-panel-note')).toContainText('That entry already exists');
   await page.locator('#entry-panel-score').fill('50');
   await expect(page.locator('#entry-panel .entry-panel-save')).toBeDisabled();
 });
@@ -148,7 +148,7 @@ test('the already-exists note links to the existing entry for editing', async ({
   await page.evaluate(() => window.__grawlixTest.createMyEntry('ocean', 50, 'the deep'));
   await page.locator('#add-fab').click();
   await page.locator('#entry-panel-entry').fill('ocean');
-  const note = page.locator('#entry-panel .entry-panel-note--block');
+  const note = page.locator('#entry-panel .entry-panel-note');
   await expect(note).toBeVisible();
   await note.locator('.entry-panel-note-link').click();
 
@@ -156,7 +156,7 @@ test('the already-exists note links to the existing entry for editing', async ({
   await expect(page.locator('#entry-panel-entry')).toHaveValue('ocean');
   await expect(page.locator('#entry-panel-score')).toHaveValue('50');
   await expect(page.locator('#entry-panel-comment')).toHaveValue('the deep');
-  await expect(page.locator('#entry-panel .entry-panel-note--block')).toHaveCount(0);
+  await expect(page.locator('#entry-panel .entry-panel-note')).toHaveCount(0);
   await expect(page.locator('#entry-panel-score')).not.toBeFocused();
 });
 
@@ -183,12 +183,40 @@ test('creating an entry that exists only on another wordlist is allowed', async 
   await page.locator('#add-fab').click();
   await page.locator('#entry-panel-entry').fill('ocean');
   await page.locator('#entry-panel-score').fill('70');
-  await expect(page.locator('#entry-panel .entry-panel-note--block')).toHaveCount(0);
+  await expect(page.locator('#entry-panel .entry-panel-note')).toContainText('That entry already exists');
+  // Non-blocking is the Save button's job to show, not the note's styling.
   await expect(page.locator('#entry-panel .entry-panel-save')).toBeEnabled();
   await page.locator('#entry-panel .entry-panel-save').click();
   // Typed lowercase stores bare (round-trip-stable): the file can't tell it from
   // a bare import, so we reflect that immediately rather than keep a literal.
   await expect.poll(() => myEditsForNorm(page, 'ocean')).toEqual([null]);
+});
+
+test('an entry another wordlist carries offers a jump to it, naming its spelling', async ({ page }) => {
+  await gotoApp(page);
+  await addList(page, { name: 'W', entries: ['King Tut'], scores: [50] });
+  await page.locator('#add-fab').click();
+  await page.locator('#entry-panel-entry').fill('kingtut');
+
+  // Naming the merged spelling is the point: it's why you'd jump rather than add a
+  // rival spelling of a norm your lists already carry.
+  const note = page.locator('#entry-panel .entry-panel-note');
+  await expect(note).toContainText('King Tut already exists');
+
+  await note.locator('.entry-panel-note-link').click();
+  await expect(page.locator('#entry-panel-entry')).toHaveValue('King Tut');
+  await expect(page.locator('#entry-panel-score')).toHaveValue('50');
+  // No score was typed, so the abandoned create wrote nothing on the way out.
+  await expect.poll(() => myEditsForNorm(page, 'kingtut')).toEqual([]);
+});
+
+test('no note for an entry none of the wordlists carry', async ({ page }) => {
+  await gotoApp(page);
+  await addList(page, { name: 'W', entries: ['ocean'], scores: [50] });
+  await page.locator('#add-fab').click();
+  await page.locator('#entry-panel-entry').fill('banana');
+  await expect(page.locator('#entry-panel-score')).toBeVisible();
+  await expect(page.locator('#entry-panel .entry-panel-note')).toHaveCount(0);
 });
 
 test('creating a same-norm sibling coexists with the existing entry', async ({ page }) => {
@@ -220,7 +248,7 @@ test('adding a rich entry does not copy a foreign bare already hidden by a forei
   await expect.poll(() => myEditsForNorm(page, 'secondstomach')).toEqual(['second stomach']);
 });
 
-test('the keep-rich copy previews as a second added My Edits row, not a note', async ({ page }) => {
+test('the keep-rich copy previews as a second added My Edits row, not a note of its own', async ({ page }) => {
   await gotoApp(page);
   await addList(page, { name: 'W', entries: ['the IRS'], scores: [40] });
   await page.locator('#add-fab').click();
@@ -231,7 +259,11 @@ test('the keep-rich copy previews as a second added My Edits row, not a note', a
   await expect(added).toHaveCount(2);
   await expect(added.locator('.entry-panel-prov-entry', { hasText: /^the IRS$/ })).toHaveCount(1);
   await expect(added.locator('.entry-panel-prov-entry', { hasText: /^theirs$/ })).toHaveCount(1);
-  await expect(page.locator('#entry-panel .entry-panel-note')).toHaveCount(0);
+  // The keep-rich copy rides the prov table. The one note is the advisory jump to the
+  // rich spelling this bare entry is about to sit beside — same norm, not the same entry.
+  const note = page.locator('#entry-panel .entry-panel-note');
+  await expect(note).toHaveCount(1);
+  await expect(note).toContainText('the IRS already exists');
 });
 
 // ─── Rename ────────────────────────────────────────────────────────────────

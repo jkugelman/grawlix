@@ -7,7 +7,7 @@ import { displayOf } from '../../site/src/engine/norm.js';
 const wlEntry = (norm, score, { display = null, comment = '' } = {}) => ({ norm, display, score, comment });
 
 const src = (name, rawEntries, { enabled = true, type = undefined } = {}) => {
-  const w = { name, enabled, type, rescoreRules: [], rawEntries };
+  const w = { name, dbKey: `db_${name}`, enabled, type, rescoreRules: [], rawEntries };
   compileRescoreRules(w);
   return w;
 };
@@ -17,6 +17,49 @@ const edits = (rawEntries = []) => src('My Edits', rawEntries, { type: 'edits' }
 const typed = (raw, score = 50, comment = '') => ({ raw, score, comment });
 
 // ─── create ────────────────────────────────────────────────────────────────
+
+test('create: a foreign-only match reports the existing row for the panel to jump to', () => {
+  const sources = [edits(), src('XWI', [wlEntry('ocean', 30)])];
+  const p = planEntryWrite({ mode: 'create', clicked: null, typed: typed('ocean'), sources });
+  assert.equal(p.blockedReason, null);            // still legitimate to add
+  assert.deepStrictEqual(p.existing, { norm: 'ocean', display: null, score: 30, comment: '', sourceId: 'db_XWI' });
+});
+
+test('create: existing names the MERGED spelling, not the typed one', () => {
+  // Typing the run-together form should point at the spelled entry — that's the
+  // whole value of the note, and the reason to jump instead of adding a rival.
+  const sources = [edits(), src('XWI', [wlEntry('kingtut', 50, { display: 'King Tut' })])];
+  const p = planEntryWrite({ mode: 'create', clicked: null, typed: typed('kingtut'), sources });
+  assert.equal(p.existing.display, 'King Tut');
+  assert.equal(p.existing.sourceId, 'db_XWI');
+});
+
+test('create: a genuinely new entry reports no existing row', () => {
+  const sources = [edits(), src('XWI', [wlEntry('apple', 30)])];
+  const p = planEntryWrite({ mode: 'create', clicked: null, typed: typed('banana', 60), sources });
+  assert.equal(p.existing, null);
+});
+
+test('create: a blocked duplicate reports no existing row — the block note owns that click', () => {
+  const sources = [edits([wlEntry('ocean', 30)])];
+  const p = planEntryWrite({ mode: 'create', clicked: null, typed: typed('ocean'), sources });
+  assert.equal(p.blockedReason, 'exists');
+  assert.equal(p.existing, null);
+});
+
+test('create: existing prefers the spelling you actually typed', () => {
+  const sources = [edits(), src('XWI', [wlEntry('boneym', 50, { display: 'Boney M.' }),
+                                        wlEntry('boneym', 40, { display: 'Boney M' })])];
+  const p = planEntryWrite({ mode: 'create', clicked: null, typed: typed('Boney M'), sources });
+  assert.equal(p.existing.display, 'Boney M');
+});
+
+test('edit: the plan carries no existing row — the note is a create-mode affordance', () => {
+  const sources = [edits([wlEntry('ocean', 30)]), src('XWI', [wlEntry('apple', 30)])];
+  const p = planEntryWrite({ mode: 'edit', clicked: wlEntry('ocean', 30), typed: typed('ocean', 60), sources });
+  assert.equal(p.existing, null);
+});
+
 
 test('create: a fresh plain entry is a lone upsert, no delete', () => {
   const sources = [edits(), src('XWI', [wlEntry('apple', 30)])];

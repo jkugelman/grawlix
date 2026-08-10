@@ -43,6 +43,21 @@ test('suggests a spacing and applies it as a rename', async ({ page }) => {
   await expect(link(page)).toHaveCount(0);
 });
 
+test('an entry that already exists outranks the rename hint', async ({ page }) => {
+  await seed(page,
+    { name: 'Src', entries: ['has a grasp on', 'has', 'a', 'grasp', 'on'], scores: [50, 50, 50, 50, 50] },
+    { has: -2, a: -2, grasp: -3, on: -2 });
+
+  await page.locator('#add-fab').click();
+  await expect(panel(page)).toBeVisible();
+  await panel(page).locator('.entry-input').fill('hasagraspon');
+
+  // Both would fire here — the spaced form IS the existing entry. "It already exists,
+  // edit it" is the better advice, and two stacked hints read as a pile.
+  await expect(panel(page).locator('.entry-panel-note')).toContainText('has a grasp on already exists');
+  await expect(link(page)).toHaveCount(0);
+});
+
 test('suggests a spacing for a brand-new entry from the + button', async ({ page }) => {
   await seed(page,
     { name: 'Src', entries: ['has', 'a', 'grasp', 'on'], scores: [50, 50, 50, 50] },

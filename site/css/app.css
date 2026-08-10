@@ -651,18 +651,15 @@ td.entry-panel-prov-entry { font-family: var(--font-mono); }
 .entry-panel-prov-row--added td, .entry-panel-prov-row--changed td { font-weight: 700; }
 .entry-panel-prov-row--deleted td { text-decoration: line-through; color: var(--faint); }
 .entry-panel-prov-row--deleted .score-badge { opacity: 0.55; }
-.entry-panel-note-slot { grid-column: 2 / -1; margin-top: -2px; }
-.entry-panel-note-slot:empty { display: none; }
-.entry-panel-note { color: var(--muted); }
+/* The two ↳ lines under Entry — the exists note and the rename hint — are one
+   visual thing: muted sentence, accented link. They stay styled as a pair so a
+   panel showing either reads the same. */
+.entry-panel-note-slot, .entry-panel-suggest-slot { grid-column: 2 / -1; margin-top: -2px; }
+.entry-panel-note-slot:empty, .entry-panel-suggest-slot:empty { display: none; }
+.entry-panel-note, .entry-panel-suggest { color: var(--muted); }
 .entry-panel-note::before, .entry-panel-suggest::before { content: '↳'; margin-right: 5px; }
-.entry-panel-note--block { color: #e53935; font-weight: 600; }
-.entry-panel-note-link { font: inherit; color: inherit; background: none; border: none; padding: 0; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
-.entry-panel-note-link:hover { text-decoration: none; }
-.entry-panel-suggest-slot { grid-column: 2 / -1; margin-top: -2px; }
-.entry-panel-suggest-slot:empty { display: none; }
-.entry-panel-suggest { color: var(--muted); }
-.entry-panel-suggest-link { font: inherit; color: var(--accent); background: none; border: none; padding: 0; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
-.entry-panel-suggest-link:hover { text-decoration: none; }
+.entry-panel-note-link, .entry-panel-suggest-link { font: inherit; color: var(--accent); background: none; border: none; padding: 0; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
+.entry-panel-note-link:hover, .entry-panel-suggest-link:hover { text-decoration: none; }
 .entry-panel-prov-action { width: 1%; white-space: nowrap; text-align: right; }
 .entry-panel-prov-trash { position: relative; background: none; border: none; padding: 2px 4px; line-height: 0; border-radius: 4px; color: var(--muted); cursor: pointer; }
 .entry-panel-prov-trash:hover { color: #e53935; background: rgba(229, 57, 53, 0.1); }

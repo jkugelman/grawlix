@@ -8,7 +8,7 @@
 
 import { toNorm, displayOf, buildWlEntry, detectCase } from './norm.js';
 import { sourceAccessor } from './sources.js';
-import { computeMergedBucket, isDistinguishing, concreteDisplay } from './corpus.js';
+import { computeMergedBucket, isDistinguishing, concreteDisplay, preferRow } from './corpus.js';
 
 const isEdits = wl => wl.type === 'edits';
 const isLive = wl => wl.enabled !== false;
@@ -92,6 +92,22 @@ function keepCopies(newNorm, newDisplay, sources, edits, upserts, notes) {
   }
 }
 
+// The merged row an already-carried norm should point at: the one spelled the way
+// you typed if there is one, else the norm's best. Shares preferRow with
+// bestRowForNorm so the two can't disagree on which spelling stands for a norm.
+// `wordlist` is dropped for `sourceId` — the plan crosses postMessage.
+function existingRow(rows, rendered) {
+  let best = null;
+  for (const r of rows) {
+    if (displayOf(r) === rendered) { best = r; break; }
+    if (!best || preferRow(r, best)) best = r;
+  }
+  return best
+    ? { norm: best.norm, display: best.display ?? null, score: best.score,
+        comment: best.comment || '', sourceId: best.wordlist.dbKey }
+    : null;
+}
+
 export function planEntryWrite({ mode, clicked, typed, sources, trashScore = 0 }) {
   const newNorm = toNorm(typed.raw);
   const edits = editsOf(sources);
@@ -109,12 +125,15 @@ export function planEntryWrite({ mode, clicked, typed, sources, trashScore = 0 }
     // Block only a spelling My Edits already SHOWS. A bare hidden under a foreign
     // spelling shows as that spelling, so typing the bare splits it out via keepCopies.
     if (shown.some(r => r.wordlist === edits && displayOf(r) === newRendered)) {
-      return { blockedReason: 'exists', primary, deletes, upserts, notes };
+      return { blockedReason: 'exists', existing: null, primary, deletes, upserts, notes };
     }
     // Rescores an existing hidden bare (matched by displayOf), else adds fresh.
     upserts.push({ norm: newNorm, display: newDisplay, score, comment });
     keepCopies(newNorm, newDisplay, sources, edits, upserts, notes);
-    return { blockedReason: null, primary, deletes, upserts, notes };
+    // Advisory, never a block: laying a My Edits row over a foreign one is the normal
+    // way to rescore. It exists because typing a name to *find* an entry is a real
+    // gesture, and without it the only click-through was a My Edits collision.
+    return { blockedReason: null, existing: existingRow(shown, newRendered), primary, deletes, upserts, notes };
   }
 
   const origNorm = clicked.norm;
@@ -152,7 +171,7 @@ export function planEntryWrite({ mode, clicked, typed, sources, trashScore = 0 }
       for (const display of spellings) junk(display);
     }
   }
-  return { blockedReason: null, primary, deletes, upserts, notes };
+  return { blockedReason: null, existing: null, primary, deletes, upserts, notes };
 }
 
 export function applyEditsWriteSet(rawEntries, { deletes = [], upserts = [] }) {

@@ -571,7 +571,6 @@ test('typing a bare over a hidden bare splits it — rescores the bare, adds the
   await page.locator('#entry-panel-entry').fill('theirs');
   await page.locator('#entry-panel-score').fill('30');
 
-  await expect(page.locator('#entry-panel .entry-panel-note--block')).toHaveCount(0);
   await expect(page.locator('#entry-panel .entry-panel-save')).toBeEnabled();
   await expect(page.locator('#entry-panel .entry-panel-prov-row--changed .entry-panel-prov-entry', { hasText: /^theirs$/ })).toHaveCount(1);
   await expect(page.locator('#entry-panel .entry-panel-prov-row--added .entry-panel-prov-entry', { hasText: /^the IRS$/ })).toHaveCount(1);
