@@ -3943,7 +3943,8 @@ export const EntryPanel = (() => {
         else members.push({ norm, display: display ?? null, score: currentPanelScore(), current: true });
       }
       familyMembers = members.sort(
-        (a, b) => (a.display ?? a.norm).localeCompare(b.display ?? b.norm) || a.norm.localeCompare(b.norm));
+        (a, b) => (a.viaName === true) - (b.viaName === true)
+               || (a.display ?? a.norm).localeCompare(b.display ?? b.norm) || a.norm.localeCompare(b.norm));
       paintFamily();
     });
   }

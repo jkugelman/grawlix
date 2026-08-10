@@ -285,3 +285,80 @@ test('a cold deep link lists the relatives that need the segmenter', async ({ pa
   await expect(items(page)).toHaveCount(2);
   await expect(sibling(page)).toContainText('racesagainst');
 });
+
+test('a name links to the fuller names containing it, and back', async ({ page }) => {
+  await gotoApp(page);
+  await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
+    name: 'Src', entries: ['Rigoberta', 'Rigoberta Menchu'], scores: [40, 60],
+  }));
+
+  await openPanelFor(page, 'rigoberta');
+  await expect(items(page)).toHaveCount(2);
+  await expect(sibling(page)).toContainText('Rigoberta Menchu');
+
+  await sibling(page).click();
+  await expect(items(page)).toHaveCount(2);
+  await expect(sibling(page)).toContainText('Rigoberta');
+});
+
+test('a multi-word part of a name links as one unit', async ({ page }) => {
+  await gotoApp(page);
+  await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
+    name: 'Src', entries: ['Medicine Hat', 'Medicine Hat, Alberta'], scores: [50, 50],
+  }));
+  await openPanelFor(page, 'medicinehat');
+  await expect(sibling(page)).toContainText('Medicine Hat, Alberta');
+});
+
+test('people who merely share a name are not linked', async ({ page }) => {
+  await gotoApp(page);
+  await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
+    name: 'Src', entries: ['Venus Williams', 'Serena Williams'], scores: [50, 50],
+  }));
+  await openPanelFor(page, 'venuswilliams');
+  await expect(items(page)).toHaveCount(0);
+});
+
+test('an ordinary lowercase word never anchors a link', async ({ page }) => {
+  await gotoApp(page);
+  await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
+    name: 'Src', entries: ['dead', 'dead sea'], scores: [50, 50],
+  }));
+  await openPanelFor(page, 'dead');
+  await expect(items(page)).toHaveCount(0);
+});
+
+test('the family collates ahead of the name relatives, not interleaved', async ({ page }) => {
+  await gotoApp(page);
+  await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
+    name: 'Src',
+    entries: ['Nash', 'Nashes', 'Graham Nash', 'Ogden Nash'],
+    scores: [50, 50, 50, 50],
+  }));
+  // Alphabetically 'Graham Nash' and 'Ogden Nash' would straddle 'Nash'/'Nashes';
+  // the inflection must stay beside its own kind.
+  await openPanelFor(page, 'nash');
+  await expect(items(page)).toHaveText(['Nash 50', 'Nashes 50', 'Graham Nash 50', 'Ogden Nash 50']);
+});
+
+test('a name does not link where the longer entry lowercases it', async ({ page }) => {
+  await gotoApp(page);
+  await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
+    name: 'Src', entries: ['Job', 'dream job', 'Book of Job'], scores: [50, 50, 50],
+  }));
+  await openPanelFor(page, 'job');
+  await expect(sibling(page)).toHaveCount(1);
+  await expect(sibling(page)).toContainText('Book of Job');
+});
+
+test('a very common name shows only its few best-scoring full names', async ({ page }) => {
+  await gotoApp(page);
+  await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
+    name: 'Src',
+    entries: ['James', 'James Bond', 'James Cook', 'James Dean', 'James Joyce'],
+    scores: [40, 90, 80, 70, 10],
+  }));
+  await openPanelFor(page, 'james');
+  await expect(sibling(page)).toHaveCount(3);
+  await expect(items(page).filter({ hasText: 'James Joyce' })).toHaveCount(0);
+});

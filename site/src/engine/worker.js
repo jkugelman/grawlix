@@ -19,7 +19,8 @@ import { parseRange, matchesRange } from './range.js';
 import { compileRescoreRules } from './rescore.js';
 import { sourceAccessor, invalidateSourceAccessor, parseWordlistColumns, columnsFromEntries } from './sources.js';
 import { buildCorpus, assignFamilies, scopeSourceIds, mergedContributors, resolveEditSeedWinner, mergeKey, bestRowForNorm, mergedNormLowerBound, computeMergedBucket, diffWordlistEntries, isDistinguishing, concreteDisplay } from './corpus.js';
-import { familyKey, generateRelativeNorms, configureCommonWords } from './morphology.js';
+import { familyKey, generateRelativeNorms, configureCommonWords,
+         nameParts, nameAnchorRun, NAME_RELATIVE_CAP } from './morphology.js';
 import { COMMON_WORDS } from './common-words-data.js';
 import { SPACE_OUT_BIGRAMS } from './space-out-bigrams-data.js';
 import { getHistogramLayout, invalidateHistogramLayout, bucketCounts } from './histogram.js';
@@ -1571,7 +1572,9 @@ function handleFetchEditSeed({ requestId, norm, display }) {
 // ─── Related-entries fetch ── see docs/worker-protocol.md ────────────────────
 // Scanned from ownedMerged (the full enabled merge), NOT the active-scope
 // ownedCorpus: Related entries ignores scope, so a single-list scope still surfaces
-// every relative across the merged wordlist. Membership is family ∪ same-norm: the
+// every relative across the merged wordlist. Membership is family ∪ same-norm ∪ name
+// run (a proper-noun entry contiguously inside a longer one, Menchú ↔ Rigoberta
+// Menchú), the last capped per anchor so one first name can't crowd out the rest: the
 // differently-spelled same-norm siblings (Boney M. / Boney M) stay navigable here even
 // when a concrete click keeps them out of the provenance table. ownedCorpusFresh gates
 // ownedMerged the same way the edit-seed fetch does (see its note).
@@ -1604,13 +1607,35 @@ async function handleFetchFamily({ requestId, norm, display, boundNorm = norm, b
         for (const n of generateRelativeNorms(parts.join(' '))) genNorms.add(n);
       }
     }
+    const asMember = (e, viaName = false) => ({
+      norm: e.norm, display: e.display ?? null, score: e.score,
+      comment: e.comment || '', sourceId: e.wordlist.dbKey, current: e === bound,
+      ...(viaName && { viaName: true }),
+    });
+    const queryParts = nameParts(display ?? norm);
+    // Anchor → its relatives, so the cap is a budget per name part rather than one
+    // total: a three-part name is entitled to its own few via each part.
+    const nameGroups = new Map();
     for (const e of ownedMerged.entries) {
       if (e.norm === norm || (family && e.family === family) || genNorms.has(e.norm)) {
-        members.push({
-          norm: e.norm, display: e.display ?? null, score: e.score,
-          comment: e.comment || '', sourceId: e.wordlist.dbKey, current: e === bound,
-        });
+        members.push(asMember(e));
+        continue;
       }
+      // toNorm drops spaces, so a contiguous word run is a substring of the whole
+      // entry's norm — a cheap reject before paying for tokenization.
+      if (!queryParts.length || !(e.norm.includes(norm) || norm.includes(e.norm))) continue;
+      const anchor = nameAnchorRun(queryParts, nameParts(e.display ?? e.norm));
+      if (!anchor) continue;
+      const key = anchor.join(' ');
+      let group = nameGroups.get(key);
+      if (!group) nameGroups.set(key, group = []);
+      group.push(e);
+    }
+    for (const group of nameGroups.values()) {
+      group.sort((a, b) => b.score - a.score
+        || (a.display ?? a.norm).length - (b.display ?? b.norm).length
+        || (a.display ?? a.norm).localeCompare(b.display ?? b.norm));
+      for (const e of group.slice(0, NAME_RELATIVE_CAP)) members.push(asMember(e, true));
     }
   }
   postMessage({ type: 'family', requestId, members });

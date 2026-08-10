@@ -97,6 +97,83 @@ export function familyKey(text, vocab) {
   return tokens.map(t => reduceToken(t, vocab) ?? t).join(' ');
 }
 
+// ─── Name relatives ──────────────────────────────────────────────────────────
+//
+// Links an entry to the fuller names that contain it (Menchú ↔ Rigoberta Menchú,
+// Medicine Hat ↔ Medicine Hat, Alberta). Purely structural: the caller supplies
+// the proper-noun judgement, since corpus.js imports this module and reaching
+// back for casePart would close an import cycle.
+
+// A per-lookup budget, not a section total: a name anchors on each of its parts
+// independently, so a three-part name may show this many via each.
+export const NAME_RELATIVE_CAP = 3;
+
+// Deliberately only i/v/x. Admitting m/d/l/c matches ordinary words — `mix` is
+// M+IX, and so are `dim`, `lid`, `mimi`, `dix` — silently costing real names,
+// while regnal numerals past XXXIX never appear.
+const ROMAN_NUMERAL = /^(?=[ivx]+$)(xx{0,2}|x?)(ix|iv|v?i{0,3})$/;
+
+// Always capitalized by grammar rather than by naming anything, so they would
+// otherwise anchor hundreds of links apiece.
+const NON_NAMES = new Set(['im', 'ive', 'id', 'mr', 'mrs', 'ms', 'dr', 'tv']);
+
+const canAnchor = t => t.length > 1 && !ROMAN_NUMERAL.test(t) && !NON_NAMES.has(t);
+
+// Each word paired with its norm token, dropping the same slots from both so the
+// two stay index-aligned (`Rock & Roll` norms to two tokens, not three). The word
+// is kept because toNorm discards the case the relation is judged on.
+//
+// Plain words — not familyTokens, whose leading-article strip would collapse the
+// band `The The` back to a lone `the`, and not familyKey, whose lemma reduction
+// would let `Williams` stand in for `William`.
+export function nameParts(text) {
+  const parts = [];
+  for (const word of String(text ?? '').split(/\s+/)) {
+    const token = toNorm(word);
+    if (token) parts.push({ token, word });
+  }
+  return parts;
+}
+
+const capitalized = word => {
+  for (const ch of word) {
+    if (/\p{L}/u.test(ch)) return /\p{Lu}/u.test(ch);
+  }
+  return null;                                  // no letters — neither capitalized nor not
+};
+
+// A run reads as a name only where it is written as one. Judging the run in the
+// LONGER entry too is what separates Rigoberta Menchú from `iced tea`: both hold
+// their anchor as a whole word, but only one capitalizes it. A bare row's display
+// is its lowercase norm (`displayForRaw`), so all-uppercase wordlists contribute
+// no capitals here and cannot flood the list.
+function readsAsName(parts) {
+  let sawLetter = false;
+  for (const { word } of parts) {
+    const c = capitalized(word);
+    if (c === false) return false;
+    if (c === true) sawLetter = true;
+  }
+  return sawLetter;
+}
+
+// The shorter side's tokens when it occurs as a CONTIGUOUS run inside the longer,
+// else null. Contiguity is load-bearing: under mere token containment the band
+// `The The` matches every title that says "the" twice — 15K relatives from one row.
+export function nameAnchorRun(a, b) {
+  const [short, long] = a.length <= b.length ? [a, b] : [b, a];
+  if (short.length >= long.length || !short.length) return null;
+  if (!short.every(p => canAnchor(p.token)) || !readsAsName(short)) return null;
+  for (let i = 0; i <= long.length - short.length; i++) {
+    let hit = true;
+    for (let j = 0; j < short.length; j++) {
+      if (long[i + j].token !== short[j].token) { hit = false; break; }
+    }
+    if (hit && readsAsName(long.slice(i, i + short.length))) return short.map(p => p.token);
+  }
+  return null;
+}
+
 export function collectVocab(texts) {
   const vocab = new Set();
   for (const text of texts) {
