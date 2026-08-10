@@ -1705,7 +1705,9 @@ function handleFetchWordCase({ requestId, norm }) {
 // ownedCorpusFresh stands in for an ownedMerged/ownedBuilt freshness flag (cleared
 // synchronously by syncConfig, re-set by a committed syncConfig or an edit command
 // — same reasoning as handleFetchEditSeed); a stale answer silently renders the
-// wrong table. A miss → {preview:null,rows:null}; main keeps its last-good render.
+// wrong table. A miss → {preview:null,rows:null}, which must stay distinguishable
+// from rows:[] (a real table with nothing in it): main retries a null once on the
+// next committed build, because at open it has no last-good render to keep.
 function handleFetchProvenance({ requestId, typedRaw, previewRaw, clickedNorm, clickedDisplay }) {
   if (!(ownedMerged && ownedBuilt && ownedCorpusFresh)) {
     postMessage({ type: 'provenance', requestId, preview: null, rows: null });

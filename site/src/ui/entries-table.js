@@ -46,7 +46,7 @@ import { isRicher } from '../engine/canonical.js';
 import {
   getEntriesScroller, rescorePreviewActive, refreshMergedScroller, reprojectMergedScroller, setScope,
 } from './rendering.js';
-import { fetchWorkerRows, fetchWorkerGroups, fetchWorkerGroupChains, fetchWorkerAllRows, fetchWorkerAllGroups, fetchWorkerTransformRows, fetchWorkerAllTransformRows, lastCompletedRunId, fetchWorkerEditSeed, fetchWorkerFamily, fetchWorkerWinners, fetchWorkerProvenance, fetchWorkerEditPlan, fetchWorkerSpaceOut, sendViewport, findInResult, locateInResult } from './pipeline-worker.js';
+import { fetchWorkerRows, fetchWorkerGroups, fetchWorkerGroupChains, fetchWorkerAllRows, fetchWorkerAllGroups, fetchWorkerTransformRows, fetchWorkerAllTransformRows, lastCompletedRunId, fetchWorkerEditSeed, fetchWorkerFamily, fetchWorkerWinners, fetchWorkerProvenance, fetchWorkerEditPlan, fetchWorkerSpaceOut, whenWorkerCommitted, sendViewport, findInResult, locateInResult } from './pipeline-worker.js';
 
 let _navigate              = () => {};
 
@@ -2896,7 +2896,8 @@ export const EntryPanel = (() => {
   let lastNoteHTML = null;
   let provQueriesFired = 0;
   let provRepliesApplied = 0;
-  function provenanceDebug() { return { provQueriesFired, provRepliesApplied }; }
+  let provRetriesFired = 0;
+  function provenanceDebug() { return { provQueriesFired, provRepliesApplied, provRetriesFired }; }
 
   // The worker plans the edit; previewPlan reads this cache synchronously. The
   // STRUCTURAL plan depends only on entry text / mode / seed — never score or
@@ -3785,18 +3786,33 @@ export const EntryPanel = (() => {
     // Raw display, not displayOf's norm fallback: collapsing a bare entry to its norm
     // makes the worker filter drop the concrete siblings it unified with, with no error.
     const clickedDisplay = activeWlEntry?.display ?? null;
-    return fetchWorkerProvenance(typedRaw, previewRaw, clickedNorm, clickedDisplay)
-      .then(({ rows }) => {
-        // Match by norm, not identity: each run rebuilds activeWlEntry fresh, so an
-        // identity check would drop every reply after a re-bind.
-        if (token !== provQueryToken || !isOpen()
-            || activeWlEntry?.norm !== clickedNorm) return;
-        // A null (not-fresh) reply leaves the last-good in place; blanking flashes.
-        if (rows == null) return;
-        shippedProvRows = rows;
-        provRepliesApplied++;
-        renderProvWrap();
-      });
+    // Match by norm, not identity: each run rebuilds activeWlEntry fresh, so an
+    // identity check would drop every reply after a re-bind.
+    const stale = () => token !== provQueryToken || !isOpen()
+                     || activeWlEntry?.norm !== clickedNorm;
+    const ask = () => fetchWorkerProvenance(typedRaw, previewRaw, clickedNorm, clickedDisplay);
+    const apply = rows => {
+      if (stale() || rows == null) return false;
+      shippedProvRows = rows;
+      provRepliesApplied++;
+      renderProvWrap();
+      return true;
+    };
+    return ask().then(({ rows }) => {
+      // `rows == null` is "the worker didn't answer" — its corpus was mid-rebuild, or
+      // the fetch timed out — as opposed to `[]`, a real table with nothing in it.
+      // Leaving the last-good render in place is right for a keystroke re-query
+      // (blanking flashes), but at OPEN there is no last-good: doOpen just nulled
+      // shippedProvRows, and nothing re-fires provenance when the rebuild commits, so
+      // the table would stay blank until the panel was reopened. Wait out the gap and
+      // retry ONCE — the shape planForSave uses for a null edit plan — then let the
+      // last-good rule stand. The token guard rides both attempts, so a newer query's
+      // answer is never overwritten by a straggling retry.
+      if (apply(rows) || stale()) return;
+      provRetriesFired++;
+      return whenWorkerCommitted()
+        .then(() => stale() ? undefined : ask().then(retried => { apply(retried.rows); }));
+    });
   }
 
   // The open-time query: typedRaw '' so the worker's provTarget falls to the

@@ -136,3 +136,51 @@ test('merged-view seed comes from the clicked row: no fetchEditSeed, provenance 
   expect(provAfter.provRepliesApplied).toBeGreaterThan(provBefore.provRepliesApplied);
   await closePanel(page);
 });
+
+// A read the worker answers with NO corpus to read from. `syncConfig` clears
+// `ownedMerged`/`ownedCorpusFresh` the moment it lands and restores them only when
+// the async build commits, so a `fetchProvenance` arriving in that gap is answered
+// `rows: null` — "didn't answer", distinct from `rows: []` ("nothing carries it").
+// Holding the last-good render is right for a keystroke re-query, but at OPEN there
+// is no last-good (doOpen nulls it) and nothing re-fires provenance when the build
+// commits, so the null used to leave the Appears-in table blank until the panel was
+// reopened. It must wait out the gap and retry, mirroring planForSave.
+//
+// A forced build failure holds that gap open deterministically instead of racing a
+// real rebuild: the failed build nulls ownedBuilt/ownedMerged and reports
+// built:false, so the worker stays un-fresh until the next sync commits.
+test('a provenance read answered with no corpus retries when the next build commits', async ({ page }) => {
+  await gotoApp(page);
+  await seedCorpus(page);
+  await syncWorker(page);
+
+  // Fail the next build, leaving the worker with no corpus to answer from. The bare
+  // test-API sync drives no pipeline re-run, so the already-rendered rows stay
+  // clickable and nothing can re-fire the query behind our backs — the retry is the
+  // only path left for the table to fill.
+  await page.evaluate(() => window.__grawlixTest.failNextWorkerBuildForTest());
+  await page.evaluate(() => window.__grawlixTest.syncWorkerConfig());
+  const before = await provDebug(page);
+
+  await openPanelOnEntry(page, 'ocean');
+  // The open's read comes back empty-handed: one query fired, no reply applied, and
+  // the table is genuinely blank. This is the state that used to be terminal.
+  await expect.poll(() => provDebug(page).then(d => d.provQueriesFired - before.provQueriesFired)).toBe(1);
+  expect((await provDebug(page)).provRepliesApplied).toBe(before.provRepliesApplied);
+  expect(await page.evaluate(() =>
+    document.querySelectorAll('#entry-panel .entry-panel-prov-row').length)).toBe(0);
+
+  // Commit a good build. The pending retry drains on its selfReady and fills the
+  // table with the panel still open — no reopen, no keystroke.
+  await page.evaluate(() => window.__grawlixTest.syncWorkerConfig());
+  await expect.poll(() => page.evaluate(() =>
+    document.querySelectorAll('#entry-panel .entry-panel-prov-row').length
+  ), { message: 'Appears-in rows after the retry' }).toBe(2);
+
+  // Non-vacuous, and pins the shape: exactly one retry, and its reply is the only
+  // one applied for this panel.
+  const after = await provDebug(page);
+  expect(after.provRetriesFired - before.provRetriesFired).toBe(1);
+  expect(after.provRepliesApplied - before.provRepliesApplied).toBe(1);
+  await closePanel(page);
+});
