@@ -4,7 +4,7 @@ import { MERGED_ID } from '../core/constants.js';
 import { TOOLS, makeToolRow, configureUmiaq, configureWeave } from './tools.js';
 import { executePipeline, configureExecutorYield, lastPipelineSeedFrom, lastPipelineTailMs, bottomLineAtoms, applyScoreRangeToRows, rowLastEntry, rowAtoms, collapseRepeatAtoms, streamPlan, cacheGroupStats, currentAtomCount } from './executor.js';
 import { GdsCache, RoleCache } from './gds-cache.js';
-import { sortGroups, sortChainRows, activeGroupRow, groupRowComparator, chainRowComparator, chainSortTier, DEFAULT_SORT_BY_TIER } from './sort.js';
+import { sortGroups, sortChainRows, activeGroupRow, groupRowComparator, chainRowComparator, chainSortTier, DEFAULT_SORT_BY_TIER, entrySortKey, foldAnchor, foldChainAnchor, chainAnchors, usesEntryAxis, compareValues } from './sort.js';
 import { PackedRecordJoin, packRecordJoin, materializeRecordRow, recordView, recordComparator, recordInRange, PackedGroupJoin, tryPackGroupJoin, buildGroupFlyweights, materializeGroupRow } from './packed-join.js';
 import {
   configureIO as configureSegmenterIO, setUnigramCorpus, configureSpaceOutBigrams,
@@ -424,7 +424,18 @@ function makeStreamEmitter(runId, viewSpec, scope, stack, signal, streamState, r
       if (batchRows.length === 0) return;
     }
     const intervals = viewSpec.scoreRange ? parseRange(viewSpec.scoreRange) : null;
-    const cmp = flatComparator(viewSpec.sort, ownedCorpus);
+    // Read off the RESULT, never a closure local: armPartialResume sets
+    // streamState.streamed before this emitter is built, so a resumed stream would
+    // start from an empty map, skip every repair, and merge two arrays sorted under
+    // different comparators — a tear that survives to the terminal.
+    // Only a run already streaming (or resumed — armPartialResume built the map via
+    // deriveFlatResult) inherits it. A NEW run's first batch must start empty:
+    // lastFlatResult still holds the PREVIOUS run's result here, and adopting its
+    // fully-populated map hands every family a final anchor before a single row of
+    // this run has been seen, so no drop ever fires and the repair goes unreached.
+    const anchors = !usesEntryAxis(viewSpec.sort) ? null
+      : streamState.streamed ? (lastFlatResult?.anchors ?? new Map()) : new Map();
+    const dropped = anchors ? new Set() : null;
     const batchIdx = [];
     for (const row of batchRows) {
       const e = rowLastEntry(row);
@@ -432,19 +443,35 @@ function makeStreamEmitter(runId, viewSpec, scope, stack, signal, streamState, r
       if (intervals && !matchesRange(e.score, intervals)) continue;
       batchIdx.push(e._i);
       widthAcc.add(e);
+      if (anchors && foldAnchor(anchors, e)) dropped.add(e.family);
     }
     if (batchIdx.length === 0) return;   // join grew but nothing in-range — no snapshot (join.push already ran)
+
+    const cmp = flatComparator(viewSpec.sort, ownedCorpus, anchors);
+    // Anchoring makes the comparator time-varying, so mergeSortedIndices' precondition
+    // (both sides sorted the same way) stops holding for free. A family whose anchor
+    // just dropped re-enters the batch; without that the merge silently interleaves.
+    let placed = lastFlatResult?.indices;
+    if (dropped?.size && placed) {
+      const keep = [];
+      for (const i of placed) {
+        if (dropped.has(ownedCorpus.entries[i].family)) batchIdx.push(i);
+        else keep.push(i);
+      }
+      placed = Int32Array.from(keep);
+    }
 
     batchIdx.sort(cmp);
     const batchIndices = Int32Array.from(batchIdx);
 
     if (!streamState.streamed) {
       streamState.streamed = true;
-      lastFlatResult = { runId, version: 0, indices: batchIndices, join, scope, viewSpec, highlighters: compileFlatHighlighters(stack), familySort: isFamilySort(viewSpec.sort) };
+      lastFlatResult = { runId, version: 0, indices: batchIndices, anchors, join, scope, viewSpec, highlighters: compileFlatHighlighters(stack), familySort: isFamilySort(viewSpec.sort) };
       lastGroupedResult = null;
       lastTransformResult = null;
     } else {
-      lastFlatResult.indices = mergeSortedIndices(lastFlatResult.indices, batchIndices, cmp);
+      lastFlatResult.indices = mergeSortedIndices(placed, batchIndices, cmp);
+      lastFlatResult.anchors = anchors;
     }
     lastFlatResult.version++;   // one monotonic counter shared with reproject, so a mid-stream reproject can't collide the version a fetch drops on
     lastFlatResult.familySort = isFamilySort(viewSpec.sort);
@@ -483,12 +510,16 @@ function flatViewIndices(join, viewSpec, corpus) {
   const intervals = viewSpec.scoreRange ? parseRange(viewSpec.scoreRange) : null;
   const entries = corpus.entries;
   const arr = [];
+  // Anchors over the FILTERED view, never the join: a family must collate at a member
+  // the filter actually left on screen, and the emitter's map is view-scoped too.
+  const anchors = usesEntryAxis(viewSpec.sort) ? new Map() : null;
   for (const i of join) {
     if (intervals && !matchesRange(entries[i].score, intervals)) continue;
     arr.push(i);
+    if (anchors) foldAnchor(anchors, entries[i]);
   }
-  arr.sort(flatComparator(viewSpec.sort, corpus));
-  return Int32Array.from(arr);
+  arr.sort(flatComparator(viewSpec.sort, corpus, anchors));
+  return { indices: Int32Array.from(arr), anchors };
 }
 
 // Histogram over the UNFILTERED join scores (out-of-range bars stay clickable), so
@@ -753,7 +784,9 @@ function makeTransformStreamEmitter(runId, viewSpec, scope, stack, signal, strea
   return batchRows => {
     if (signal.aborted) return;
     const intervals = viewSpec.scoreRange ? parseRange(viewSpec.scoreRange) : null;
-    const cmp = chainRowComparator(viewSpec.sort, stack);
+    const anchors = usesEntryAxis(viewSpec.sort) ? (lastTransformResult?.anchors ?? new Map()) : null;
+    const dropped = anchors ? new Set() : null;
+    const cmp = chainRowComparator(viewSpec.sort, stack, anchors);
     const chainOk = chain => rowAtoms(chain).every(a => matchesRange(a.wlEntry.score, intervals));
     const newInRange = [];
     for (const raw of batchRows) {
@@ -787,18 +820,34 @@ function makeTransformStreamEmitter(runId, viewSpec, scope, stack, signal, strea
           const rows = [...seen.values()];
           const view = intervals ? applyScoreRangeToRows(rows, intervals, 'single') : rows;
           lastTransformResult.join = seen;
-          lastTransformResult.chains = sortChainRows(view, viewSpec.sort, stack);
+          // Refill in place: `cmp` already closed over this map, so swapping in a fresh
+          // one would leave the rest of this batch merging under the stale anchors.
+          if (anchors) { anchors.clear(); for (const r of view) foldChainAnchor(anchors, r); }
+          lastTransformResult.anchors = anchors;
+          lastTransformResult.chains = sortChainRows(view, viewSpec.sort, stack, anchors);
         }
         continue;
       }
-      if (!intervals || chainOk(row)) newInRange.push(row);
+      if (!intervals || chainOk(row)) {
+        newInRange.push(row);
+        if (anchors && foldChainAnchor(anchors, row)) dropped.add(chainFamily(row));
+      }
     }
     if (!caughtUp) return;   // still catching up — the frozen stash keeps painting, count frozen
     if (!streamState.streamed) {
       streamState.streamed = true;
       lastFlatResult = null;
       lastGroupedResult = null;
-      lastTransformResult = { runId, version: 0, chains: [], join: seen, scope, viewSpec, stack, summaries: null };
+      lastTransformResult = { runId, version: 0, chains: [], anchors, join: seen, scope, viewSpec, stack, summaries: null };
+    }
+    lastTransformResult.anchors = anchors;
+    if (dropped?.size && lastTransformResult.chains.length) {
+      const keep = [];
+      for (const c of lastTransformResult.chains) {
+        if (dropped.has(chainFamily(c))) newInRange.push(c);
+        else keep.push(c);
+      }
+      lastTransformResult.chains = keep;
     }
     if (newInRange.length) {
       newInRange.sort(cmp);
@@ -848,7 +897,7 @@ function handleReproject({ runId, reprojectId, sort, scoreRange, recomputeHistog
 // silently lags the edit; sort/filter leave it (invariant over the unfiltered join).
 function reprojectFlat(r, reprojectId, recomputeHistogram) {
   const corpus = corpusFor(r);
-  r.indices = flatViewIndices(r.join, r.viewSpec, corpus);
+  ({ indices: r.indices, anchors: r.anchors } = flatViewIndices(r.join, r.viewSpec, corpus));
   r.familySort = isFamilySort(r.viewSpec.sort);
   r.stats = flatViewStats(r.indices, corpus);
   r.widthHints = computeWidthHints(r.indices, corpus);
@@ -882,7 +931,8 @@ function reprojectTransform(r, reprojectId) {
   const intervals = r.viewSpec.scoreRange ? parseRange(r.viewSpec.scoreRange) : null;
   const rows = transformJoinRows(r.join);
   const view = intervals ? applyScoreRangeToRows(rows, intervals, 'single') : rows;
-  r.chains = sortChainRows(view, r.viewSpec.sort, r.stack);
+  r.anchors = chainAnchors(view, r.viewSpec.sort);
+  r.chains = sortChainRows(view, r.viewSpec.sort, r.stack, r.anchors);
   r.summaries = transformSummaries(rows, r.chains, r.scope, !!intervals);
   r.version++;
   postTransformSnapshot('reprojected', r.runId, reprojectId);
@@ -1010,9 +1060,9 @@ function terminalJoin(tier, laneKind, rows, stack) {
 // Shared by the non-streamed terminal and reproject so a re-derived flat result is
 // structurally identical to a streamed one (else the two paths silently drift).
 function deriveFlatResult(runId, join, viewSpec, scope, stack) {
-  const indices = flatViewIndices(join, viewSpec, ownedCorpus);
+  const { indices, anchors } = flatViewIndices(join, viewSpec, ownedCorpus);
   return {
-    runId, version: 1, indices, join, scope, viewSpec,
+    runId, version: 1, indices, anchors, join, scope, viewSpec,
     highlighters: compileFlatHighlighters(stack), familySort: isFamilySort(viewSpec.sort),
     histogram: flatHistogram(join, scope, ownedCorpus), stats: flatViewStats(indices, ownedCorpus),
     widthHints: computeWidthHints(indices, ownedCorpus),
@@ -1048,9 +1098,10 @@ function deriveTransformResult(runId, join, viewSpec, scope, stack) {
   const intervals = viewSpec.scoreRange ? parseRange(viewSpec.scoreRange) : null;
   const rows = transformJoinRows(join);
   const view = intervals ? applyScoreRangeToRows(rows, intervals, 'single') : rows;
-  const chains = sortChainRows(view, viewSpec.sort, stack);
+  const anchors = chainAnchors(view, viewSpec.sort);
+  const chains = sortChainRows(view, viewSpec.sort, stack, anchors);
   return {
-    runId, version: 1, chains, join: rows, scope, viewSpec, stack,
+    runId, version: 1, chains, anchors, join: rows, scope, viewSpec, stack,
     summaries: transformSummaries(rows, chains, scope, !!intervals),
   };
 }
@@ -1780,7 +1831,7 @@ const FLAT_SORT_AXES = {
   entry: {
     // display omits dir → follows the primary toggle (see sort.js's entry axis):
     // the within-family order continues the family-clustered alphabetical sort.
-    primary: e => e.family || displayOf(e),
+    primary: (e, anchors) => entrySortKey(e, anchors),
     tiebreakers: [{ p: e => displayOf(e) }, { p: e => e.score, dir: -1 }],
   },
   length: {
@@ -1796,16 +1847,13 @@ const FLAT_SORT_AXES = {
     tiebreakers: [{ p: e => displayOf(e), dir: 1 }],
   },
 };
-function cmpVal(a, b) {
-  if (typeof a === 'number' && typeof b === 'number') return a - b;
-  return String(a).localeCompare(String(b));
-}
+const cmpVal = compareValues;
 // Parallel copy of composeSortAxis's composition (FLAT_SORT_AXES has a different
 // axis shape): drift from it and the flat tier sorts unlike the group/single
 // tiers with no error to catch it. The `ia - ib` final tiebreak is load-bearing,
 // not cosmetic: without a total order the streaming emitter's incremental merge
 // is batch-order dependent, so the rendered sort would shift with scan timing.
-function flatComparator(sort, runCorpus) {
+function flatComparator(sort, runCorpus, anchors = null) {
   const picks = (sort || []).filter(s => s && FLAT_SORT_AXES[s.key]);
   const list = picks.length ? picks : [{ key: 'entry', dir: 'asc' }];
   const keyed = list.map(s => ({ p: FLAT_SORT_AXES[s.key].primary, dir: s.dir === 'desc' ? -1 : 1 }));
@@ -1815,7 +1863,7 @@ function flatComparator(sort, runCorpus) {
   return (ia, ib) => {
     const a = entries[ia], b = entries[ib];
     for (const k of keyed) {
-      const c = cmpVal(k.p(a), k.p(b)) * k.dir;
+      const c = cmpVal(k.p(a, anchors), k.p(b, anchors)) * k.dir;
       if (c !== 0) return c;
     }
     for (const tb of tiebreakers) {
@@ -1829,6 +1877,7 @@ function flatComparator(sort, runCorpus) {
 function isFamilySort(sort) {
   return ((sort || []).filter(s => s && FLAT_SORT_AXES[s.key])[0]?.key ?? 'entry') === 'entry';
 }
+
 
 // The rich field set must stay identical to buildFlatRows' — a grouped/transform
 // atom and a flat row of the same entry both feed one render path, so a divergence
@@ -2163,6 +2212,12 @@ function applyOwnedEdit(source, affectedNorms) {
   // — a score/comment edit reshaping no norm's variant set — leaves positions and
   // identities, so this is skipped and the next run reuses the cached prefixes.
   if (replaced) indexCorpusEntries(ownedCorpus);
+
+  // A replacing splice strands a live run's indices on swapped-out rows and rewrites
+  // the families its anchor map is keyed by, so supersede the run — main re-runs off
+  // the editAck anyway. A score/comment edit keeps positions and its retained join,
+  // so it must NOT abort: that is the no-rerun reproject path.
+  if (replaced && running) latestRunId++;
 
   // The in-place splice leaves the owned corpus current, so (re)assert freshness:
   // a concurrent stale syncConfig build that started before this edit must not be

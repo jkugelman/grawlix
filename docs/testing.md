@@ -212,6 +212,34 @@ await expectVisible(page, ['kayak', 'noon', 'racecar']);            // ✅ retri
 
 Playwright's own locator assertions (`expect(locator).toHaveText(...)`, `.toHaveCount(...)`) already auto-retry, so they're fine as-is — the trap is specifically the frozen `page.evaluate(...)` snapshot, which doesn't. For an "assert empty / assert absent" check, poll a *positive* settle signal first (a count, a present member) so the absence can't pass before the pipeline has even run.
 
+## Family anchoring
+
+The Entry sort collates a family at its first visible member's **anchor**, not at the
+family key (`docs/worker-protocol.md` § *Family anchoring*). Two levels cover it:
+
+- **Unit** (`tests/unit/sort.test.js`) — `foldAnchor`'s seed-vs-drop contract, the
+  anchor text (article-stripped, not raw display), a family collating at its own member
+  rather than its key, the composite `(anchor, family)` primary keeping two families
+  contiguous under a second sort pick, and the no-family fallback. A fixture here must
+  use a family key that is a spelling **no row has**, or the anchor equals the key and
+  the test proves nothing.
+- **Browser** (`tests/browser/worker-partials.spec.js`) — that a family collates at
+  its own member end-to-end (`AM band` under A, not at its `be band` key), and that
+  streamed order equals buffered order for a family spanning batches. The filler
+  prefix in each is load-bearing: it must span the gap between the two candidate
+  positions, or both orders agree and the test cannot fail.
+
+**The anchor repair is covered, and the fixture is fragile by nature.**
+`worker-partials.spec.js`' anchor-drop test asserts on the last *streamed snapshot*,
+not on rows fetched after the run settles — a post-completion read can be served by a
+wholesale rebuild that masks a torn stream entirely. Its fixture encodes three
+independent constraints (a family collating opposite to its norm order, a witness row
+falling between the old and new anchor, and a filler that splits the two across
+batches); get any one wrong and both orderings agree, leaving a test that cannot fail.
+Verify any change to it by disabling the repair and confirming it goes red. Note
+`tests/browser/streaming-render.spec.js` uses `streamSyntheticBatch` and bypasses the
+worker, so it cannot catch a comparator regression.
+
 ## CI
 
 GitHub Actions runs the suite on push to `main` only — no PR gating. CI first builds the bundled production artifact (`npm run build` → `dist/`, where esbuild bundles the module graph and minifies) and runs the suite against *that*, not the `site/` source — so a bundling- or minification-induced break fails the build before it can deploy. The deploy job ships the exact `dist/` artifact the tests ran against. Failed runs upload traces and screenshots as artifacts; download from the run page to inspect.

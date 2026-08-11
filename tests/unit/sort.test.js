@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { sortGroups, composeSortAxis, compareItems, sortAxes, chainRowComparator, chainSortTier } from '../../site/src/engine/sort.js';
+import { sortGroups, composeSortAxis, compareItems, sortAxes, chainRowComparator, chainSortTier, foldAnchor } from '../../site/src/engine/sort.js';
 import { applyScoreRangeToRows, cacheGroupStats } from '../../site/src/engine/executor.js';
 import { parseRange } from '../../site/src/engine/range.js';
 
@@ -169,4 +169,61 @@ test('chainSortTier: a transform hiding its input stays single -- min/max would 
 
 test('chainSortTier: repeat highlight atoms still do not promote a filter-only chain', () => {
   assert.equal(chainSortTier([searchRow(), searchRow()]), 'single');
+});
+
+// ─── Family anchoring ────────────────────────────────────────────────────────
+
+const anchorsFor = rows => {
+  const m = new Map();
+  for (const r of rows) foldAnchor(m, r);
+  return m;
+};
+
+test('foldAnchor: a family takes its alphabetically first member, reporting only a drop', () => {
+  const m = new Map();
+  const e = (display, family) => ({ norm: display, display, score: 50, family });
+  // Returns "must repair", not "changed": a seed places no rows, so reporting it
+  // would fire a full repair pass per first-seen family.
+  assert.equal(foldAnchor(m, e('is band', 'be band')), false);
+  assert.equal(m.get('be band'), 'is band');
+  assert.equal(foldAnchor(m, e('AM band', 'be band')), true);
+  assert.equal(m.get('be band'), 'am band');
+  assert.equal(foldAnchor(m, e('was band', 'be band')), false);
+  assert.equal(m.get('be band'), 'am band');
+});
+
+test('foldAnchor: the anchor is the article-stripped token string, not the raw display', () => {
+  const m = new Map();
+  foldAnchor(m, { norm: 'thebest', display: 'The Best', score: 50, family: 'best' });
+  assert.equal(m.get('best'), 'best');
+});
+
+test('single Entry sort: a family collates at its own first member, not at its family key', () => {
+  // The fixture's family key must be a spelling NO row has, or the anchor equals
+  // the key and the test passes without exercising anything.
+  const e = (display, family) => ({ norm: display.replace(/[^a-z]/gi, '').toLowerCase(), display, score: 50, family });
+  const rows = [e('azalea', 'azalea'), e('AM band', 'be band'), e('baffle', 'baffle'), e('is band', 'be band')];
+  const axis = composeSortAxis([{ key: 'entry', dir: 'asc' }], sortAxes('single', null, anchorsFor(rows)));
+  const out = rows.slice().sort((a, b) => compareItems(a, b, axis, 'asc')).map(r => r.display);
+  assert.deepEqual(out, ['AM band', 'is band', 'azalea', 'baffle']);
+});
+
+test('single Entry sort: two families sharing an anchor stay contiguous under a second sort pick', () => {
+  // Split the anchor and family into two ranks and the score pick lands between
+  // them: the families interleave and the table's brackets shatter, still green here.
+  const e = (display, family, score) => ({ norm: display, display, score, family });
+  const rows = [e('ax', 'f1', 10), e('bx', 'f2', 90), e('ay', 'f1', 90), e('by', 'f2', 10)];
+  const anchors = new Map([['f1', 'shared'], ['f2', 'shared']]);
+  const axis = composeSortAxis([{ key: 'entry', dir: 'asc' }, { key: 'score', dir: 'desc' }],
+                               sortAxes('single', null, anchors));
+  const out = rows.slice().sort((a, b) => compareItems(a, b, axis, 'asc')).map(r => r.display);
+  assert.deepEqual(out, ['ay', 'ax', 'bx', 'by']);
+});
+
+test('single Entry sort: a row with no family key still collates on its display', () => {
+  const e = display => ({ norm: display, display, score: 50, family: '' });
+  const rows = [e('cobalt'), e('amber'), e('beryl')];
+  const axis = composeSortAxis([{ key: 'entry', dir: 'asc' }], sortAxes('single', null, new Map()));
+  const out = rows.slice().sort((a, b) => compareItems(a, b, axis, 'asc')).map(r => r.display);
+  assert.deepEqual(out, ['amber', 'beryl', 'cobalt']);
 });

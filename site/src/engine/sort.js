@@ -7,6 +7,7 @@
 
 import { rowLastEntry, rowAtoms, isGroupChain, isTupleChain, isFilterOnlyChain, currentAtomCount } from './executor.js';
 import { displayOf } from './norm.js';
+import { familyTokens } from './morphology.js';
 import { TOOLS } from './tools.js';
 
 // ─── Chain-tier sort axes (single / multi) ───────────────────────────────────
@@ -39,11 +40,61 @@ const rowLastDisplay = r => displayOf(rowLastEntry(r));
 // atom-by-atom, since every row in a run carries the same atom count.
 const rowChainTail = r => !r.atoms ? '' : r.atoms.slice(1).map(a => a.wlEntry.norm).join('\u0000');
 
+// ─── Family anchoring ────────────────────────────────────────────────────────
+//
+// The family key GROUPS; it must never COLLATE. Being a morphological reduction it
+// can name a spelling no row has (`AM band` → `be band`), filing a family under a
+// letter the user cannot account for. A family collates at its alphabetically first
+// VISIBLE member instead — visible, since a member the filter hides is one the user
+// cannot see either.
+
+// familyTokens, not displayOf: raw display diverges on case and accents (`ETA`/`eta`),
+// so the min would pick a member the comparator does not rank first.
+export function anchorTextOf(wlEntry) {
+  return familyTokens(displayOf(wlEntry)).join(' ');
+}
+
+// True only when the anchor DROPPED, obliging the caller to repair already-placed
+// rows. A seed places nothing, so reporting it costs a repair pass per new family.
+export function foldAnchor(anchors, wlEntry) {
+  const family = wlEntry.family;
+  if (!family) return false;
+  const text = anchorTextOf(wlEntry);
+  const cur = anchors.get(family);
+  if (cur === undefined) { anchors.set(family, text); return false; }
+  if (compareValues(text, cur) >= 0) return false;
+  anchors.set(family, text);
+  return true;
+}
+
+// Anchor and family as ONE composite primary, never two ranks: a second sort pick
+// composes AHEAD of an axis's own tiebreakers, so ranking them separately lets that
+// pick interleave two families that share an anchor and shatters the table's
+// family brackets. A row with no family key keeps collating on its own display.
+export function entrySortKey(wlEntry, anchors) {
+  const family = wlEntry.family;
+  if (!family) { const display = displayOf(wlEntry); return [display, display]; }
+  return [anchors?.get(family) ?? family, family];
+}
+
+const entryPrimary = anchors => r => entrySortKey(rowFirstEntry(r), anchors);
+
+export function foldChainAnchor(anchors, row) {
+  return foldAnchor(anchors, rowFirstEntry(row));
+}
+
+export const chainFamily = row => rowFirstEntry(row).family;
+
+export function usesEntryAxis(sortList) {
+  const list = (sortList || []).filter(Boolean);
+  return !list.length || list.some(s => s.key === 'entry');
+}
+
 const SORT_AXES = {
   single: {
     entry: {
       label: 'Entry',
-      primary: r => rowFirstEntry(r).family || rowFirstDisplay(r),
+      primary: entryPrimary(null),
       // Display omits dir to follow the toggle: within a family it's the same
       // alphabetical axis as the primary, so giving it a fixed dir would silently
       // leave Entry desc with reversed clusters but members still ascending.
@@ -80,7 +131,7 @@ const SORT_AXES = {
   multi: {
     entry: {
       label: 'Entry',
-      primary: r => rowFirstEntry(r).family || rowFirstDisplay(r),
+      primary: entryPrimary(null),
       // Both omit dir so Entry desc mirrors a transform's output branches too,
       // not just the family interior (see single): seed display, then chain tail.
       tiebreakers: [
@@ -156,8 +207,11 @@ export function chainSortTier(stack) {
   if (isTupleChain(stack)) return 'tuple';
   return isFilterOnlyChain(stack) || currentAtomCount(stack) === 1 ? 'single' : 'multi';
 }
-export function sortAxes(tier, stack) {
-  return isMultiLaneTier(tier) ? groupSortAxes(stack) : SORT_AXES[tier];
+export function sortAxes(tier, stack, anchors = null) {
+  if (isMultiLaneTier(tier)) return groupSortAxes(stack);
+  const axes = SORT_AXES[tier];
+  if (!anchors) return axes;
+  return { ...axes, entry: { ...axes.entry, primary: entryPrimary(anchors) } };
 }
 export function isValidSortAxis(key) {
   if (key in SORT_AXES.single || key in SORT_AXES.multi
@@ -379,15 +433,22 @@ export function sortGroups(groups, sortList, stack) {
 // Total order (like groupRowComparator): the joined atom-norm key breaks chain-axis
 // ties so the streamed transform merge equals a from-scratch sort. Drop the tiebreak
 // and completion silently reshuffles tied rows out from under the stream.
-export function chainRowComparator(sortList, stack) {
-  const axis = composeSortAxis(sortList, sortAxes(chainSortTier(stack), stack));
+export function chainRowComparator(sortList, stack, anchors = null) {
+  const axis = composeSortAxis(sortList, sortAxes(chainSortTier(stack), stack, anchors));
   if (!axis) return null;
   const dir = sortList[0].dir;
   const key = r => rowAtoms(r).map(a => a.wlEntry.norm).join('\0');
   return (a, b) => compareItems(a, b, axis, dir) || key(a).localeCompare(key(b));
 }
 
-export function sortChainRows(rows, sortList, stack) {
-  const cmp = chainRowComparator(sortList, stack);
+export function sortChainRows(rows, sortList, stack, anchors = null) {
+  const cmp = chainRowComparator(sortList, stack, anchors);
   return cmp ? [...rows].sort(cmp) : rows;
+}
+
+export function chainAnchors(rows, sortList) {
+  if (!usesEntryAxis(sortList)) return null;
+  const anchors = new Map();
+  for (const row of rows) foldChainAnchor(anchors, row);
+  return anchors;
 }

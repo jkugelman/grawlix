@@ -21,15 +21,16 @@ const COUNT = 20000;
 const STREAM_MS = 1;
 const SHIPPED_MS = 30;
 
-async function seedCorpus(page) {
-  await page.evaluate(count => {
+async function seedCorpus(page, extra = [], prefix = 'W') {
+  await page.evaluate(({ count, extra, prefix }) => {
     const entries = [], scores = [];
+    for (const e of extra) { entries.push(e); scores.push(50); }
     for (let i = 0; i < count; i++) {
-      entries.push('W' + String(i).padStart(5, '0'));
+      entries.push(prefix + String(i).padStart(5, '0'));
       scores.push(10 + (i % 60));
     }
     return window.__grawlixTest.addCustomWordlist({ name: 'Big', entries, scores });
-  }, COUNT);
+  }, { count: COUNT, extra, prefix });
   await page.evaluate(() => window.__grawlixTest.syncWorkerConfig());
 }
 
@@ -142,4 +143,51 @@ test('a fetchRows for an already-streamed window returns correct rows mid-stream
   expect(result.mid.length).toBeGreaterThan(0);
   const finalSet = new Set(result.full);
   for (const norm of result.mid) expect(finalSet.has(norm)).toBe(true);
+});
+
+// Every part of this fixture is load-bearing; it took three tries to make it fail
+// against a build with the repair disabled. `apples` and `the apple` share the family
+// `apple` and collate opposite to their norm order, so the anchor drops from `apples`
+// to `apple`. `applea` is the witness: it must fall BETWEEN those two anchors, so a
+// row left placed under the stale one is overtaken by it. And the filler must sort
+// between `apples` and `theapple` (hence M) or the drop never spans batches. Get any
+// of the three wrong and both orderings agree, leaving a test that cannot fail.
+const ANCHOR_DROP = ['apples', 'the apple', 'applea'];
+const ANCHOR_DROP_PREFIX = 'M';
+
+// `AM band` reduces to the family key `be band`, a spelling no row has. The `B` filler
+// is what discriminates: it spans b00000..b19999, so collating on the key puts this
+// family AFTER all of it while collating on the family's own first member puts it
+// first. Any other prefix and both orders agree, and this stops testing anything.
+test('a family collates at its own member, not at a family key no row spells', async ({ page }) => {
+  await gotoApp(page);
+  await seedCorpus(page, ['AM band', 'AM bands'], 'B');
+
+  const { finalRows } = await runFlat(page, '*');
+
+  const at = norm => finalRows.findIndex(r => r.norm === norm);
+  expect(at('amband')).toBeLessThan(at('b00000'));
+  expect(at('ambands')).toBeLessThan(at('b00000'));
+});
+
+test('a family whose anchor drops mid-stream lands where a buffered run puts it', async ({ page }) => {
+  await gotoApp(page);
+  await seedCorpus(page, ANCHOR_DROP, ANCHOR_DROP_PREFIX);
+
+  const plain = await runFlat(page, '*');
+  const streamed = await runFlat(page, '*', { stream: true });
+
+  expect(streamed.partials.length).toBeGreaterThan(1);
+  expect(streamed.finalRows).toEqual(plain.finalRows);
+
+  // Assert on the last STREAMED snapshot, not on rows fetched after the run settles:
+  // the streamed order is the authoritative one, and a post-completion read can be
+  // served by a wholesale rebuild that masks a torn stream entirely.
+  const last = streamed.partials[streamed.partials.length - 1];
+  const at = norm => last.firstRows.findIndex(r => r.norm === norm);
+  expect(at('applea')).toBeGreaterThanOrEqual(0);
+  // Repaired, the family re-anchors on `apple` and overtakes `applea`; left placed
+  // under the stale `apples`, it stays stranded behind it.
+  expect(at('apples')).toBeLessThan(at('applea'));
+  expect(at('theapple')).toBeLessThan(at('applea'));
 });
