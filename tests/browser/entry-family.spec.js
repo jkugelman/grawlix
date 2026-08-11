@@ -362,3 +362,41 @@ test('a very common name shows only its few best-scoring full names', async ({ p
   await expect(sibling(page)).toHaveCount(3);
   await expect(items(page).filter({ hasText: 'James Joyce' })).toHaveCount(0);
 });
+
+// A family read the worker answers with NO corpus to read from — the sibling of the
+// provenance retry, and the same terminal blank. `syncConfig` clears `ownedMerged` /
+// `ownedCorpusFresh` on arrival and restores them only when the async build commits;
+// a read landing in that gap used to come back as a bare `members: []`,
+// indistinguishable from "this entry has no relatives". buildFamilyHTML then drops
+// the section entirely (anchor-only renders as nothing), and since nothing re-fires
+// the query, Related entries stayed silently missing until the panel was reopened.
+// The reply now carries `ready` — the flag `fetchWordCase`/`fetchSpaceOut` already
+// use — so main can tell the two apart and retry once the build commits.
+//
+// A forced build failure holds the gap open deterministically rather than racing a
+// real rebuild: the failed build nulls the worker's corpus and reports built:false,
+// so it stays un-fresh until the next sync commits.
+test('a family read answered with no corpus retries when the next build commits', async ({ page }) => {
+  await setup(page);
+  const famDebug = () => page.evaluate(() => window.__grawlixTest.entryPanelFamilyDebug());
+
+  await page.evaluate(() => window.__grawlixTest.failNextWorkerBuildForTest());
+  await page.evaluate(() => window.__grawlixTest.syncWorkerConfig());
+  const before = await famDebug();
+
+  // Un-ready: the worker can name no relatives, so the section is absent. This is
+  // the state that used to stick for the life of the panel.
+  await openPanelFor(page, 'cat');
+  await expect(items(page)).toHaveCount(0);
+
+  // Commit a good build. The pending retry drains on its selfReady and fills the
+  // list with the panel still open — no reopen, no keystroke.
+  await page.evaluate(() => window.__grawlixTest.syncWorkerConfig());
+  await expect(items(page)).toHaveCount(2);
+  await expect(current(page)).toContainText('cat');
+  await expect(sibling(page)).toContainText('cats');
+
+  // Non-vacuous, and pins the shape: exactly one retry for the one un-ready reply.
+  const after = await famDebug();
+  expect(after.famRetriesFired - before.famRetriesFired).toBe(1);
+});

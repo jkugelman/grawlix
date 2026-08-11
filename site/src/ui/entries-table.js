@@ -122,6 +122,10 @@ export function entryPanelProvenanceDebug() {
   return EntryPanel.provenanceDebug();
 }
 
+export function entryPanelFamilyDebug() {
+  return EntryPanel.familyDebug();
+}
+
 export function configureEntriesTable({ navigate }) {
   if (navigate)              _navigate = navigate;
 }
@@ -2855,6 +2859,11 @@ export const EntryPanel = (() => {
   let activeRow = null;
   let familyMembers = [];
   let familyToken = 0;
+  let famQueriesFired = 0;
+  let famRetriesFired = 0;
+  // No "applied" counter to pair with these: an un-ready reply is written too (see
+  // renderFamily), so a count of writes wouldn't distinguish anything.
+  function familyDebug() { return { famQueriesFired, famRetriesFired }; }
   let renameSuggestion = null;
   let renameSuggestionFor = null;
   let renameToken = 0;
@@ -3948,12 +3957,15 @@ export const EntryPanel = (() => {
 
   function renderFamily(norm, display) {
     const token = ++familyToken;
+    famQueriesFired++;
     // The bound entry rides alongside the query so the worker excludes it from the
     // corpus siblings — the panel owns the current row (below) instead.
     const boundNorm = activeWlEntry?.norm ?? norm;
     const boundDisplay = activeWlEntry ? activeWlEntry.display ?? null : display ?? null;
-    return fetchWorkerFamily(norm, display ?? null, boundNorm, boundDisplay).then(members => {
-      if (token !== familyToken || !isOpen()) return;
+    const stale = () => token !== familyToken || !isOpen();
+    const ask = () => fetchWorkerFamily(norm, display ?? null, boundNorm, boundDisplay);
+    const apply = members => {
+      if (stale()) return;
       // An editable panel overwrites the anchor with the live edit (typed name and
       // score) so the list reads as the post-save view and holds through a rename;
       // read-only has no pending edit, so the worker's row stands as-is.
@@ -3972,6 +3984,24 @@ export const EntryPanel = (() => {
         (a, b) => (a.viaName === true) - (b.viaName === true)
                || (a.display ?? a.norm).localeCompare(b.display ?? b.norm) || a.norm.localeCompare(b.norm));
       paintFamily();
+    };
+    return ask().then(({ members, ready }) => {
+      // An un-ready reply IS still applied, unlike the rename hint's (which just
+      // declines to speak): familyMembers is keyed to no target, so leaving the
+      // previous entry's list in place would paint ITS relatives under this one. The
+      // anchor-only list it collapses to renders as no section at all — today's
+      // behavior — and the retry below fills it in.
+      apply(members);
+      // ready:false is "the worker had no corpus to answer from" (mid-rebuild, or the
+      // fetch timed out), which an empty members array can't express on its own: an
+      // entry with no relatives answers empty too, and nothing re-fires a family
+      // query, so Related entries would stay missing until the panel was reopened.
+      // Wait out the gap and retry ONCE, the shape the provenance read uses. The token
+      // guard rides both attempts, so a straggling retry can't paint over a newer one.
+      if (ready || stale()) return;
+      famRetriesFired++;
+      return whenWorkerCommitted()
+        .then(() => stale() ? undefined : ask().then(retried => { apply(retried.members); }));
     });
   }
 
@@ -4246,7 +4276,7 @@ export const EntryPanel = (() => {
     refresh({ resetInputs: !editing, skipExistsCheck: true });
   }
 
-  return { open, openSelectionWalk, openForCreate, openFromRoute, close, isOpen, containsFocus, activeNorm, rebindRow, rebindEntry, rebindQuery, renameActive, routeValue, setScoreByDigit, seedDebug, provenanceDebug };
+  return { open, openSelectionWalk, openForCreate, openFromRoute, close, isOpen, containsFocus, activeNorm, rebindRow, rebindEntry, rebindQuery, renameActive, routeValue, setScoreByDigit, seedDebug, provenanceDebug, familyDebug };
 })();
 
 export function entryPanelRebindQuery() {

@@ -857,20 +857,26 @@ export async function fetchWorkerEditSeed(norm, display, timeout = 5000) {
 }
 
 // ─── Family fetch bridge ── see docs/worker-protocol.md ──────────────────────
-// Its own requestId space; a timeout resolves [] so the panel simply shows no
-// related entries rather than hanging.
+// Its own requestId space. Resolves `{ members, ready }` rather than a bare array so
+// an un-ready worker (corpus mid-rebuild) stays distinguishable from a genuine "no
+// relatives" — the panel retries the former and would otherwise show an empty
+// Related list for the life of the panel. A timeout is un-ready for the same reason:
+// no answer, so nothing to mistake for one.
 let fetchFamilyRequestId = 0;
 export async function fetchWorkerFamily(norm, display, boundNorm, boundDisplay, timeout = 5000) {
   await pendingEditBarrier;
   const w = getWorker();
   const requestId = ++fetchFamilyRequestId;
   return new Promise(resolve => {
-    const timer = setTimeout(() => { w.removeEventListener('message', onMessage); resolve([]); }, timeout);
+    const timer = setTimeout(() => {
+      w.removeEventListener('message', onMessage);
+      resolve({ members: [], ready: false });
+    }, timeout);
     function onMessage({ data }) {
       if (data?.type !== 'family' || data.requestId !== requestId) return;
       clearTimeout(timer);
       w.removeEventListener('message', onMessage);
-      resolve(data.members ?? []);
+      resolve({ members: data.members ?? [], ready: !!data.ready });
     }
     w.addEventListener('message', onMessage);
     w.postMessage({ type: 'fetchFamily', requestId, norm, display, boundNorm, boundDisplay });

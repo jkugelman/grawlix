@@ -1579,16 +1579,19 @@ function handleFetchEditSeed({ requestId, norm, display }) {
 // when a concrete click keeps them out of the provenance table. ownedCorpusFresh gates
 // ownedMerged the same way the edit-seed fetch does (see its note).
 async function handleFetchFamily({ requestId, norm, display, boundNorm = norm, boundDisplay = display ?? null }) {
-  // Awaited, not fire-and-forget: nothing re-asks a family query, so a load left in
-  // flight answers the first one short and stays that way until the panel is reopened
-  // (an empty Related list on a cold deep link). The stall it costs is one download
-  // for a brand-new user — IDB-cached after — and the space-out query fired alongside
-  // it already awaits the same asset.
+  // Awaited, not fire-and-forget: a load left in flight answers this query short, and
+  // main's retry only covers an un-ready CORPUS (`ready` below) — a segmenter that
+  // wasn't loaded yet still reports ready, so nothing would re-ask. The stall it costs
+  // is one download for a brand-new user — IDB-cached after — and the space-out query
+  // fired alongside it already awaits the same asset.
   if (!/\s/.test(display ?? norm) && !hasUnigramCorpus()) {
     try { await loadUnigramCorpus(); } catch { /* offline → unsegmented membership */ }
   }
   let members = [];
-  if (ownedMerged && ownedCorpusFresh) {
+  // Read AFTER the await, alongside the members walk it gates: a syncConfig landing
+  // during the load would otherwise be reported as a ready empty answer.
+  const ready = !!(ownedMerged && ownedCorpusFresh);
+  if (ready) {
     // `bound` is the entry the panel is on, flagged `current` so it renders as the
     // bold inert anchor. Mid-rename an editable panel overwrites this row with the
     // live edit, so a miss here is a genuinely absent entry, not a stale spelling.
@@ -1638,7 +1641,11 @@ async function handleFetchFamily({ requestId, norm, display, boundNorm = norm, b
       for (const e of group.slice(0, NAME_RELATIVE_CAP)) members.push(asMember(e, true));
     }
   }
-  postMessage({ type: 'family', requestId, members });
+  // `ready` keeps an un-ready worker's empty answer distinguishable from a genuine
+  // "no relatives" — collapsing them answers "nothing is related" for EVERY entry,
+  // and the panel drops the whole section on an anchor-only list, so main would have
+  // no way to know it should ask again (same reasoning as handleFetchWordCase).
+  postMessage({ type: 'family', requestId, members, ready });
 }
 
 function handleFetchWinners({ requestId, ids }) {

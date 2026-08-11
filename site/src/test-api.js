@@ -51,7 +51,7 @@ import { computeStatsRaw } from './engine/stats.js';
 import {
   getEntriesScroller, setScope, renderSources, renderMergedDetail, refreshMergedScroller,
 } from './ui/rendering.js';
-import { streamFlatBatchToScroller, windowedFlatDebug, workerSummariesDebug, workerGroupsDebug, workerGroupListDebug, existsInScopeDebug, entryPanelSeedDebug, entryPanelProvenanceDebug, rebindAnswersConsumedDebug, resetRebindAnswersConsumedForTest, groupWindowUnderfillDebug, resetGroupWindowUnderfillForTest } from './ui/entries-table.js';
+import { streamFlatBatchToScroller, windowedFlatDebug, workerSummariesDebug, workerGroupsDebug, workerGroupListDebug, existsInScopeDebug, entryPanelSeedDebug, entryPanelProvenanceDebug, entryPanelFamilyDebug, rebindAnswersConsumedDebug, resetRebindAnswersConsumedForTest, groupWindowUnderfillDebug, resetGroupWindowUnderfillForTest } from './ui/entries-table.js';
 import { applyScoringChange } from './ui/rescore-editor.js';
 import { propagateDefaults as _propagateDefaults } from './model/scoring.js';
 import {
@@ -434,6 +434,7 @@ const __grawlixTest = {
   existsInScopeDebug,
   entryPanelSeedDebug,
   entryPanelProvenanceDebug,
+  entryPanelFamilyDebug,
   rebindAnswersConsumedDebug,
   resetRebindAnswersConsumedForTest,
   groupWindowUnderfillDebug,
