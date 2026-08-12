@@ -251,6 +251,42 @@ computed cold. The poison run must produce a *different* result from the run und
 test — repeat the same one and it re-inherits its own correct anchors, and the test
 cannot fail. Both were verified red against a build without the guard.
 
+## Typed input is a run sequence (`human-typing.spec.js`)
+
+`setStack`, `runSearch`, and `fill()` each produce **one** run. A user produces one run
+per keystroke, and the worker deliberately retains state between runs — the anchor map,
+the retained join, a stashed partial — so a defect that only misleads a run *following
+another* is invisible to a suite built on single-run helpers. That is the structural
+hole the duplicate-rows bug came through: every run in isolation was correct.
+
+[`human-typing.spec.js`](../tests/browser/human-typing.spec.js) drives the three text
+inputs a user actually types into — the search box, the score box, a tool param — with
+`pressSequentially`, and asserts the same invariant each time: **typing a value one
+character at a time lands exactly where pasting that value lands.** Around that: no
+keystroke leaves a duplicated row, backspacing to a prefix matches that prefix typed
+fresh, typing faster than the pipeline settles (so most runs are superseded in flight
+rather than completing) still converges, and a two-step chain configured in either
+order lands in the same place. The four search-box tests were verified red against the
+pre-fix build.
+
+Three ways one of these silently stops testing anything, all designed against here:
+
+- **The sequence is degenerate.** If every keystroke yields the same rows, convergence
+  holds no matter what the code does. Pick a fixture where an intermediate keystroke
+  produces a *different* result and assert that it differs, as the tool-param test does.
+- **The run never streams.** These corpora are small enough to finish inside the
+  shipped 30 ms yield budget, which exercises the buffered path — not the streaming one
+  a real user's corpus takes. `setWorkerYieldIntervalForTest(1)` forces it, and the
+  duplicate-row test *asserts* a partial was actually emitted rather than trusting it,
+  since shrinking the fixture is what would quietly undo this.
+- **The read races the repaint.** Per-keystroke assertions are the worst case for the
+  raw-read flake in *Reading async pipeline output* above: mid-repaint the scroller can
+  hold one row from each of two snapshots, which reads as a duplicate that was never on
+  screen. Poll (a real duplicate never clears) instead of reading once.
+
+When you add an interaction that accumulates state across runs, add it here rather than
+as another single-run spec.
+
 ## CI
 
 GitHub Actions runs the suite on push to `main` only — no PR gating. CI first builds the bundled production artifact (`npm run build` → `dist/`, where esbuild bundles the module graph and minifies) and runs the suite against *that*, not the `site/` source — so a bundling- or minification-induced break fails the build before it can deploy. The deploy job ships the exact `dist/` artifact the tests ran against. Failed runs upload traces and screenshots as artifacts; download from the run page to inspect.
