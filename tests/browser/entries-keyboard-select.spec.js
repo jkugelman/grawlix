@@ -245,6 +245,28 @@ test('Delete removes the selection in the My Edits scope, with undo', async ({ p
     .toEqual(['one', 'three', 'two']);
 });
 
+test('a dismissed toast leaves the DOM even when no transition runs', async ({ page }) => {
+  await setup(page, { scope: 'All Wordlists' });
+  await page.evaluate(async () => {
+    await window.__grawlixTest.saveMyEdit('one', 'one', 50);
+    await window.__grawlixTest.saveMyEdit('two', 'two', 50);
+  });
+  await scopeTo(page, 'My Edits');
+  await row(page, 'one').locator('.atom-len').click();
+  await page.keyboard.press('Delete');
+
+  const deleted = page.locator('#toast-container .toast', { hasText: 'Deleted' });
+  await expect(deleted).toBeVisible();
+
+  // .toast.dismissing keeps pointer-events auto, so a teardown left waiting on a
+  // transitionend the browser never sends strands a fully transparent toast that
+  // still eats clicks aimed at the table under it.
+  await page.addStyleTag({ content: '.toast { transition: none !important; }' });
+  await page.locator('#toast-container .toast-action', { hasText: 'Undo' }).click();
+
+  await expect(deleted).toHaveCount(0);
+});
+
 test('Delete does nothing outside the My Edits scope', async ({ page }) => {
   await setup(page);   // All Wordlists scope
   await row(page, 'alpha').locator('.atom-len').click();

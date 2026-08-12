@@ -32,6 +32,7 @@ Generic, layer-agnostic builders. Anything reusable across surfaces belongs here
 | `buildTextInputHTML(param, value, toolKey, wiring)` | A clearable monospace text input for a tool param, with placeholder and help wiring. |
 | `buildParamHTML(param, value, toolKey, wiring)` | Renders one tool-row param, dispatching on `param.type`: `checkbox`, `match`, `segmented`, `number`, `range`, or text. **Add new control types here** rather than in a tool. |
 | `positionPopover(el, anchor, opts)` | Places a fixed-position element beside an anchor, flipping above/below and clamping to the viewport. |
+| `afterTransition(el, done, opts)` | Runs `done` when the element's transition ends, or after `opts.timeout` (default 1000ms) if it never fires — a backgrounded tab or a coalesced style change runs no transition at all. **Every teardown hung on a `transitionend` goes through this**; unbounded, a missed event strands an already-transparent node that still takes pointer events or focus. Pass `opts.property` when more than one property transitions. |
 | `PopupHelp` | Class. A help popover bound to an anchor's focus, dismissed on blur or Escape and suppressed on narrow viewports. `show()` / `hide()` / `destroy()`. |
 | `buildSplitBtn(mainLabel, mainOnclick, menuItems, opts)` | A primary action button with an attached ▾ menu of secondary actions. |
 | `buildMoreMenuHTML(menuItems, opts)` | A menu with no primary action — trigger is a ⋮, a named icon, or a text label with a caret. |

@@ -4,6 +4,7 @@ import {
   syncTargets, Disk, SyncStatus, editsSyncKey, syncFilename, listForSyncKey,
   rescoredFilename, persistSyncTarget, activateSyncTarget,
 } from '../data/disk-sync.js';
+import { afterTransition } from './components.js';
 
 // ─── Boot reconnect splash ────────────────────────────────────────────────────
 
@@ -59,7 +60,7 @@ export const ReconnectSplash = (() => {
 
       const finish = () => {
         overlay.classList.add('done');
-        overlay.addEventListener('transitionend', () => overlay.remove(), { once: true });
+        afterTransition(overlay, () => overlay.remove(), { property: 'opacity', timeout: 600 });
         resolve();
       };
 

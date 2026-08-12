@@ -196,6 +196,29 @@ export class PopupHelp {
   }
 }
 
+// Run a teardown once the element's transition ends — or after `timeout` if it
+// never does, which a backgrounded tab or a coalesced style change causes. The
+// element has already reached its final style by then, so what a missed event
+// leaves behind is invisible: a transparent node still taking pointer events or
+// focus, or a follow-up step that silently never runs. Pass `property` when the
+// element transitions more than one, else the first to finish tears down early.
+export function afterTransition(el, done, { property = null, timeout = 1000 } = {}) {
+  let fired = false;
+  const finish = () => {
+    if (fired) return;
+    fired = true;
+    clearTimeout(timer);
+    el.removeEventListener('transitionend', onEnd);
+    done();
+  };
+  const onEnd = e => {
+    if (e.target !== el || (property && e.propertyName !== property)) return;
+    finish();
+  };
+  const timer = setTimeout(finish, timeout);
+  el.addEventListener('transitionend', onEnd);
+}
+
 export function buildSplitBtn(mainLabel, mainOnclick, menuItems, { primary = false, disabled = false, title = '', id = '' } = {}) {
   const dis = disabled ? ' disabled' : '';
   const titleAttr = title ? ` title="${title}"` : '';

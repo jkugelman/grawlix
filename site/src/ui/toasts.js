@@ -5,6 +5,7 @@
 import { esc } from '../core/util.js';
 import { hoverCapable } from '../core/platform.js';
 import { notifyStack } from './notify-stack.js';
+import { afterTransition } from './components.js';
 
 let _toastContainerEl = null;
 function toastContainer() {
@@ -63,5 +64,5 @@ function _dismissToast(el) {
   clearTimeout(el._timer);
   el.classList.add('dismissing');
   el.classList.remove('show');
-  el.addEventListener('transitionend', () => el.remove(), { once: true });
+  afterTransition(el, () => el.remove(), { property: 'opacity', timeout: 500 });
 }

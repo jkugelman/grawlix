@@ -11,7 +11,7 @@ import { state } from '../data/state.js';
 import { mergedEntryCount, getSourceCounts, sourceTotal } from '../data/merge.js';
 import { getWordlistIcon, getMergedIcon } from './icons.js';
 import {
-  buildBadgeHTML, buildDragHandleHTML, buildSplitBtn, buildMoreMenuHTML,
+  buildBadgeHTML, buildDragHandleHTML, buildSplitBtn, buildMoreMenuHTML, afterTransition,
 } from './components.js';
 import {
   syncSignHTML, wordlistSeverity, sourcesSeverity, severityTitle,
@@ -327,16 +327,7 @@ export const WordlistSelector = (() => {
       editorInner.innerHTML = '';
     };
     if (reduced) { finish(); return; }
-    // A transition that never runs fires no transitionend, and the editor then
-    // stays mounted and tabbable for the session — invisible at 0fr, so nothing
-    // looks wrong. Not redundant with the listener; it's the only bound on it.
-    const fallback = setTimeout(finish, 400);
-    editor.addEventListener('transitionend', function te(e) {
-      if (e.target !== editor || e.propertyName !== 'grid-template-rows') return;
-      editor.removeEventListener('transitionend', te);
-      clearTimeout(fallback);
-      finish();
-    });
+    afterTransition(editor, finish, { property: 'grid-template-rows', timeout: 400 });
   }
 
   function refresh() {

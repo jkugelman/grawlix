@@ -52,7 +52,7 @@ import {
 } from '../data/disk-sync.js';
 import { propagateDefaults } from '../model/scoring.js';
 import { showToast, showActionToast, showUndoToast } from '../ui/toasts.js';
-import { positionPopover } from '../ui/components.js';
+import { positionPopover, afterTransition } from '../ui/components.js';
 import { showConfirm, showAlert, showMergeConflict } from '../ui/dialogs/confirm.js';
 import { openUpdateSummaryDialog } from '../ui/dialogs/update-summary.js';
 import { SettingsDialog, cycleDarkMode } from '../ui/dialogs/settings.js';
@@ -263,7 +263,7 @@ export async function init() {
     ReconnectSplash.show(prompt);
   } else if (_overlay) {
     _overlay.classList.add('done');
-    _overlay.addEventListener('transitionend', () => { _overlay.remove(); revealNewTools(); }, { once: true });
+    afterTransition(_overlay, () => { _overlay.remove(); revealNewTools(); }, { property: 'opacity', timeout: 600 });
   } else {
     revealNewTools();
   }
