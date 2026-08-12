@@ -327,9 +327,14 @@ export const WordlistSelector = (() => {
       editorInner.innerHTML = '';
     };
     if (reduced) { finish(); return; }
+    // A transition that never runs fires no transitionend, and the editor then
+    // stays mounted and tabbable for the session — invisible at 0fr, so nothing
+    // looks wrong. Not redundant with the listener; it's the only bound on it.
+    const fallback = setTimeout(finish, 400);
     editor.addEventListener('transitionend', function te(e) {
       if (e.target !== editor || e.propertyName !== 'grid-template-rows') return;
       editor.removeEventListener('transitionend', te);
+      clearTimeout(fallback);
       finish();
     });
   }

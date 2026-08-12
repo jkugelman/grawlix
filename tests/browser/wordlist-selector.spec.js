@@ -256,6 +256,22 @@ test('the rescore panel bake button is disabled for a publisher source', async (
   await expect(page.locator('#rescore-editor .rule-bake-btn')).toBeDisabled();
 });
 
+test('collapsing the editor tears its content down even when no transition runs', async ({ page }) => {
+  await gotoApp(page);
+  await scopeTo(page, 'John Kugelman');
+  await openRescoreEditor(page);
+  await expect(page.locator('#rescore-editor .rescore-apply')).toHaveCount(1);
+
+  // The teardown hangs off a transitionend, which a suppressed transition never
+  // fires — and an unbounded wait leaves the collapsed editor mounted at 0fr,
+  // invisible but still tabbable, for the rest of the session.
+  await page.addStyleTag({ content: '#rescore-editor { transition: none !important; }' });
+  await page.locator('#rescore-editor .rescore-cancel').click();
+
+  await expect(page.locator('#rescore-editor')).toBeHidden();
+  await expect(page.locator('#rescore-editor .rescore-apply')).toHaveCount(0);
+});
+
 test('All Wordlists has no bake button — its panel is the scoring/tier editor', async ({ page }) => {
   await gotoApp(page);
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
