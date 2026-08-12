@@ -12,21 +12,48 @@
 // draft snapshots it), then drive the UI and Apply.
 
 import { test, expect } from '@playwright/test';
-import { stubPublisherFetches, gotoApp, scopeViaSelector, openRescoreEditor, applyRescoreEditor } from './helpers.js';
+import { awaitSettle, stubPublisherFetches, gotoApp, scopeViaSelector, openRescoreEditor, applyRescoreEditor } from './helpers.js';
 
 // Tiny JK fixture: scores that all fall within JK's default-rule coverage
 // (60, 50, 40, 30, 20, 10, 0), so rescoring is a clean passthrough and the
 // dirty-flag signal stands alone.
 const JK_FIXTURE = 'WORDA;60\nWORDB;50\nWORDC;30\n';
 
+// The waits below go through awaitSettle, not a bare evaluate: each holds the
+// frame's main-world context open across a fetch drain or a worker round-trip,
+// which full-matrix contention can drop mid-call (see helpers.js).
 async function populateJK(page) {
-  await page.evaluate(() => window.__grawlixTest.loadIdle());
+  await awaitSettle(page, () => window.__grawlixTest.loadIdle());
   await scopeViaSelector(page, 'John Kugelman');
 }
 
 const ONE_RULE = [{ input: '60', length: '', output: '50', note: '' }];
+const DEFAULT_INPUTS = ['0', '10', '20', '30', '40', '50', '60'];
 const setJKRules = (page, rules) =>
-  page.evaluate(r => window.__grawlixTest.setRescoreRules('John Kugelman', r), rules);
+  awaitSettle(page, r => window.__grawlixTest.setRescoreRules('John Kugelman', r), rules);
+const readJK = page =>
+  awaitSettle(page, () => window.__grawlixTest.getWordlist('John Kugelman'));
+
+// Absence assertions pass just as well against an editor that never rendered,
+// so each is preceded by the rule-row count that proves the draft it should be
+// reading. Without it a blank editor reads as "no reset button" and the test
+// goes green having checked nothing.
+const expectRuleRows = (page, n) =>
+  expect(page.locator('#rescore-editor .rule-row')).toHaveCount(n);
+
+// A rescore-editor repaint rebuilds the footer and can swallow a click landing
+// on it, leaving the dialog closed and the rest of the test asserting against an
+// un-reset draft (wordlist-selector.spec.js hit the same thing on bake). Re-click
+// until the dialog opens, skipping the click once it has so the retry can't fire
+// a second one into the modal.
+async function clickResetAwaitingConfirm(page) {
+  const dialog = page.locator('#confirm-dialog');
+  await expect(async () => {
+    if (!await dialog.isVisible()) await page.locator('.rule-reset-btn').click();
+    await expect(dialog).toBeVisible({ timeout: 2000 });
+  }).toPass({ timeout: 15_000 });
+  return dialog;
+}
 
 test.beforeEach(async ({ page }) => {
   await stubPublisherFetches(page, { jkugelman: JK_FIXTURE });
@@ -37,8 +64,9 @@ test('publisher wordlist starts pristine — no reset button visible', async ({ 
   await populateJK(page);
   await openRescoreEditor(page);
 
-  const wl = await page.evaluate(() => window.__grawlixTest.getWordlist('John Kugelman'));
+  const wl = await readJK(page);
   expect(wl.dirty).toBe(false);
+  await expectRuleRows(page, DEFAULT_INPUTS.length);
   await expect(page.locator('.rule-reset-btn')).toHaveCount(0);
 });
 
@@ -49,7 +77,7 @@ test('diverging from defaults flips dirty and shows the reset button', async ({ 
   await setJKRules(page, ONE_RULE);
   await openRescoreEditor(page);
 
-  const wl = await page.evaluate(() => window.__grawlixTest.getWordlist('John Kugelman'));
+  const wl = await readJK(page);
   expect(wl.dirty).toBe(true);
   await expect(page.locator('.rule-reset-btn')).toBeVisible();
 });
@@ -61,16 +89,15 @@ test('clicking reset restores defaults and clears the dirty flag', async ({ page
   await openRescoreEditor(page);
   await expect(page.locator('.rule-reset-btn')).toBeVisible();
 
-  await page.locator('.rule-reset-btn').click();
-  const confirmDialog = page.locator('#confirm-dialog');
-  await expect(confirmDialog).toBeVisible();
+  const confirmDialog = await clickResetAwaitingConfirm(page);
   await confirmDialog.locator('#btn-confirm-ok').click();
+  await expectRuleRows(page, DEFAULT_INPUTS.length);
   await expect(page.locator('.rule-reset-btn')).toHaveCount(0);
   await applyRescoreEditor(page);
 
-  const wl = await page.evaluate(() => window.__grawlixTest.getWordlist('John Kugelman'));
+  const wl = await readJK(page);
   expect(wl.dirty).toBe(false);
-  expect(wl.rescoreRules.map(r => r.input).sort()).toEqual(['0', '10', '20', '30', '40', '50', '60']);
+  expect(wl.rescoreRules.map(r => r.input).sort()).toEqual(DEFAULT_INPUTS);
 });
 
 test('cancel on reset keeps customizations intact', async ({ page }) => {
@@ -80,12 +107,10 @@ test('cancel on reset keeps customizations intact', async ({ page }) => {
   await openRescoreEditor(page);
   await expect(page.locator('.rule-reset-btn')).toBeVisible();
 
-  await page.locator('.rule-reset-btn').click();
-  const confirmDialog = page.locator('#confirm-dialog');
-  await expect(confirmDialog).toBeVisible();
+  const confirmDialog = await clickResetAwaitingConfirm(page);
   await confirmDialog.locator('#btn-confirm-cancel').click();
 
-  const wl = await page.evaluate(() => window.__grawlixTest.getWordlist('John Kugelman'));
+  const wl = await readJK(page);
   expect(wl.dirty).toBe(true);
   expect(wl.rescoreRules).toHaveLength(1);
   await expect(page.locator('.rule-reset-btn')).toBeVisible();
@@ -108,7 +133,7 @@ test('neutralize flips dirty, blanks every output, drops scoring:false, keeps Re
   await editor.locator('.rule-neutralize-btn').click();
   await applyRescoreEditor(page);
 
-  const wl = await page.evaluate(() => window.__grawlixTest.getWordlist('John Kugelman'));
+  const wl = await readJK(page);
   expect(wl.dirty).toBe(true);
   expect(wl.rescoreRules).toEqual([{ input: '60', length: '', output: '' }]);
 
@@ -125,7 +150,7 @@ test('a pristine list with rules in a non-default order is renormalized, staying
   await gotoApp(page);
   await populateJK(page);
 
-  const result = await page.evaluate(() => {
+  const result = await awaitSettle(page, () => {
     const wl = state.sources.find(s => s.name === 'John Kugelman');
     wl.rescoreRules = [...wl.rescoreRules].reverse();   // a non-authored order, still pristine
     wl.dirty = false;

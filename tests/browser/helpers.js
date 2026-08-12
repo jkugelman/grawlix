@@ -82,13 +82,13 @@ async function reloadApp(page) {
 // under an in-flight evaluate — verified: no navigation, no crash, the document
 // still rendering — and Playwright blames "a navigation" that never happened.
 // So this is a re-ask of a settled condition, not a retry papering over a race.
-async function awaitSettle(page, fn) {
+async function awaitSettle(page, fn, arg) {
   try {
-    return await page.evaluate(fn);
+    return await page.evaluate(fn, arg);
   } catch (e) {
     if (!/Execution context was destroyed/.test(e.message)) throw e;
     await page.waitForFunction(() => !!window.__grawlixTest);
-    return await page.evaluate(fn);
+    return await page.evaluate(fn, arg);
   }
 }
 
@@ -137,9 +137,16 @@ async function openRescoreEditor(page) {
 }
 
 // Edits in the rescore editor are batched into a draft; Apply commits them.
+// Gate on the toggle, which Apply flips in the same synchronous handler that
+// commits. Gating on the editor's `hidden` instead couples every caller to the
+// collapse animation — it lands from a transitionend, which a transition that
+// never runs never fires — and strands them with the commit long since done,
+// reporting as whatever the caller was asserting about the commit. The teardown
+// has its own test in wordlist-selector.spec.js.
 async function applyRescoreEditor(page) {
   await page.locator('#rescore-editor .rescore-apply').click();
-  await expect(page.locator('#rescore-editor')).toBeHidden();
+  await expect(page.locator('#wordlist-bar .rescore-toggle'))
+    .toHaveAttribute('aria-expanded', 'false');
 }
 
 async function openManagePanel(page) {
@@ -218,6 +225,7 @@ function readVisible(page) { return page.evaluate(() => window.__grawlixTest.get
 function readGroups(page)  { return page.evaluate(() => window.__grawlixTest.getVisibleGroups()); }
 
 export {
+  awaitSettle,
   stubPublisherFetches,
   gotoApp,
   reloadApp,

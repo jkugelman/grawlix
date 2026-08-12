@@ -212,6 +212,14 @@ await expectVisible(page, ['kayak', 'noon', 'racecar']);            // ✅ retri
 
 Playwright's own locator assertions (`expect(locator).toHaveText(...)`, `.toHaveCount(...)`) already auto-retry, so they're fine as-is — the trap is specifically the frozen `page.evaluate(...)` snapshot, which doesn't. For an "assert empty / assert absent" check, poll a *positive* settle signal first (a count, a present member) so the absence can't pass before the pipeline has even run.
 
+### Don't gate on an animation finishing
+
+Auto-retrying assertions are safe, but *what* you wait for still matters. Never gate a test on a state the app reaches only when a CSS transition completes — under load a transition may never run at all (style changes coalesced into one frame, a dropped frame), so its `transitionend` never fires and the wait hangs for the full timeout.
+
+The rescore editor is the worked example. `collapseEditor` removes the open class immediately, but `editor.hidden` lands from a `transitionend` handler. `applyRescoreEditor` used to gate on `toBeHidden()`, so a suppressed transition stranded it *with the commit already done* — and the failure reported as whatever the caller was asserting about the commit (`dirty-flag.spec.js` "clicking reset restores defaults and clears the dirty flag", with `dirty` in fact already `false`). Reproduce it deterministically by injecting `#rescore-editor { transition: none !important; }` before the click.
+
+Gate on the state the interaction sets **synchronously** instead — here the toggle's `aria-expanded="false"`, flipped in the same handler that commits. Presentational teardown deserves its own test rather than riding along as every caller's implicit gate; that one lives in `wordlist-selector.spec.js`. The app also bounds the wait so a dropped `transitionend` can't leave the collapsed editor mounted and tabbable.
+
 ## Family anchoring
 
 The Entry sort collates a family at its first visible member's **anchor**, not at the
