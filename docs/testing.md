@@ -284,8 +284,23 @@ Three ways one of these silently stops testing anything, all designed against he
   hold one row from each of two snapshots, which reads as a duplicate that was never on
   screen. Poll (a real duplicate never clears) instead of reading once.
 
-When you add an interaction that accumulates state across runs, add it here rather than
-as another single-run spec.
+[`interaction-sequences.spec.js`](../tests/browser/interaction-sequences.spec.js) is the
+sibling for interactions that aren't typing: a stack **built one tool at a time** landing
+where the same stack applied at once does (`tools.spec.js` asserts the picker's stack
+*order*, never the rows it produces), a **sort change arriving mid-stream** (the
+score-range analogue exists in `reproject.spec.js`; sort is the other view op and the one
+the anchor map backs), and **scrolling during a live stream** (`worker-partials.spec.js`
+covers a mid-stream `fetchRows` at the protocol level, but nothing scrolled the real
+scroller). Each asserts it genuinely caught the run mid-flight — `pipeline-streaming` on
+the panel, a row count still short of the final — rather than trusting the timing.
+
+One trap specific to reading mid-stream: **`getVisibleEntries` awaits `pipelineIdle`**,
+so calling it during a stream blocks until the run settles and returns the *settled*
+view. A mid-stream assertion must read the DOM directly, or it silently tests the
+opposite of what it claims.
+
+When you add an interaction that accumulates state across runs, or one that lands during
+one, add it to these two specs rather than as another single-run spec.
 
 ## CI
 
