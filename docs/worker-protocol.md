@@ -47,6 +47,15 @@ adopts. Two consequences that are load-bearing:
   is constructed, so a resumed stream never takes the create branch; a closure-local map
   would start empty, skip every repair, and merge two arrays sorted under different
   comparators — a tear that survives to the terminal.
+- **That slot holds the *previous* run's result until this run places its first rows**,
+  so the emitter reads it only when `streamState.streamed` — one condition gating both
+  halves, the anchor map and the already-placed `indices`/`chains` the repair pulls
+  back. Reading the anchors early hands every family a final anchor before this run has
+  seen a row, so no drop fires and the repair goes unreached; reading the rows early
+  re-admits a superseded result's rows as this run's own, which on a per-keystroke
+  search duplicates the whole result once per keystroke. `armPartialResume` is the only
+  other way `streamed` is set, and it builds the slot for *this* run before setting it,
+  so the resume path inherits its own map rather than a stranger's.
 - Anchors are built over the **filtered view**, not the join, so a family collates at a
   member the filter actually left on screen. Every wholesale rebuild
   (`flatViewIndices`, `chainAnchors`) rebuilds the map atomically with the order it

@@ -191,3 +191,68 @@ test('a family whose anchor drops mid-stream lands where a buffered run puts it'
   expect(at('apples')).toBeLessThan(at('applea'));
   expect(at('theapple')).toBeLessThan(at('applea'));
 });
+
+// Typing into the search box fires a run per keystroke, each one a NEW run whose
+// first batch lands while lastFlatResult still holds the PREVIOUS run's rows. Order
+// matters: `keeping` must be scanned before `keep` so the anchor drops on that first
+// batch, which is what reaches for the retained result. Both patterns match all four
+// and differ from each other, so neither run is served from the finished cache.
+const FAMILY = ['keeping it in-house', 'keep it in-house', 'keeps it in-house', 'kept it in-house'];
+
+test('a new run does not inherit rows from the run it supersedes', async ({ page }) => {
+  await gotoApp(page);
+  await seedCorpus(page, FAMILY);
+
+  await runFlat(page, '*tinhouse', { stream: true });
+  const second = await runFlat(page, '*itinhouse', { stream: true });
+
+  const norms = second.finalRows.map(r => r.norm);
+  expect([...new Set(norms)].sort()).toEqual([...norms].sort());
+  expect(norms.length).toBe(FAMILY.length);
+
+  // The streamed snapshot is the authoritative one, so assert there too: a terminal
+  // rebuild would mask duplicates that the user actually saw on screen.
+  const last = second.partials[second.partials.length - 1];
+  const shown = last.firstRows.map(r => r.norm);
+  expect([...new Set(shown)]).toEqual(shown);
+});
+
+async function runTransform(page, tool, { stream } = {}) {
+  return page.evaluate(async ({ tool, stream, STREAM_MS, SHIPPED_MS }) => {
+    const T = window.__grawlixTest;
+    if (stream) T.setWorkerYieldIntervalForTest(STREAM_MS);
+    const capture = T.captureWorkerChainPartialsForTest();
+    await T.setStack([{ tool, params: { pattern: '?' } }]);
+    await T.pipelineIdle();
+    const partials = capture.stop();
+    if (stream) T.setWorkerYieldIntervalForTest(SHIPPED_MS);
+    const reply = await T.fetchWorkerAllTransformRows(T.lastCompletedRunId());
+    const heads = rows => rows.map(c => c.atoms[0].wlEntry.display ?? c.atoms[0].wlEntry.norm);
+    return { partials, settled: reply ? heads(reply.rows) : [] };
+  }, { tool, stream, STREAM_MS, SHIPPED_MS });
+}
+
+// The transform tier's half of the same ownership rule, and every entry is load-bearing.
+// AKE makes Head off yield exactly ONE chain, anchoring the bake family at "bake"; Back
+// off then yields BAKED and BAKEA, correctly anchored at "baked" and "bakea", so BAKEA
+// leads. Inheriting the poison run's lower "bake" keeps the family ahead of BAKEA
+// instead, and no drop fires to repair it. BAK is absent on purpose: admit it and BAKE
+// becomes a Back off head too, anchoring the family at "bake" legitimately and leaving
+// the two orderings in agreement -- a test that cannot fail.
+const AFFIX_FAMILY = ['BAKE', 'AKE', 'BAKED', 'BAKEA'];
+
+test('a new transform run does not inherit the anchors of the run it supersedes', async ({ page }) => {
+  await gotoApp(page);
+  await seedCorpus(page, AFFIX_FAMILY);
+
+  const lower = names => names.map(n => n.toLowerCase());
+  const baseline = await runTransform(page, 'back_off');
+  expect(lower(baseline.settled)).toEqual(['bakea', 'baked']);
+
+  await runTransform(page, 'head_off');
+  const streamed = await runTransform(page, 'back_off', { stream: true });
+
+  expect(streamed.partials.length).toBeGreaterThan(0);
+  const last = streamed.partials[streamed.partials.length - 1];
+  expect(lower(last.entries.map(atoms => atoms[0]))).toEqual(lower(baseline.settled));
+});

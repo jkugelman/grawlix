@@ -240,6 +240,17 @@ Verify any change to it by disabling the repair and confirming it goes red. Note
 `tests/browser/streaming-render.spec.js` uses `streamSyntheticBatch` and bypasses the
 worker, so it cannot catch a comparator regression.
 
+**Cross-run inheritance needs two runs back to back, one of them streamed.** The
+retained slot outlives the run that filled it, so a single-run test cannot see the
+emitter read a *previous* run's anchors or rows (`worker-protocol.md` § *Family
+anchoring*). Both tiers are covered in `worker-partials.spec.js` by running a poison
+run first: the flat one types two patterns matching the same family and asserts the
+second result holds no duplicates, and the transform one anchors a family via `Head
+off` before running `Back off` and comparing the streamed order against the same run
+computed cold. The poison run must produce a *different* result from the run under
+test — repeat the same one and it re-inherits its own correct anchors, and the test
+cannot fail. Both were verified red against a build without the guard.
+
 ## CI
 
 GitHub Actions runs the suite on push to `main` only — no PR gating. CI first builds the bundled production artifact (`npm run build` → `dist/`, where esbuild bundles the module graph and minifies) and runs the suite against *that*, not the `site/` source — so a bundling- or minification-induced break fails the build before it can deploy. The deploy job ships the exact `dist/` artifact the tests ran against. Failed runs upload traces and screenshots as artifacts; download from the run page to inspect.

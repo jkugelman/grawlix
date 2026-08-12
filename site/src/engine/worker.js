@@ -424,17 +424,17 @@ function makeStreamEmitter(runId, viewSpec, scope, stack, signal, streamState, r
       if (batchRows.length === 0) return;
     }
     const intervals = viewSpec.scoreRange ? parseRange(viewSpec.scoreRange) : null;
-    // Read off the RESULT, never a closure local: armPartialResume sets
-    // streamState.streamed before this emitter is built, so a resumed stream would
-    // start from an empty map, skip every repair, and merge two arrays sorted under
-    // different comparators — a tear that survives to the terminal.
-    // Only a run already streaming (or resumed — armPartialResume built the map via
-    // deriveFlatResult) inherits it. A NEW run's first batch must start empty:
-    // lastFlatResult still holds the PREVIOUS run's result here, and adopting its
-    // fully-populated map hands every family a final anchor before a single row of
-    // this run has been seen, so no drop ever fires and the repair goes unreached.
-    const anchors = !usesEntryAxis(viewSpec.sort) ? null
-      : streamState.streamed ? (lastFlatResult?.anchors ?? new Map()) : new Map();
+    // The retained result is THIS run's only once the run has placed rows; until then
+    // it still holds the PREVIOUS run's, which this emitter must not read either half
+    // of. Its anchors would hand every family a final anchor before this run has seen
+    // a row, so no drop fires and the repair below goes unreached; its indices are
+    // rows of a superseded result, which the repair would re-admit as this run's own
+    // and duplicate on screen. Both are silent. armPartialResume is the other way in:
+    // it sets streamed before this emitter exists, having already built the result for
+    // this run via deriveFlatResult, so a resumed stream inherits its own map rather
+    // than restarting empty and merging two arrays sorted under different comparators.
+    const mine = streamState.streamed ? lastFlatResult : null;
+    const anchors = usesEntryAxis(viewSpec.sort) ? (mine?.anchors ?? new Map()) : null;
     const dropped = anchors ? new Set() : null;
     const batchIdx = [];
     for (const row of batchRows) {
@@ -451,7 +451,7 @@ function makeStreamEmitter(runId, viewSpec, scope, stack, signal, streamState, r
     // Anchoring makes the comparator time-varying, so mergeSortedIndices' precondition
     // (both sides sorted the same way) stops holding for free. A family whose anchor
     // just dropped re-enters the batch; without that the merge silently interleaves.
-    let placed = lastFlatResult?.indices;
+    let placed = mine?.indices;
     if (dropped?.size && placed) {
       const keep = [];
       for (const i of placed) {
@@ -784,7 +784,11 @@ function makeTransformStreamEmitter(runId, viewSpec, scope, stack, signal, strea
   return batchRows => {
     if (signal.aborted) return;
     const intervals = viewSpec.scoreRange ? parseRange(viewSpec.scoreRange) : null;
-    const anchors = usesEntryAxis(viewSpec.sort) ? (lastTransformResult?.anchors ?? new Map()) : null;
+    // Ownership rule as in makeStreamEmitter: a NEW run inheriting the superseded
+    // run's anchors pre-empts every drop, silently collating a family at a spelling
+    // this view does not contain -- the very defect anchoring exists to remove.
+    const mine = streamState.streamed ? lastTransformResult : null;
+    const anchors = usesEntryAxis(viewSpec.sort) ? (mine?.anchors ?? new Map()) : null;
     const dropped = anchors ? new Set() : null;
     const cmp = chainRowComparator(viewSpec.sort, stack, anchors);
     const chainOk = chain => rowAtoms(chain).every(a => matchesRange(a.wlEntry.score, intervals));
