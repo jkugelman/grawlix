@@ -25,7 +25,7 @@ import {
 } from './data/merge.js';
 import { setWordlistRescoreRules, setWordlistEnabled, reorderSources } from './data/persist.js';
 import {
-  syncTargets, syncFilename,
+  syncTargets, syncFilename, SyncStatus,
   attachMirrorSync, attachEditsSync, EditsSync, MirrorSync, loadSyncTargets,
   configureSyncDialogs,
 } from './data/disk-sync.js';
@@ -603,6 +603,11 @@ const __grawlixTest = {
     },
     scheduleEditsWrite() { return EditsSync.scheduleWrite(); },
     isSynced(name) { return syncTargets.has(syncKey(this._list(name))); },
+    previewSaving(name = MERGED_NAME, ms = 1800) {
+      const key = syncKey(this._list(name));
+      SyncStatus.set(key, 'writing');
+      setTimeout(() => SyncStatus.set(key, 'synced'), ms);
+    },
     filename(name) { return syncFilename(syncKey(this._list(name))); },
     async flushWrites() {
       for (const [key, id] of [...MirrorSync._timers]) { clearTimeout(id); MirrorSync._timers.delete(key); await MirrorSync._flush(key); }

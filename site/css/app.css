@@ -1472,10 +1472,28 @@ body.picker-expanded #picker-backdrop { opacity: 1; }
 .sync-sign:hover { background: var(--hover); }
 .sync-sign.attention { color: var(--warn-fg); }
 .sync-line-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-right: 1px; }
-.sync-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
-.sync-dot--ok { background: var(--ok-fg); }
-.sync-dot--warn { background: var(--warn-fg); }
-.sync-dot--working { background: var(--accent); }
+.sync-ring { flex-shrink: 0; transform: rotate(-90deg); }
+.sync-ring circle {
+  fill: none; stroke-width: 2; stroke-linecap: round;
+  stroke: var(--ok-fg);
+  /* Dash and gap each a full turn, so offset 0 is a closed ring and one -2 sweep
+     drains then refills without ever reversing. Halving it yanks the refill
+     counter-clockwise. */
+  stroke-dasharray: 1 1;
+  stroke-dashoffset: 0;
+}
+.sync-sign--warn .sync-ring circle { stroke: var(--warn-fg); }
+.sync-sign--saving .sync-ring circle {
+  stroke: var(--accent);
+  /* Duration is mirrored by SYNC_BUSY_PERIOD_MS in ui/sync-indicators.js. */
+  animation: sync-ring-drain 0.9s linear infinite;
+}
+@keyframes sync-ring-drain {
+  to { stroke-dashoffset: -2; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sync-sign--saving .sync-ring circle { animation: none; }
+}
 
 #discovery-banner { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; padding: 9px 16px; font-size: 13px; border-bottom: 1px solid var(--border2); }
 html.light-mode #discovery-banner { background: color-mix(in srgb, var(--accent) 7%, var(--bg)); }

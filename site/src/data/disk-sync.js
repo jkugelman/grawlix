@@ -166,14 +166,17 @@ const MirrorSync = {
   async _flush(key) {
     const t = syncTargets.get(key);
     if (!t) return;
+    // Above the serialize, not below: serializing All Wordlists is the expensive
+    // half of a save, so flagging only Disk.write makes it look instantaneous.
+    SyncStatus.set(key, 'writing');
     const res = await this._serialize(key);
     // Never write a retry as empty: that zeroes the synced file. Re-arm instead, so a
-    // later refresh writes real content rather than leaving the file stale.
+    // later refresh writes real content rather than leaving the file stale — staying
+    // 'writing' across the re-arm, since the save is still outstanding.
     if (res.retry) {
       this._debounce(key, () => this._flush(key));
       return;
     }
-    SyncStatus.set(key, 'writing');
     try {
       await Disk.write(t.handle, res.text);
       SyncStatus.set(key, 'synced');
@@ -338,7 +341,6 @@ async function attachMirrorSync(list, { existing = false } = {}) {
   const key = syncKey(list);
   syncTargets.set(key, { handle });
   await persistSyncTarget(key);
-  SyncStatus.set(key, 'writing');
   await MirrorSync._flush(key);
   bumpSyncStatus();
   return true;

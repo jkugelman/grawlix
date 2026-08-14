@@ -14,7 +14,8 @@ import {
   buildBadgeHTML, buildDragHandleHTML, buildSplitBtn, buildMoreMenuHTML, afterTransition,
 } from './components.js';
 import {
-  syncSignHTML, wordlistSeverity, sourcesSeverity, severityTitle,
+  syncSignHTML, syncBusyKey, setSyncBusy, applySyncBusy,
+  wordlistSeverity, sourcesSeverity, severityTitle,
 } from './sync-indicators.js';
 import {
   buildRescoreSectionHTML, buildScoringSectionHTML,
@@ -95,6 +96,7 @@ function wordlistCardMeta(wordlist, contribMap) {
 // cycle one-directionally: scope-selector → sync-indicators.
 
 export function renderSyncIndicators() {
+  setSyncBusy(syncBusyKey());
   WordlistSelector.refreshSyncSign?.();
 }
 
@@ -177,7 +179,10 @@ export const WordlistSelector = (() => {
     const scope = state.selected;
     const hasDate = scope !== MERGED_ID && scope.type !== 'edits' && sourceTotal(scope) && scope.lastUpdated;
     const dateSlot = hasDate ? '<span class="detail-date"></span>' : '';
-    dlSlot.innerHTML = `${dateSlot}${syncSignHTML(scope)}${level === 0 ? downloadBtnHTML() : ''}`;
+    const signHTML = syncSignHTML(scope);
+    dlSlot.innerHTML = `${dateSlot}${signHTML}${level === 0 ? downloadBtnHTML() : ''}`;
+    stampSyncSign(signHTML);
+    setSyncBusy(syncBusyKey());
     rescoreSlot.innerHTML = level < 2 ? rescoreBtnHTML() : '';
     kebabSlot.innerHTML = kebabHTML(level);
     if (hasDate) {
@@ -209,12 +214,23 @@ export const WordlistSelector = (() => {
     while (level < max && nameSqueezed()) renderActions(++level);
   }
 
+  function stampSyncSign(html) {
+    const el = dlSlot.querySelector('#sync-sign');
+    if (el) el._syncHTML = html;
+    applySyncBusy();
+  }
+
   // In-place patch, never a full renderActions: sync status flips on every
   // debounced save, and rebuilding the action row mid-edit would steal focus
-  // and scroll.
+  // and scroll. The equality gate narrows that further — writing→synced leaves
+  // the label identical, and replacing the node would restart the saving ring.
   function refreshSyncSign() {
     const cur = dlSlot.querySelector('#sync-sign');
-    if (cur) cur.outerHTML = syncSignHTML(state.selected);
+    if (!cur) return;
+    const html = syncSignHTML(state.selected);
+    if (cur._syncHTML === html) { applySyncBusy(); return; }
+    cur.outerHTML = html;
+    stampSyncSign(html);
   }
 
   function optionHTML(scope, contribMap) {

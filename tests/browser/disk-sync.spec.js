@@ -136,6 +136,33 @@ test('the sync sign reflects the synced file', async ({ page }) => {
   await expect(syncSign).toContainText('Src.txt');
 });
 
+test('a write shows on the ring and never rewrites the label', async ({ page }) => {
+  await gotoApp(page);
+  await page.evaluate(() => window.__grawlixTest.addCustomWordlist({ name: 'Src', scores: [50], entries: ['ALPHA'] }));
+  await scopeTo(page, 'Src');
+  await setNextName(page, 'Src.txt');
+  await page.evaluate(() => window.__grawlixTest.sync.attachMirror('Src'));
+
+  const syncSign = page.locator('#wordlist-bar #sync-sign');
+  await page.evaluate(() => window.__grawlixTest.sync.previewSaving('Src', 2000));
+  await expect(syncSign).toHaveClass(/sync-sign--saving/);
+  // The label is the whole point: a right-aligned pill that reworded mid-write
+  // dragged itself ~100px sideways and back on every save.
+  await expect(syncSign).toHaveText('Src.txt');
+  await expect(syncSign).not.toContainText('Saving');
+  await expect(syncSign).not.toHaveClass(/sync-sign--saving/, { timeout: 8000 });
+
+  // A real mirror write can finish in single-digit ms, so the dwell — not the
+  // write — is what makes it visible. Resolved in-page: a round trip per step
+  // could outlast the hold and read a released ring as a missing one.
+  const heldAfterInstantSave = await page.evaluate(async () => {
+    window.__grawlixTest.sync.previewSaving('Src', 0);
+    await new Promise(r => setTimeout(r, 50));
+    return document.getElementById('sync-sign').classList.contains('sync-sign--saving');
+  });
+  expect(heldAfterInstantSave).toBe(true);
+});
+
 test('an external deletion in the synced file deletes the entry without resurrecting it', async ({ page }) => {
   await gotoApp(page);
   await writeFile(page, 'edits.txt', 'FOO;10\nBAR;20\n');
