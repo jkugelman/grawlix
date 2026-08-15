@@ -17,6 +17,9 @@ const LOOKUP_DEBOUNCE_MS = 1000;
 // Deliberate: sources settle separately, so painting each as it lands pops the
 // section open once per source.
 const REVEAL_HOLD_MS = 300;
+// How long a superseded entry's results may stay up. No card names the entry it
+// describes, so past this they read as answers about the text now in the box.
+export const STALE_GRACE_MS = 200;
 
 export const LookupSection = (() => {
   let hostEl = null;
@@ -25,6 +28,7 @@ export const LookupSection = (() => {
   let shownEntry = '';   // entry whose inline results are on screen — swaps lazily
   let debounceTimer = null;
   let holdTimer = null;
+  let staleTimer = null;
   let holding = false;
   let onRender = null;
   const cache = new LruCache(300, 60 * 60 * 1000);
@@ -82,6 +86,7 @@ export const LookupSection = (() => {
     norm = toNorm(entry);
     clearTimeout(debounceTimer);
     debounceTimer = null;
+    clearStale();
     clearTimeout(holdTimer);
     holding = true;
     holdTimer = setTimeout(() => { holding = false; render(); }, settleMs + REVEAL_HOLD_MS);
@@ -91,9 +96,9 @@ export const LookupSection = (() => {
     render();
   }
 
-  // The links repoint immediately, but the inline results keep showing the
-  // previous entry until the new entry's fetches all settle — swapping early to a
-  // spinner or blank flickers the results region on every keystroke.
+  // The links repoint immediately; the inline results can't (the new entry's fetches
+  // haven't answered), so they hold — but only for STALE_GRACE_MS. Blanking at the
+  // keystroke instead flickers every already-cached swap.
   function setEntry(entryStr) {
     const next = (entryStr || '').trim();
     if (next === entry) return;
@@ -103,10 +108,30 @@ export const LookupSection = (() => {
     debounceTimer = null;
     clearTimeout(holdTimer);
     holding = false;
-    if (!entry) shownEntry = '';
-    else if (inlineSettled(entry)) { shownEntry = entry; ensureFallback(entry); }   // already fetched — show at once
-    else debounceTimer = setTimeout(runInlineLookups, LOOKUP_DEBOUNCE_MS);
+    if (!entry) { clearStale(); shownEntry = ''; }
+    else if (inlineSettled(entry)) { clearStale(); shownEntry = entry; ensureFallback(entry); }   // already fetched — show at once
+    else {
+      armStale();
+      debounceTimer = setTimeout(runInlineLookups, LOOKUP_DEBOUNCE_MS);
+    }
     render();
+  }
+
+  // Deliberately not restarted per keystroke: a per-keystroke timer would let a
+  // continuous typist push the blank out forever — the lingering this exists to end.
+  function armStale() {
+    if (staleTimer || !shownEntry) return;
+    staleTimer = setTimeout(() => {
+      staleTimer = null;
+      if (shownEntry === entry) return;
+      shownEntry = '';
+      render();
+    }, STALE_GRACE_MS);
+  }
+
+  function clearStale() {
+    clearTimeout(staleTimer);
+    staleTimer = null;
   }
 
   function runInlineLookups() {

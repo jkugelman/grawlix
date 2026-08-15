@@ -40,7 +40,7 @@ import { buildWordlistNameIconHTML } from './scope-selector.js';
 import { getWordlistIcon } from './icons.js';
 import { getDraftRescoreRules } from './rescore-editor.js';
 import { buildTrashIconHTML, positionPopover } from './components.js';
-import { LookupSection } from './lookup.js';
+import { LookupSection, STALE_GRACE_MS } from './lookup.js';
 import { resolveEntryCanonical } from './canonical.js';
 import { isRicher } from '../engine/canonical.js';
 import {
@@ -2858,6 +2858,7 @@ export const EntryPanel = (() => {
   let scrim = null;
   let activeRow = null;
   let familyMembers = [];
+  let familyEntry = null;
   let familyToken = 0;
   let famQueriesFired = 0;
   let famRetriesFired = 0;
@@ -2896,11 +2897,14 @@ export const EntryPanel = (() => {
   let seedQueriesFired = 0;
   let seedWinnersApplied = 0;
   function seedDebug() { return { seedQueriesFired, seedWinnersApplied }; }
-  // Last-good-until-refined: held across an in-flight query and replaced only when
-  // a newer reply lands, never cleared to empty mid-flight, so the table/footer
-  // don't flash on a null (not-fresh) reply.
+  // Last-good-until-refined: held across an in-flight query and replaced when a newer
+  // reply lands, so the table/footer don't flash on a null (not-fresh) reply. Held only
+  // while the query is for the SAME text; dropStaleBlocks clears it once the entry has
+  // moved on.
   let provQueryToken = 0;
   let shippedProvRows = null;
+  let provEntry = null;
+  let staleGraceTimer = null;
   let lastProvHTML = null;
   let lastNoteHTML = null;
   let provQueriesFired = 0;
@@ -3017,7 +3021,11 @@ export const EntryPanel = (() => {
     planQueryToken++;
     walkToken++;
     renameToken++;
+    clearStaleGrace();
     shippedProvRows = null;
+    provEntry = null;
+    familyMembers = [];
+    familyEntry = null;
     lastProvHTML = null;
     lastNoteHTML = null;
     _cachedPlan = null;
@@ -3186,7 +3194,11 @@ export const EntryPanel = (() => {
     activeRow = rowEl;
     activeScroller = scroller;
     if (rowEl) rowEl.classList.add('active');
+    clearStaleGrace();
     shippedProvRows = null;
+    provEntry = null;
+    familyMembers = [];
+    familyEntry = null;
     _cachedPlan = null;
     lastNoteHTML = null;
     // Reset per-target state here, not only in close(): a route reopen (Back/Forward
@@ -3698,6 +3710,7 @@ export const EntryPanel = (() => {
     const inp = el.querySelector('.entry-input');
     const typed = inp ? inp.value : '';
     const norm = toNorm(typed);
+    armStaleGrace();
     fireProvenanceQuery(typed, typed);
     renderFamily(norm, typed);
     refreshRenameSuggestion(typed);
@@ -3774,6 +3787,31 @@ export const EntryPanel = (() => {
     paintFamily();
   }
 
+  function armStaleGrace() {
+    if (staleGraceTimer) return;   // not per-keystroke, for LookupSection.armStale's reason
+    staleGraceTimer = setTimeout(dropStaleBlocks, STALE_GRACE_MS);
+  }
+
+  function clearStaleGrace() {
+    clearTimeout(staleGraceTimer);
+    staleGraceTimer = null;
+  }
+
+  // Keyed on the queried text, not on whether the newest query has replied: an
+  // un-ready reply for the SAME text must keep its last-good render, and only a text
+  // change makes what's on screen describe something else.
+  function dropStaleBlocks() {
+    staleGraceTimer = null;
+    if (!isOpen()) return;
+    const typed = entryInputValue();
+    let dropped = false;
+    if (shippedProvRows && provEntry !== typed) { shippedProvRows = null; provEntry = null; dropped = true; }
+    if (familyMembers.length && familyEntry !== typed) { familyMembers = []; familyEntry = null; dropped = true; }
+    if (!dropped) return;
+    renderProvWrap();
+    paintFamily();
+  }
+
   // The collapsed→expanded transition needs a frame at the old height to animate from;
   // setting content and the class in one task lands on the end state with no motion.
   function revealBlock(node) {
@@ -3791,6 +3829,7 @@ export const EntryPanel = (() => {
     firePlanQuery();   // the structural plan rides the same entry-text/open triggers
     const token = ++provQueryToken;
     provQueriesFired++;
+    const firedFor = entryInputValue();
     const clickedNorm = activeWlEntry?.norm ?? null;
     // Raw display, not displayOf's norm fallback: collapsing a bare entry to its norm
     // makes the worker filter drop the concrete siblings it unified with, with no error.
@@ -3803,6 +3842,7 @@ export const EntryPanel = (() => {
     const apply = rows => {
       if (stale() || rows == null) return false;
       shippedProvRows = rows;
+      provEntry = firedFor;
       provRepliesApplied++;
       renderProvWrap();
       return true;
@@ -3810,8 +3850,9 @@ export const EntryPanel = (() => {
     return ask().then(({ rows }) => {
       // `rows == null` is "the worker didn't answer" — its corpus was mid-rebuild, or
       // the fetch timed out — as opposed to `[]`, a real table with nothing in it.
-      // Leaving the last-good render in place is right for a keystroke re-query
-      // (blanking flashes), but at OPEN there is no last-good: doOpen just nulled
+      // Leaving the last-good render in place is right for a re-query of the same text
+      // (blanking flashes; a changed entry is dropped by dropStaleBlocks instead), but
+      // at OPEN there is no last-good: doOpen just nulled
       // shippedProvRows, and nothing re-fires provenance when the rebuild commits, so
       // the table would stay blank until the panel was reopened. Wait out the gap and
       // retry ONCE — the shape planForSave uses for a null edit plan — then let the
@@ -3958,6 +3999,7 @@ export const EntryPanel = (() => {
   function renderFamily(norm, display) {
     const token = ++familyToken;
     famQueriesFired++;
+    const firedFor = entryInputValue();
     // The bound entry rides alongside the query so the worker excludes it from the
     // corpus siblings — the panel owns the current row (below) instead.
     const boundNorm = activeWlEntry?.norm ?? norm;
@@ -3983,6 +4025,7 @@ export const EntryPanel = (() => {
       familyMembers = members.sort(
         (a, b) => (a.viaName === true) - (b.viaName === true)
                || (a.display ?? a.norm).localeCompare(b.display ?? b.norm) || a.norm.localeCompare(b.norm));
+      familyEntry = firedFor;
       paintFamily();
     };
     return ask().then(({ members, ready }) => {
