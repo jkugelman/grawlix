@@ -37,7 +37,7 @@ import { openUpdateSummaryDialog } from './ui/dialogs/update-summary.js';
 import { ToolStack, pipelineIdle } from './ui/tool-stack.js';
 import {
   pingWorker, runOnWorker, patchWorkerToolForTest, workerAssetStateForTest,
-  pipelineWorkerState, crashWorkerForTest, forceWorkerCrashForTest, failNextWorkerBuildForTest,
+  pipelineWorkerState, crashWorkerForTest, forceWorkerCrashForTest, failNextWorkerBuildForTest, releaseWorkerBuildForTest,
   setWorkerYieldIntervalForTest, stopRunAfterTotalForTest, setWorkerUnigramCorpusForTest, captureWorkerPartialsForTest, captureWorkerGroupPartialsForTest, captureWorkerChainPartialsForTest,
   configureResultCacheForTest, resultCacheStateForTest, configurePrefixCacheForTest, prefixCacheStateForTest, configurePartialCacheForTest, partialCacheStateForTest, retainedResultInfoForTest,
   syncWorkerConfig, dumpWorkerCorpus, queryWorkerEntry, fetchWorkerRows, fetchWorkerGroups, fetchWorkerGroupChains, fetchWorkerAllGroups, fetchWorkerAllRows, fetchWorkerAllTransformRows, lastCompletedRunId,
@@ -255,6 +255,7 @@ const __grawlixTest = {
   crashWorkerForTest,
   forceWorkerCrashForTest,
   failNextWorkerBuildForTest,
+  releaseWorkerBuildForTest,
   setWorkerYieldIntervalForTest,
   stopRunAfterTotalForTest,
   setWorkerUnigramCorpus: setWorkerUnigramCorpusForTest,

@@ -376,7 +376,7 @@ test('a very common name shows only its few best-scoring full names', async ({ p
 // A forced build failure holds the gap open deterministically rather than racing a
 // real rebuild: the failed build nulls the worker's corpus and reports built:false,
 // so it stays un-fresh until the next sync commits.
-test('a family read answered with no corpus retries when the next build commits', async ({ page }) => {
+test('a family read with no corpus waits for the next build and fills in place', async ({ page }) => {
   await setup(page);
   const famDebug = () => page.evaluate(() => window.__grawlixTest.entryPanelFamilyDebug());
 
@@ -389,14 +389,17 @@ test('a family read answered with no corpus retries when the next build commits'
   await openPanelFor(page, 'cat');
   await expect(items(page)).toHaveCount(0);
 
-  // Commit a good build. The pending retry drains on its selfReady and fills the
+  // Commit a good build. The parked read drains on its selfReady and fills the
   // list with the panel still open — no reopen, no keystroke.
   await page.evaluate(() => window.__grawlixTest.syncWorkerConfig());
   await expect(items(page)).toHaveCount(2);
   await expect(current(page)).toContainText('cat');
   await expect(sibling(page)).toContainText('cats');
 
-  // Non-vacuous, and pins the shape: exactly one retry for the one un-ready reply.
+  // Pins the shape: the read WAITS for a corpus rather than asking into the void and
+  // re-asking, so it burns no retries getting here. A non-zero count means the opening
+  // ask went out early again — the ordering whose loss let a cold deep link race the
+  // segmenter load against the build and intermittently show no relatives at all.
   const after = await famDebug();
-  expect(after.famRetriesFired - before.famRetriesFired).toBe(1);
+  expect(after.famRetriesFired - before.famRetriesFired).toBe(0);
 });

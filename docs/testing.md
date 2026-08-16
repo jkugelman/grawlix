@@ -144,9 +144,29 @@ Assembled in [`site/src/test-api.js`](../site/src/test-api.js) — the one modul
 | `exportText(format)` | Run an export builder against the current pipeline output and return its result. `format` is `'copy'`, `'wordlist'`, `'csv'`, or `'json'`. Returns a string for copy/csv, an object `{text, count, skipped}` for wordlist, and the data object for json. Awaits `pipelineIdle` first. |
 | `exportFilename(ext)` | Run the same filename builder Download menu items use, against the current tool stack. Returns the sanitized filename including extension. |
 | `sync.merge3(base, file, idb)` | Run the pure My Edits 3-way merge over three wordlist-text inputs. Returns `{resolved: [...], conflicts: [...]}` for asserting deletion-doesn't-resurrect and conflict detection without any file I/O. |
+| `releaseWorkerBuildForTest()` | Release a corpus build held open by the `__grawlixStallBuild` flag (below). |
 | `sync.attachMirror(name, {existing}?)` / `attachEditsExisting()` / `attachEditsNew()` / `reconcileEdits()` / `isSynced(name)` / `filename(name)` / `flushWrites()` | Drive the real disk-sync attach/reconcile/write paths against the fake File System Access layer the test installs (`name === 'All Wordlists'` targets the merged mirror; `attachMirror`'s `{existing: true}` exercises the write-to-existing-file door). See [`tests/browser/disk-sync.spec.js`](../tests/browser/disk-sync.spec.js). |
 
 Adding a function is fine; renaming or repurposing an existing one means updating every test that uses it.
+
+### Holding the corpus build open (`__grawlixStallBuild`)
+
+A `?entry=` deep link opens its panel **before** the worker's corpus build (see `design.md` § *Stable links*), so the pre-build window — lookups live, fields inert, placeholders shown — is real user-facing surface. At the suite's fixture sizes that window is microseconds wide, so asserting into it by racing the build would be a coin flip that passes for the wrong reason.
+
+Instead [`entry-deep-link-boot.spec.js`](../tests/browser/entry-deep-link-boot.spec.js) holds the build open and releases it on purpose:
+
+```js
+await page.addInitScript(() => { window.__grawlixStallBuild = true; });
+await page.goto('/?entry=bagel');            // panel is up; corpus is not
+await expect(panel).toBeVisible();
+// …assert the pending state…
+await page.evaluate(() => window.__grawlixTest.releaseWorkerBuildForTest());
+// …assert the settled state…
+```
+
+Three things about it are load-bearing. It must be an **init script**, because the boot build starts inside `init()` before a test can call into the page — that is also why the flag rides the `configTools` message (the only one guaranteed FIFO-ahead of the boot `syncConfig`) instead of getting its own like the other `__test*` hooks. It must **not** use `gotoApp`/`reloadApp`, both of which wait on `init()` completing, which a held build never does. And a stalled boot leaves `init()` parked at its `Promise.all([firstPaint, workerReady])`, so everything downstream of that — splash retirement, sync reconnect — is *also* suspended, which is what lets the same spec assert "splash still up" and then "splash retired" off one release.
+
+Reach for this whenever a test needs the app in its corpus-less state; racing a large fixture instead is the thing it exists to replace.
 
 ## Adding a test
 

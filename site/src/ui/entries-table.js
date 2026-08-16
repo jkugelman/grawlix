@@ -1087,7 +1087,7 @@ export class EntriesScroller extends BaseVirtualScroller {
     const ids = [...this._selection.values()];
     if (!ids.length) return;
     const edits = getEditsWordlist();
-    const seeds = await Promise.all(ids.map(id => fetchWorkerEditSeed(id.norm, id.display ?? null)));
+    const seeds = (await Promise.all(ids.map(id => fetchWorkerEditSeed(id.norm, id.display ?? null)))).map(s => s.winner);
     const targets = [];
     seeds.forEach((winner, i) => {
       if (!winner) return;
@@ -2904,6 +2904,7 @@ export const EntryPanel = (() => {
   let provQueryToken = 0;
   let shippedProvRows = null;
   let provEntry = null;
+  let provPending = false;
   let staleGraceTimer = null;
   let lastProvHTML = null;
   let lastNoteHTML = null;
@@ -2982,7 +2983,7 @@ export const EntryPanel = (() => {
     if (!value) { if (isOpen()) { commitPending(); hideAndClear(); } return; }
     const norm = toNorm(value);
     if (isOpen() && activeWlEntry && activeWlEntry.norm === norm && displayOf(activeWlEntry) === value) return;
-    openFromRoute({ norm, display: value }, { animate: true });
+    openFromRoute({ norm, display: value });
   }
 
   function isOpen() { return el != null && el.classList.contains('open'); }
@@ -3022,8 +3023,10 @@ export const EntryPanel = (() => {
     walkToken++;
     renameToken++;
     clearStaleGrace();
+    setSeedPending(false);
     shippedProvRows = null;
     provEntry = null;
+    provPending = false;
     familyMembers = [];
     familyEntry = null;
     lastProvHTML = null;
@@ -3150,8 +3153,6 @@ export const EntryPanel = (() => {
     return route || (state.selected !== MERGED_ID && clicked?.norm != null);
   }
 
-  // A click or an in-session Back/Forward slides the panel in; a cold-load restore
-  // (deep link, reload) appears in place — re-painting saved state shouldn't animate.
   // The forced reflow is load-bearing: without it the add/remove of no-anim coalesces
   // into one style pass and the slide fires anyway. Removing it lets a later close slide.
   function revealModal(animate) {
@@ -3195,8 +3196,10 @@ export const EntryPanel = (() => {
     activeScroller = scroller;
     if (rowEl) rowEl.classList.add('active');
     clearStaleGrace();
+    setSeedPending(false);
     shippedProvRows = null;
     provEntry = null;
+    provPending = false;
     familyMembers = [];
     familyEntry = null;
     _cachedPlan = null;
@@ -3257,7 +3260,7 @@ export const EntryPanel = (() => {
 
   // Open from the URL (deep link, or Back/Forward into an entry): synthesize a
   // target, let the worker seed it, and DON'T navigate — the URL is already there.
-  function openFromRoute({ norm, display }, { animate = false } = {}) {
+  function openFromRoute({ norm, display }, { animate = true } = {}) {
     walkSelection = null;
     lastFocusField = null;
     // A value equal to its own norm is a bare entry rendered as the norm; seed it
@@ -3279,8 +3282,10 @@ export const EntryPanel = (() => {
     const token = ++seedQueryToken;
     seedQueriesFired++;
     setFieldsDisabled(true);
-    fetchWorkerEditSeed(clicked.norm, clicked.display ?? null).then(winner => {
-      if (token !== seedQueryToken || !isOpen() || activeWlEntry !== clicked) return;
+    const stale = () => token !== seedQueryToken || !isOpen() || activeWlEntry !== clicked;
+    const ask = () => fetchWorkerEditSeed(clicked.norm, clicked.display ?? null);
+    const apply = winner => {
+      setSeedPending(false);
       // Re-enable before applySeedToFields: focus/select no-op on a disabled input,
       // so deferring this until after would drop the score-cell auto-focus.
       setFieldsDisabled(false);
@@ -3292,11 +3297,37 @@ export const EntryPanel = (() => {
         seedWinnersApplied++;
       }
       refreshSaveEnabled();
-    });
+    };
+    return (async () => {
+      for (;;) {
+        const { winner, ready } = await ask();
+        if (stale()) return;
+        // Un-ready means the corpus was mid-build (a deep link opens ahead of it), not
+        // that the entry is absent. Applying it would enable the fields over a blank
+        // seed, and one save would write that blank over the entry's real score.
+        if (ready) { apply(winner); return; }
+        // Armed only once un-ready is *known*: on a warm corpus the reply lands in a few
+        // ms, and arming before asking would flash the shimmer on every ordinary open.
+        setSeedPending(true);
+        // Loops rather than retrying once, because whenWorkerCommitted gives up after its
+        // own timeout and a build legitimately outruns that on a large corpus or a slow
+        // phone. Bounded by the panel: stale() ends it on close or on a newer query, so
+        // a wedged worker leaves the panel readable and un-saveable instead of enabling
+        // fields over a blank it never resolved.
+        await whenWorkerCommitted();
+        if (stale()) return;
+      }
+    })();
+  }
+
+  function setSeedPending(pending) {
+    el?.classList.toggle('seed-pending', pending);
   }
 
   function setFieldsDisabled(disabled) {
-    for (const sel of ['.entry-input', '.score-input', '.comment-input', '.entry-panel-save']) {
+    // The combo toggle rides the same gate as the score field it opens: left live, it
+    // offers a tier pick that the arriving seed then silently overwrites.
+    for (const sel of ['.entry-input', '.score-input', '.comment-input', '.entry-panel-save', '.score-combo-toggle']) {
       const node = el?.querySelector(sel);
       if (node) node.disabled = disabled;
     }
@@ -3725,7 +3756,12 @@ export const EntryPanel = (() => {
   }
 
   function provWrapHTML() {
-    return renderProvenanceTableHTML();
+    return provPending ? provSkeletonHTML() : renderProvenanceTableHTML();
+  }
+
+  function provSkeletonHTML() {
+    return `<div class="lookup-sec entry-panel-prov-skel"><div class="lookup-sec-head">Appears in</div>`
+      + `<div class="skeleton-bar"></div><div class="skeleton-bar"></div><div class="skeleton-bar"></div></div>`;
   }
 
   // The note lives above the Score field, clear of the score combo's drop zone —
@@ -3841,6 +3877,7 @@ export const EntryPanel = (() => {
     const ask = () => fetchWorkerProvenance(typedRaw, previewRaw, clickedNorm, clickedDisplay);
     const apply = rows => {
       if (stale() || rows == null) return false;
+      provPending = false;
       shippedProvRows = rows;
       provEntry = firedFor;
       provRepliesApplied++;
@@ -3859,9 +3896,22 @@ export const EntryPanel = (() => {
       // last-good rule stand. The token guard rides both attempts, so a newer query's
       // answer is never overwritten by a straggling retry.
       if (apply(rows) || stale()) return;
+      // Same rule as the seed shimmer: armed only once un-ready is known, so a warm
+      // corpus never flashes a placeholder it is about to replace in the same frame.
+      provPending = true;
+      renderProvWrap();
       provRetriesFired++;
-      return whenWorkerCommitted()
-        .then(() => stale() ? undefined : ask().then(retried => { apply(retried.rows); }));
+      // Loops with the seed for the same reason: a build can outrun whenWorkerCommitted's
+      // timeout, and giving up after one attempt would leave the panel permanently without
+      // its provenance table even once the corpus lands.
+      return (async () => {
+        for (;;) {
+          await whenWorkerCommitted();
+          if (stale()) return;
+          const retried = await ask();
+          if (stale() || apply(retried.rows)) return;
+        }
+      })();
     });
   }
 
@@ -4028,24 +4078,24 @@ export const EntryPanel = (() => {
       familyEntry = firedFor;
       paintFamily();
     };
-    return ask().then(({ members, ready }) => {
-      // An un-ready reply IS still applied, unlike the rename hint's (which just
-      // declines to speak): familyMembers is keyed to no target, so leaving the
-      // previous entry's list in place would paint ITS relatives under this one. The
-      // anchor-only list it collapses to renders as no section at all — today's
-      // behavior — and the retry below fills it in.
-      apply(members);
-      // ready:false is "the worker had no corpus to answer from" (mid-rebuild, or the
-      // fetch timed out), which an empty members array can't express on its own: an
-      // entry with no relatives answers empty too, and nothing re-fires a family
-      // query, so Related entries would stay missing until the panel was reopened.
-      // Wait out the gap and retry ONCE, the shape the provenance read uses. The token
-      // guard rides both attempts, so a straggling retry can't paint over a newer one.
-      if (ready || stale()) return;
-      famRetriesFired++;
-      return whenWorkerCommitted()
-        .then(() => stale() ? undefined : ask().then(retried => { apply(retried.members); }));
-    });
+    return (async () => {
+      // The corpus comes FIRST, before the opening ask — this is the one panel read that
+      // must not run early. It has nothing to answer from pre-build (relatives are
+      // wordlist-derived), and asking anyway starts the segmenter asset load in parallel
+      // with the build, so which of the two lands first decides whether a cold deep link
+      // lists its segmented kin. On a warm corpus this resolves in a microtask, so an
+      // ordinary click is unchanged. `apply` still runs on an un-ready answer, so a
+      // previous entry's relatives can never linger under this one.
+      for (;;) {
+        await whenWorkerCommitted();
+        if (stale()) return;
+        const { members, ready } = await ask();
+        if (stale()) return;
+        apply(members);
+        if (ready) return;
+        famRetriesFired++;
+      }
+    })();
   }
 
   function paintFamily() {

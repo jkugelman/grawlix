@@ -1612,7 +1612,10 @@ function locateGroupedRow(norm, display) {
 // silently saves a wrong value, so this guard must not loosen. A miss replies null.
 function handleFetchEditSeed({ requestId, norm, display }) {
   let winner = null;
-  if (ownedMerged && ownedCorpusFresh) {
+  // `ready` separates "no such entry" from "no corpus yet" (as fetchFamily does): a
+  // save writes FROM this seed, so conflating them blanks a real score.
+  const ready = !!(ownedMerged && ownedCorpusFresh);
+  if (ready) {
     const row = resolveEditSeedWinner(ownedMerged, norm, display ?? null);
     if (row) {
       winner = {
@@ -1621,7 +1624,7 @@ function handleFetchEditSeed({ requestId, norm, display }) {
       };
     }
   }
-  postMessage({ type: 'editSeed', requestId, winner });
+  postMessage({ type: 'editSeed', requestId, winner, ready });
 }
 
 // ─── Related-entries fetch ── see docs/worker-protocol.md ────────────────────
@@ -2563,9 +2566,12 @@ function freeDiff({ diffId }) {
 // the build-failure selfReady (built:false → the client settles the deferred run
 // errored, no-hang settle path 4) without corrupting IDB.
 let _failNextBuild = false;
+let _stallBuild = null;
+let _releaseBuild = null;
 
 async function buildAllSourcesWordlists() {
   if (_failNextBuild) { _failNextBuild = false; throw new Error('forced build failure'); }
+  if (_stallBuild) await _stallBuild;
   const built = [];
   for (const { sourceId, enabled, type, rescoreRules } of selfConfig.sources) {
     const text = await readWordlistText(sourceId);
@@ -2782,6 +2788,10 @@ onmessage = ({ data }) => {
     case 'configTools':
       configureUmiaq({ maxResults: data.tupleMaxResults });
       configureWeave({ maxResults: data.weaveMaxResults });
+      // Test-only, and it rides configTools rather than its own message because it must
+      // be armed before the FIRST build: the boot syncConfig is posted moments after the
+      // worker is constructed, and only configTools is guaranteed FIFO-ahead of it.
+      if (data.stallBuild) _stallBuild = new Promise(r => { _releaseBuild = r; });
       break;
 
     case 'fetchRows':
@@ -2951,6 +2961,11 @@ onmessage = ({ data }) => {
 
     case '__testFailNextBuild':
       _failNextBuild = true;
+      break;
+
+    case '__testReleaseBuild':
+      _stallBuild = null;
+      if (_releaseBuild) { _releaseBuild(); _releaseBuild = null; }
       break;
 
     // Test-only: shrink the executor's yield interval so a small corpus crosses

@@ -91,7 +91,7 @@ class UpdateSummaryScroller {
         const row = this.cache.get(loc.kind)[loc.local];
         if (row === undefined) {
           div.classList.add('usd-entry-row', 'usd-skel');
-          div.innerHTML = '<span class="usd-skel-bar"></span>';
+          div.innerHTML = '<span class="skeleton-bar usd-skel-bar"></span>';
           const m = misses.get(loc.kind);
           if (m) { m.lo = Math.min(m.lo, loc.local); m.hi = Math.max(m.hi, loc.local); }
           else misses.set(loc.kind, { lo: loc.local, hi: loc.local });

@@ -63,6 +63,10 @@ function getWorker() {
       type: 'configTools',
       tupleMaxResults: mobile ? TUPLE_CAP_MOBILE : TUPLE_CAP_DESKTOP,
       weaveMaxResults: mobile ? WEAVE_CAP_MOBILE : WEAVE_CAP_DESKTOP,
+      // A window flag, not a test-API call: the boot build starts inside init(), before
+      // any test can reach the page, so a suite covering the pre-build window has to
+      // arm this from an init script that runs ahead of main.js.
+      stallBuild: !!globalThis.__grawlixStallBuild,
     });
   }
   return worker;
@@ -522,6 +526,12 @@ export function failNextWorkerBuildForTest() {
   getWorker().postMessage({ type: '__testFailNextBuild' });
 }
 
+// Pairs with the `__grawlixStallBuild` init-script flag: releases the held boot build so
+// the suite can assert the un-ready panel first, then the same panel once the corpus lands.
+export function releaseWorkerBuildForTest() {
+  getWorker().postMessage({ type: '__testReleaseBuild' });
+}
+
 // Test-only: a small corpus finishes before the worker's ~30ms yield, so it never
 // streams `partial`s; shrinking the interval makes it cross many yield boundaries.
 export function setWorkerYieldIntervalForTest(intervalMs) {
@@ -836,20 +846,22 @@ export function endPendingEdit() {
 
 // ─── Edit-seed fetch bridge ── see docs/worker-protocol.md ───────────────────
 // Own requestId space, independent of the run's runId: an entry-panel query must not
-// touch run supersession. A timeout resolves null so main falls back to its
-// local clicked seed rather than hanging the editor.
+// touch run supersession. Resolves `{ winner, ready }` for fetchWorkerFamily's reason:
+// an un-ready worker must stay distinguishable from a genuine miss, so the panel can
+// retry instead of seeding a real entry blank. A timeout is un-ready — no answer, so
+// nothing to mistake for one.
 let fetchEditSeedRequestId = 0;
 export async function fetchWorkerEditSeed(norm, display, timeout = 5000) {
   await pendingEditBarrier;
   const w = getWorker();
   const requestId = ++fetchEditSeedRequestId;
   return new Promise(resolve => {
-    const timer = setTimeout(() => { w.removeEventListener('message', onMessage); resolve(null); }, timeout);
+    const timer = setTimeout(() => { w.removeEventListener('message', onMessage); resolve({ winner: null, ready: false }); }, timeout);
     function onMessage({ data }) {
       if (data?.type !== 'editSeed' || data.requestId !== requestId) return;
       clearTimeout(timer);
       w.removeEventListener('message', onMessage);
-      resolve(data.winner ?? null);
+      resolve({ winner: data.winner ?? null, ready: !!data.ready });
     }
     w.addEventListener('message', onMessage);
     w.postMessage({ type: 'fetchEditSeed', requestId, norm, display });

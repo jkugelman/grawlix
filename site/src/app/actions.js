@@ -243,9 +243,15 @@ export async function init() {
   Router.navigate();
   renderAll();
 
-  await Promise.all([firstPaint, workerReady]);
+  // Ahead of workerReady, not after it: the corpus build is seconds of worker CPU that
+  // none of the panel's own render needs, and a shared link's whole payload is the panel.
+  // The splash deliberately stays up behind it (z-200 vs the panel's z-600) until the
+  // build lands — it covers the still-empty table and its "0 entries" for exactly the
+  // stretch those would read as a wrong answer rather than an unfinished one.
+  // Never removed: it reveals the header over the splash, which stays for the rest of the load.
+  if (Router.openPendingEntry()) document.documentElement.classList.add('entry-boot');
 
-  Router.openPendingEntry();   // deep-linked entry panel — needs the worker ready (above)
+  await Promise.all([firstPaint, workerReady]);
 
   await loadSyncTargets();
   const { granted, prompt } = await partitionSyncPermissions();

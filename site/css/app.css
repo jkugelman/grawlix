@@ -94,6 +94,11 @@ header h1 { font-size: 19px; font-weight: 600; letter-spacing: -0.01em; line-hei
 
 /* ─── Splash screen ─────────────────────────────────────────────────────────── */
 #splash-screen { position: fixed; inset: 0; z-index: 200; background: var(--bg); color: var(--accent); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 48px; transition: opacity 0.3s; will-change: opacity; }
+/* Set only by a boot that deep-linked an entry, and latched for the rest of that load: the
+   panel's top edge is --header-h, so the header has to be visible for it to abut. Raising
+   the header rather than offsetting the splash, because --header-h holds a placeholder
+   until boot() measures the real one. */
+html.entry-boot:has(#splash-screen) header { z-index: 201; }
 #splash-screen.done { opacity: 0; pointer-events: none; }
 .splash-logo { font-size: 56px; font-weight: 600; letter-spacing: -0.01em; line-height: 1.1; display: inline-flex; align-items: center; opacity: 0; animation: splash-logo-reveal 0.4s ease-out forwards; will-change: opacity; }
 .splash-logo .bubble { background: var(--accent); color: var(--bg); font-size: 44px; padding: 3px 20px 6px; border-radius: 16px; margin-left: 27px; }
@@ -427,6 +432,15 @@ mark.find-hit:last-child,
 .entry-row.fam-end::before { bottom: 4px; border-bottom-left-radius: 2px; border-bottom-right-radius: 2px; }
 
 @keyframes skeleton-shimmer { to { background-position: -200% 0; } }
+.skeleton-bar {
+  height: 10px; border-radius: 3px;
+  background: linear-gradient(90deg, var(--surface) 0%, var(--border2) 50%, var(--surface) 100%);
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.2s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .skeleton-bar { animation: none; background: var(--border3); }
+}
 /* `.atom` is display:contents — its cells participate directly in the
    .entry-row grid. Explicit grid-column on each cell lets atoms past the
    first wrap onto their own grid row while staying column-aligned with the
@@ -529,12 +543,7 @@ mark.find-hit:last-child,
   display: flex; align-items: center;
   height: var(--row-height, 24px); width: 64px;
 }
-.group-chain.skeleton .skeleton-bar {
-  height: 10px; width: 100%; border-radius: 3px;
-  background: linear-gradient(90deg, var(--surface) 0%, var(--border2) 50%, var(--surface) 100%);
-  background-size: 200% 100%;
-  animation: skeleton-shimmer 1.2s ease-in-out infinite;
-}
+.group-chain.skeleton .skeleton-bar { width: 100%; }
 .group-anchor {
   flex: none;
   min-width: var(--group-anchor-w, 0);
@@ -622,6 +631,9 @@ mark.find-hit:last-child,
 #entry-panel { position: fixed; z-index: 600; top: var(--header-h); right: 0; bottom: 0; width: var(--entry-panel-w); display: none; flex-direction: column; background: var(--surface); border-left: 1px solid var(--border); box-shadow: -6px 0 24px rgba(0,0,0,0.32); color: var(--text); transform: translateX(100%); transition: transform 0.28s ease, display 0.28s allow-discrete; }
 #entry-panel.open { display: flex; transform: translateX(0); }
 @starting-style { #entry-panel.open { transform: translateX(100%); } }
+/* The scrim is created and opened in one task, so without a starting value it has no
+   prior computed style to transition from and the dim snaps while the panel slides. */
+@starting-style { #entry-panel-backdrop.open { opacity: 0; } }
 #entry-panel.no-anim, #entry-panel-backdrop.no-anim { transition: none; }
 .entry-panel-header { flex: none; position: relative; padding: 12px 14px; border-bottom: 1px solid var(--border2); }
 .entry-panel-body { flex: 1 1 auto; overflow-y: auto; padding: 12px 14px; font-size: 11px; }
@@ -684,7 +696,8 @@ td.entry-panel-prov-entry { font-family: var(--font-mono); }
 .score-combo .score-input::-webkit-inner-spin-button,
 .score-combo .score-input::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
 .score-combo-toggle { flex: none; box-sizing: border-box; display: inline-flex; align-items: center; justify-content: center; width: 22px; padding: 0; color: var(--muted); background: var(--input-bg); border: 1px solid var(--border); border-left: none; border-radius: 0 3px 3px 0; cursor: pointer; }
-.score-combo-toggle:hover { color: var(--text); background: var(--hover); }
+.score-combo-toggle:hover:not(:disabled) { color: var(--text); background: var(--hover); }
+.score-combo-toggle:disabled { opacity: 0.5; cursor: default; }
 .score-combo .score-input:focus + .score-combo-toggle { border-color: var(--accent); }
 .score-combo-chevron { transition: transform 0.15s ease; }
 .score-combo-toggle[aria-expanded="true"] .score-combo-chevron { transform: rotate(180deg); }
@@ -722,6 +735,24 @@ td.entry-panel-prov-entry { font-family: var(--font-mono); }
 /* The 0fr/1fr row IS the height transition — `height: auto` does not interpolate. The
    children below use padding, not margin, because margin escapes `overflow: hidden` and
    leaves a collapsed block a few pixels tall. */
+/* Awaiting the corpus build: the fields are disabled and empty, which alone reads
+   as "this entry has no score" rather than "not loaded yet". */
+#entry-panel.seed-pending .score-input,
+#entry-panel.seed-pending .comment-input {
+  background: linear-gradient(90deg, var(--surface) 0%, var(--border2) 50%, var(--surface) 100%);
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.2s ease-in-out infinite;
+  color: transparent;
+}
+@media (prefers-reduced-motion: reduce) {
+  #entry-panel.seed-pending .score-input,
+  #entry-panel.seed-pending .comment-input { animation: none; background: var(--border3); }
+}
+.entry-panel-prov-skel .skeleton-bar { margin-bottom: 5px; }
+.entry-panel-prov-skel .skeleton-bar:nth-child(2) { width: 88%; }
+.entry-panel-prov-skel .skeleton-bar:nth-child(3) { width: 74%; }
+.entry-panel-prov-skel .skeleton-bar:nth-child(4) { width: 81%; margin-bottom: 0; }
+
 .entry-panel-async { display: grid; grid-template-rows: 0fr; opacity: 0; transition: grid-template-rows 0.18s ease, opacity 0.18s ease; }
 .entry-panel-async.revealed { grid-template-rows: 1fr; opacity: 1; }
 /* padding-bottom clears the focus outline on a bottom-row family item, which the
@@ -1143,12 +1174,7 @@ dialog h2 { font-size: 16px; margin-bottom: 14px; padding-right: 24px; }
 .usd-old-score { color: var(--muted); font-size: 12px; }
 .usd-arrow { color: var(--faint); font-size: 11px; }
 .usd-skel { padding: 0 22px 0 19px; }
-.usd-skel-bar {
-  height: 10px; width: 40%; border-radius: 3px;
-  background: linear-gradient(90deg, var(--surface) 0%, var(--border2) 50%, var(--surface) 100%);
-  background-size: 200% 100%;
-  animation: skeleton-shimmer 1.2s ease-in-out infinite;
-}
+.usd-skel-bar { display: block; width: 40%; }
 
 /* ─── Notifications ─────────────────────────────────────────────────────────── */
 /* Notification stack — toasts and the fetch panel share one bottom-center column */

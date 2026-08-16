@@ -116,13 +116,15 @@ export const Router = (() => {
     }
   }
 
-  // Call only once the worker is ready: openFromRoute seeds the panel off a worker
-  // query, which silently yields nothing if the corpus isn't built yet.
+  // Safe to call before the worker's corpus is built: the panel renders from this
+  // param alone, and each worker-fed block (edit seed, provenance, Related) holds
+  // its un-ready reply and refills on the build. Returns whether a panel opened.
   function openPendingEntry() {
-    if (!pendingEntry) return;
+    if (!pendingEntry) return false;
     const display = pendingEntry;
     pendingEntry = null;
     EntryPanel.openFromRoute({ norm: toNorm(display), display });
+    return true;
   }
 
   return { navigate, applyURL, openPendingEntry };

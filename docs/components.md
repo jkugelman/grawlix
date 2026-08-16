@@ -87,5 +87,6 @@ And the element-level chrome, which means a plain `<button>` or `<input>` needs 
 | `.dialog-actions` | Right-aligned button row at the foot of a dialog. |
 | `.shake` | One-shot shake, for rejecting invalid input. |
 | `.no-rules` | The muted italic "nothing here yet" line. |
+| `.skeleton-bar` | Shimmering placeholder bar for content still in flight; give it a width at the call site. Honors `prefers-reduced-motion`. Used by the group-chain rows, the update summary, and the entry panel's "Appears in". |
 
 `app.css` is divided into banner-delimited sections (see [`style.md`](style.md#banner-comments)); skimming those headings is the fastest way to find where a family of rules lives.
