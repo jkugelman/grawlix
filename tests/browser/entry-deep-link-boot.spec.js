@@ -152,6 +152,38 @@ test('a placeholder is never left shimmering for an entry no wordlist has', asyn
   await expect(entryInp(page)).toHaveValue('ZZZQQQ');    // not rewritten — nothing to rewrite to
 });
 
+// ─── Case routing ────────────────────────────────────────────────────────────
+// Links are typed by hand and written by other apps, and crossword tooling writes
+// uppercase; every one of those used to open on a blank score.
+
+for (const linked of ['BAGEL', 'Bagel', 'bAgEl']) {
+  test(`?entry=${linked} resolves to the entry as the wordlist spells it`, async ({ page }) => {
+    await seed(page);
+    await page.goto(`/?entry=${linked}`);
+    await expect(panel(page)).toBeVisible();
+
+    await expect(scoreInp(page)).toBeEnabled();
+    await expect(scoreInp(page)).toHaveValue('50');
+    await expect(entryInp(page)).toHaveValue('bagel');   // retitled to the real spelling
+    await expect(provTable(page)).toContainText('Src');
+  });
+}
+
+test('an exact spelling still wins over its same-norm rival', async ({ page }) => {
+  await seed(page);
+
+  await page.goto('/?entry=' + encodeURIComponent('Boney M.'));
+  await expect(panel(page)).toBeVisible();
+  await expect(scoreInp(page)).toBeEnabled();
+  await expect(entryInp(page)).toHaveValue('Boney M.');
+  await expect(scoreInp(page)).toHaveValue('70');
+
+  await page.goto('/?entry=' + encodeURIComponent('Boney M'));
+  await expect(scoreInp(page)).toBeEnabled();
+  await expect(entryInp(page)).toHaveValue('Boney M');
+  await expect(scoreInp(page)).toHaveValue('30');
+});
+
 // ─── Chrome the modal does not occlude ───────────────────────────────────────
 
 // elementsFromPoint, not elementFromPoint: over the header the topmost hit is the

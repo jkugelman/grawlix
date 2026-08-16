@@ -84,6 +84,35 @@ test('My-Edits winner: the reply flags it via sourceId so main does the raw swap
   assert.equal(projectWinner(winner).sourceId, 'db_My Edits');
 });
 
+test('a spelling absent from the merge resolves to nothing without bareFallback, and to the norm with it', () => {
+  // The deep-link case: `?entry=BAGEL` against lists that spell it `bagel`. Without the
+  // opt-in the concrete miss is final, which is what left a shared link's score blank.
+  const W = src('W', [wlEntry('bagel', 50, { display: 'bagel' })]);
+  const merged = buildCorpus([W]);
+
+  assert.equal(resolveEditSeedWinner(merged, 'bagel', 'BAGEL'), null);
+  assert.deepStrictEqual(projectWinner(resolveEditSeedWinner(merged, 'bagel', 'BAGEL', true)), {
+    norm: 'bagel', display: 'bagel', score: 50, comment: '', sourceId: 'db_W',
+  });
+});
+
+test('bareFallback never overrides a spelling that IS present', () => {
+  // The guard that keeps a click (and a batch rescore) on its own row: an exact hit
+  // must win even with the flag on, or a selection would rescore the wrong spelling.
+  const W = src('W', [
+    wlEntry('eagle', 50, { display: 'EAGLE' }),
+    wlEntry('eagle', 60, { display: 'Eagle' }),
+  ]);
+  const merged = buildCorpus([W]);
+  assert.equal(resolveEditSeedWinner(merged, 'eagle', 'EAGLE', true).score, 50);
+  assert.equal(resolveEditSeedWinner(merged, 'eagle', 'Eagle', true).score, 60);
+});
+
+test('bareFallback on a norm that is absent entirely still resolves to nothing', () => {
+  const merged = buildCorpus([src('E', [wlEntry('apple', 10)])]);
+  assert.equal(resolveEditSeedWinner(merged, 'ghost', 'GHOST', true), null);
+});
+
 test('norm absent from the merge: the worker returns null (main falls back to clicked)', () => {
   // The disabled-list-scope case: the clicked norm exists only in a disabled list,
   // so it is absent from the enabled-only merge. resolveEditSeedWinner returns null;

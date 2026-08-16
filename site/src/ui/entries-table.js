@@ -3231,7 +3231,7 @@ export const EntryPanel = (() => {
     refreshRenameSuggestion(activeWlEntry.display ?? activeWlEntry.norm, settleMs);
     updateNav();
 
-    if (!activeReadOnly && needsWorkerSeed(wlEntry, route)) refineScopedSeed(wlEntry, focus);
+    if (!activeReadOnly && needsWorkerSeed(wlEntry, route)) refineScopedSeed(wlEntry, focus, route);
 
     if (focus && !activeReadOnly) focusSeedField(focus);
 
@@ -3278,12 +3278,12 @@ export const EntryPanel = (() => {
   // fields stay disabled until the worker's winner refines the placeholder; a save
   // against the un-refined scoped value would be wrong. A null reply (stale/disabled
   // scope) keeps the clicked placeholder.
-  function refineScopedSeed(clicked, focus) {
+  function refineScopedSeed(clicked, focus, route = false) {
     const token = ++seedQueryToken;
     seedQueriesFired++;
     setFieldsDisabled(true);
     const stale = () => token !== seedQueryToken || !isOpen() || activeWlEntry !== clicked;
-    const ask = () => fetchWorkerEditSeed(clicked.norm, clicked.display ?? null);
+    const ask = () => fetchWorkerEditSeed(clicked.norm, clicked.display ?? null, route);
     const apply = winner => {
       setSeedPending(false);
       // Re-enable before applySeedToFields: focus/select no-op on a disabled input,

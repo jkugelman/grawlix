@@ -1610,13 +1610,13 @@ function locateGroupedRow(norm, display) {
 // synchronously and only a committed syncConfig (which rebuilds ownedMerged) or an
 // edit command re-sets it — so fresh ⇒ ownedMerged is current. A stale seed
 // silently saves a wrong value, so this guard must not loosen. A miss replies null.
-function handleFetchEditSeed({ requestId, norm, display }) {
+function handleFetchEditSeed({ requestId, norm, display, bareFallback = false }) {
   let winner = null;
   // `ready` separates "no such entry" from "no corpus yet" (as fetchFamily does): a
   // save writes FROM this seed, so conflating them blanks a real score.
   const ready = !!(ownedMerged && ownedCorpusFresh);
   if (ready) {
-    const row = resolveEditSeedWinner(ownedMerged, norm, display ?? null);
+    const row = resolveEditSeedWinner(ownedMerged, norm, display ?? null, bareFallback);
     if (row) {
       winner = {
         norm: row.norm, display: row.display ?? null,

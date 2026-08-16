@@ -259,11 +259,16 @@ export function mergedRowsForNorm(merged, norm) {
 // resolution on one side or the two threads silently drift on the merge winner.
 // Returns null when the norm is absent from the merge — the caller must supply
 // the clicked-atom fallback (reachable only from a disabled-list scope).
-export function resolveEditSeedWinner(merged, norm, display) {
+// `bareFallback` lets a spelling that isn't in the merge fall through to the norm's
+// rows instead of resolving to nothing. Deep links only: `?entry=BAGEL` against a
+// corpus that spells it `bagel` is a hit a human means, whereas a click names a row
+// that exists — and a batch rescore that silently retargeted a *different* spelling
+// would write scores to the wrong entries.
+export function resolveEditSeedWinner(merged, norm, display, bareFallback = false) {
   let row = merged.byKey.get(mergeKey(norm, display));
   // A bare click with no bare merged row edits the first-alphabetical spelled
   // variant — deterministic but arbitrary; don't "fix" the ordering.
-  if (!row && display == null) {
+  if (!row && (display == null || bareFallback)) {
     const variants = mergedRowsForNorm(merged, norm).filter(r => r.display != null);
     variants.sort((a, b) => a.display.localeCompare(b.display));
     row = variants[0] || bestRowForNorm(merged, norm);

@@ -851,7 +851,7 @@ export function endPendingEdit() {
 // retry instead of seeding a real entry blank. A timeout is un-ready — no answer, so
 // nothing to mistake for one.
 let fetchEditSeedRequestId = 0;
-export async function fetchWorkerEditSeed(norm, display, timeout = 5000) {
+export async function fetchWorkerEditSeed(norm, display, bareFallback = false, timeout = 5000) {
   await pendingEditBarrier;
   const w = getWorker();
   const requestId = ++fetchEditSeedRequestId;
@@ -864,7 +864,7 @@ export async function fetchWorkerEditSeed(norm, display, timeout = 5000) {
       resolve({ winner: data.winner ?? null, ready: !!data.ready });
     }
     w.addEventListener('message', onMessage);
-    w.postMessage({ type: 'fetchEditSeed', requestId, norm, display });
+    w.postMessage({ type: 'fetchEditSeed', requestId, norm, display, bareFallback });
   });
 }
 
