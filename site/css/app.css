@@ -612,7 +612,12 @@ mark.find-hit:last-child,
 .entries-footer-btn:hover { color: var(--accent-hover); }
 
 /* ─── Entry panel ───────────────────────────────────────────────────────────── */
-#entry-panel-backdrop { position: fixed; inset: 0; z-index: 599; background: var(--backdrop); opacity: 0; pointer-events: none; transition: opacity 0.28s ease; }
+/* Full-bleed for hit-testing (a click anywhere outside the panel still closes it), but
+   the dim is painted by the pseudo-element from --header-h down. The panel's own top
+   edge is --header-h, so the header is the one strip the panel never covers, and
+   dimming chrome the modal doesn't occlude just reads as the page graying out wrong. */
+#entry-panel-backdrop { position: fixed; inset: 0; z-index: 599; opacity: 0; pointer-events: none; transition: opacity 0.28s ease; }
+#entry-panel-backdrop::before { content: ''; position: absolute; top: var(--header-h); right: 0; bottom: 0; left: 0; background: var(--backdrop); }
 #entry-panel-backdrop.open { opacity: 1; pointer-events: auto; }
 #entry-panel { position: fixed; z-index: 600; top: var(--header-h); right: 0; bottom: 0; width: var(--entry-panel-w); display: none; flex-direction: column; background: var(--surface); border-left: 1px solid var(--border); box-shadow: -6px 0 24px rgba(0,0,0,0.32); color: var(--text); transform: translateX(100%); transition: transform 0.28s ease, display 0.28s allow-discrete; }
 #entry-panel.open { display: flex; transform: translateX(0); }
