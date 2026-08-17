@@ -23,8 +23,8 @@ import { encodeRow, decodeRows } from './url-codec.js';
 // setups) and lives in localStorage.
 export const Router = (() => {
   // A deep-linked entry param, held from applyURL until openPendingEntry opens the
-  // panel (deferred until the worker can seed). buildQuery must read it so boot's
-  // navigate() doesn't strip the param off the URL before the panel claims it.
+  // panel. buildQuery must read it so boot's navigate() doesn't strip the param off
+  // the URL before the panel claims it.
   let pendingEntry = null;
 
   // `invert` is a row flag, not a param, so it needs its own clause here or an
