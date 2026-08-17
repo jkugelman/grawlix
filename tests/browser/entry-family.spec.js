@@ -183,6 +183,27 @@ test('an unscored new entry can still click through to a relative', async ({ pag
   await expect(current(page)).toContainText('lather');
 });
 
+test('a new entry committed by clicking a relative is added, not dropped', async ({ page }) => {
+  await gotoApp(page);
+  await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
+    name: 'Src', entries: ['lather', 'lathered'], scores: [50, 30],
+  }));
+  await page.locator('#add-fab').click();
+  await expect(panel(page)).toBeVisible();
+  await panel(page).locator('.entry-input').fill('lathering');
+  await page.locator('#entry-panel-score').fill('40');
+
+  // The savable half of the gate above, and the half that loses data: pinning only
+  // the discard leaves a regression that drops a typed-in create silently green.
+  await items(page).filter({ hasText: 'lathered' }).click();
+
+  await expect(panel(page).locator('.entry-input')).toHaveValue('lathered');
+  await expect(items(page).filter({ hasText: 'lathering' }).locator('.score-badge')).toHaveText('40');
+
+  await page.keyboard.press('Escape');
+  await expectVisible(page, ['lather', 'lathered', 'lathering']);
+});
+
 test('typing an existing entry in the Add panel lists it once, not beside a twin', async ({ page }) => {
   await gotoApp(page);
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
