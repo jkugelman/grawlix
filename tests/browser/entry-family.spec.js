@@ -52,6 +52,7 @@ const panel = page => page.locator('#entry-panel');
 const items = page => page.locator('.entry-family-item');
 const current = page => page.locator('.entry-family-item--current');
 const sibling = page => page.locator('.entry-family-item:not(.entry-family-item--current)');
+const more = page => page.locator('.entry-family-more');
 
 async function openPanelFor(page, norm) {
   const cell = page.locator(`.entry-row[data-entry="${norm}"] .atom-entry`);
@@ -382,6 +383,44 @@ test('a very common name shows only its few best-scoring full names', async ({ p
   await openPanelFor(page, 'james');
   await expect(sibling(page)).toHaveCount(3);
   await expect(items(page).filter({ hasText: 'James Joyce' })).toHaveCount(0);
+  // The trim has to say so: a silently short list reads as the whole family.
+  await expect(more(page)).toHaveText('+1 more');
+});
+
+test('the +N more reveal shows the names the cap trimmed', async ({ page }) => {
+  await gotoApp(page);
+  await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
+    name: 'Src',
+    entries: ['James', 'James Bond', 'James Cook', 'James Dean', 'James Joyce'],
+    scores: [40, 90, 80, 70, 10],
+  }));
+  await openPanelFor(page, 'james');
+  await more(page).click();
+
+  await expect(sibling(page)).toHaveCount(4);
+  await expect(items(page).filter({ hasText: 'James Joyce' })).toHaveCount(1);
+  await expect(more(page)).toHaveCount(0);
+  // Revealed in sorted position, so the list stays alphabetical rather than
+  // appending the trimmed names in a second run.
+  await expect(page.locator('.entry-family-item .entry-family-entry'))
+    .toHaveText(['James', 'James Bond', 'James Cook', 'James Dean', 'James Joyce']);
+});
+
+test('a rename that sorts the anchor past the cap still shows it', async ({ page }) => {
+  await gotoApp(page);
+  await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
+    name: 'Src',
+    entries: ['Willis', 'Bruce Willis', 'Connie Willis', 'Willis Tower', 'Wesley Willis',
+              'Lester Willis Young'],
+    scores: [50, 50, 50, 50, 50, 40],
+  }));
+  await openPanelFor(page, 'lesterwillisyoung');
+
+  // Renaming reaches the bound row through the `willis` name run, where its lower
+  // score sorts it last — behind the reveal, if the anchor weren't exempt from it.
+  await panel(page).locator('.entry-input').fill('Willis');
+  await expect(current(page)).toContainText('Willis');
+  await expect(more(page)).toHaveCount(1);
 });
 
 // A family read the worker answers with NO corpus to read from — the sibling of the

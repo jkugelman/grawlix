@@ -2859,6 +2859,7 @@ export const EntryPanel = (() => {
   let activeRow = null;
   let familyMembers = [];
   let familyEntry = null;
+  let familyExpanded = false;
   let familyToken = 0;
   let famQueriesFired = 0;
   let famRetriesFired = 0;
@@ -2953,6 +2954,7 @@ export const EntryPanel = (() => {
       if (trash) { toggleStagedDelete(trash.dataset.norm, trash.dataset.display); return; }
       if (e.target.closest('.entry-panel-prev')) { walkPrev(); return; }
       if (e.target.closest('.entry-panel-next')) { walkNext(); return; }
+      if (e.target.closest('.entry-family-more')) { expandFamily(); return; }
       const famItem = e.target.closest('.entry-family-item');
       if (famItem) { clickFamilyRow(+famItem.dataset.famIdx); return; }
       if (e.target.closest('.entry-panel-adopt-btn')) toggleStagedAdopt();
@@ -4075,6 +4077,9 @@ export const EntryPanel = (() => {
       familyMembers = members.sort(
         (a, b) => (a.viaName === true) - (b.viaName === true)
                || (a.display ?? a.norm).localeCompare(b.display ?? b.norm) || a.norm.localeCompare(b.norm));
+      // Keyed on the text, not on each reply: an un-ready retry re-applies the same
+      // query, and re-collapsing under the user there would undo a reveal they made.
+      if (familyEntry !== firedFor) familyExpanded = false;
       familyEntry = firedFor;
       paintFamily();
     };
@@ -4218,14 +4223,17 @@ export const EntryPanel = (() => {
     // Show only when a sibling is present, else an entry with no relatives renders
     // as a lone bold self. (Empty members — no anchor at all — falls out the same way.)
     if (members.every(m => m.current)) return '';
+    let hidden = 0;
     const items = members.map((m, i) => {
+      if (m.overflow && !familyExpanded) { hidden++; return ''; }
       const cls = m.current ? 'entry-family-item entry-family-item--current' : 'entry-family-item';
       const badge = Number.isFinite(m.score) ? ` ${buildScoreBadgeHTML(m.score)}` : '';
       return `<span class="${cls}" data-fam-idx="${i}" tabindex="0">`
         + `<span class="entry-family-entry">${esc(displayOf(m))}</span>${badge}</span>`;
-    }).join(' · ');
+    }).filter(Boolean);
+    if (hidden) items.push(`<button type="button" class="entry-family-more lookup-more">+${hidden} more</button>`);
     return `<div class="lookup-sec"><div class="lookup-sec-head">Related entries</div>`
-      + `<div class="entry-family-list">${items}</div></div>`;
+      + `<div class="entry-family-list">${items.join(' · ')}</div></div>`;
   }
 
   function updateNav() {
@@ -4282,6 +4290,15 @@ export const EntryPanel = (() => {
   }
   function walkPrev() { walkStep(-1); }
   function walkNext() { walkStep(1); }
+
+  // Focus follows the reveal because the repaint destroys the button it was on, and a
+  // modal panel that drops focus to <body> restarts Tab at the top of the page.
+  function expandFamily() {
+    const first = familyMembers.findIndex(m => m.overflow);
+    familyExpanded = true;
+    paintFamily();
+    if (first >= 0) el.querySelector(`.entry-family-item[data-fam-idx="${first}"]`)?.focus();
+  }
 
   function clickFamilyRow(i) {
     const m = familyMembers[i];

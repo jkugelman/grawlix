@@ -115,8 +115,9 @@ export function familyKey(text, vocab) {
 // the proper-noun judgement, since corpus.js imports this module and reaching
 // back for casePart would close an import cycle.
 
-// A per-lookup budget, not a section total: a name anchors on each of its parts
-// independently, so a three-part name may show this many via each.
+// What the collapsed list shows per anchor, not a section total: a name anchors on
+// each of its parts independently, so a three-part name may show this many via each.
+// Matches past it are flagged, not dropped — they wait behind the panel's "+N more".
 export const NAME_RELATIVE_CAP = 3;
 
 // Deliberately only i/v/x. Admitting m/d/l/c matches ordinary words — `mix` is

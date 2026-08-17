@@ -1668,10 +1668,11 @@ async function handleFetchFamily({ requestId, norm, display, boundNorm = norm, b
         for (const n of generateRelativeNorms(parts.join(' '))) genNorms.add(n);
       }
     }
-    const asMember = (e, viaName = false) => ({
+    const asMember = (e, viaName = false, overflow = false) => ({
       norm: e.norm, display: e.display ?? null, score: e.score,
       comment: e.comment || '', sourceId: e.wordlist.dbKey, current: e === bound,
       ...(viaName && { viaName: true }),
+      ...(overflow && { overflow: true }),
     });
     const queryParts = nameParts(display ?? norm);
     // Anchor → its relatives, so the cap is a budget per name part rather than one
@@ -1696,7 +1697,11 @@ async function handleFetchFamily({ requestId, norm, display, boundNorm = norm, b
       group.sort((a, b) => b.score - a.score
         || (a.display ?? a.norm).length - (b.display ?? b.norm).length
         || (a.display ?? a.norm).localeCompare(b.display ?? b.norm));
-      for (const e of group.slice(0, NAME_RELATIVE_CAP)) members.push(asMember(e, true));
+      // Flagged, not sliced away: a silently short list is indistinguishable from a
+      // complete one, and these are what the panel counts for its "+N more". Exempting
+      // `bound` keeps a rename (`Lester Willis Young` → `Willis`, which reaches its own
+      // bound row through this run) from hiding the never-dropped bold anchor.
+      group.forEach((e, i) => members.push(asMember(e, true, i >= NAME_RELATIVE_CAP && e !== bound)));
     }
   }
   // `ready` keeps an un-ready worker's empty answer distinguishable from a genuine
