@@ -19,7 +19,7 @@ The screen, top to bottom:
 - **Wordlist bar.** Holds the wordlist selector and the actions for whatever wordlist you're looking at (see *The wordlist bar* below).
 - **Sticky region** that anchors just below the header as you scroll into the entries table:
   - Tool stack (only when you've added tools — the search bar sits at the bottom either way).
-  - Stats bar with histogram (click or drag across the histogram to filter by score range).
+  - Stats bar with histogram (click or drag across the histogram to filter by score range), plus a **Lengths** box.
   - Entry headers labelling the columns below.
 - **Entries table.** The entries for your current scope, always visible — idle and search views are the same view, just filtered.
 
@@ -193,6 +193,12 @@ A single sticky band above the entries table, carrying the counts, the score-ran
 - **Histogram and score range.** The histogram sits between the counts and a `lo-hi` / `lo+` / `n` text box labeled **Scores** — it's stats about the entries on one side and the filter's visual twin on the other, so it belongs in the middle. The box and the histogram are one filter, one exact and one visual. Focus the box for a syntax cheat sheet, the same way the search boxes show theirs, or drag-select across the histogram. The histogram shows the full pipeline output regardless of range; bars outside the bracket fade in place so you can see what you're trimming as you drag the range narrower. On a narrow window the histogram drops out first, but the counts and the box always hold. The filter is global and remembered across visits — it applies to whichever wordlist you're scoped to, so switching scope keeps it in place rather than clearing it. New here, you start at `1+`, so the trash tier (anything at or below the trash score) stays hidden until you ask for it. That default sits one point above your **trash score** (set in Settings), so raising the trash score lifts the filter's floor to match. The box's button reflects where you are: sitting at the default it's an **×** that clears the filter to show everything (and that choice sticks); anywhere else — including an empty box — it's a **↺** that snaps back to the default.
 - **Share.** One labeled control — **Share ▾** opens a copy popover with a shareable link or the results, and the results row also downloads the view as a file (see *Exporting the entries table*). Sorting isn't in this bar: click a column header in the table below (see *Tools → Sort*).
 
+- **Lengths.** A box beside **Scores**, same syntax: `7` for exactly seven, `5+` for seven or more, `5-7` for a range, empty for any. Length counts grid squares — letters only, so `the IRS` is 6 — matching the table's Length column. Unlike the score filter this one travels in the link you share, since a 7 means the same thing on anyone's wordlists.
+
+  With a tool in the stack it filters **what the tool produced**, not what it started from: Head off `s` with Length `4` gives you `swing → wing`, keeping the 4-letter result even though the word it came from is 5. That's the useful reading when a tool changes length — Head off, Back off, Kangaroos, Initialisms and friends — and for tools that preserve length there's nothing to tell apart. In all-mode it keeps a cluster's members that fit and drops the cluster if fewer than two are left.
+
+  It switches off for tools that return several entries side by side, like Umiaq with a `;` in the pattern: a row there is a whole set of answers at once, so "is this row 7 letters" has no answer to give. The box greys out and stops applying, but keeps what you typed — take the tool back off and your filter comes straight back. Use the pattern itself to say how long each part should be.
+
 The score range applies after the pipeline runs, dropping any chain whose journey touched an out-of-range atom. All-mode pipelines drop chains per group; a group stays visible as long as at least one chain survives.
 
 ## Exporting the entries table
@@ -315,7 +321,7 @@ Help is deep-linkable, and so is each individual answer: opening Help puts `#/he
 
 Your tool stack — every tool you've added and its inputs, in pipeline order — plus the search pattern, match mode, and sort all ride along in the URL. Refreshing the page keeps your state, and pasting the URL into a chat or saving it as a bookmark reproduces what you were looking at.
 
-The link carries your tools and search settings, not your wordlists, your scope, or your score filter. Wordlists you've loaded stay local; so does the wordlist you're scoped to — a recipient sees the same tools applied to their own scope (usually All Wordlists). The score filter is omitted on purpose: a `60` on your scale isn't a `60` on theirs, so the number wouldn't translate. Your filter and your scope are remembered across your own visits instead.
+The link carries your tools and search settings — including your **Lengths** filter — but not your wordlists, your scope, or your score filter. Wordlists you've loaded stay local; so does the wordlist you're scoped to — a recipient sees the same tools applied to their own scope (usually All Wordlists). The score filter is omitted on purpose: a `60` on your scale isn't a `60` on theirs, so the number wouldn't translate. Your filter and your scope are remembered across your own visits instead.
 
 ## Wordlist file format
 

@@ -20,7 +20,7 @@ import {
 import { scopedHistogramLayout } from '../data/derived.js';
 import { scoreColor } from '../model/score-display.js';
 import { PopupHelp } from './components.js';
-import { AppView, scopeKey, activeScoreRange } from './app-view.js';
+import { AppView, scopeKey, activeScoreRange, activeLengthRange, lengthFilterDisabled } from './app-view.js';
 import {
   EntriesScroller, EntryPanel, GroupMorePopover,
   reconcileSort, chainSortTier,
@@ -36,16 +36,18 @@ let _refreshDerivedDisplays    = () => {};
 let _deleteFromEdits           = () => {};
 let _attachExternalEditHandlers = () => {};
 let _buildScoreRangeInputHTML  = () => '';
+let _buildLengthRangeInputHTML = () => '';
 let _buildShareControlHTML     = () => '';
 
 export function configureRendering({
   refreshDerivedDisplays, deleteFromEdits, attachExternalEditHandlers,
-  buildScoreRangeInputHTML, buildShareControlHTML,
+  buildScoreRangeInputHTML, buildLengthRangeInputHTML, buildShareControlHTML,
 }) {
   if (refreshDerivedDisplays)     _refreshDerivedDisplays = refreshDerivedDisplays;
   if (deleteFromEdits)            _deleteFromEdits = deleteFromEdits;
   if (attachExternalEditHandlers) _attachExternalEditHandlers = attachExternalEditHandlers;
   if (buildScoreRangeInputHTML)   _buildScoreRangeInputHTML = buildScoreRangeInputHTML;
+  if (buildLengthRangeInputHTML)  _buildLengthRangeInputHTML = buildLengthRangeInputHTML;
   if (buildShareControlHTML)      _buildShareControlHTML = buildShareControlHTML;
 }
 
@@ -269,7 +271,7 @@ export async function reprojectMergedScroller(recomputeHistogram = false) {
   const stack = ToolStack.getStack();
   reconcileSort(stack);
   if (!entriesScroller) return;
-  const { stale } = await reprojectPipeline(currentSort(), activeScoreRange() || null, recomputeHistogram);
+  const { stale } = await reprojectPipeline(currentSort(), activeScoreRange() || null, activeLengthRange() || null, recomputeHistogram);
   if (stale) refreshMergedScroller();
 }
 
@@ -280,7 +282,7 @@ export async function repatchMergedScroller() {
   const stack = ToolStack.getStack();
   reconcileSort(stack);
   if (!entriesScroller) return;
-  const { stale } = await repatchPipeline(stack, currentSort(), activeScoreRange() || null);
+  const { stale } = await repatchPipeline(stack, currentSort(), activeScoreRange() || null, activeLengthRange() || null);
   if (stale) { refreshMergedScroller(); return; }
   EntryPanel.rebindEntry(entriesScroller);
 }
@@ -373,6 +375,7 @@ export function buildStatsBarHTML() {
     : buildStatItemHTML(tuple ? 'Results' : 'Entries', countText, incomplete ? 'Results incomplete' : null, 'stat-entries');
 
   const rangeHTML = _buildScoreRangeInputHTML('score-range-input', AppView.scoreRange, 'AppView');
+  const lengthHTML = _buildLengthRangeInputHTML('length-range-input', AppView.lengthRange, 'AppView');
   const shareHTML = _buildShareControlHTML();
 
   return `<div class="stats-bar${isEmpty ? ' stats-empty' : ''}">
@@ -380,6 +383,7 @@ export function buildStatsBarHTML() {
       <div class="stats-bar-distribution">
         <div class="histogram" title="Histogram • Click to filter" onpointerdown="onHistogramPointerDown(event)">${bars}<div class="histogram-rect" hidden></div></div>
         ${rangeHTML}
+        ${lengthHTML}
         ${buildResultsStaleChipHTML()}
       </div>
       <div class="stats-bar-controls">${shareHTML}</div>
@@ -400,10 +404,23 @@ export function syncResultsStaleChip() {
   if (chip) chip.hidden = !resultsStale$.peek();
 }
 
+// Rebuilds the Length box only when its enabled state actually flips, so a repaint
+// mid-keystroke can't drop the user's focus and typing the way a rebuild-every-time
+// would. The stack is the source of truth, so this stays correct wherever it's called.
+function syncLengthFilterControl() {
+  const label = document.querySelector('#stats .length-range-label');
+  const input = label?.querySelector('input');
+  if (!input || input.disabled === lengthFilterDisabled()) return;
+  const tmp = document.createElement('div');
+  tmp.innerHTML = _buildLengthRangeInputHTML('length-range-input', AppView.lengthRange, 'AppView');
+  label.replaceWith(tmp.firstElementChild);
+}
+
 export function refreshStatsBarFromScroller() {
   if (!entriesScroller) return;
   const bar = document.querySelector('#stats .stats-bar');
   if (!bar) return;
+  syncLengthFilterControl();
   // Floor the Entries readout's width to the merged-corpus count, so the live count
   // climbing through a stream can't widen it and shove Min/Max sideways.
   bar.style.setProperty('--entries-ch', String(Math.max(1, mergedEntryCount().toLocaleString().length)));
@@ -469,7 +486,7 @@ export function refreshStatsBarOverflow() {
       const ctrls = bar.querySelector('.stats-bar-controls');
       if (!ctrls) return false;
       const ctrlsLeft = ctrls.getBoundingClientRect().left;
-      for (const el of bar.querySelectorAll('.stats-bar-counts, .histogram, .score-range-label, .stream-dots')) {
+      for (const el of bar.querySelectorAll('.stats-bar-counts, .histogram, .range-filter, .stream-dots')) {
         if (!el.offsetWidth) continue;
         if (el.getBoundingClientRect().right > ctrlsLeft + 0.5) return true;
       }

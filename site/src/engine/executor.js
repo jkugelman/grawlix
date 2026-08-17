@@ -714,9 +714,29 @@ export function bottomLineAtoms(rows) {
   return out;
 }
 
-export function applyScoreRangeToRows(rows, intervals, laneKind) {
-  if (!intervals) return rows;
-  const chainOk = chain => rowAtoms(chain).every(a => matchesRange(a.wlEntry.score, intervals));
+// Score judges EVERY atom in a chain — a chain is only as good as its worst entry.
+// Length judges the LAST atom alone: a length-changing tool (Head off, Kangaroos,
+// Initialisms) can't have its seed share the output's length, so an every-atom rule
+// would empty the view for those tools instead of filtering it.
+export function chainPredicate({ score, length }) {
+  return chain => {
+    if (score && !rowAtoms(chain).every(a => matchesRange(a.wlEntry.score, score))) return false;
+    if (length && !matchesRange(rowLastEntry(chain).norm.length, length)) return false;
+    return true;
+  };
+}
+
+export function entryPredicate({ score, length }) {
+  return e => {
+    if (score && !matchesRange(e.score, score)) return false;
+    if (length && !matchesRange(e.norm.length, length)) return false;
+    return true;
+  };
+}
+
+export function applyViewFilterToRows(rows, filter, laneKind) {
+  if (!filter) return rows;
+  const chainOk = chainPredicate(filter);
   if (laneKind === 'record') {
     // A record's lanes are positional — each is part of one solution, so the range
     // can't trim a lane the way it trims a cluster member without rendering a row
@@ -733,7 +753,10 @@ export function applyScoreRangeToRows(rows, intervals, laneKind) {
   if (laneKind === 'set') {
     const out = [];
     for (const g of rows) {
-      if (g.anchor && !matchesRange(g.anchor.score, intervals)) continue;
+      // Score gates on the anchor, length deliberately doesn't: the anchor is the seed
+      // the cluster was found from, not a candidate answer, so gating it would drop
+      // every cluster whenever the seed's own length missed the filter.
+      if (g.anchor && filter.score && !matchesRange(g.anchor.score, filter.score)) continue;
       const chains = g.chains.filter(chainOk);
       if (chains.length < 2) continue;
       // A grouped filter tags its matches; once the range trims members, the

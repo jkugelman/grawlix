@@ -10,7 +10,9 @@ import { TOOLS, makeToolRow } from '../engine/tools.js';
 // It's safe to reserve even though several tools have an `entry`-keyed first
 // param: a first param always rides its tool-slug key, so `entry=` is never
 // emitted as a standalone key by tool encoding — only the panel emits it.
-const RESERVED = new Set(['sort', 'sort-dir', 'entry']);
+// `length` is the stats-bar length filter; no tool slug, reverse slug, or param
+// key is named `length`, so reserving it costs no tool its URL key.
+const RESERVED = new Set(['sort', 'sort-dir', 'entry', 'length']);
 
 const REVERSE_SLUGS = {};
 for (const [key, def] of Object.entries(TOOLS)) if (def.reverseSlug) REVERSE_SLUGS[def.reverseSlug] = key;

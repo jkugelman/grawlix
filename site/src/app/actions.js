@@ -1069,6 +1069,7 @@ export function bindEvents() {
       case 'KeyS': focusPermanentSearch();   break;
       case 'KeyW': toggleMatchMode();        break;
       case 'KeyC': focusScoreRange();        break;
+      case 'KeyL': focusLengthRange();       break;
       case 'KeyA': openCreateEntry();        break;
       default: handled = false;
     }
@@ -1090,6 +1091,11 @@ function focusPermanentSearch() {
 function focusScoreRange() {
   const input = document.getElementById('score-range-input');
   if (input) { input.focus(); input.select(); }
+}
+
+function focusLengthRange() {
+  const input = document.getElementById('length-range-input');
+  if (input && !input.disabled) { input.focus(); input.select(); }
 }
 
 function toggleMatchMode() {

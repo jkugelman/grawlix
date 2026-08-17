@@ -13,9 +13,24 @@ import { getEntriesScroller } from './rendering.js';
 
 export const scopeKey = scope => scope === MERGED_ID ? MERGED_ID : scope.dbKey;
 
+let _navigate = () => {};
+export function configureAppView({ navigate }) { _navigate = navigate; }
+
 export function activeScoreRange() { return AppView.scoreRange; }
 
-export function normalizeScoreRange(value, inputId) {
+// '' whenever the filter is inert, so a disabled control can't reach the worker: the
+// value stays in the URL and in the field, and every downstream consumer — rows,
+// counts, histogram — sees no filter at all rather than a greyed one still biting.
+export function activeLengthRange() { return lengthFilterDisabled() ? '' : AppView.lengthRange; }
+
+// A tuple's lanes are simultaneous — one solution needs all of them — so no reading of
+// "is this row 7 letters" holds. Derived from the stack, not the worker's laneKind, so
+// the control greys the moment the tool is added rather than a run later.
+export function lengthFilterDisabled() {
+  return chainSortTier(ToolStack.getStack()) === 'tuple';
+}
+
+export function normalizeRangeInput(value, inputId) {
   const trimmed = (value || '').trim();
   const intervals = trimmed === '' ? null : parseRange(trimmed);
   const inp = document.getElementById(inputId);
@@ -31,6 +46,7 @@ export const AppView = (() => {
   // Search query / match mode are *not* here — they live in the permanent
   // Search bar's ToolStack row params; the getters below read them from it.
   let _scoreRange      = '';
+  let _lengthRange     = '';
   let _sortList        = [{ key: 'entry', dir: 'asc' }];
 
   function show() {
@@ -41,11 +57,22 @@ export const AppView = (() => {
   }
 
   function onScoreRange(value) {
-    _scoreRange = normalizeScoreRange(value, 'score-range-input');
+    _scoreRange = normalizeRangeInput(value, 'score-range-input');
     persistScoreRange();
     getEntriesScroller()?.setScoreRange(_scoreRange);
     repositionAllHistogramRects();
   }
+
+  // URL-backed, not localStorage-backed like the score range: a length is a query
+  // ("what fits this slot"), not a standing preference, and it means the same thing on
+  // any setup — see design.md § Out of scope for the URL.
+  function onLengthRange(value) {
+    _lengthRange = normalizeRangeInput(value, 'length-range-input');
+    _navigate();
+    getEntriesScroller()?.setLengthRange(activeLengthRange());
+  }
+
+  function restoreLengthRange(range) { _lengthRange = range; }
 
   // Stores '' too (not lsDel on blank): absence means "apply the default", so a
   // cleared filter must persist explicitly or reload re-applies it. See restoreScoreRange.
@@ -84,9 +111,11 @@ export const AppView = (() => {
   return {
     show,
     onScoreRange, resetScoreRange,
+    onLengthRange, restoreLengthRange,
     setSortList, applyURLState, restoreScoreRange,
     get searchQuery()     { return ToolStack.getSearchBarRow().params.pattern || ''; },
     get scoreRange()      { return _scoreRange; },
+    get lengthRange()     { return _lengthRange; },
     get sortKey()         { return _sortList[0].key; },
     get sortDir()         { return _sortList[0].dir; },
     get sortList()        { return _sortList.map(s => ({ ...s })); },

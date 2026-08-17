@@ -196,7 +196,7 @@ input.copy-field { overflow-x: auto; }
 }
 .stats-bar-counts { display: flex; align-items: center; gap: 14px; min-width: 0; flex-shrink: 0; }
 .stats-bar-distribution { display: flex; align-items: center; gap: 14px; min-width: 0; }
-.stats-bar-distribution .score-range-label { flex-shrink: 0; }
+.stats-bar-distribution .range-filter { flex-shrink: 0; }
 .stats-bar-controls { display: flex; align-items: center; flex-shrink: 0; justify-self: end; align-self: center; }
 /* Coloring (incl. the hover that the base button:hover rule would otherwise win) comes
    from .primary; this only adds the pill shape. */
@@ -246,7 +246,7 @@ html.light-mode .histogram-rect { opacity: 0.11; }
    auto-placed columns and misaligns the find-replace row under the input. */
 .search-bar.solo > .drag-handle { width: 0; padding: 0; overflow: hidden; }
 .search-bar.solo > .tool-label { margin-left: 0; }
-.score-range-label { align-items: flex-start; white-space: nowrap; }
+.range-filter { align-items: flex-start; white-space: nowrap; }
 
 /* ─── Match highlights ──────────────────────────────────────────────────────── */
 /* Negative margin cancels the padding's layout width — the highlight box keeps
@@ -1405,10 +1405,12 @@ body.picker-expanded #picker-backdrop { opacity: 1; }
   .find-replace-caret-glyph { transition: none; }
 }
 .tool-row-param input[type="text"],
-.score-range-label input[type="text"] { font-family: var(--font-mono); }
+.range-filter input[type="text"] { font-family: var(--font-mono); }
 .tool-row-param input[type="text"] { width: 100%; min-width: 0; padding: 5px 24px 5px 8px; }
-.score-range-label input[type="text"] { width: 72px; padding: 4px 20px 4px 6px; }
-.score-range-label input.invalid { border-color: #ea4335; background: var(--error-bg); }
+.range-filter input[type="text"] { width: 60px; padding: 4px 20px 4px 6px; }
+.range-filter input.invalid { border-color: #ea4335; background: var(--error-bg); }
+.length-range-off { opacity: 0.5; }
+.length-range-off input[type="text"] { cursor: not-allowed; background: var(--surface); color: var(--muted); }
 .tool-row-param input.tool-row-num { font-family: var(--font-sans); padding: 5px 8px; width: 5em; }
 .tool-row-range-wrap { display: inline-flex; flex-direction: column; align-items: stretch; gap: 1px; }
 .tool-row-range-wrap input[type="range"] { width: 110px; margin: 0; padding: 0; height: 16px; accent-color: var(--accent); }
@@ -1493,7 +1495,7 @@ body.picker-expanded #picker-backdrop { opacity: 1; }
   .tool-row, .search-bar { --tool-control-h: 34px; }
   .tool-row-param input[type="text"],
   .tool-row-param input[type="number"],
-  .score-range-label input[type="text"],
+  .range-filter input[type="text"],
   .entry-panel-fields input,
   .picker-search-wrap > input { font-size: 16px; }
 }

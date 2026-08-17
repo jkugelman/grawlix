@@ -64,6 +64,7 @@ Classes emitted by the builders above. If you're styling one of these, the rule 
 | `.more-menu-btn`, `.more-menu-caret` | `buildMoreMenuHTML` |
 | `.badge` | `buildBadgeHTML` |
 | `.clearable-input`, `.clear-btn` | `buildClearableInputHTML` |
+| `.range-filter`, `.length-range-off` | `buildScoreRangeInputHTML`, `buildLengthRangeInputHTML` (`main.js`) — the stats bar's two range boxes. `.range-filter` carries the shared width/mono/invalid styling **and** is what the stats-bar overflow guard measures, so a third range box must have it or it will overlap the Share control instead of collapsing the histogram. Each box also carries an unstyled per-box hook (`.score-range-label`, `.length-range-label`) that JS and the specs select on. |
 | `.of-flags`, `.of-flag` | `buildOutputFormatControlsHTML` |
 | `.tool-row-param` | `buildParamHTML` |
 | `.url-input-wrap`, `.url-input` | `buildUrlInputHTML` |

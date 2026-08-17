@@ -2,7 +2,7 @@
 
 import { toNorm } from '../engine/norm.js';
 import { showToast } from '../ui/toasts.js';
-import { AppView } from '../ui/app-view.js';
+import { AppView, normalizeRangeInput } from '../ui/app-view.js';
 import { chainSortTier, DEFAULT_SORT_BY_TIER, isValidSortAxis, EntryPanel, entryPanelRouteValue } from '../ui/entries-table.js';
 import { ToolStack } from '../ui/tool-stack.js';
 import { encodeRow, decodeRows } from './url-codec.js';
@@ -18,9 +18,10 @@ import { encodeRow, decodeRows } from './url-codec.js';
 // first param's value (`tool=value`), and each successive param is its own
 // adjacent key (a bare key for a true checkbox, `key=value` for a non-empty
 // text param, omitted at default). The permanent Search bar is the final
-// row. See docs/design.md § URL state. The score filter is intentionally
-// *not* in the URL — it's per-user (scores aren't portable across wordlist
-// setups) and lives in localStorage.
+// row, and the length filter rides a reserved `length=` key. See docs/design.md
+// § URL state. The score filter is intentionally *not* in the URL — it's per-user
+// (scores aren't portable across wordlist setups) and lives in localStorage;
+// length means the same thing on any setup, so it travels.
 export const Router = (() => {
   // A deep-linked entry param, held from applyURL until openPendingEntry opens the
   // panel. buildQuery must read it so boot's navigate() doesn't strip the param off
@@ -44,6 +45,10 @@ export const Router = (() => {
     const parts = [];
     const entry = entryPanelRouteValue() ?? pendingEntry;
     if (entry) parts.push('entry=' + encodeURIComponent(entry));   // leads, for shareable `?entry=BAGEL&…`
+    // AppView.lengthRange, not activeLengthRange(): a tuple stack makes the filter
+    // inert, but dropping it from the URL would erase the user's value the moment
+    // they add a Umiaq row, instead of restoring it when they take it back off.
+    if (AppView.lengthRange) parts.push('length=' + encodeURIComponent(AppView.lengthRange));
     stack.forEach((row, i) => {
       const isBar = i === stack.length - 1;
       if (isBar && rowIsDefault(row) && stack[i - 1]?.tool !== 'search') return;
@@ -89,11 +94,12 @@ export const Router = (() => {
     return list;
   }
 
-  // Applies URL state (tool stack, search) as a side effect. The score filter
-  // is loaded from localStorage in init() and doesn't participate in URL routing.
+  // Applies URL state (tool stack, search, length filter) as a side effect. The
+  // score filter is loaded from localStorage in init() and doesn't participate.
   function applyURL() {
     const params = new URLSearchParams(location.search);
     pendingEntry = params.get('entry') || null;
+    AppView.restoreLengthRange(normalizeRangeInput(params.get('length') || '', 'length-range-input'));
     let sortRaw = null;
     let legacyDir = null;
     for (const [key, value] of params) {

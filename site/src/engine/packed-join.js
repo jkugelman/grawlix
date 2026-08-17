@@ -24,8 +24,8 @@
 
 import { composeSortAxis, compareItems } from './sort.js';
 import { displayOf } from './norm.js';
-import { matchesRange, parseRange } from './range.js';
-import { cacheGroupStats } from './executor.js';
+import { parseViewFilter } from './range.js';
+import { cacheGroupStats, entryPredicate } from './executor.js';
 
 // `length` is the logical count; `a` keeps spare capacity, so never read at or
 // past `length` — it holds stale slots the doubling left behind.
@@ -130,11 +130,12 @@ export function materializeRecordRow(join, corpus, ord) {
   return { key: join.keyOf(corpus, ord), anchor: null, _minScore: minS, _maxScore: maxS, _minLength: minL, _maxLength: maxL, _count: arity, chains };
 }
 
-// Every lane in range — the applyScoreRangeToRows 'record' rule: a positional lane
-// is never trimmed, so the tuple drops whole or not at all.
-export function recordInRange(join, corpus, ord, intervals) {
+// Every lane passes — the applyViewFilterToRows 'record' rule: a positional lane is
+// never trimmed, so the tuple drops whole or not at all. Takes the built predicate,
+// not the filter: callers loop over up to ~500k records and must hoist it.
+export function recordPasses(join, corpus, ord, ok) {
   const arity = join.arity, base = ord * join.arity, li = join.laneIdx.a, entries = corpus.entries;
-  for (let k = 0; k < arity; k++) if (!matchesRange(entries[li[base + k]].score, intervals)) return false;
+  for (let k = 0; k < arity; k++) if (!ok(entries[li[base + k]])) return false;
   return true;
 }
 
@@ -173,10 +174,11 @@ export function recordComparator(sortList, join, corpus) {
 // The sorted+filtered ordinal permutation (the view). The join stays unfiltered so a
 // later widening reproject re-admits tuples a narrower filter dropped.
 export function recordView(join, viewSpec, corpus) {
-  const intervals = viewSpec.scoreRange ? parseRange(viewSpec.scoreRange) : null;
+  const filter = parseViewFilter(viewSpec);
+  const ok = filter && entryPredicate(filter);
   const ords = [];
   for (let ord = 0; ord < join.count; ord++) {
-    if (intervals && !recordInRange(join, corpus, ord, intervals)) continue;
+    if (ok && !recordPasses(join, corpus, ord, ok)) continue;
     ords.push(ord);
   }
   const view = Int32Array.from(ords);

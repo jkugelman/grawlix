@@ -1,8 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { packRecordJoin, materializeRecordRow, recordView, recordComparator, recordInRange, PackedRecordJoin, tryPackGroupJoin, buildGroupFlyweights, materializeGroupRow } from '../../site/src/engine/packed-join.js';
+import { packRecordJoin, materializeRecordRow, recordView, recordComparator, recordPasses, PackedRecordJoin, tryPackGroupJoin, buildGroupFlyweights, materializeGroupRow } from '../../site/src/engine/packed-join.js';
 import { sortGroups, groupRowComparator } from '../../site/src/engine/sort.js';
-import { cacheGroupStats, applyScoreRangeToRows } from '../../site/src/engine/executor.js';
+import { cacheGroupStats, applyViewFilterToRows, entryPredicate } from '../../site/src/engine/executor.js';
 import { parseRange } from '../../site/src/engine/range.js';
 
 // A tuple stack: no group tool, so groupSortAxes falls to the plain GROUP_SORT_AXES —
@@ -98,8 +98,8 @@ test('recordView with a score range keeps a tuple only when every lane is in ran
   const sort = [{ key: 'entry', dir: 'asc' }];
   const range = '20-80';
   const join = packRecordJoin(groups);
-  const intervals = parseRange(range);
-  const eager = sortGroups(applyScoreRangeToRows(groups.map(g => ({ ...g })), intervals, 'record'), sort, TUPLE_STACK).map(g => g.key);
+  const filter = { score: parseRange(range), length: null };
+  const eager = sortGroups(applyViewFilterToRows(groups.map(g => ({ ...g })), filter, 'record'), sort, TUPLE_STACK).map(g => g.key);
   const packed = [...recordView(join, { sort, scoreRange: range }, corpus)].map(ord => join.keyOf(corpus, ord));
   assert.deepEqual(packed, eager);
   assert.deepEqual(packed, ['cccc dddd', 'eeee ffff']);
@@ -128,11 +128,12 @@ test('appendGroups throws on a lane that is not a single corpus entry (mis-gate 
   assert.throws(() => two.appendGroups([{ chains: [{ atoms: [{ wlEntry: { norm: 'x', score: 1, _i: 0 } }, { wlEntry: { norm: 'x', score: 1, _i: 0 } }] }] }]));  // multi-atom lane
 });
 
-test('recordInRange matches applyScoreRangeToRows record semantics', () => {
+test('recordPasses matches applyViewFilterToRows record semantics', () => {
   const { corpus, groups } = scenario([[['a', 'a', 10], ['b', 'b', 50]]]);
   const join = packRecordJoin(groups);
-  assert.equal(recordInRange(join, corpus, 0, parseRange('0-100')), true);
-  assert.equal(recordInRange(join, corpus, 0, parseRange('20-100')), false);   // lane 'a'@10 out
+  const ok = r => recordPasses(join, corpus, 0, entryPredicate({ score: parseRange(r), length: null }));
+  assert.equal(ok('0-100'), true);
+  assert.equal(ok('20-100'), false);   // lane 'a'@10 out
 });
 
 // ─── Group (set) packing ─────────────────────────────────────────────────────
@@ -211,7 +212,7 @@ test('materializeGroupRow re-derives member highlights via the tool memberHighli
   assert.deepEqual(row.chains[1].atoms[0].highlights, [{ start: 1, end: 3, kind: 'grp', coord: 'norm' }]);
 });
 
-// The flyweight view path must reproduce the eager sortGroups/applyScoreRangeToRows
+// The flyweight view path must reproduce the eager sortGroups/applyViewFilterToRows
 // exactly — same group order, same within-group member order, same score-range trimming.
 for (const key of ['entry', 'count', 'min-score', 'max-score']) {
   for (const range of [null, '20-100']) {
@@ -222,16 +223,16 @@ for (const key of ['entry', 'count', 'min-score', 'max-score']) {
         { key: 'aer', anchor: null, members: [['are', 'are', 40], ['ear', 'ear', 50], ['era', 'era', 40]] },
       ]);
       const sort = [{ key, dir: 'asc' }];
-      const intervals = range ? parseRange(range) : null;
+      const filter = range ? { score: parseRange(range), length: null } : null;
 
       const eagerGroups = groups.map(g => ({ ...g, chains: g.chains.slice() }));
-      const eagerFiltered = intervals ? applyScoreRangeToRows(eagerGroups, intervals, 'set') : eagerGroups;
+      const eagerFiltered = applyViewFilterToRows(eagerGroups, filter, 'set');
       const eagerSorted = sortGroups(eagerFiltered, sort, SET_STACK);
       const eager = eagerSorted.map(g => [g.key, g.chains.map(c => c.atoms[0].wlEntry.norm)]);
 
       const join = tryPackGroupJoin(groups);
       const flyweights = buildGroupFlyweights(join, corpus);
-      const filtered = intervals ? applyScoreRangeToRows(flyweights, intervals, 'set') : flyweights;
+      const filtered = applyViewFilterToRows(flyweights, filter, 'set');
       const sorted = sortGroups(filtered, sort, SET_STACK);
       const packed = sorted.map(g => [join.keys[g._ord], g.chains.map(c => c.atoms[0].wlEntry.norm)]);
 

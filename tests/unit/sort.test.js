@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { sortGroups, composeSortAxis, compareItems, sortAxes, chainRowComparator, chainSortTier, foldAnchor } from '../../site/src/engine/sort.js';
-import { applyScoreRangeToRows, cacheGroupStats } from '../../site/src/engine/executor.js';
+import { applyViewFilterToRows, cacheGroupStats } from '../../site/src/engine/executor.js';
 import { parseRange } from '../../site/src/engine/range.js';
 
 const GROUP_STACK = [{
@@ -59,7 +59,7 @@ test('sortGroups: within-group chains take the designed Entry seed order (norm a
 // filter-gated chain sort (the kind that reads the unfiltered bucketize order) is a
 // silent reorder — invisible until a user filters a multi-chain group.
 test('sortGroups: chains stay in the designed seed order under a score filter', () => {
-  const filtered = applyScoreRangeToRows([freshGroup()], parseRange('40-100'), 'set');
+  const filtered = applyViewFilterToRows([freshGroup()], { score: parseRange('40-100'), length: null }, 'set');
   const sorted = sortGroups(filtered, [{ key: 'entry', dir: 'asc' }], GROUP_STACK);
   assert.deepEqual(norms(sorted[0]), ['mango', 'zebra']); // not ['zebra','mango']
 });

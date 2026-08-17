@@ -2,10 +2,10 @@
 
 import { MERGED_ID } from '../core/constants.js';
 import { TOOLS, makeToolRow, configureUmiaq, configureWeave } from './tools.js';
-import { executePipeline, configureExecutorYield, lastPipelineSeedFrom, lastPipelineTailMs, bottomLineAtoms, applyScoreRangeToRows, rowLastEntry, rowAtoms, collapseRepeatAtoms, streamPlan, cacheGroupStats, currentAtomCount } from './executor.js';
+import { executePipeline, configureExecutorYield, lastPipelineSeedFrom, lastPipelineTailMs, bottomLineAtoms, applyViewFilterToRows, entryPredicate, chainPredicate, rowLastEntry, rowAtoms, collapseRepeatAtoms, streamPlan, cacheGroupStats, currentAtomCount } from './executor.js';
 import { GdsCache, RoleCache } from './gds-cache.js';
 import { sortGroups, sortChainRows, activeGroupRow, groupRowComparator, chainRowComparator, chainSortTier, DEFAULT_SORT_BY_TIER, entrySortKey, foldAnchor, foldChainAnchor, chainFamily, chainAnchors, usesEntryAxis, compareValues } from './sort.js';
-import { PackedRecordJoin, packRecordJoin, materializeRecordRow, recordView, recordComparator, recordInRange, PackedGroupJoin, tryPackGroupJoin, buildGroupFlyweights, materializeGroupRow } from './packed-join.js';
+import { PackedRecordJoin, packRecordJoin, materializeRecordRow, recordView, recordComparator, recordPasses, PackedGroupJoin, tryPackGroupJoin, buildGroupFlyweights, materializeGroupRow } from './packed-join.js';
 import {
   configureIO as configureSegmenterIO, setUnigramCorpus, configureSpaceOutBigrams,
   rankedSplits, SPACE_OUT_WINDOWS, loadUnigramCorpus, hasUnigramCorpus,
@@ -15,7 +15,7 @@ import { configureIO as configurePhoneticsIO } from './phonetics.js';
 import { DATA_ASSETS, getDataAsset } from './assets.js';
 import { parseWordlist, toNorm, displayOf } from './norm.js';
 import { findOccurrences, findEntryOccurrences, buildFindMatcher, FIND_MATCH_CAP } from './find.js';
-import { parseRange, matchesRange } from './range.js';
+import { matchesRange, parseViewFilter } from './range.js';
 import { compileRescoreRules } from './rescore.js';
 import { sourceAccessor, invalidateSourceAccessor, parseWordlistColumns, columnsFromEntries } from './sources.js';
 import { buildCorpus, assignFamilies, scopeSourceIds, mergedContributors, resolveEditSeedWinner, mergeKey, bestRowForNorm, mergedNormLowerBound, computeMergedBucket, diffWordlistEntries, isDistinguishing, concreteDisplay } from './corpus.js';
@@ -270,7 +270,7 @@ function reapUnusedAssets(serialized) {
   }
 }
 
-async function runOne({ runId, stack: serialized, sort, scope, existsQuery, scoreRange, rebindQuery }, noResume = false) {
+async function runOne({ runId, stack: serialized, sort, scope, existsQuery, scoreRange, lengthRange, rebindQuery }, noResume = false) {
   const signal = makeSignalShim(runId);
   const stack = deserializeStack(serialized);
   lastPartialResumeLen = 0;
@@ -284,7 +284,7 @@ async function runOne({ runId, stack: serialized, sort, scope, existsQuery, scor
   const cacheKey = resultCacheKey(serialized, scope);
   const hit = finishedCache.peek(cacheKey);
   if (hit && cacheEntryValid(hit)) {
-    serveCacheHit(runId, hit, stack, sort, scoreRange, existsQuery, rebindQuery);
+    serveCacheHit(runId, hit, stack, sort, scoreRange, lengthRange, existsQuery, rebindQuery);
     return;
   }
   cacheMisses++;
@@ -302,7 +302,7 @@ async function runOne({ runId, stack: serialized, sort, scope, existsQuery, scor
   // The view spec is a MUTABLE object shared with the retained result: a mid-stream
   // `reproject` mutates it in place, and the emitter re-reads it each batch, so a
   // sort/filter change re-derives the view without re-running the join.
-  const viewSpec = { sort, scoreRange };
+  const viewSpec = { sort, scoreRange, lengthRange };
   const { tier } = streamPlan(stack);
   // See docs/design.md § Streaming results. `noResume` re-enters cold after a divergence.
   const resumeCtx = noResume ? null : armPartialResume(runId, cacheKey, tier, viewSpec, scope, stack, streamState);
@@ -317,7 +317,7 @@ async function runOne({ runId, stack: serialized, sort, scope, existsQuery, scor
     if (isAbortError(e) || signal.aborted) { stashPartialOnAbort(runId, serialized, scope, t0, genAtStart); return; }
     if (divergenceError(e)) {
       lastFlatResult = lastGroupedResult = lastTransformResult = null;   // drop the painted (corrupt) partial
-      return runOne({ runId, stack: serialized, sort, scope, existsQuery, scoreRange, rebindQuery }, true);
+      return runOne({ runId, stack: serialized, sort, scope, existsQuery, scoreRange, lengthRange, rebindQuery }, true);
     }
     postMessage({ type: 'error', runId, stackRowIndex: stackRowIndex(stack, e), message: e?.message || String(e) });
     return;
@@ -325,7 +325,7 @@ async function runOne({ runId, stack: serialized, sort, scope, existsQuery, scor
   if (signal.aborted) { stashPartialOnAbort(runId, serialized, scope, t0, genAtStart); return; }
   if (streamState.resuming) {   // re-run finished without reaching the stash length — determinism broke, redo cold
     lastFlatResult = lastGroupedResult = lastTransformResult = null;
-    return runOne({ runId, stack: serialized, sort, scope, existsQuery, scoreRange, rebindQuery }, true);
+    return runOne({ runId, stack: serialized, sort, scope, existsQuery, scoreRange, lengthRange, rebindQuery }, true);
   }
 
   const { tier: rtier, r } = postResult(runId, out, viewSpec, scope, stack, existsQuery, rebindQuery, streamState.streamed);
@@ -340,7 +340,7 @@ async function runOne({ runId, stack: serialized, sort, scope, existsQuery, scor
 // re-scan misses that, so those still freeze + chip. Rides drainRuns because running its
 // executePipeline concurrently with a real run corrupts the shared retained result and
 // the prefix cache it seeds/offers into, both silently.
-async function runRepatch({ runId, reprojectId, stack: serialized, sort, scoreRange }) {
+async function runRepatch({ runId, reprojectId, stack: serialized, sort, scoreRange, lengthRange }) {
   // A scope/config change since the run would make the retained rows name the wrong
   // entries (the handleReproject guard); reply stale so main re-runs instead of tearing.
   if (!lastFlatResult || lastFlatResult.runId !== runId || !ownedCorpus || !ownedCorpusFresh || ownedScope !== lastFlatResult.scope) {
@@ -373,7 +373,7 @@ async function runRepatch({ runId, reprojectId, stack: serialized, sort, scoreRa
   const prevVersion = lastFlatResult.version;
   const join = new Array(out.rows.length);
   for (let i = 0; i < out.rows.length; i++) join[i] = rowLastEntry(out.rows[i])._i;
-  lastFlatResult = deriveFlatResult(runId, join, { sort, scoreRange }, scope, stack);   // fresh join, live corpus — drops the gap-cover pin
+  lastFlatResult = deriveFlatResult(runId, join, { sort, scoreRange, lengthRange }, scope, stack);   // fresh join, live corpus — drops the gap-cover pin
   lastGroupedResult = null;
   lastTransformResult = null;
   lastFlatResult.version = prevVersion + 1;   // keep the shared counter monotonic so a late fetchRows still drops
@@ -408,8 +408,9 @@ function makeStreamEmitter(runId, viewSpec, scope, stack, signal, streamState, r
   const join = resumeCtx ? resumeCtx.join : [];   // resumed: append past catch-up to the painted join
   let cursor = 0, caughtUp = !resumeCtx;
   if (resumeCtx) {   // seed width hints from the painted prefix so post-crossover snapshots match a cold run
-    const seed = viewSpec.scoreRange ? parseRange(viewSpec.scoreRange) : null;
-    for (const i of join) { const e = ownedCorpus.entries[i]; if (!seed || matchesRange(e.score, seed)) widthAcc.add(e); }
+    const seed = parseViewFilter(viewSpec);
+    const seedOk = seed && entryPredicate(seed);
+    for (const i of join) { const e = ownedCorpus.entries[i]; if (!seedOk || seedOk(e)) widthAcc.add(e); }
   }
   return batchRows => {
     if (signal.aborted) return;
@@ -423,7 +424,8 @@ function makeStreamEmitter(runId, viewSpec, scope, stack, signal, streamState, r
       batchRows = batchRows.slice(k);
       if (batchRows.length === 0) return;
     }
-    const intervals = viewSpec.scoreRange ? parseRange(viewSpec.scoreRange) : null;
+    const filter = parseViewFilter(viewSpec);
+    const rowOk = filter && entryPredicate(filter);
     // The retained result is THIS run's only once the run has placed rows; until then
     // it still holds the PREVIOUS run's, which this emitter must not read either half
     // of. Its anchors would hand every family a final anchor before this run has seen
@@ -440,7 +442,7 @@ function makeStreamEmitter(runId, viewSpec, scope, stack, signal, streamState, r
     for (const row of batchRows) {
       const e = rowLastEntry(row);
       join.push(e._i);
-      if (intervals && !matchesRange(e.score, intervals)) continue;
+      if (rowOk && !rowOk(e)) continue;
       batchIdx.push(e._i);
       widthAcc.add(e);
       if (anchors && foldAnchor(anchors, e)) dropped.add(e.family);
@@ -475,7 +477,7 @@ function makeStreamEmitter(runId, viewSpec, scope, stack, signal, streamState, r
     }
     lastFlatResult.version++;   // one monotonic counter shared with reproject, so a mid-stream reproject can't collide the version a fetch drops on
     lastFlatResult.familySort = isFamilySort(viewSpec.sort);
-    lastFlatResult.histogram = flatHistogram(join, scope, ownedCorpus);
+    lastFlatResult.histogram = flatHistogram(join, filter, scope, ownedCorpus);
     lastFlatResult.widthHints = widthAcc.hints();
     lastFlatResult.stats = flatViewStats(lastFlatResult.indices, ownedCorpus);
 
@@ -494,7 +496,7 @@ function postFlatSnapshot(type, runId, reprojectId) {
     widthHints: r.widthHints,
     stats: r.stats,
     histogramCounts: r.histogram.counts, histogramLayout: r.histogram.layout,
-    filtered: !!(r.viewSpec.scoreRange && parseRange(r.viewSpec.scoreRange)),
+    filtered: !!parseViewFilter(r.viewSpec),
   });
 }
 
@@ -507,14 +509,15 @@ function corpusFor(r) {
 // The join is UNFILTERED, which is what lets a widening filter re-admit rows the
 // narrower view had dropped — filter the join itself and widening can't recover them.
 function flatViewIndices(join, viewSpec, corpus) {
-  const intervals = viewSpec.scoreRange ? parseRange(viewSpec.scoreRange) : null;
+  const filter = parseViewFilter(viewSpec);
+  const rowOk = filter && entryPredicate(filter);
   const entries = corpus.entries;
   const arr = [];
   // Anchors over the FILTERED view, never the join: a family must collate at a member
   // the filter actually left on screen, and the emitter's map is view-scoped too.
   const anchors = usesEntryAxis(viewSpec.sort) ? new Map() : null;
   for (const i of join) {
-    if (intervals && !matchesRange(entries[i].score, intervals)) continue;
+    if (rowOk && !rowOk(entries[i])) continue;
     arr.push(i);
     if (anchors) foldAnchor(anchors, entries[i]);
   }
@@ -524,13 +527,27 @@ function flatViewIndices(join, viewSpec, corpus) {
 
 // Histogram over the UNFILTERED join scores (out-of-range bars stay clickable), so
 // it is invariant under a sort/filter reproject — only a join change moves it.
-function flatHistogram(join, scope, corpus) {
+// Bins the join narrowed by LENGTH but not by SCORE. The score bracket is drawn over
+// these bars, so binning score-filtered scores would erase the very bars the user
+// drags the bracket across; length has no such overlay and reads as the population.
+function flatHistogram(join, filter, scope, corpus) {
   const entries = corpus.entries;
+  const lenOk = histogramLengthOk(filter);
   const scores = new Int32Array(join.length);
-  for (let i = 0; i < join.length; i++) scores[i] = entries[join[i]].score;
-  if (scope === MERGED_ID) return { counts: bucketCounts(scores, ownedAllSourcesAxis), layout: null };
+  let n = 0;
+  for (let i = 0; i < join.length; i++) {
+    const e = entries[join[i]];
+    if (lenOk && !lenOk(e)) continue;
+    scores[n++] = e.score;
+  }
+  const binned = n === join.length ? scores : scores.subarray(0, n);
+  if (scope === MERGED_ID) return { counts: bucketCounts(binned, ownedAllSourcesAxis), layout: null };
   const layout = getHistogramLayout(entries, 'scoped:' + scope);
-  return { counts: bucketCounts(scores, layout), layout };
+  return { counts: bucketCounts(binned, layout), layout };
+}
+
+function histogramLengthOk(filter) {
+  return filter?.length ? e => matchesRange(e.norm.length, filter.length) : null;
 }
 
 function flatViewStats(view, corpus) {
@@ -567,13 +584,13 @@ function makeTupleStreamEmitter(runId, viewSpec, scope, stack, signal, streamSta
       batchGroups = batchGroups.slice(k);
       if (batchGroups.length === 0) return;
     }
-    const intervals = viewSpec.scoreRange ? parseRange(viewSpec.scoreRange) : null;
+    const filter = parseViewFilter(viewSpec);
     const cmp = groupRowComparator(viewSpec.sort, stack);
     // Stats on EVERY join group, not just the visible ones: groupSummaries reads
     // _count off the unfiltered join for its width hints.
     for (const g of batchGroups) { cacheGroupStats(g); join.push(g); }
 
-    const visible = intervals ? applyScoreRangeToRows(batchGroups, intervals, 'record') : batchGroups;
+    const visible = applyViewFilterToRows(batchGroups, filter, 'record');
     const sortedBatch = cmp ? [...visible].sort(cmp) : visible;
     if (!streamState.streamed) {
       streamState.streamed = true;
@@ -588,7 +605,7 @@ function makeTupleStreamEmitter(runId, viewSpec, scope, stack, signal, streamSta
         : lastGroupedResult.groups.concat(sortedBatch);
     }
     lastGroupedResult.version++;
-    lastGroupedResult.summaries = groupSummaries(join, lastGroupedResult.groups, scope, stack, !!intervals);
+    lastGroupedResult.summaries = groupSummaries(join, lastGroupedResult.groups, scope, stack, filter);
     postGroupSnapshot('partialGroups', runId);
     maybeTestStopAfterTotal(lastGroupedResult.groups.length);
   };
@@ -636,11 +653,12 @@ function makePackedTupleStreamEmitter(runId, viewSpec, scope, stack, signal, str
     }
     const startOrd = join.count;
     join.appendGroups(batchGroups);
-    const intervals = viewSpec.scoreRange ? parseRange(viewSpec.scoreRange) : null;
+    const filter = parseViewFilter(viewSpec);
+    const laneOk = filter && entryPredicate(filter);
     const cmp = recordComparator(viewSpec.sort, join, ownedCorpus);
     const batchOrds = [];
     for (let ord = startOrd; ord < join.count; ord++) {
-      if (intervals && !recordInRange(join, ownedCorpus, ord, intervals)) continue;
+      if (laneOk && !recordPasses(join, ownedCorpus, ord, laneOk)) continue;
       batchOrds.push(ord);
     }
     const batchView = Int32Array.from(batchOrds);
@@ -661,7 +679,7 @@ function makePackedTupleStreamEmitter(runId, viewSpec, scope, stack, signal, str
         : concatInt32(lastGroupedResult.view, batchView);
     }
     lastGroupedResult.version++;
-    lastGroupedResult.summaries = packedTupleSummaries(join, lastGroupedResult.view, ownedCorpus, scope, !!intervals);
+    lastGroupedResult.summaries = packedTupleSummaries(join, lastGroupedResult.view, ownedCorpus, scope, !!filter);
     postGroupSnapshot('partialGroups', runId);
     maybeTestStopAfterTotal(lastGroupedResult.view.length);
   };
@@ -719,10 +737,10 @@ function findGroupInResult(r, groupKey) {
 // its sorted+filtered member `_i`s. The flyweights are dropped; the join + view remain.
 function derivePackedSetView(join, viewSpec, corpus, scope, stack) {
   const flyweights = buildGroupFlyweights(join, corpus);
-  const intervals = viewSpec.scoreRange ? parseRange(viewSpec.scoreRange) : null;
-  const filtered = intervals ? applyScoreRangeToRows(flyweights, intervals, 'set') : flyweights;
+  const filter = parseViewFilter(viewSpec);
+  const filtered = applyViewFilterToRows(flyweights, filter, 'set');
   const sorted = sortGroups(filtered, viewSpec.sort, stack);
-  const summaries = groupSummaries(flyweights, sorted, scope, stack, !!intervals);
+  const summaries = groupSummaries(flyweights, sorted, scope, stack, filter);
   const view = sorted.map(g => ({ ord: g._ord, members: Int32Array.from(g.chains, c => c.atoms[0].wlEntry._i) }));
   return { view, summaries };
 }
@@ -783,7 +801,7 @@ function makeTransformStreamEmitter(runId, viewSpec, scope, stack, signal, strea
   let caughtUp = !resumeCtx;
   return batchRows => {
     if (signal.aborted) return;
-    const intervals = viewSpec.scoreRange ? parseRange(viewSpec.scoreRange) : null;
+    const filter = parseViewFilter(viewSpec);
     // Ownership rule as in makeStreamEmitter: a NEW run inheriting the superseded
     // run's anchors pre-empts every drop, silently collating a family at a spelling
     // this view does not contain -- the very defect anchoring exists to remove.
@@ -791,7 +809,7 @@ function makeTransformStreamEmitter(runId, viewSpec, scope, stack, signal, strea
     const anchors = usesEntryAxis(viewSpec.sort) ? (mine?.anchors ?? new Map()) : null;
     const dropped = anchors ? new Set() : null;
     const cmp = chainRowComparator(viewSpec.sort, stack, anchors);
-    const chainOk = chain => rowAtoms(chain).every(a => matchesRange(a.wlEntry.score, intervals));
+    const chainOk = filter && chainPredicate(filter);
     const newInRange = [];
     for (const raw of batchRows) {
       const row = { atoms: collapseRepeatAtoms(raw.atoms), matched: raw.matched };
@@ -822,7 +840,7 @@ function makeTransformStreamEmitter(runId, viewSpec, scope, stack, signal, strea
           caughtUp = true;
           streamState.resuming = false;
           const rows = [...seen.values()];
-          const view = intervals ? applyScoreRangeToRows(rows, intervals, 'single') : rows;
+          const view = applyViewFilterToRows(rows, filter, 'single');
           lastTransformResult.join = seen;
           // Refill in place: `cmp` already closed over this map, so swapping in a fresh
           // one would leave the rest of this batch merging under the stale anchors.
@@ -832,7 +850,7 @@ function makeTransformStreamEmitter(runId, viewSpec, scope, stack, signal, strea
         }
         continue;
       }
-      if (!intervals || chainOk(row)) {
+      if (!chainOk || chainOk(row)) {
         newInRange.push(row);
         if (anchors && foldChainAnchor(anchors, row)) dropped.add(chainFamily(row));
       }
@@ -858,7 +876,7 @@ function makeTransformStreamEmitter(runId, viewSpec, scope, stack, signal, strea
       lastTransformResult.chains = mergeSortedGroups(lastTransformResult.chains, newInRange, cmp);
     }
     lastTransformResult.version++;
-    lastTransformResult.summaries = transformSummaries([...seen.values()], lastTransformResult.chains, scope, !!intervals);
+    lastTransformResult.summaries = transformSummaries([...seen.values()], lastTransformResult.chains, scope, filter);
     postTransformSnapshot('partialChains', runId);
     maybeTestStopAfterTotal(lastTransformResult.chains.length);
   };
@@ -884,28 +902,35 @@ function postTransformSnapshot(type, runId, reprojectId) {
 // `reprojectStale` and let main re-run. Otherwise mutate the shared viewSpec IN PLACE —
 // a still-streaming emitter reads it next batch — and re-derive in place, keeping `join`
 // growing (a fresh object would strand rows produced after the reproject).
-function handleReproject({ runId, reprojectId, sort, scoreRange, recomputeHistogram }) {
+function handleReproject({ runId, reprojectId, sort, scoreRange, lengthRange, recomputeHistogram }) {
   const r = lastFlatResult || lastGroupedResult || lastTransformResult;
   if (!r || r.runId !== runId || !ownedCorpus || !ownedCorpusFresh || ownedScope !== r.scope) {
     postMessage({ type: 'reprojectStale', runId, reprojectId });
     return;
   }
+  // The flat histogram bins the LENGTH-filtered join, so unlike sort and score-range a
+  // length change moves it. Fold that into the recompute flag before the spec is
+  // overwritten — the old value is the only way to tell the change happened, and
+  // without it the bars keep describing the previous length filter.
+  const lengthChanged = lengthRange !== r.viewSpec.lengthRange;
   r.viewSpec.sort = sort;
   r.viewSpec.scoreRange = scoreRange;
-  if (r === lastFlatResult) reprojectFlat(r, reprojectId, recomputeHistogram);
+  r.viewSpec.lengthRange = lengthRange;
+  if (r === lastFlatResult) reprojectFlat(r, reprojectId, recomputeHistogram || lengthChanged);
   else if (r === lastGroupedResult) reprojectGroup(r, reprojectId);
   else reprojectTransform(r, reprojectId);
 }
 
-// A rescore reproject changes the join's scores, so recompute or the flat histogram
-// silently lags the edit; sort/filter leave it (invariant over the unfiltered join).
+// A rescore reproject changes the join's scores, and a length change re-selects which
+// of them bin, so either recomputes or the flat histogram silently lags; sort and
+// score-range leave it (invariant over the length-filtered join).
 function reprojectFlat(r, reprojectId, recomputeHistogram) {
   const corpus = corpusFor(r);
   ({ indices: r.indices, anchors: r.anchors } = flatViewIndices(r.join, r.viewSpec, corpus));
   r.familySort = isFamilySort(r.viewSpec.sort);
   r.stats = flatViewStats(r.indices, corpus);
   r.widthHints = computeWidthHints(r.indices, corpus);
-  if (recomputeHistogram) r.histogram = flatHistogram(r.join, r.scope, corpus);
+  if (recomputeHistogram) r.histogram = flatHistogram(r.join, parseViewFilter(r.viewSpec), r.scope, corpus);
   r.version++;
   postFlatSnapshot('reprojected', r.runId, reprojectId);
 }
@@ -915,7 +940,7 @@ function reprojectGroup(r, reprojectId) {
     const corpus = corpusFor(r);
     if (r.laneKind === 'record') {
       r.view = recordView(r.join, r.viewSpec, corpus);
-      r.summaries = packedTupleSummaries(r.join, r.view, corpus, r.scope, !!(r.viewSpec.scoreRange && parseRange(r.viewSpec.scoreRange)));
+      r.summaries = packedTupleSummaries(r.join, r.view, corpus, r.scope, !!parseViewFilter(r.viewSpec));
     } else {
       ({ view: r.view, summaries: r.summaries } = derivePackedSetView(r.join, r.viewSpec, corpus, r.scope, r.stack));
     }
@@ -923,21 +948,21 @@ function reprojectGroup(r, reprojectId) {
     postGroupSnapshot('reprojected', r.runId, reprojectId);
     return;
   }
-  const intervals = r.viewSpec.scoreRange ? parseRange(r.viewSpec.scoreRange) : null;
-  const view = intervals ? applyScoreRangeToRows(r.join, intervals, r.laneKind) : r.join;
+  const filter = parseViewFilter(r.viewSpec);
+  const view = applyViewFilterToRows(r.join, filter, r.laneKind);
   r.groups = sortGroups(view, r.viewSpec.sort, r.stack);
-  r.summaries = groupSummaries(r.join, r.groups, r.scope, r.stack, !!intervals);
+  r.summaries = groupSummaries(r.join, r.groups, r.scope, r.stack, filter);
   r.version++;
   postGroupSnapshot('reprojected', r.runId, reprojectId);
 }
 
 function reprojectTransform(r, reprojectId) {
-  const intervals = r.viewSpec.scoreRange ? parseRange(r.viewSpec.scoreRange) : null;
+  const filter = parseViewFilter(r.viewSpec);
   const rows = transformJoinRows(r.join);
-  const view = intervals ? applyScoreRangeToRows(rows, intervals, 'single') : rows;
+  const view = applyViewFilterToRows(rows, filter, 'single');
   r.anchors = chainAnchors(view, r.viewSpec.sort);
   r.chains = sortChainRows(view, r.viewSpec.sort, r.stack, r.anchors);
-  r.summaries = transformSummaries(rows, r.chains, r.scope, !!intervals);
+  r.summaries = transformSummaries(rows, r.chains, r.scope, filter);
   r.version++;
   postTransformSnapshot('reprojected', r.runId, reprojectId);
 }
@@ -1035,7 +1060,7 @@ function shipResult(runId, tier, r, laneKind, atomCount, capped, viewSpec, exist
     count: r.indices.length, widthHints: r.widthHints, stats: r.stats,
     histogramCounts: r.histogram.counts, histogramLayout: r.histogram.layout,
     existsInScope, rebindQuery: rebindQuery || null, rebindEntry, rebindExists,
-    filtered: !!(viewSpec.scoreRange && parseRange(viewSpec.scoreRange)),
+    filtered: !!parseViewFilter(viewSpec),
     firstRows: buildFlatRows(0, Math.min(FIRST_WINDOW, r.indices.length)),
   } });
 }
@@ -1065,10 +1090,11 @@ function terminalJoin(tier, laneKind, rows, stack) {
 // structurally identical to a streamed one (else the two paths silently drift).
 function deriveFlatResult(runId, join, viewSpec, scope, stack) {
   const { indices, anchors } = flatViewIndices(join, viewSpec, ownedCorpus);
+  const filter = parseViewFilter(viewSpec);
   return {
     runId, version: 1, indices, anchors, join, scope, viewSpec,
     highlighters: compileFlatHighlighters(stack), familySort: isFamilySort(viewSpec.sort),
-    histogram: flatHistogram(join, scope, ownedCorpus), stats: flatViewStats(indices, ownedCorpus),
+    histogram: flatHistogram(join, filter, scope, ownedCorpus), stats: flatViewStats(indices, ownedCorpus),
     widthHints: computeWidthHints(indices, ownedCorpus),
   };
 }
@@ -1078,35 +1104,35 @@ function deriveGroupResult(runId, join, viewSpec, scope, stack, laneKind) {
     const view = recordView(join, viewSpec, ownedCorpus);
     return {
       runId, version: 0, packed: true, join, view, scope, viewSpec, stack, laneKind,
-      summaries: packedTupleSummaries(join, view, ownedCorpus, scope, !!(viewSpec.scoreRange && parseRange(viewSpec.scoreRange))),
+      summaries: packedTupleSummaries(join, view, ownedCorpus, scope, !!parseViewFilter(viewSpec)),
     };
   }
   if (join instanceof PackedGroupJoin) {
     const { view, summaries } = derivePackedSetView(join, viewSpec, ownedCorpus, scope, stack);
     return { runId, version: 0, packed: true, join, view, scope, viewSpec, stack, laneKind, summaries };
   }
-  const intervals = viewSpec.scoreRange ? parseRange(viewSpec.scoreRange) : null;
+  const filter = parseViewFilter(viewSpec);
   // Filter with the RESULT's laneKind: a record (tuple) drops out-of-range rows whole
   // (never trims a positional lane), a set trims cluster members. Filter BEFORE the
   // sort so the group axes read post-filter _minScore/count; groupSummaries bins the
   // histogram over the unfiltered join, stats over the view.
-  const view = intervals ? applyScoreRangeToRows(join, intervals, laneKind) : join;
+  const view = applyViewFilterToRows(join, filter, laneKind);
   const groups = sortGroups(view, viewSpec.sort, stack);
   return {
     runId, version: 0, groups, join, scope, viewSpec, stack, laneKind,
-    summaries: groupSummaries(join, groups, scope, stack, !!intervals),
+    summaries: groupSummaries(join, groups, scope, stack, filter),
   };
 }
 
 function deriveTransformResult(runId, join, viewSpec, scope, stack) {
-  const intervals = viewSpec.scoreRange ? parseRange(viewSpec.scoreRange) : null;
+  const filter = parseViewFilter(viewSpec);
   const rows = transformJoinRows(join);
-  const view = intervals ? applyScoreRangeToRows(rows, intervals, 'single') : rows;
+  const view = applyViewFilterToRows(rows, filter, 'single');
   const anchors = chainAnchors(view, viewSpec.sort);
   const chains = sortChainRows(view, viewSpec.sort, stack, anchors);
   return {
     runId, version: 1, chains, anchors, join: rows, scope, viewSpec, stack,
-    summaries: transformSummaries(rows, chains, scope, !!intervals),
+    summaries: transformSummaries(rows, chains, scope, filter),
   };
 }
 
@@ -1195,9 +1221,9 @@ function admitResultToCache(key, tier, r, out, scope, elapsed) {
 // recomputing the view AND every score-derived summary — NOT reusing a stored histogram,
 // which a replaced===false score edit may have invalidated by mutating the join's scores
 // in place. `stack` equals the cached one (the key matched), so it's the right one.
-function serveCacheHit(runId, entry, stack, sort, scoreRange, existsQuery, rebindQuery) {
+function serveCacheHit(runId, entry, stack, sort, scoreRange, lengthRange, existsQuery, rebindQuery) {
   cacheHits++;
-  const viewSpec = { sort, scoreRange };
+  const viewSpec = { sort, scoreRange, lengthRange };
   const r = deriveSlot(runId, entry.tier, entry.join, viewSpec, entry.scope, stack, entry.laneKind);
   shipResult(runId, entry.tier, r, entry.laneKind, entry.atomCount, entry.capped, viewSpec, existsQuery, rebindQuery);
   finishedCache.touch(entry);   // GDS re-base on access
@@ -1970,9 +1996,11 @@ function distinctChains(groups) {
   return out;
 }
 
-function groupSummaries(unfiltered, filtered, scope, stack, didFilter) {
+function groupSummaries(unfiltered, filtered, scope, stack, filter) {
   const distinctFiltered = distinctChains(filtered);
-  const histScores = bottomLineAtoms(distinctChains(unfiltered)).map(e => e.score);
+  const lenOk = histogramLengthOk(filter);
+  const histAtoms = bottomLineAtoms(distinctChains(unfiltered));
+  const histScores = (lenOk ? histAtoms.filter(lenOk) : histAtoms).map(e => e.score);
   const statScores = bottomLineAtoms(distinctFiltered).map(e => e.score);
 
   let histogramCounts, histogramLayout = null;
@@ -1992,7 +2020,7 @@ function groupSummaries(unfiltered, filtered, scope, stack, didFilter) {
     groupWidthHints: computeGroupWidthHints(unfiltered, stack),
     chainCount,
     groupCount: filtered.length,
-    filtered: didFilter,
+    filtered: !!filter,
   };
 }
 
@@ -2045,8 +2073,10 @@ function resolveRebindExists(existsQuery, rebindQuery) {
 
 // The transform-tier analogue of groupSummaries: histogram over the UNFILTERED
 // bottom-line scores (out-of-range bars stay clickable), stats over the filtered.
-function transformSummaries(unfiltered, filtered, scope, didFilter) {
-  const histScores = bottomLineAtoms(unfiltered).map(e => e.score);
+function transformSummaries(unfiltered, filtered, scope, filter) {
+  const lenOk = histogramLengthOk(filter);
+  const histAtoms = bottomLineAtoms(unfiltered);
+  const histScores = (lenOk ? histAtoms.filter(lenOk) : histAtoms).map(e => e.score);
   const statScores = bottomLineAtoms(filtered).map(e => e.score);
   let histogramCounts, histogramLayout = null;
   if (scope === MERGED_ID) {
@@ -2060,7 +2090,7 @@ function transformSummaries(unfiltered, filtered, scope, didFilter) {
     histogramCounts,
     histogramLayout,
     widthHints: computeTransformWidthHints(unfiltered, filtered),
-    filtered: didFilter,
+    filtered: !!filter,
   };
 }
 

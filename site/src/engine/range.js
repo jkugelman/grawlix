@@ -31,6 +31,15 @@ export function matchesRange(value, intervals) {
   return false;
 }
 
+// Null when neither range is set — every caller keys its unfiltered fast path and
+// its shipped `filtered` flag off that null, so returning an empty object instead
+// silently marks unfiltered results filtered.
+export function parseViewFilter({ scoreRange, lengthRange }) {
+  const score  = scoreRange  ? parseRange(scoreRange)  : null;
+  const length = lengthRange ? parseRange(lengthRange) : null;
+  return (score || length) ? { score, length } : null;
+}
+
 export function rangeSpan(str) {
   if (!str || !str.trim()) return Infinity;
   const intervals = parseRange(str);

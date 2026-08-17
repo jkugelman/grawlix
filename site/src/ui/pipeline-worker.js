@@ -13,7 +13,7 @@ import { setShippedAllSourcesAxis, setShippedScopedLayout } from '../data/derive
 import { setShippedConfigCounts, setShippedRescoreInputs } from '../data/merge.js';
 import { MERGED_ID, TUPLE_CAP_MOBILE, TUPLE_CAP_DESKTOP, WEAVE_CAP_MOBILE, WEAVE_CAP_DESKTOP } from '../core/constants.js';
 import { isMobile } from '../core/platform.js';
-import { AppView, activeScoreRange } from './app-view.js';
+import { AppView, activeScoreRange, activeLengthRange } from './app-view.js';
 import { entryPanelRebindQuery, streamFlatBatchToScroller, streamGroupBatchToScroller, streamTransformBatchToScroller, ingestReprojectToScroller, setPipelineProgress } from './entries-table.js';
 
 let workerBaseURL = null;
@@ -211,6 +211,7 @@ function dispatchRun(stack, sort, scope) {
 
   const existsQuery = AppView.searchQuery.trim() || null;
   const scoreRange = activeScoreRange() || null;
+  const lengthRange = activeLengthRange() || null;
   const rebindQuery = entryPanelRebindQuery();
 
   // A superseded run gets no worker reply — settle the prior one as aborted here
@@ -220,7 +221,7 @@ function dispatchRun(stack, sort, scope) {
   const w = getWorker();
   return new Promise(resolve => {
     pendingRun = { runId, resolve, stack, scope, sort };
-    w.postMessage({ type: 'run', runId, stack: serialized, sort, scope, existsQuery, scoreRange, rebindQuery });
+    w.postMessage({ type: 'run', runId, stack: serialized, sort, scope, existsQuery, scoreRange, lengthRange, rebindQuery });
   });
 }
 
@@ -243,7 +244,7 @@ let pendingReproject = null;   // { reprojectId, resolve } for the latest in-fli
 // the currently-displayed run — no re-run. Resolves { stale } so the caller re-runs when
 // the worker no longer holds that run fresh (a scope/config change since). reprojectId
 // disambiguates rapid reprojects, which all target the same displayed runId.
-export function reprojectPipeline(sort, scoreRange, recomputeHistogram = false) {
+export function reprojectPipeline(sort, scoreRange, lengthRange, recomputeHistogram = false) {
   const runId = pendingRun?.runId ?? lastResultRunId;
   if (runId == null || workerUnavailable) return Promise.resolve({ stale: true });
   if (pendingRun) pendingRun.sort = sort;   // a crash re-dispatch must use the current sort
@@ -251,7 +252,7 @@ export function reprojectPipeline(sort, scoreRange, recomputeHistogram = false) 
   const reprojectId = ++reprojectCounter;
   return new Promise(resolve => {
     pendingReproject = { reprojectId, resolve };
-    getWorker().postMessage({ type: 'reproject', runId, reprojectId, sort, scoreRange, recomputeHistogram });
+    getWorker().postMessage({ type: 'reproject', runId, reprojectId, sort, scoreRange, lengthRange, recomputeHistogram });
   });
 }
 
@@ -260,14 +261,14 @@ export function reprojectPipeline(sort, scoreRange, recomputeHistogram = false) 
 // reprojectPipeline it re-runs the pipeline, so it carries the stack; it shares the
 // pendingReproject slot + reprojected/reprojectStale replies (so it must clear a prior one
 // first, as reprojectPipeline does), and a stale reply falls the caller back to a re-run.
-export function repatchPipeline(stack, sort, scoreRange) {
+export function repatchPipeline(stack, sort, scoreRange, lengthRange) {
   const runId = pendingRun?.runId ?? lastResultRunId;
   if (runId == null || workerUnavailable) return Promise.resolve({ stale: true });
   if (pendingReproject) { pendingReproject.resolve({ stale: false }); pendingReproject = null; }
   const reprojectId = ++reprojectCounter;
   return new Promise(resolve => {
     pendingReproject = { reprojectId, resolve };
-    getWorker().postMessage({ type: 'repatch', runId, reprojectId, stack: serializeStack(stack), sort, scoreRange });
+    getWorker().postMessage({ type: 'repatch', runId, reprojectId, stack: serializeStack(stack), sort, scoreRange, lengthRange });
   });
 }
 

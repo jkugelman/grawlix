@@ -61,6 +61,52 @@ test('a settled score-range change reprojects (runId unchanged) and refilters th
   expect(filtered.every(s => s >= 60 && s <= 80)).toBe(true);   // only in-range survive
 });
 
+// Length rides the same view op as score, but takes a branch score doesn't: it narrows
+// the histogram, so handleReproject has to recompute what sort and score-range leave
+// alone. The runId is what pins the cheap path — a re-run would re-bin the histogram
+// just as correctly, so the histogram assertion alone proves nothing about the path.
+test('a settled length change reprojects (runId unchanged) and re-bins the histogram', async ({ page }) => {
+  await gotoApp(page);
+  await page.evaluate(() => {
+    const entries = [], scores = [];
+    for (let i = 0; i < 2000; i++) {
+      const extra = i % 5;
+      entries.push('W' + String(i).padStart(4, '0') + 'X'.repeat(extra));   // norm length 5..9
+      scores.push(10 + extra * 15);
+    }
+    return window.__grawlixTest.addCustomWordlist({ name: 'Lens', entries, scores });
+  });
+  await page.evaluate(() => window.__grawlixTest.syncWorkerConfig());
+  const before = await runFlat(page);
+
+  const histBefore = await page.evaluate(() => window.__grawlixTest.resultHistogramCounts());
+  const countBefore = await page.evaluate(runId =>
+    window.__grawlixTest.fetchWorkerRows(0, 1e9, runId).then(r => r.rows.length), before);
+
+  await page.evaluate(() => {
+    const input = document.querySelector('#length-range-input');
+    input.value = '5';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+  await page.evaluate(() => window.__grawlixTest.pipelineIdle());
+  await page.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))));
+
+  // Assert the runId BEFORE fetching against it: a re-run retires the old one, so the
+  // fetch below would null-deref and bury the actual finding in a TypeError.
+  const after = await page.evaluate(() => window.__grawlixTest.lastCompletedRunId());
+  expect(after).toBe(before);                             // reproject, not a re-run
+
+  const lengths = await page.evaluate(runId =>
+    window.__grawlixTest.fetchWorkerRows(0, 1e9, runId).then(r => r.rows.map(x => x.norm.length)), before);
+  const histAfter = await page.evaluate(() => window.__grawlixTest.resultHistogramCounts());
+  const sum = a => a.reduce((s, x) => s + x, 0);
+
+  expect(lengths.length).toBeGreaterThan(0);              // else .every() below is vacuous
+  expect(lengths.length).toBeLessThan(countBefore);       // the filter dropped rows
+  expect(lengths.every(n => n === 5)).toBe(true);         // only in-length survive
+  expect(sum(histAfter)).toBeLessThan(sum(histBefore));   // the bars narrowed with the view
+});
+
 // A set-preserving rescore reprojects (no re-join), and the flat histogram must re-bucket
 // over the new scores — before the fix it kept the run's histogram and silently lagged.
 test('a set-preserving rescore re-buckets the flat histogram (no lag)', async ({ page }) => {

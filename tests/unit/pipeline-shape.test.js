@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {
   currentAtomCount, isFilterOnlyChain, isGroupChain, chainProducesMultiAtom,
   bucketize, cacheGroupStats, unify, collapseRepeatAtoms,
-  flattenAtoms, bottomLineAtoms, applyScoreRangeToRows, rowLastEntry,
+  flattenAtoms, bottomLineAtoms, applyViewFilterToRows, rowLastEntry,
 } from '../../site/src/engine/executor.js';
 
 // ─── Fixtures ───────────────────────────────────────────────────────────────
@@ -351,38 +351,40 @@ test('bottomLineAtoms: for group rows, the last atom of each chain', () => {
   assert.deepEqual(bottomLineAtoms(rows).map(e => e.norm), ['b', 'd']);
 });
 
-// ─── applyScoreRangeToRows ─────────────────────────────────────────────────────
+// ─── applyViewFilterToRows ─────────────────────────────────────────────────────
 
 const range = (min, max) => [{ min, max }];
+const scoreFilter = (min, max) => ({ score: range(min, max), length: null });
+const lengthFilter = (min, max) => ({ score: null, length: range(min, max) });
 
-test('applyScoreRangeToRows: null intervals returns the input rows by reference', () => {
+test('applyViewFilterToRows: a null filter returns the input rows by reference', () => {
   const rows = [single('cat', 5)];
-  assert.equal(applyScoreRangeToRows(rows, null, 'single'), rows);
+  assert.equal(applyViewFilterToRows(rows, null, 'single'), rows);
 });
 
-test('applyScoreRangeToRows (ungrouped): keeps only rows whose every atom is in range', () => {
+test('applyViewFilterToRows (ungrouped): keeps only rows whose every atom is in range', () => {
   const inRange = chain(atom('a', { score: 10 }), atom('b', { score: 20 }));
   const outOfRange = chain(atom('c', { score: 10 }), atom('d', { score: 99 }));
-  const out = applyScoreRangeToRows([inRange, outOfRange], range(0, 50), 'single');
+  const out = applyViewFilterToRows([inRange, outOfRange], scoreFilter(0, 50), 'single');
   assert.deepEqual(out, [inRange]);
 });
 
-test('applyScoreRangeToRows (grouped): drops groups left with fewer than 2 chains', () => {
+test('applyViewFilterToRows (grouped): drops groups left with fewer than 2 chains', () => {
   const g = { key: 'a', anchor: null, chains: [
     chain(atom('ant', { score: 5 })),
     chain(atom('ape', { score: 99 })),   // filtered out by range, leaving 1
   ] };
-  const out = applyScoreRangeToRows([g], range(0, 50), 'set');
+  const out = applyViewFilterToRows([g], scoreFilter(0, 50), 'set');
   assert.equal(out.length, 0);
 });
 
-test('applyScoreRangeToRows (grouped): a surviving group recaches its stats', () => {
+test('applyViewFilterToRows (grouped): a surviving group recaches its stats', () => {
   const g = { key: 'a', anchor: null, chains: [
     chain(atom('ant', { score: 5 })),
     chain(atom('axe', { score: 9 })),
     chain(atom('ape', { score: 99 })),   // dropped
   ] };
-  const out = applyScoreRangeToRows([g], range(0, 50), 'set');
+  const out = applyViewFilterToRows([g], scoreFilter(0, 50), 'set');
   assert.equal(out.length, 1);
   assert.equal(out[0].chains.length, 2);
   assert.equal(out[0]._minScore, 5);
@@ -392,47 +394,47 @@ test('applyScoreRangeToRows (grouped): a surviving group recaches its stats', ()
   assert.notEqual(out[0], g);
 });
 
-test('applyScoreRangeToRows (grouped): an out-of-range anchor drops the group', () => {
+test('applyViewFilterToRows (grouped): an out-of-range anchor drops the group', () => {
   const g = { key: 'a', anchor: { score: 999 }, chains: [
     chain(atom('ant', { score: 5 })),
     chain(atom('axe', { score: 9 })),
   ] };
-  assert.equal(applyScoreRangeToRows([g], range(0, 50), 'set').length, 0);
+  assert.equal(applyViewFilterToRows([g], scoreFilter(0, 50), 'set').length, 0);
 });
 
-test('applyScoreRangeToRows (grouped): drops a group whose in-range survivors are all non-matchers', () => {
+test('applyViewFilterToRows (grouped): drops a group whose in-range survivors are all non-matchers', () => {
   const g = { key: 'a', anchor: null, chains: [
     { ...chain(atom('ccccc', { score: 40 })), matched: false },
     { ...chain(atom('uuuuu', { score: 40 })), matched: false },
     { ...chain(atom('zzzzz', { score: 10 })), matched: true },   // the match, below range
   ] };
-  assert.equal(applyScoreRangeToRows([g], range(30, 99), 'set').length, 0);
+  assert.equal(applyViewFilterToRows([g], scoreFilter(30, 99), 'set').length, 0);
 });
 
-test('applyScoreRangeToRows (grouped): keeps a group with an in-range matcher', () => {
+test('applyViewFilterToRows (grouped): keeps a group with an in-range matcher', () => {
   const g = { key: 'a', anchor: null, chains: [
     { ...chain(atom('zzzemoji', { score: 60 })), matched: true },
     { ...chain(atom('bbbemoji', { score: 50 })), matched: false },
   ] };
-  assert.equal(applyScoreRangeToRows([g], range(30, 99), 'set').length, 1);
+  assert.equal(applyViewFilterToRows([g], scoreFilter(30, 99), 'set').length, 1);
 });
 
-test('applyScoreRangeToRows (grouped): untagged chains (no grouped filter) are not gated', () => {
+test('applyViewFilterToRows (grouped): untagged chains (no grouped filter) are not gated', () => {
   const g = { key: 'a', anchor: null, chains: [
     chain(atom('ant', { score: 40 })),
     chain(atom('axe', { score: 50 })),
   ] };
-  assert.equal(applyScoreRangeToRows([g], range(30, 99), 'set').length, 1);
+  assert.equal(applyViewFilterToRows([g], scoreFilter(30, 99), 'set').length, 1);
 });
 
-test('applyScoreRangeToRows (tuple): drops a tuple with any out-of-range lane, never trims', () => {
+test('applyViewFilterToRows (tuple): drops a tuple with any out-of-range lane, never trims', () => {
   const allIn = { key: 'a', anchor: null, chains: [
     chain(atom('dogcat', { score: 50 })), chain(atom('dogball', { score: 50 })), chain(atom('catchain', { score: 50 })),
   ] };
   const oneLow = { key: 'b', anchor: null, chains: [
     chain(atom('bluelight', { score: 50 })), chain(atom('blueball', { score: 20 })), chain(atom('lightchain', { score: 50 })),
   ] };
-  const out = applyScoreRangeToRows([allIn, oneLow], range(30, 99), 'record');
+  const out = applyViewFilterToRows([allIn, oneLow], scoreFilter(30, 99), 'record');
   assert.deepEqual(out.map(g => g.key), ['a']);
   assert.equal(out[0].chains.length, 3);   // kept whole — a trim to 2 lanes is the bug
   assert.equal(out[0]._count, 3);          // stats recached over the full tuple

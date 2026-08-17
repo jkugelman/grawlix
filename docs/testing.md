@@ -281,6 +281,37 @@ computed cold. The poison run must produce a *different* result from the run und
 test — repeat the same one and it re-inherits its own correct anchors, and the test
 cannot fail. Both were verified red against a build without the guard.
 
+## The length filter's easy vacuous tests
+
+[`length-filter.spec.js`](../tests/browser/length-filter.spec.js) covers the stats-bar
+length filter one lane kind at a time, because its rule differs per tier (design.md §
+*Length filter*). Three cases — two there, one in `reproject.spec.js` — are worth
+knowing about, since the obvious way to write each passes without testing anything.
+
+**The tuple case must prove *inert*, not *greyed*.** Asserting `toBeDisabled()` only
+shows the attribute landed; a control that greys but still reaches the worker would sail
+past it. So the test boots the same tuple stack twice, once with `?length=` and once
+without, and asserts the result counts match — plus `expect(without).toBeGreaterThan(0)`,
+or two zeroes would satisfy the comparison.
+
+**Read the stats-bar count, not `getVisibleEntries()`.** It's `async`, so
+`getVisibleEntries().length` is `undefined` on the un-awaited promise — and `undefined
+=== undefined` makes the comparison above pass for free. A tuple also renders
+`.group-row`, not `.entry-row`, so even awaited the DOM-row read is 0 for every tuple
+regardless of the filter. Both mistakes were made and caught here; the helper reads
+`.stat-entries .stat-value` for that reason.
+
+**The histogram cannot tell a reproject from a re-run.** Length is the one view op that
+narrows the histogram, so it forces the recompute that sort and score-range skip — but a
+re-run recomputes the histogram too, so asserting the bars narrowed says nothing about
+which path ran. The runId is the only discriminator, which is why the length reproject
+case lives in [`reproject.spec.js`](../tests/browser/reproject.spec.js) beside its score
+sibling rather than with the rest of the length suite. Its runId assertion runs *before*
+the row fetch on purpose: a re-run retires the old runId, so fetching against it first
+buries the finding in a `TypeError` about a null reply. Both halves were verified red —
+against a build with the `lengthChanged` histogram branch dropped, and one with
+`setLengthRange` re-running instead of reprojecting.
+
 ## Typed input is a run sequence (`human-typing.spec.js`)
 
 `setStack`, `runSearch`, and `fill()` each produce **one** run. A user produces one run

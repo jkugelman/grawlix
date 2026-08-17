@@ -22,6 +22,7 @@ async function statsBarBoxes(page) {
       controls: pick('.stats-bar-controls'),
       histogram: pick('.histogram'),
       scores: pick('.score-range-label'),
+      lengths: pick('.length-range-label'),
       streamDots: pick('.stream-dots'),
     };
   });
@@ -40,7 +41,7 @@ async function settledStatsVisibility(page) {
   let last = null, stable = 0;
   await expect.poll(async () => {
     const b = await statsBarBoxes(page);
-    const cur = JSON.stringify({ histogram: b.histogram !== null, scores: b.scores !== null });
+    const cur = JSON.stringify({ histogram: b.histogram !== null, scores: b.scores !== null, lengths: b.lengths !== null });
     if (cur === last) stable++; else { stable = 0; last = cur; }
     return stable;
   }).toBeGreaterThanOrEqual(2);
@@ -52,12 +53,13 @@ test.describe('Stats bar layout', () => {
     await page.setViewportSize({ width: 375, height: 667 });
     await gotoApp(page);
     await seedWordlist(page);
-    // The score filter never sheds; the histogram does under this width.
+    // The range filters never shed; the histogram does under this width.
     await expect.poll(async () => (await statsBarBoxes(page)).scores !== null).toBe(true);
     await settledStatsVisibility(page);
 
     const b = await statsBarBoxes(page);
     expect(b.scores).not.toBeNull();
+    expect(b.lengths).not.toBeNull();
 
     expect(b.counts.right).toBeLessThanOrEqual(b.controls.left + 1);
     if (b.distribution) {
@@ -67,7 +69,7 @@ test.describe('Stats bar layout', () => {
     expect(b.controls.right).toBeLessThanOrEqual(b.bar.right + 1);
   });
 
-  test('the histogram hides as the viewport narrows, but the score filter never does', async ({ page }) => {
+  test('the histogram hides as the viewport narrows, but neither range filter does', async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 800 });
     await gotoApp(page);
     await seedWordlist(page);
@@ -78,15 +80,37 @@ test.describe('Stats bar layout', () => {
     // the ResizeObserver fires late and "stable for N reads" reads a stale value (the flake).
     await expect.poll(shown('histogram')).toBe(true);
     await expect.poll(shown('scores')).toBe(true);
+    await expect.poll(shown('lengths')).toBe(true);
 
     // Font-metric-dependent breakpoints shift between environments, so assert the hide
-    // priority (histogram sheds, score filter never does), never a specific width.
+    // priority (histogram sheds, the range filters never do), never a specific width.
     const widths = [1040, 880, 760, 680, 620, 560, 500, 460, 420, 380, 340, 300, 260];
     for (const width of widths) {
       await page.setViewportSize({ width, height: 800 });
       await expect.poll(shown('scores')).toBe(true);
+      await expect.poll(shown('lengths')).toBe(true);
     }
     await expect.poll(shown('histogram'), { timeout: 15000 }).toBe(false);
+  });
+
+  // Not redundant with the shed-priority test above: that one proves the box stays
+  // VISIBLE as the viewport narrows, and visible-but-overlapping is the actual failure.
+  // The length box is the rightmost thing in the distribution cell when nothing is
+  // streaming, so it reaches the Share menu first.
+  test('the length filter never overlaps the controls as the viewport narrows', async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await gotoApp(page);
+    await seedWordlist(page);
+    await expect.poll(async () => (await statsBarBoxes(page)).lengths !== null).toBe(true);
+
+    const widths = [1040, 880, 760, 680, 620, 560, 500, 460, 420, 380, 340, 300, 260];
+    for (const width of widths) {
+      await page.setViewportSize({ width, height: 800 });
+      await settledStatsVisibility(page);
+      const b = await statsBarBoxes(page);
+      expect(b.lengths, `length box present at width ${width}`).not.toBeNull();
+      expect(b.lengths.right, `no overlap at width ${width}`).toBeLessThanOrEqual(b.controls.left + 1);
+    }
   });
 
   // Guards the overflow budget counting the streaming spinner: it sits at the right

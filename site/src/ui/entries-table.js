@@ -34,7 +34,7 @@ import { mergedEntryCount, mergedWidthBound } from '../data/merge.js';
 import { rescoreEntry, getRescoredByNorm, groupEntries } from '../engine/rescore.js';
 import { buildScoreBadgeHTML, buildScoreCellHTML } from '../model/score-display.js';
 import { showToast } from './toasts.js';
-import { AppView } from './app-view.js';
+import { AppView, activeLengthRange } from './app-view.js';
 import { ToolStack } from './tool-stack.js';
 import { buildWordlistNameIconHTML } from './scope-selector.js';
 import { getWordlistIcon } from './icons.js';
@@ -71,6 +71,7 @@ export function windowedFlatDebug() {
   return {
     isFlatTier: s._flat,
     scoreFilterActive: !!s._scoreIntervals,
+    lengthFilterActive: !!s._lengthIntervals,
     sortTier: s.sortTier,
     winCacheSize: s._winCache ? s._winCache.size : 0,
     richRowsConsumed: s._richRowsConsumed ?? 0,
@@ -736,6 +737,8 @@ export class EntriesScroller extends BaseVirtualScroller {
     this.sortList = AppView.sortList;
     this.scoreRange = AppView.scoreRange;
     this._scoreIntervals = this.scoreRange ? parseRange(this.scoreRange) : null;
+    this.lengthRange = activeLengthRange();
+    this._lengthIntervals = this.lengthRange ? parseRange(this.lengthRange) : null;
     this._onSave = null;
     this._onDeleteRow = null;
     this._onBatchRescore = null;
@@ -1605,7 +1608,7 @@ export class EntriesScroller extends BaseVirtualScroller {
     this._workerStats = null;
     this._workerHistogramCounts = null;
     this._workerGroupWidthHints = null;
-    this._workerFiltered = !!this._scoreIntervals;
+    this._workerFiltered = !!(this._scoreIntervals || this._lengthIntervals);
     this._firstGroups = null;
     this._firstChains = null;
     this._firstRows = null;
@@ -1950,6 +1953,11 @@ export class EntriesScroller extends BaseVirtualScroller {
     this.atomCount = atomCount;
     this.sortTier = sortTier;
     this.sortList = AppView.sortList;
+    // Unlike the score range, the EFFECTIVE length changes with no setLengthRange
+    // call: entering a tuple tier makes the filter inert. Re-read it here or these
+    // fields describe a filter the worker was never sent.
+    this.lengthRange = activeLengthRange();
+    this._lengthIntervals = this.lengthRange ? parseRange(this.lengthRange) : null;
     this._resolved = true;
     return tierChanged;
   }
@@ -1966,6 +1974,18 @@ export class EntriesScroller extends BaseVirtualScroller {
     this.resetSelectionForViewChange();
     reprojectMergedScroller();
   }
+
+  setLengthRange(range) {
+    const next = range || '';
+    if (next === this.lengthRange) return;
+    this.lengthRange = next;
+    this._lengthIntervals = next ? parseRange(next) : null;
+    this._invalidateSortCache();
+    this.resetSelectionForViewChange();
+    reprojectMergedScroller();
+  }
+
+  _filterSig() { return `${this.scoreRange}\u0000${this.lengthRange}`; }
 
   _invalidateSortCache() {
     this._sortedSource = null;
@@ -2018,7 +2038,7 @@ export class EntriesScroller extends BaseVirtualScroller {
     const sig = sortSig(this.sortList);
     if (this._sortedSource
         && this._sortedSourceSig === sig
-        && this._sortedSourceRange === this.scoreRange) {
+        && this._sortedSourceFilter === this._filterSig()) {
       return this._sortedSource;
     }
 
@@ -2037,7 +2057,7 @@ export class EntriesScroller extends BaseVirtualScroller {
 
     this._sortedSource = sorted;
     this._sortedSourceSig = sig;
-    this._sortedSourceRange = this.scoreRange;
+    this._sortedSourceFilter = this._filterSig();
     return sorted;
   }
 
