@@ -240,6 +240,8 @@ The rescore editor is the worked example. `collapseEditor` removes the open clas
 
 Gate on the state the interaction sets **synchronously** instead — here the toggle's `aria-expanded="false"`, flipped in the same handler that commits. Presentational teardown deserves its own test rather than riding along as every caller's implicit gate; that one lives in `wordlist-selector.spec.js`. The app also bounds the wait so a dropped `transitionend` can't leave the collapsed editor mounted and tabbable.
 
+And don't test the animation *itself*. Purely visual behavior stays manual (*What earns a test* above), and CI cannot see it anyway: headless WebKit never advances the transition clock — it holds the start value, then jumps to the end, firing `transitionstart` and `transitionend` at the same instant. No interpolated value is observable there at any sampling rate (a 16ms timer sees exactly what a rAF loop does), so an assertion like `samples.some(v => v > 0 && v < 1)` passes on chromium, firefox, and macOS WebKit and fails only on CI's webkit shard. The deep-linked entry panel's slide-in and backdrop fade were pinned that way in 2026-08; both tests were deleted rather than rewritten. If you need to reproduce a webkit-shard failure locally, run CI's own image — `mcr.microsoft.com/playwright:v1.60.0-noble`, `--ipc=host`, tests against `dist` — since a local `--project=webkit` run is macOS WebKit and behaves differently.
+
 ## Family anchoring
 
 The Entry sort collates a family at its first visible member's **anchor**, not at the

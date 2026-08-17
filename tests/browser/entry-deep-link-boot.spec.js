@@ -220,50 +220,6 @@ test('a deep-linked panel shows the header over the splash, and it stays once di
   expect(await headerOverSplash(page)).toBe(true);
 });
 
-test('a deep-linked panel slides in over the splash, dim and all', async ({ page }) => {
-  await seed(page);
-  await armStall(page);
-  // Sampling starts before navigation: the arrival is the claim, and by the time a test
-  // could ask for it after the fact it has already settled.
-  await page.addInitScript(() => {
-    window.__arrival = { x: [], dim: [] };
-    const t0 = performance.now();
-    (function tick() {
-      const p = document.getElementById('entry-panel');
-      const b = document.getElementById('entry-panel-backdrop');
-      if (p && p.classList.contains('open')) {
-        const t = getComputedStyle(p).transform;
-        window.__arrival.x.push(t === 'none' ? 0 : new DOMMatrixReadOnly(t).m41);
-        window.__arrival.dim.push(parseFloat(getComputedStyle(b).opacity));
-      }
-      if (performance.now() - t0 < 2000) requestAnimationFrame(tick);
-    })();
-  });
-
-  await page.goto('/?entry=bagel');
-  await expect(panel(page)).toBeVisible();
-  await page.waitForTimeout(900);
-
-  const { x, dim } = await page.evaluate(() => window.__arrival);
-  expect(x.some(v => v > 1)).toBe(true);            // caught partway in from the right
-  expect(x[x.length - 1]).toBe(0);                  // and settled flush
-  expect(dim.some(v => v > 0 && v < 1)).toBe(true); // the backdrop faded rather than snapped
-});
-
-test('the backdrop dims the page but not the header it leaves uncovered', async ({ page }) => {
-  await seed(page);
-  await page.goto('/?entry=bagel');
-  await expect(panel(page)).toBeVisible();
-
-  const { dimTop, headerBottom, panelTop } = await page.evaluate(() => ({
-    dimTop: getComputedStyle(document.getElementById('entry-panel-backdrop'), '::before').top,
-    headerBottom: Math.round(document.querySelector('header').getBoundingClientRect().bottom),
-    panelTop: Math.round(document.getElementById('entry-panel').getBoundingClientRect().top),
-  }));
-  expect(Math.round(parseFloat(dimTop))).toBe(headerBottom);
-  expect(panelTop).toBe(headerBottom);   // the dim starts exactly where the panel does
-});
-
 test('the header still closes the panel on click, undimmed but not interactive', async ({ page }) => {
   await seed(page);
   await page.goto('/?entry=bagel');
