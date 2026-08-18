@@ -222,8 +222,8 @@ export const LookupSection = (() => {
     const info = sections.length ? note + sections.join('') : '';
     // Wikipedia and Wiktionary need an exact page title, so their links (and
     // inline fetches) follow the resolved form once known — a raw `groundfrost`
-    // 404s where `ground frost` resolves. Google/OneLook are searches; XWord is
-    // letters-only — all fine on the raw text.
+    // 404s where `ground frost` resolves. Google/OneLook are searches; XWord Info
+    // and Crosserville are letters-only — all fine on the raw text.
     const resolvedTarget = resolved.get(entry) || entry;
     const RESOLVED_LINKS = new Set(['wikipedia', 'wiktionary']);
     const links = LOOKUP_SOURCES.map(s => {

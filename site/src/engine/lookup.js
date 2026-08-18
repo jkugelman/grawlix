@@ -106,6 +106,8 @@ export const LOOKUP_SOURCES = [
   { id: 'synonyms', name: 'Thesaurus', fetch: synonymsLookup, url: entry => `https://www.merriam-webster.com/thesaurus/${encodeURIComponent(entry.toLowerCase())}` },
   { id: 'onelook', name: 'OneLook', url: entry => `https://www.onelook.com/?w=${encodeURIComponent(entry)}` },
   { id: 'xwordinfo', name: 'XWord Info', url: (entry, norm) => `https://www.xwordinfo.com/Finder?word=${encodeURIComponent(norm || '')}` },
+  // Crosserville normalizes the query itself but errors on punctuation (`I,bet`), so it gets the norm.
+  { id: 'crosserville', name: 'Crosserville', url: (entry, norm) => `https://www.crosserville.com/search/theme?q=${encodeURIComponent((norm || '').toUpperCase())}` },
 ];
 
 export function getLookupSource(id) {
