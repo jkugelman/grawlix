@@ -40,6 +40,14 @@ function lastWord(text) {
   return '';
 }
 
+// The cot–caught merger, deliberate: CMU records the AO/AA split arbitrarily —
+// CAUGHT both ways, GONE only AO, DON only AA, ON both — so honoring it tears one
+// family in half along a coin flip in the dictionary, GONE PRO off DON HO with ON
+// AUX left in each. Never before R, where no dialect merges them and folding
+// rhymes CARD with CORD, BARB with ORB, CARD PLAYERS with BOARD GAMERS.
+const foldVowel = (phone, next) =>
+  (phone.startsWith('AO') && next !== 'R' ? 'AA' + phone.slice(2) : phone);
+
 // 'loose' anchors the rhyme on the last stress of either rank, 'strict' only on the
 // primary — so cumberbatch's secondary -batch rhymes with match under loose, not strict.
 // Stress stripped so a secondary anchor still matches a primary under loose (dynamite ~ kite).
@@ -51,7 +59,7 @@ export function rhymingPart(pron, mode = 'loose') {
     if (last === '1' || (mode !== 'strict' && last === '2')) { start = i; break; }
   }
   const tail = start >= 0 ? toks.slice(start) : toks;
-  return tail.join(' ').replace(/\d/g, '');
+  return tail.map((ph, i) => foldVowel(ph, tail[i + 1])).join(' ').replace(/\d/g, '');
 }
 
 export function rhymingPartsOf(text, mode = 'loose') {
@@ -131,10 +139,13 @@ export function syllabify(pron) {
 // match, CZECHOSLOVAKIA against ENERGY POLICY.
 const REDUCIBLE = new Set(['AA', 'AE', 'AH', 'AO', 'EH', 'IH', 'OW', 'UH']);
 
-function nucleusKey(vowel) {
-  const stress = vowel[vowel.length - 1];
-  if (stress < '0' || stress > '9') return vowel;
-  const bare = vowel.slice(0, -1);
+// Own coda, never the next syllable's onset: SAW RED has to keep folding, since a
+// word-initial R colors nothing before it.
+function nucleusKey(vowel, coda) {
+  const folded = foldVowel(vowel, coda[0]);
+  const stress = folded[folded.length - 1];
+  if (stress < '0' || stress > '9') return folded;
+  const bare = folded.slice(0, -1);
   return stress === '0' && REDUCIBLE.has(bare) ? 'AX' : bare;
 }
 
@@ -148,7 +159,7 @@ function syllableKeys(sylls) {
   for (let i = 0; i < sylls.length; i++) {
     const { nucleus, coda } = sylls[i];
     const nextOnset = sylls[i + 1]?.onset || [];
-    const nuc = nucleusKey(nucleus);
+    const nuc = nucleusKey(nucleus, coda);
     const forms = [nuc + (coda.length ? ' ' + coda.join(' ') : '')];
     if (coda.length && nextOnset.length && coda[coda.length - 1] === nextOnset[0]) {
       const held = coda.slice(0, -1);

@@ -107,6 +107,32 @@ test('whole mode holds a doubled consonant once, keeping both readings', () => {
   assert.deepEqual(rhymingPartsOf('lima bean', 'whole'), ['AY | AX | IY N']);
 });
 
+test('the cot–caught pair folds together, in every mode', () => {
+  setCmuDict({
+    ON: ['AA1 N', 'AO1 N'], AUX: ['OW1'], GONE: ['G AO1 N'], PRO: ['P R OW1'],
+    DON: ['D AA1 N'], HO: ['HH OW1'], COT: ['K AA1 T'], CAUGHT: ['K AO1 T'],
+  });
+  assert.deepEqual(rhymingPartsOf('gone pro', 'whole'), ['AA N | OW']);
+  assert.deepEqual(rhymingPartsOf('don ho', 'whole'), ['AA N | OW']);
+  assert.deepEqual(rhymingPartsOf('on aux', 'whole'), ['AA N | OW']);
+  assert.deepEqual(rhymingPartsOf('cot', 'loose'), ['AA T']);
+  assert.deepEqual(rhymingPartsOf('caught', 'loose'), ['AA T']);
+});
+
+test('the cot–caught fold stops before R', () => {
+  setCmuDict({
+    CARD: ['K AA1 R D'], CORD: ['K AO1 R D'], SAW: ['S AO1'], SPA: ['S P AA1'],
+    SORE: ['S AO1 R'], RED: ['R EH1 D'], ED: ['EH1 D'],
+  });
+  assert.deepEqual(rhymingPartsOf('card', 'whole'), ['AA R D']);
+  assert.deepEqual(rhymingPartsOf('cord', 'whole'), ['AO R D']);
+  assert.deepEqual(rhymingPartsOf('saw', 'whole'), ['AA']);
+  assert.deepEqual(rhymingPartsOf('spa', 'whole'), ['AA']);
+  // Only an R the vowel's own syllable closes on: SAW RED folds, SORE ED does not.
+  assert.deepEqual(rhymingPartsOf('saw red', 'whole'), ['AA | EH D']);
+  assert.deepEqual(rhymingPartsOf('sore ed', 'whole'), ['AO R | EH D']);
+});
+
 test('whole mode needs every word, where the last-word modes need only the tail', () => {
   setCmuDict({ BEAN: ['B IY1 N'] });
   assert.deepEqual(rhymingPartsOf('lima bean', 'whole'), []);
