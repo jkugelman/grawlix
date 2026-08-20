@@ -16,7 +16,7 @@ export default {
   name: 'Space out', icon: '🌌', category: 'phrase',
   desc: 'Guess at where spaces go in multi-word entries',
   example: 'spaceout → space out',
-  asset: 'unigrams',
+  assets: ['unigrams'],
   params: [
     { key: 'splits', label: 'Splits', type: 'range', default: 'few',
       choices: [

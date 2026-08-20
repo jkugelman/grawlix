@@ -14,7 +14,7 @@ Rhymes is the only shipped phonetic tool, and the planned tools build on its mec
 
 - The **CMU Pronouncing Dictionary** maps a word to one or more pronunciations, each a flat phone string with a stress digit on every vowel (`1` primary, `2` secondary, `0` unstressed). CMU marks **no syllable boundaries**.
 - `rhymingPart(pron, mode)` takes the suffix from an anchor vowel to the end, stress digits stripped. **Loose** (default) anchors on the last vowel of *either* stress rank; **Strict** only on the primary. So under loose, cumberbatch ~ match and dynamite ~ kite; under strict only primary-on-primary rhymes survive (cat/bat).
-- `rhymingPartsOf(text, mode)` looks up the **last word** of a phrase — a phrase rhymes on its last word only.
+- `rhymingPartsOf(text, mode)` looks up the **last word** of a phrase — a phrase rhymes on its last word only. An entry with no spaces that CMU doesn't know is spaced out first (`bestSpaceOutSplit`, the Space out segmenter), which is what lets an unspaced wordlist rhyme at all: measured against XWI, Spread the Wordlist and Broda, the share of entries that can rhyme goes from 13–22% to 75–80%. The dictionary wins where it has the whole string (`NOTABLE` is not `NO TABLE`), and a one-letter final part is rejected as `rankedSplits`' short-part escape hatch (`YOWLERS → YOWLER S`).
 - Filter mode: an entry matches if it shares any rhyming part with the target. Group mode buckets entries by rhyming part (a family needs ≥2 chains and ≥2 distinct last words; trivial same-word families drop).
 
 Two rhyme extensions are parked against this baseline — mosaic rhyme and a slant tier — detailed under [Tool designs](#tool-designs).
@@ -29,7 +29,7 @@ The difference is categorical, and it removes three CMU limits:
 
 **Phrase-level stress.** eSpeak distinguishes compound from phrasal stress — `greenhouse` /ɡɹˈiːnhaʊs/ (one stress) vs `green house` /ɡɹˈiːn hˈaʊs/ (two); likewise blackbird/black bird, hotdog/hot dog. CMU carries only per-isolated-word stress and structurally can't supply this. It isn't perfect on hard lexical cases (`lima bean` doesn't de-stress "bean"), but the compound-vs-phrasal distinction is there. This is what unblocks mosaic rhyme.
 
-**Out-of-vocabulary coverage.** eSpeak phonemizes words CMU never heard of via its letter-to-sound rules: doomscroll /dˈuːmskɹoʊl/, rizz /ɹˈɪz/, Wordle /wˈɜːdəl/, Cumberbatch /kˈʌmbɚbˌætʃ/, Saoirse /sˈɜːʃə/ ("SUR-sha", correct). This is the **biggest practical win** — a crossword wordlist is wall-to-wall entries CMU lacks, and today each silently rhymes/matches with nothing.
+**Out-of-vocabulary coverage.** eSpeak phonemizes words CMU never heard of via its letter-to-sound rules: doomscroll /dˈuːmskɹoʊl/, rizz /ɹˈɪz/, Wordle /wˈɜːdəl/, Cumberbatch /kˈʌmbɚbˌætʃ/, Saoirse /sˈɜːʃə/ ("SUR-sha", correct). This is the **biggest practical win** — a crossword wordlist is wall-to-wall entries CMU lacks, and each silently rhymes/matches with nothing. Segmenting unspaced entries (above) already recovers the *phrasal* half of that gap, since a run-together phrase is made of words CMU does know; what's left for eSpeak is the genuinely unknown single word, which no amount of spacing reaches.
 
 **Syllable boundaries** become derivable. Neither CMU nor eSpeak marks them, but eSpeak's clean phoneme stream plus stress marks let a syllabifier compute them (see [Spoonerisms](#spoonerisms)). IPA output also exposes phonetic *features* (voicing, place, manner) more naturally than ARPABET — the raw material for a slant-rhyme consonant-similarity model.
 

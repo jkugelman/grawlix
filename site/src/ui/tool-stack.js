@@ -658,7 +658,7 @@ export const ToolStack = (() => {
     if (grouped && stack.some(r => r.grouped)) return;
     const idx = stack.length - 1;            // insert just above the Search bar
     stack.splice(idx, 0, makeToolRow(toolKey, {}, grouped));
-    if (TOOLS[toolKey].asset) preloadWorkerAsset(TOOLS[toolKey].asset);
+    for (const asset of TOOLS[toolKey].assets || []) preloadWorkerAsset(asset);
     rerenderRows();
     focusRowInput(idx);
     flashRow(idx);

@@ -67,6 +67,10 @@ export function lastWordKey(text) {
   return cmuKey(lastWord(text));
 }
 
+export function hasPronunciation(text) {
+  return !!cmuDict?.has(cmuKey(lastWord(text)));
+}
+
 export function parseCmuDict(text) {
   const map = new Map();
   for (const line of text.split('\n')) {

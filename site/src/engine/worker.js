@@ -199,8 +199,7 @@ function deserializeStack(serialized) {
 function evictUnusedAssets(serialized) {
   const needed = new Set();
   for (const { tool } of serialized) {
-    const asset = TOOLS[tool]?.asset;
-    if (asset) needed.add(asset);
+    for (const asset of TOOLS[tool]?.assets || []) needed.add(asset);
   }
   for (const asset of DATA_ASSETS) {
     if (asset.has() && !needed.has(asset.key)) asset.invalidate();

@@ -1,6 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { rhymingPart, parseCmuDict, rhymingPartsOf, lastWordKey, setCmuDict } from '../../site/src/engine/phonetics.js';
+import {
+  rhymingPart, parseCmuDict, rhymingPartsOf, lastWordKey, setCmuDict, hasPronunciation,
+} from '../../site/src/engine/phonetics.js';
 
 test('rhymingPart returns from the last stressed vowel to the end, stress stripped', () => {
   assert.equal(rhymingPart('K AE1 T'), 'AE T');
@@ -46,4 +48,11 @@ test('rhymingPartsOf collects every pronunciation’s part and bridges the last 
   assert.deepEqual(rhymingPartsOf('lives').sort(), ['AY V Z', 'IH V Z']);
   assert.deepEqual(rhymingPartsOf('space out'), ['AW T']);  // last word of the phrase
   assert.deepEqual(rhymingPartsOf('x-ray'), []);             // last word RAY not in dict
+});
+
+test('hasPronunciation answers membership without deriving a rhyming part', () => {
+  setCmuDict({ LIVES: ['L AY1 V Z'], OUT: ['AW1 T'] });
+  assert.equal(hasPronunciation('lives'), true);
+  assert.equal(hasPronunciation('space out'), true);
+  assert.equal(hasPronunciation('x-ray'), false);
 });

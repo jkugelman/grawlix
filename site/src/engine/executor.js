@@ -563,7 +563,7 @@ export async function bucketize(chains, def, ctx, prepared) {
   const groups = [];
   for (const [key, groupChains] of buckets) {
     if (new Set(groupChains.map(identity)).size < 2) continue;
-    if (keepGroup && !keepGroup(groupChains.map(memberKey))) continue;
+    if (keepGroup && !keepGroup(groupChains.map(memberKey), prepared)) continue;
     const anchor = anchorFn ? anchorFn(key, ctx.wordlist) : null;
     if (anchorFn && !anchor) continue;
     groupChains.sort((a, b) => {

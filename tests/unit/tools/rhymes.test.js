@@ -1,13 +1,19 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { setCmuDict } from '../../../site/src/engine/phonetics.js';
+import { setUnigramCorpus, invalidateUnigramCorpus } from '../../../site/src/engine/segmenter.js';
 import { visible, sameVisible, groups } from './harness.js';
 
-const seed = () => setCmuDict({
-  CAT: ['K AE1 T'], BAT: ['B AE1 T'], HAT: ['HH AE1 T'], MAT: ['M AE1 T'], DOG: ['D AO1 G'],
-  OUT: ['AW1 T'], ABOUT: ['AH0 B AW1 T'],
-  LIVES: ['L AY1 V Z', 'L IH1 V Z'], FIVES: ['F AY1 V Z'], GIVES: ['G IH1 V Z'],
-});
+// Corpus state is module-global and these run in one process, so a seeded corpus
+// would leak forward and silently start spacing out the unspaced-by-design fixtures.
+const seed = () => {
+  invalidateUnigramCorpus();
+  setCmuDict({
+    CAT: ['K AE1 T'], BAT: ['B AE1 T'], HAT: ['HH AE1 T'], MAT: ['M AE1 T'], DOG: ['D AO1 G'],
+    OUT: ['AW1 T'], ABOUT: ['AH0 B AW1 T'],
+    LIVES: ['L AY1 V Z', 'L IH1 V Z'], FIVES: ['F AY1 V Z'], GIVES: ['G IH1 V Z'],
+  });
+};
 
 test('filters the wordlist to entries that rhyme with the target', async () => {
   seed();
@@ -85,4 +91,85 @@ test('a two-pronunciation word appears in both rhyme families (multi-key groupin
   const byKey = Object.fromEntries(fams.map(f => [f.key, f.chains.map(c => c[0]).sort()]));
   assert.deepEqual(byKey['AY V Z'], ['fives', 'lives']);
   assert.deepEqual(byKey['IH V Z'], ['gives', 'lives']);
+});
+
+// ─── Spacing out unspaced entries ────────────────────────────────────────────
+
+const seedSpacing = (cmu, freqs) => {
+  setCmuDict(cmu);
+  setUnigramCorpus(freqs);
+};
+
+const RAGE_CMU = {
+  ROAD: ['R OW1 D'], RAGE: ['R EY1 JH'], PARKING: ['P AA1 R K IH0 NG'],
+  BIRD: ['B ER1 D'], CAGE: ['K EY1 JH'],
+};
+const RAGE_FREQS = { road: -3, rage: -3, parking: -3, bird: -3, cage: -3 };
+
+test('spaces out an unspaced entry so it can rhyme at all', async () => {
+  seedSpacing(
+    { CODE: ['K OW1 D'], PAGE: ['P EY1 JH'], ROAD: ['R OW1 D'], RAGE: ['R EY1 JH'], CAGE: ['K EY1 JH'] },
+    { code: -3, page: -3, road: -3, rage: -3, cage: -3 });
+  const out = await visible(['roadrage', 'code', 'page', 'road', 'rage', 'cage'],
+    [{ tool: 'rhymes', params: { entry: 'codepage' } }]);
+  sameVisible(out, ['roadrage', 'rage', 'cage']);
+});
+
+test('trusts the dictionary over a split — NOTABLE is not NO TABLE', async () => {
+  seedSpacing(
+    { NOTABLE: ['N OW1 T AH0 B AH0 L'], TABLE: ['T EY1 B AH0 L'], LABEL: ['L EY1 B AH0 L'], NO: ['N OW1'] },
+    { no: -2, table: -2 });
+  const out = await visible(['notable', 'table', 'label', 'no'],
+    [{ tool: 'rhymes', params: { entry: 'label' } }]);
+  sameVisible(out, ['table']);
+});
+
+test('rejects a split whose last part is a lone letter', async () => {
+  seedSpacing(
+    { MESS: ['M EH1 S'], LESS: ['L EH1 S'], S: ['EH1 S'] },
+    { yowler: -3, s: -3, less: -3, mess: -3 });
+  const out = await visible(['yowlers', 'yowler', 'less'],
+    [{ tool: 'rhymes', params: { entry: 'mess' } }]);
+  sameVisible(out, ['less']);
+});
+
+// Frequencies tuned so the glued form beats the split by more than the default
+// window but less than the wide one: the wordlist declines to space TIMEMACHINE,
+// the typed target still does. Narrow the gap and the test stops testing anything.
+test('the typed target is spaced out even where the wordlist declines to', async () => {
+  seedSpacing(
+    { TIME: ['T AY1 M'], MACHINE: ['M AH0 SH IY1 N'], LIMA: ['L AY1 M AH0'], BEAN: ['B IY1 N'] },
+    { timemachine: -10, time: -5, machine: -6, lima: -5, bean: -5 });
+  const out = await visible([{ entry: 'lima bean' }, 'timemachine', 'time', 'machine'],
+    [{ tool: 'rhymes', params: { entry: 'timemachine', match: 'whole' } }]);
+  sameVisible(out, ['lima bean']);
+});
+
+test('leaves an already-spaced entry spelled as its author wrote it', async () => {
+  seedSpacing({ RAGE: ['R EY1 JH'], CAGE: ['K EY1 JH'], ROAD: ['R OW1 D'] },
+    { road: -2, rage: -2, cage: -2 });
+  const out = await visible([{ entry: 'road rage' }, 'cage'],
+    [{ tool: 'rhymes', params: { entry: 'cage' } }]);
+  sameVisible(out, ['road rage']);
+});
+
+// A split is scored against the wordlist's own norms, so the parts have to be
+// entries themselves — drop them and the fixtures stop spacing out at all, and
+// the dropped-family assertion passes for the wrong reason.
+test('group mode counts distinct last words on the spaced form', async () => {
+  seedSpacing(RAGE_CMU, RAGE_FREQS);
+  assert.deepEqual(
+    await groups(['roadrage', 'parkingrage', 'road', 'rage', 'parking'],
+      [{ tool: 'rhymes', grouped: true }]),
+    []);
+});
+
+test('group mode keeps a family once a spaced form contributes a second last word', async () => {
+  seedSpacing(RAGE_CMU, RAGE_FREQS);
+  const fams = await groups(
+    ['roadrage', 'parkingrage', 'birdcage', 'road', 'rage', 'parking', 'bird', 'cage'],
+    [{ tool: 'rhymes', grouped: true }]);
+  assert.equal(fams.length, 1);
+  sameVisible(fams[0].chains.map(c => c[0]),
+    ['roadrage', 'parkingrage', 'birdcage', 'rage', 'cage']);
 });
