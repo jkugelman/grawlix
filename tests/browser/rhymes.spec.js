@@ -6,7 +6,8 @@ import { stubPublisherFetches, gotoApp, expectVisible, expectGroups } from './he
 // for real words and the suite silently passes against the live dict instead.
 const DICT = [
   'cat K AE1 T', 'bat B AE1 T', 'hat HH AE1 T', 'mat M AE1 T', 'dog D AO1 G',
-  'zelph Z EH1 L F', 'delph D EH1 L F', '',
+  'zelph Z EH1 L F', 'delph D EH1 L F',
+  'zelphodelph Z EH1 L F AH0 D EH2 L F', 'bel B EH1 L', 'fadelph F AH0 D EH1 L F', '',
 ].join('\n');
 
 test.beforeEach(async ({ page }) => {
@@ -32,6 +33,25 @@ test('filters the merged view to entries that rhyme with the target', async ({ p
   await seed(page);
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'rhymes', params: { entry: 'mat' } }]));
   await expectVisible(page, ['cat', 'bat', 'hat']);
+});
+
+// zelphodelph and `bel fadelph` rhyme on all three syllables with their words
+// dividing differently; delph rhymes only on the tail. Loose keeps both, Whole
+// only the first — so a Whole that quietly fell back to a last-word rhyme fails.
+test('whole mode keeps only the entry that rhymes every syllable', async ({ page }) => {
+  await gotoApp(page);
+  await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
+    name: 'WholeTest',
+    entries: ['bel fadelph', 'delph', 'dog'],
+    scores: [50, 50, 50],
+  }));
+  await page.evaluate(() => window.__grawlixTest.setStack(
+    [{ tool: 'rhymes', params: { entry: 'zelphodelph', match: 'whole' } }]));
+  await expectVisible(page, ['bel fadelph']);
+
+  await page.evaluate(() => window.__grawlixTest.setStack(
+    [{ tool: 'rhymes', params: { entry: 'zelphodelph' } }]));
+  await expectVisible(page, ['bel fadelph', 'delph']);
 });
 
 test('group mode buckets the wordlist into rhyme families', async ({ page }) => {

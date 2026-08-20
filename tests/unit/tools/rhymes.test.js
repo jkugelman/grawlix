@@ -173,3 +173,46 @@ test('group mode keeps a family once a spaced form contributes a second last wor
   sameVisible(fams[0].chains.map(c => c[0]),
     ['roadrage', 'parkingrage', 'birdcage', 'rage', 'cage']);
 });
+
+// ─── Whole (every syllable rhymes) ───────────────────────────────────────────
+
+const seedWhole = cmu => {
+  invalidateUnigramCorpus();
+  setCmuDict(cmu);
+};
+
+test('whole mode rhymes a phrase against a word syllable for syllable', async () => {
+  seedWhole({
+    ANNE: ['AE1 N'], BOLEYN: ['B OW0 L IH1 N'],
+    MANDOLIN: ['M AE1 N D AH0 L IH2 N'], MANDOLINE: ['M AE1 N D AH0 L IY2 N'], CAT: ['K AE1 T'],
+  });
+  const out = await visible(['mandolin', 'mandoline', 'cat'],
+    [{ tool: 'rhymes', params: { entry: 'Anne Boleyn', match: 'whole' } }]);
+  sameVisible(out, ['mandolin']);
+});
+
+test('whole mode needs the same syllable count, where loose rhymes on the tail alone', async () => {
+  seedWhole({ CAT: ['K AE1 T'], BAT: ['B AE1 T'], HABITAT: ['HH AE1 B AH0 T AE2 T'] });
+  sameVisible(await visible(['bat', 'habitat'],
+    [{ tool: 'rhymes', params: { entry: 'cat', match: 'whole' } }]), ['bat']);
+  sameVisible(await visible(['bat', 'habitat'],
+    [{ tool: 'rhymes', params: { entry: 'cat' } }]), ['bat', 'habitat']);
+});
+
+test('whole mode drops an entry with a word the dictionary lacks', async () => {
+  seedWhole({ CODE: ['K OW1 D'], PAGE: ['P EY1 JH'], ROAD: ['R OW1 D'], RAGE: ['R EY1 JH'] });
+  const out = await visible([{ entry: 'road rage' }, { entry: 'zzz rage' }],
+    [{ tool: 'rhymes', params: { entry: 'code page', match: 'whole' } }]);
+  sameVisible(out, ['road rage']);
+});
+
+test('whole mode groups a family that no last-word rhyme would find', async () => {
+  seedWhole({
+    ANNE: ['AE1 N'], BOLEYN: ['B OW0 L IH1 N'], MANDOLIN: ['M AE1 N D AH0 L IH2 N'],
+  });
+  const fams = await groups([{ entry: 'Anne Boleyn' }, 'mandolin'],
+    [{ tool: 'rhymes', grouped: true, params: { match: 'whole' } }]);
+  assert.equal(fams.length, 1);
+  assert.equal(fams[0].key, 'AE N | AX | IH N');
+  sameVisible(fams[0].chains.map(c => c[0]), ['Anne Boleyn', 'mandolin']);
+});

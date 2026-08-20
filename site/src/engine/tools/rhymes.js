@@ -71,6 +71,7 @@ export default {
     { placeholder: 'entry' },
     { key: 'match', type: 'range', default: 'loose',
       choices: [
+        { value: 'whole', label: 'Whole' },
         { value: 'strict', label: 'Strict' },
         { value: 'loose', label: 'Loose' },
       ] },

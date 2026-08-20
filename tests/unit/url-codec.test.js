@@ -71,6 +71,8 @@ test('a param at its default value stays out of the URL', () => {
   assert.equal(query(makeToolRow('rhymes', { entry: 'cat' })), 'rhymes=cat');   // match=loose is the default
   assert.equal(decode('rhymes=cat').rows[0].params.match, 'loose');   // absence decodes to the default
   assert.equal(query(makeToolRow('rhymes', { entry: 'cat', match: 'strict' })), 'rhymes=cat&match=strict');
+  assert.equal(query(makeToolRow('rhymes', { entry: 'cat', match: 'whole' })), 'rhymes=cat&match=whole');
+  assert.equal(decode('rhymes=cat&match=whole').rows[0].params.match, 'whole');
 });
 
 test("weave's numeric Runs elides at its default, which the number input types as a string", () => {
