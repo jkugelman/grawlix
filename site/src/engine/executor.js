@@ -533,6 +533,39 @@ async function runGroupFilterStage(rows, stackRow, prepared, wordlist, y) {
   return next;
 }
 
+// A chain carries one key per reading, so a cluster is bucketed once per key its
+// members happen to share — nine copies of `in the mix`/`in the sticks`, one for
+// every way to say `in the`. Dropped only against a group that renders the same,
+// since an anchored tool shows its key: `Center: ABC` and `Center: B` over one
+// pair are two answers, not a duplicate.
+function dropRedundantGroups(groups, memberSets) {
+  const holders = new Map();
+  for (let i = 0; i < groups.length; i++) {
+    for (const member of memberSets[i]) {
+      let list = holders.get(member);
+      if (!list) holders.set(member, list = []);
+      list.push(i);
+    }
+  }
+  const covers = (a, b) => {
+    for (const member of memberSets[b]) if (!memberSets[a].has(member)) return false;
+    return true;
+  };
+  return groups.filter((g, i) => {
+    const members = memberSets[i];
+    // A superset holds every member, so one member's holders lists every candidate.
+    for (const j of holders.get(members.values().next().value)) {
+      // Larger wins, ties go to the earlier group. That total order is what keeps
+      // two identical sets from cancelling each other out, and makes the relation
+      // transitive — no group displaced by one that is itself displaced away.
+      if (j === i || memberSets[j].size < members.size) continue;
+      if (memberSets[j].size === members.size && j > i) continue;
+      if (groups[j].anchor?.norm === g.anchor?.norm && covers(j, i)) return false;
+    }
+    return true;
+  });
+}
+
 export async function bucketize(chains, def, ctx, prepared) {
   const useDisplay = def.matchOn === 'display';
   const coord = useDisplay ? 'display' : 'norm';
@@ -553,16 +586,18 @@ export async function bucketize(chains, def, ctx, prepared) {
   const keepGroup = def.group.keepGroup;
   // The two-member floor counts distinct *words*, not merged rows: the merge emits
   // one row per (norm, display), so one entry's spellings (`going ape`/`goingape`/
-  // `GOINGAPE!`) are one word and an all-one-word bucket is no cluster. Only this
-  // gate dedups — a surviving cluster still shows every spelling. Whole-chain key,
-  // not the tail: a transform upstream can land two distinct words on one tail
-  // (wheat/cheat → heat), which must stay separate members.
+  // `GOINGAPE!`) are one word and an all-one-word bucket is no cluster. The dedup
+  // is for counting — a surviving cluster still shows every spelling. Whole-chain
+  // key, not the tail: a transform upstream can land two distinct words on one
+  // tail (wheat/cheat → heat), which must stay separate members.
   const identity = chain =>
     rowAtoms(chain).map(a => useDisplay ? displayOf(a.wlEntry) : a.wlEntry.norm).join('\0');
   const memberKey = c => useDisplay ? displayOf(rowLastEntry(c)) : rowLastEntry(c).norm;
   const groups = [];
+  const memberSets = [];
   for (const [key, groupChains] of buckets) {
-    if (new Set(groupChains.map(identity)).size < 2) continue;
+    const members = new Set(groupChains.map(identity));
+    if (members.size < 2) continue;
     if (keepGroup && !keepGroup(groupChains.map(memberKey), prepared)) continue;
     const anchor = anchorFn ? anchorFn(key, ctx.wordlist) : null;
     if (anchorFn && !anchor) continue;
@@ -581,8 +616,9 @@ export async function bucketize(chains, def, ctx, prepared) {
       return { atoms: collapseRepeatAtoms([...rowAtoms(chain), hl]) };
     }) : groupChains;
     groups.push({ key, chains, anchor });
+    memberSets.push(members);
   }
-  return groups;
+  return dropRedundantGroups(groups, memberSets);
 }
 
 export function cacheGroupStats(g) {

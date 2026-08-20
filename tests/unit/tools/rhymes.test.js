@@ -216,3 +216,13 @@ test('whole mode groups a family that no last-word rhyme would find', async () =
   assert.equal(fams[0].key, 'AE N | AX | IH N');
   sameVisible(fams[0].chains.map(c => c[0]), ['Anne Boleyn', 'mandolin']);
 });
+
+test('one family, however many readings its members share', async () => {
+  seedWhole({
+    IN: ['IH0 N', 'IH1 N'], THE: ['DH AH0', 'DH IY0'], MOOD: ['M UW1 D'], NUDE: ['N UW1 D'],
+  });
+  const fams = await groups([{ entry: 'in the mood' }, { entry: 'in the nude' }],
+    [{ tool: 'rhymes', grouped: true, params: { match: 'whole' } }]);
+  assert.equal(fams.length, 1);
+  sameVisible(fams[0].chains.map(c => c[0]), ['in the mood', 'in the nude']);
+});

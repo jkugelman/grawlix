@@ -290,6 +290,47 @@ test('bucketize: an anchorFn with no anchor drops the whole group', async () => 
   assert.equal(groups.length, 0);
 });
 
+test('bucketize: one member set under two keys emits a single group', async () => {
+  const groups = await bucketize(
+    [single('ant', 1), single('ape', 2)],
+    bucketDef({ group: { key: () => ['k1', 'k2'] } }),
+    ctxStub(),
+  );
+  assert.equal(groups.length, 1);
+  assert.equal(groups[0].key, 'k1');
+  assert.deepEqual(groups[0].chains.map(c => rowLastEntry(c).norm), ['ape', 'ant']);
+});
+
+test('bucketize: a group whose members all sit in a larger one is dropped', async () => {
+  const groups = await bucketize(
+    [single('ant', 1), single('ape', 2), single('axe', 3)],
+    bucketDef({ group: { key: s => (s === 'axe' ? ['big'] : ['big', 'small']) } }),
+    ctxStub(),
+  );
+  assert.deepEqual(groups.map(g => g.key), ['big']);
+  assert.equal(groups[0].chains.length, 3);
+});
+
+test('bucketize: overlapping groups both survive — neither holds the other', async () => {
+  const keys = { ant: ['x'], ape: ['x', 'y'], axe: ['y'] };
+  const groups = await bucketize(
+    [single('ant', 1), single('ape', 2), single('axe', 3)],
+    bucketDef({ group: { key: s => keys[s] } }),
+    ctxStub(),
+  );
+  assert.deepEqual(groups.map(g => g.key), ['x', 'y']);
+});
+
+// The key rides on the row as the anchor, so these are two answers about one pair.
+test('bucketize: one member set under two anchors keeps both groups', async () => {
+  const groups = await bucketize(
+    [single('ant', 1), single('ape', 2)],
+    bucketDef({ group: { key: () => ['a', 'b'], anchor: key => ({ norm: key, score: 0 }) } }),
+    ctxStub(),
+  );
+  assert.deepEqual(groups.map(g => g.key), ['a', 'b']);
+});
+
 test('bucketize: an anchorFn returning a value attaches it to the group', async () => {
   const anchorVal = { norm: 'a', score: 1 };
   const groups = await bucketize(
