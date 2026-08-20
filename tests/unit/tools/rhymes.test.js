@@ -133,16 +133,42 @@ test('rejects a split whose last part is a lone letter', async () => {
   sameVisible(out, ['less']);
 });
 
-// Frequencies tuned so the glued form beats the split by more than the default
-// window but less than the wide one: the wordlist declines to space TIMEMACHINE,
-// the typed target still does. Narrow the gap and the test stops testing anything.
+// Frequencies tuned twice over: the glued form beats the split by more than the default
+// window but less than the wide one, and one part sits under the compound floor. Narrow
+// the gap or lift BEAN over the floor and the test stops testing anything. LIMABEAN is
+// the canary — TIMEMACHINE shares MACHINE with the target, so it drops as a repeat
+// whether or not the wordlist spaced it, and cannot report a regression.
 test('the typed target is spaced out even where the wordlist declines to', async () => {
   seedSpacing(
     { TIME: ['T AY1 M'], MACHINE: ['M AH0 SH IY1 N'], LIMA: ['L AY1 M AH0'], BEAN: ['B IY1 N'] },
-    { timemachine: -10, time: -5, machine: -6, lima: -5, bean: -5 });
-  const out = await visible([{ entry: 'lima bean' }, 'timemachine', 'time', 'machine'],
+    { timemachine: -16, time: -5, machine: -12, limabean: -16, lima: -5, bean: -12 });
+  const out = await visible([{ entry: 'lima bean' }, 'limabean', 'timemachine', 'time', 'machine'],
     [{ tool: 'rhymes', params: { entry: 'timemachine', match: 'whole' } }]);
   sameVisible(out, ['lima bean']);
+});
+
+// The real corpus numbers: RICKROLL is a wordfreq token of its own and beats RICK ROLL
+// by 10.04, just past the widest window, so the ranked splits are the unsplit entry
+// alone and RICKROLL rhymes with nothing at all until the compound fallback reads it.
+const RICKROLL_FREQS = { rickroll: -17.57, rick: -10.80, roll: -9.81, stick: -9, coal: -9 };
+
+test('a compound the corpus carries as its own token still gets a reading', async () => {
+  seedSpacing(
+    { RICK: ['R IH1 K'], ROLL: ['R OW1 L'], STICK: ['S T IH1 K'], COAL: ['K OW1 L'] },
+    RICKROLL_FREQS);
+  const out = await visible(['rickroll', 'rick', 'roll'],
+    [{ tool: 'rhymes', params: { entry: 'stick coal', match: 'whole' } }]);
+  sameVisible(out, ['rickroll']);
+});
+
+test('an inflected compound splits its stem and keeps the ending', async () => {
+  seedSpacing(
+    { RICK: ['R IH1 K'], ROLL: ['R OW1 L'], STICK: ['S T IH1 K'],
+      ROLLING: ['R OW1 L IH0 NG'], BOWLING: ['B OW1 L IH0 NG'] },
+    RICKROLL_FREQS);
+  const out = await visible(['rickrolling', 'rick', 'roll'],
+    [{ tool: 'rhymes', params: { entry: 'stick bowling', match: 'whole' } }]);
+  sameVisible(out, ['rickrolling']);
 });
 
 test('leaves an already-spaced entry spelled as its author wrote it', async () => {

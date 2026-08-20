@@ -237,11 +237,12 @@ export function hasUnigramCorpus() {
   return !!unigramLogFreqs;
 }
 
+const isDigit = c => c >= '0' && c <= '9';
+const splitsMidDigit = (s, i) => i < s.length && isDigit(s[i - 1]) && isDigit(s[i]);
+const isAllowedPart = (p, wordlist) => p.length <= 2 || wordlist.norms.has(p);
+
 export function rankedSplits(entry, window, wordlist) {
   if (entry.length < 1) return [];
-  const isAllowedPart = p => p.length <= 2 || wordlist.norms.has(p);
-  const isDigit = c => c >= '0' && c <= '9';
-  const splitsMidDigit = (s, i) => i < s.length && isDigit(s[i - 1]) && isDigit(s[i]);
 
   const bestMemo = new Map();
   bestMemo.set('', 0);
@@ -252,7 +253,7 @@ export function rankedSplits(entry, window, wordlist) {
     for (let i = 1; i <= s.length; i++) {
       if (splitsMidDigit(s, i)) continue;
       const p = s.slice(0, i);
-      if (!isAllowedPart(p)) continue;
+      if (!isAllowedPart(p, wordlist)) continue;
       const score = unigramLogFreq(p) - SPACE_OUT_PART_PENALTY + bestFor(s.slice(i));
       if (score > best) best = score;
     }
@@ -275,7 +276,7 @@ export function rankedSplits(entry, window, wordlist) {
     for (let i = 1; i <= s.length; i++) {
       if (splitsMidDigit(s, i)) continue;
       const p = s.slice(0, i);
-      if (!isAllowedPart(p)) continue;
+      if (!isAllowedPart(p, wordlist)) continue;
       acc.push(p);
       enumerate(s.slice(i), accScore + unigramLogFreq(p) - SPACE_OUT_PART_PENALTY);
       acc.pop();
@@ -307,4 +308,87 @@ export function rankedSplits(entry, window, wordlist) {
     else if (richness(parts) > richness(out[at])) out[at] = parts;
   }
   return out;
+}
+
+// ─── Compound readings ───────────────────────────────────────────────────────
+//
+// rankedSplits anchors its window on the best score of all — the unsplit entry,
+// whenever the corpus carries the glued form as its own token — and so prunes that
+// entry's own split away: RICKROLL beats RICK ROLL by 10.04 against a window of 10.
+// bestCompoundSplit answers a caller that needs a reading regardless: the best split
+// into 2+ parts, with the unsplit form off the table.
+//
+// The thresholds are what keep the guess safe — the floor separates RICK ROLL from
+// APPEL LEE, the tail length BACK SWING from FUN DIE. Loosen either and thousands of
+// entries rhyme on invented syllables, with nothing on screen to say so.
+export const SPACE_OUT_COMPOUND_FLOOR = -11;
+export const SPACE_OUT_COMPOUND_MIN_TAIL = 3;
+
+const SPACE_OUT_SUFFIX_SET = new Set(SPACE_OUT_SUFFIXES);
+
+function bestMultiPartSplit(entry, wordlist) {
+  const memo = new Map([['', { score: 0, parts: [] }]]);
+  function bestFrom(s) {
+    const hit = memo.get(s);
+    if (hit) return hit;
+    let best = { score: -Infinity, parts: null };
+    for (let i = 1; i <= s.length; i++) {
+      if (splitsMidDigit(s, i)) continue;
+      const p = s.slice(0, i);
+      if (!isAllowedPart(p, wordlist)) continue;
+      const rest = bestFrom(s.slice(i));
+      if (!rest.parts) continue;
+      const score = unigramLogFreq(p) - SPACE_OUT_PART_PENALTY + rest.score;
+      if (score > best.score) best = { score, parts: [p, ...rest.parts] };
+    }
+    memo.set(s, best);
+    return best;
+  }
+  let best = { score: -Infinity, parts: null };
+  for (let i = 1; i < entry.length; i++) {
+    if (splitsMidDigit(entry, i)) continue;
+    const p = entry.slice(0, i);
+    if (!isAllowedPart(p, wordlist)) continue;
+    const rest = bestFrom(entry.slice(i));
+    if (!rest.parts) continue;
+    const score = unigramLogFreq(p) - SPACE_OUT_PART_PENALTY + rest.score;
+    if (score > best.score) best = { score, parts: [p, ...rest.parts] };
+  }
+  return best.parts;
+}
+
+const isConfidentCompound = (parts, wordlist) =>
+  !!parts
+  && parts[parts.length - 1].length >= SPACE_OUT_COMPOUND_MIN_TAIL
+  && parts.every(p => p.length > 1 && !SPACE_OUT_SUFFIX_SET.has(p) && wordlist.norms.has(p)
+    && unigramLogFreq(p) >= SPACE_OUT_COMPOUND_FLOOR);
+
+function inflectionOf(word) {
+  for (const suf of SPACE_OUT_SUFFIXES) {
+    if (!word.endsWith(suf)) continue;
+    const stemLen = word.length - suf.length;
+    if (stemLen < 2) continue;
+    const bare = word.slice(0, stemLen);
+    const restored = suf === 'ed' || suf === 'ing' || suf === 'er' || suf === 'est' ? bare + 'e'
+      : suf === 'ies' || suf === 'ied' ? bare + 'y'
+      : null;
+    for (const stem of restored ? [bare, restored] : [bare]) {
+      if (unigramLogFreqs.has(stem)) return { stem, suffix: word.slice(stemLen) };
+    }
+  }
+  return null;
+}
+
+export function bestCompoundSplit(entry, wordlist) {
+  if (!unigramLogFreqs) return null;
+  const inflected = inflectionOf(entry);
+  // Split the stem, not the inflected form, so the ending rides along instead of
+  // steering: RICKROLLING is RICK ROLLING, where splitting directly reads CALL USING.
+  const parts = bestMultiPartSplit(inflected ? inflected.stem : entry, wordlist);
+  if (!isConfidentCompound(parts, wordlist)) return null;
+  if (!inflected) return parts;
+  const last = parts[parts.length - 1];
+  // The stem search may have restored an e/y the entry's own spelling drops again.
+  const base = entry.endsWith(last + inflected.suffix) ? last : last.slice(0, -1);
+  return parts.slice(0, -1).concat(base + inflected.suffix);
 }

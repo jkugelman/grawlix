@@ -1,7 +1,7 @@
 'use strict';
 
 import { loadCmuDict, hasCmuDict, rhymingPartsOf, lastWordKey, hasPronunciation } from '../phonetics.js';
-import { loadUnigramCorpus, hasUnigramCorpus, SPACE_OUT_WINDOWS } from '../segmenter.js';
+import { loadUnigramCorpus, hasUnigramCorpus, bestCompoundSplit, SPACE_OUT_WINDOWS } from '../segmenter.js';
 import { bestSpaceOutSplit, spaceOutSplits } from '../space-out.js';
 import { toNorm } from '../norm.js';
 
@@ -33,6 +33,11 @@ const _splitCache = new Map();
 // settles it (NOTABLE must not read as NO TABLE), a spaced entry is already spelled,
 // and a one-letter tail is rankedSplits' short-part escape hatch showing through
 // (YOWLERS → YOWLER S), rhyming the entry on a bare letter.
+//
+// Past those clauses the dictionary has already declined the glued string, so keeping
+// it unsplit is worth exactly nothing — it yields no rhyme at all. That is what earns
+// the compound fallback its guess where Space out, which may legitimately answer
+// "already one word", gets none: RICKROLL is unrhymable until something splits it.
 function spacedReading(display, vocab) {
   if (!vocab || !hasUnigramCorpus() || /[\s-]/.test(display) || hasPronunciation(display)) return display;
   if (vocab !== _splitVocab) {
@@ -41,8 +46,10 @@ function spacedReading(display, vocab) {
   }
   const hit = _splitCache.get(display);
   if (hit !== undefined) return hit;
-  const parts = bestSpaceOutSplit(toNorm(display), vocab);
-  const reading = parts && parts[parts.length - 1].length > 1 ? parts.join(' ') : display;
+  const norm = toNorm(display);
+  const spaced = bestSpaceOutSplit(norm, vocab);
+  const parts = spaced && spaced[spaced.length - 1].length > 1 ? spaced : bestCompoundSplit(norm, vocab);
+  const reading = parts ? parts.join(' ') : display;
   _splitCache.set(display, reading);
   return reading;
 }

@@ -2,9 +2,9 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   msgpackDecode, buildCorpusFromMsgpack, morphemeStemLogFreq,
-  unigramLogFreq, rankedSplits, setUnigramCorpus, configureSpaceOutBigrams,
+  unigramLogFreq, rankedSplits, bestCompoundSplit, setUnigramCorpus, configureSpaceOutBigrams,
   SPACE_OUT_PART_PENALTY, SPACE_OUT_MORPHEME_PENALTY, SPACE_OUT_OOV_PER_LETTER,
-  SPACE_OUT_OVERRIDES,
+  SPACE_OUT_OVERRIDES, SPACE_OUT_COMPOUND_FLOOR,
 } from '../../site/src/engine/segmenter.js';
 import { toNorm } from '../../site/src/engine/norm.js';
 
@@ -296,4 +296,57 @@ test('rankedSplits: the re-rank only reaches a bigram-favoured split inside the 
   } finally {
     configureSpaceOutBigrams('');
   }
+});
+
+// ─── Compound readings ───────────────────────────────────────────────────────
+
+// wordfreq's own numbers. Round them off and rankedSplits starts finding the split
+// by itself, leaving every test below green without exercising bestCompoundSplit.
+const RICKROLL = [['rickroll', -17.57], ['rick', -10.80], ['roll', -9.81]];
+
+test('bestCompoundSplit: reads a compound rankedSplits calls already-one-word', () => {
+  const { rankedSplits } = corpus(RICKROLL, -17.57);
+  const w = allowed('rickroll', 'rick', 'roll');
+  assert.deepEqual(rankedSplits('rickroll', 10, w), [['rickroll']]);
+  assert.deepEqual(bestCompoundSplit('rickroll', w), ['rick', 'roll']);
+});
+
+test('bestCompoundSplit: the frequency floor holds at its own value and rejects under it', () => {
+  const w = allowed('appel', 'lee');
+  corpus([['appellee', -14], ['appel', SPACE_OUT_COMPOUND_FLOOR], ['lee', -9]], -14);
+  assert.deepEqual(bestCompoundSplit('appellee', w), ['appel', 'lee']);
+  corpus([['appellee', -14], ['appel', SPACE_OUT_COMPOUND_FLOOR - 0.01], ['lee', -9]], -14);
+  assert.equal(bestCompoundSplit('appellee', w), null);
+});
+
+test('bestCompoundSplit: declines a tail too short to carry a syllable', () => {
+  corpus([['catup', -13], ['cat', -8], ['up', -6]], -13);
+  assert.equal(bestCompoundSplit('catup', allowed('cat', 'up')), null);
+});
+
+test('bestCompoundSplit: every part has to be a wordlist entry, not just a corpus word', () => {
+  corpus(RICKROLL, -17.57);
+  assert.equal(bestCompoundSplit('rickroll', allowed('roll')), null);
+});
+
+test('bestCompoundSplit: splits an inflection’s stem and re-attaches the ending', () => {
+  corpus(RICKROLL, -17.57);
+  const w = allowed('rick', 'roll');
+  assert.deepEqual(bestCompoundSplit('rickrolling', w), ['rick', 'rolling']);
+  assert.deepEqual(bestCompoundSplit('rickrolls', w), ['rick', 'rolls']);
+});
+
+// Split CALLUSING itself and CALL USING passes every confidence gate there is, so the
+// stem-first order is the only thing standing between the rhyme tool and thousands of
+// inflected entries read as compounds. Flip the two and this is what fails.
+test('bestCompoundSplit: an inflection whose stem will not split stays whole', () => {
+  corpus([['callus', -12], ['call', -6], ['using', -7], ['cal', -14], ['us', -6]], -14);
+  assert.equal(bestCompoundSplit('callusing', allowed('call', 'using', 'cal', 'us')), null);
+});
+
+test('bestCompoundSplit: drops the e or y the stem search restored', () => {
+  corpus([['airbrake', -12], ['air', -8], ['brake', -8],
+    ['crybaby', -12], ['cry', -8], ['baby', -8]], -12);
+  assert.deepEqual(bestCompoundSplit('airbraking', allowed('air', 'brake')), ['air', 'braking']);
+  assert.deepEqual(bestCompoundSplit('crybabies', allowed('cry', 'baby')), ['cry', 'babies']);
 });
