@@ -181,6 +181,17 @@ test('an invalid query keeps results transparent but flags the error', async ({ 
   await expect(errBtn).toHaveAttribute('title', 'letter-bank anagram (//) is not supported');
 });
 
+// parseUmiaqQuery runs from def.error() on every repaint, so a conflict that throws instead
+// of reporting takes the row's chrome down with it rather than lighting the warning.
+test('a length conflict reports on the row instead of throwing during repaint', async ({ page }) => {
+  await setup(page);
+  await run(page, 'A;A=#@#;|A|=5');
+  expect((await entries(page)).length).toBe(WORDS.entries.length);
+  const errBtn = page.locator('.tool-row-error-btn');
+  await expect(errBtn).toBeVisible();
+  await expect(errBtn).toHaveAttribute('title', 'A=#@# conflicts with |A|=5');
+});
+
 // Guards against the range trimming an out-of-range lane and keeping the rest, which
 // rendered an arity-3 tuple with one low lane as a 2-lane row instead of dropping it.
 test('the score range keeps or drops a whole tuple, never trims a lane', async ({ page }) => {
@@ -206,7 +217,7 @@ test('the score range keeps or drops a whole tuple, never trims a lane', async (
   expect(await tuples(page)).toEqual([['dogcat', 'dogball', 'catchain']]);
 });
 
-test('the row offers a one-click fix for variables the non-empty floor is hiding', async ({ page }) => {
+test('|*|>=0 reaches the words the non-empty floor hides', async ({ page }) => {
   await gotoApp(page);
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
     name: 'Ten',
@@ -214,22 +225,32 @@ test('the row offers a one-click fix for variables the non-empty floor is hiding
     scores:  [100,      90,   80,       70],
   }));
   await page.evaluate(() => window.__grawlixTest.setScope('Ten'));
-  await run(page, 'AtenB;AB');
 
-  // The trap the fix exists for: a plausible, empty result set, with nothing on
-  // screen to say that A and B being non-empty is what hid the answers.
+  await run(page, 'AtenB;AB');
   expect(await tuples(page)).toEqual([]);
 
-  const fix = page.locator('.tool-row-fix');
-  await expect(fix).toHaveText('Allow empty variables');
-  await expect(fix).toHaveAttribute('title', "By default, variables can't be empty. Adds |A|>=0;|B|>=0.");
-  await fix.click();
-  await page.evaluate(() => window.__grawlixTest.pipelineIdle());
-
-  await expect(page.locator('.tool-row .entry-input').first()).toHaveValue('AtenB;AB;|A|>=0;|B|>=0');
+  await run(page, 'AtenB;AB;|*|>=0');
   const result = await tuples(page);
   expect(result.length).toBe(2);
   expect(result).toContainEqual(['TENOR', 'OR']);      // ten at the front
   expect(result).toContainEqual(['MITTEN', 'MIT']);    // and at the back
-  await expect(fix).toBeHidden();
+});
+
+test('a length range bounds a tuple the way two comparisons would', async ({ page }) => {
+  await gotoApp(page);
+  await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
+    name: 'Swaps',
+    entries: ['APE', 'PEA', 'TONE', 'NETO'],
+    scores:  [100,    90,    80,     70],
+  }));
+  await page.evaluate(() => window.__grawlixTest.setScope('Swaps'));
+
+  await run(page, 'AB;BA;|AB|=4');
+  const four = await tuples(page);
+  expect(four.length).toBe(2);
+  expect(four).toContainEqual(['TONE', 'NETO']);
+  expect(four).toContainEqual(['NETO', 'TONE']);
+
+  await run(page, 'AB;BA;|AB|=3-4');
+  expect((await tuples(page)).length).toBe(4);
 });

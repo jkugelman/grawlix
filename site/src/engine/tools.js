@@ -200,10 +200,6 @@ export function makeToolRow(tool, params = {}, grouped = false, invert = false, 
     glyph() {
       return def.glyph ? def.glyph(row.params) : null;
     },
-    quickFix() {
-      if (row.grouped) return null;
-      return def.quickFix ? def.quickFix(row.params) : null;
-    },
   };
   return row;
 }

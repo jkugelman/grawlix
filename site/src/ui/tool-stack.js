@@ -2,8 +2,7 @@
 
 // ─── Tool stack ───────────────────────────────────────────────────────────────
 // Tools are catalog records ({ name, icon, category, desc, example, params,
-// kind, input, output, glyph?, run?, group?, isInert?,
-// error?, quickFix? }).
+// kind, input, output, glyph?, run?, group?, isInert?, error? }).
 // A filter or transform tool carries a `run`; a group tool carries a `group`.
 //
 // `isInert(params)` is an optional transparency gate: a tool that is a no-op
@@ -184,7 +183,6 @@ export function buildToolRowPartsHTML(params, values, toolKey, wiringFn, opts = 
     replace = `<div class="tool-row-replace"${opts.expanded ? '' : ' hidden'}>`
       + `<span class="tool-row-param tool-row-param-text">${replaceInput}</span>${replaceAsides}</div>`;
   }
-  if (opts.quickFix) asideEls.push(opts.quickFix);
   const asides = asideEls.length ? `<div class="tool-row-asides">${asideEls.join('')}</div>` : '';
   return { caret, main, asides, replace };
 }
@@ -435,12 +433,9 @@ export const ToolStack = (() => {
     // button (undeletable). Everything above it is an ordinary tool row.
     if (idx === stack.length - 1) return buildSearchBarHTML();
     const tool = row.def;
-    const quickFix = tool.quickFix
-      ? `<button type="button" class="tool-row-fix" data-fix="${idx}" hidden></button>`
-      : '';
     const parts = buildToolRowPartsHTML(tool.params, row.params, row.tool,
       p => ` data-row="${idx}" data-key="${p.key}"`,
-      { findReplace: !!tool.findReplace, rowToken: idx, expanded: isRowExpanded(idx), quickFix });
+      { findReplace: !!tool.findReplace, rowToken: idx, expanded: isRowExpanded(idx) });
     let main = parts.main;
     if (tool.group) main = decorateMainWithAllToggle(main, idx, row);
     const remove = `<button type="button" class="tool-row-remove" data-remove="${idx}" title="Remove" aria-label="Remove ${esc(tool.name)}"><svg width="12" height="12"><use href="#icon-x"/></svg></button>`;
@@ -831,21 +826,6 @@ export const ToolStack = (() => {
         _showRowError(errBtn, msg);
         return;
       }
-      const fixBtn = e.target.closest('.tool-row-fix[data-fix]');
-      if (fixBtn) {
-        const idx = parseInt(fixBtn.dataset.fix, 10);
-        const row = stack[idx];
-        const fix = row?.quickFix();
-        if (!fix) return;
-        const rowEl = fixBtn.closest('.tool-row');
-        for (const [key, value] of Object.entries(fix.params)) {
-          row.params[key] = value;
-          const input = rowEl.querySelector(`input[data-row="${idx}"][data-key="${key}"]`);
-          if (input) { input.value = value; syncClearButton(input); }
-        }
-        repaintAfterStackChange();
-        return;
-      }
       const removeBtn = e.target.closest('.tool-row-remove[data-remove]');
       if (removeBtn) {
         removeAt(parseInt(removeBtn.dataset.remove, 10));
@@ -1023,17 +1003,6 @@ export const ToolStack = (() => {
         btn.hidden = !msg;
         if (msg) btn.title = msg;
         else btn.removeAttribute('title');
-      }
-      const fixBtn = rowEl.querySelector('.tool-row-fix');
-      if (fixBtn) {
-        const fix = row?.quickFix();
-        fixBtn.hidden = !fix;
-        if (fix) {
-          fixBtn.textContent = fix.label;
-          fixBtn.title = fix.title || '';
-        } else {
-          fixBtn.removeAttribute('title');
-        }
       }
     });
   }

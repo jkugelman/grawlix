@@ -28,12 +28,32 @@ const LEN_CONSTRAINT_RE = /^\|([^|]+)\|(<=|>=|!=|<|>|=)(.+)$/;
 const VAR_OP_RE = /^(~?)([A-Z])(!?=)(.+)$/;
 const TERM_OP_RE = /^([A-Za-z0-9~]+)(!?=)(.+)$/;
 
+// `=` takes a range and is handled by parseRange, so it never reaches here.
 function boundsFromOp(op, n) {
-  if (op === '=')  return { lo: n, hi: n };
   if (op === '>')  return { lo: n + 1, hi: Infinity };
   if (op === '>=') return { lo: n, hi: Infinity };
   if (op === '<')  return { lo: null, hi: n - 1 };
   return { lo: null, hi: n };   // '<='
+}
+
+const VAR_RANGE_RE = /^([A-Z])-([A-Z])$/;
+
+// `|*|` and `|A-C|` are macros — the clause repeated once per variable in the span, then
+// ordinary intersection — so a specific-beats-general reading would quietly break the
+// documented rule that clause order never matters. The span expands whole rather than
+// narrowing to the letters used today, or a variable added later slips the constraint.
+function variableSelector(src) {
+  const inner = src.trim();
+  const m = VAR_RANGE_RE.exec(inner === '*' ? 'A-Z' : inner);
+  if (!m) {
+    if (inner.includes('-')) throw `invalid variable range "|${inner}|" — use |*| or |A-C|`;
+    return null;
+  }
+  const [, lo, hi] = m;
+  if (lo > hi) throw `"|${inner}|" is an empty variable range`;
+  const letters = [];
+  for (let c = lo.charCodeAt(0); c <= hi.charCodeAt(0); c++) letters.push(String.fromCharCode(c));
+  return letters;
 }
 
 function lenTermParts(inner) {
@@ -77,13 +97,28 @@ function resolveVarBounds(bounds, varEqualsPattern) {
   return varBounds;
 }
 
-export function varsForcedNonEmpty(parsed) {
-  const { varBounds, declaredLen, varEqualsPattern } = parsed.constraints;
-  return [...parsed.variables].filter(v => {
-    if (boundsOf(varBounds, v).min === 0) return false;
-    if (declaredLen[v] && declaredLen[v].lo !== null) return false;
-    return !(varEqualsPattern[v] && varEqualsPattern[v].min > 0);
-  });
+// Runs on resolved bounds, so it catches a floor and a ceiling that arrived from different
+// kinds of clause — an explicit |A|, a span, a sub-pattern. Checking only the explicit ones
+// let a sub-pattern conflict through to compilePrefilter, which threw `.{5,3}` at the caller.
+function firstLengthClash(varBounds, bounds, varEqualsPattern) {
+  for (const v in varBounds) {
+    const { min, max } = varBounds[v];
+    if (min <= max) continue;
+    const lc = bounds[v], vp = varEqualsPattern[v];
+    const floors = [], ceilings = [];
+    if (lc && lc.lo !== null) floors.push({ n: lc.lo, src: lc.loSrc, ci: lc.loCi });
+    if (lc && lc.hi !== Infinity) ceilings.push({ n: lc.hi, src: lc.hiSrc, ci: lc.hiCi });
+    if (vp) {
+      if (vp.min > 0) floors.push({ n: vp.min, src: vp.src, ci: vp.ci });
+      if (vp.max !== Infinity) ceilings.push({ n: vp.max, src: vp.src, ci: vp.ci });
+    }
+    if (!floors.length || !ceilings.length) continue;
+    const lo = floors.reduce((a, b) => (b.n > a.n ? b : a));
+    const hi = ceilings.reduce((a, b) => (b.n < a.n ? b : a));
+    const [first, second] = lo.ci <= hi.ci ? [lo, hi] : [hi, lo];
+    return `${first.src} conflicts with ${second.src}`;
+  }
+  return null;
 }
 
 function pureTermTokens(src) {
@@ -100,12 +135,18 @@ function collectTermVars(...tokenLists) {
   return [...s].sort();
 }
 
+function rangeBounds(src) {
+  const intervals = parseRange(src);
+  if (!intervals) throw `invalid range ${src}`;
+  const { min, max } = intervals[0];
+  if (max !== null && min > max) throw `invalid range ${src}`;
+  return { min, max };
+}
+
 function stripLenPrefix(clause) {
   const i = clause.indexOf(':');
   if (i === -1) return { wordLen: null, body: clause };
-  const intervals = parseRange(clause.slice(0, i));
-  if (!intervals) throw `invalid length prefix "${clause.slice(0, i)}"`;
-  return { wordLen: intervals[0], body: clause.slice(i + 1) };
+  return { wordLen: rangeBounds(clause.slice(0, i)), body: clause.slice(i + 1) };
 }
 
 function classToken(body) {
@@ -361,8 +402,58 @@ export function parseUmiaqQuery(query) {
   const termNotEquals = [];
   const termCompare = [];
   const bindingSrcs = [];
+  const pendingSpans = [];
 
-  for (const clause of clauses) {
+  // Reading a length clause and applying it stay apart because a span applies to the
+  // variables the query uses, and those aren't known until the bindings parse further down.
+  function lenClauseShape(op, rhs, clause) {
+    const rm = /^\|([^|]+)\|$/.exec(rhs);
+    if (rm) {
+      // A relational RHS (`|A|=|B|`) fixes neither side, so it can't feed varBounds/sumLen
+      // like the numeric forms — it can only filter at the join. Same for `|A|!=n` below.
+      if (variableSelector(rm[1])) throw `"|${rm[1]}|" can only appear on the left of a length constraint`;
+      return { kind: 'compare', op, right: lenTermParts(rm[1]) };
+    }
+    if (op === '!=') {
+      if (!/^\d+$/.test(rhs)) throw `unsupported constraint "${clause}"`;
+      return { kind: 'compare', op, right: { vars: [], lit: +rhs } };
+    }
+    if (op === '=') {
+      if (!/^[\d+–-]+$/.test(rhs)) throw `unsupported constraint "${clause}"`;
+      const { min, max } = rangeBounds(rhs);
+      return { kind: 'bounds', lo: min, hi: max === null ? Infinity : max };
+    }
+    if (!/^\d+$/.test(rhs)) throw `unsupported constraint "${clause}"`;
+    const { lo, hi } = boundsFromOp(op, +rhs);
+    return { kind: 'bounds', lo, hi };
+  }
+
+  function applyLenClause(shape, { vars, lit }, clause, ci) {
+    if (shape.kind === 'compare') {
+      lenCompare.push({ left: { vars, lit }, op: shape.op, right: shape.right, src: clause });
+      return;
+    }
+    const { lo, hi } = shape;
+    if (vars.length !== 1 || lit !== 0) {
+      sumLen.push({ vars, lit, min: lo === null ? 0 : lo, max: hi });
+      return;
+    }
+    const v = vars[0];
+    // A null lower bound must stay null (not default to 1) until every clause is seen, or
+    // an upper-bound-only clause like |A|<=5 silently re-imposes the floor of 1 and
+    // defeats a later |A|>=0.
+    const prev = bounds[v] || { lo: null, hi: Infinity, loSrc: null, loCi: -1, hiSrc: null, hiCi: -1 };
+    const takeLo = lo !== null && (prev.lo === null || lo > prev.lo);
+    const takeHi = hi < prev.hi;
+    bounds[v] = {
+      lo: takeLo ? lo : prev.lo,
+      hi: takeHi ? hi : prev.hi,
+      loSrc: takeLo ? clause : prev.loSrc, loCi: takeLo ? ci : prev.loCi,
+      hiSrc: takeHi ? clause : prev.hiSrc, hiCi: takeHi ? ci : prev.hiCi,
+    };
+  }
+
+  for (const [ci, clause] of clauses.entries()) {
     const vd = VAR_OP_RE.exec(clause);
     if (vd) {
       const [, tilde, name, op, rhs] = vd;
@@ -385,7 +476,7 @@ export function parseUmiaqQuery(query) {
         // ~A=pattern means reverse(A) fits the pattern, so test the canonical value reversed —
         // drop the reverse and it silently tests A itself, matching the wrong words.
         const spec = reversed ? { test: s => compiled.test(reverse(s)), min: compiled.min, max: compiled.max } : compiled;
-        if (op === '=') varEqualsPattern[name] = spec;
+        if (op === '=') varEqualsPattern[name] = { ...spec, src: clause, ci };
         else (varNotEqualsPattern[name] ??= []).push(spec);
       } catch (msg) { return { ok: false, error: typeof msg === 'string' ? msg : String(msg) }; }
       continue;
@@ -394,41 +485,15 @@ export function parseUmiaqQuery(query) {
       const lm = LEN_CONSTRAINT_RE.exec(clause);
       if (lm) {
         const [, leftSrc, op, rhs] = lm;
-        let left;
-        try { left = lenTermParts(leftSrc); }
+        let span, left, shape;
+        try {
+          span = variableSelector(leftSrc);
+          if (!span) left = lenTermParts(leftSrc);
+          shape = lenClauseShape(op, rhs, clause);
+        }
         catch (msg) { return { ok: false, error: typeof msg === 'string' ? msg : String(msg) }; }
-
-        // A relational RHS (`|A|=|B|`) fixes neither side, so it can't feed varBounds/sumLen
-        // like the numeric forms — it can only filter at the join. Same for `|A|!=3` below.
-        const rm = /^\|([^|]+)\|$/.exec(rhs);
-        if (rm) {
-          let right;
-          try { right = lenTermParts(rm[1]); }
-          catch (msg) { return { ok: false, error: typeof msg === 'string' ? msg : String(msg) }; }
-          lenCompare.push({ left, op, right, src: clause });
-          continue;
-        }
-        if (!/^\d+$/.test(rhs)) return { ok: false, error: `unsupported constraint "${clause}"` };
-        const n = +rhs;
-        if (op === '!=') {
-          lenCompare.push({ left, op, right: { vars: [], lit: n }, src: clause });
-          continue;
-        }
-        const { lo, hi } = boundsFromOp(op, n);
-        const { vars, lit } = left;
-        if (vars.length === 1 && lit === 0) {
-          const v = vars[0];
-          // A null lower bound must stay null (not default to 1) until every clause is
-          // seen, or an upper-bound-only clause like |A|<=5 silently re-imposes the
-          // floor of 1 and defeats a later |A|>=0.
-          const prev = bounds[v] || { lo: null, hi: Infinity };
-          bounds[v] = {
-            lo: lo === null ? prev.lo : prev.lo === null ? lo : Math.max(lo, prev.lo),
-            hi: Math.min(hi, prev.hi),
-          };
-        } else {
-          sumLen.push({ vars, lit, min: lo === null ? 0 : lo, max: hi });
-        }
+        if (span) pendingSpans.push({ letters: span, shape, clause, ci });
+        else applyLenClause(shape, left, clause, ci);
         continue;
       }
       return { ok: false, error: `unsupported constraint "${clause}"` };
@@ -457,12 +522,6 @@ export function parseUmiaqQuery(query) {
     bindingSrcs.push(clause);
   }
 
-  for (const v in bounds) {
-    const { lo, hi } = bounds[v];
-    if (lo !== null && lo > hi) return { ok: false, error: `|${v}| length constraints contradict each other` };
-  }
-  const varBounds = resolveVarBounds(bounds, varEqualsPattern);
-
   if (!bindingSrcs.length) return { ok: false, empty: true };
 
   const bindings = [];
@@ -476,11 +535,21 @@ export function parseUmiaqQuery(query) {
     }
     catch (msg) { return { ok: false, error: typeof msg === 'string' ? msg : String(msg) }; }
     if (!parsed.tokens.length) return { ok: false, empty: true };
-    if (wordLen && wordLen.max !== null && wordLen.min > wordLen.max) return { ok: false, error: 'length prefix range is empty' };
     for (const v of parsed.variables) variables.add(v);
     const stars = parsed.tokens.reduce((n, t) => n + (t.t === 'star' ? 1 : 0), 0);
-    bindings.push({ ...parsed, src: clause, wordLen, stars, prefilter: compilePrefilter(parsed.tokens, varBounds) });
+    bindings.push({ ...parsed, src: clause, wordLen, stars });
   }
+
+  for (const sp of pendingSpans) {
+    for (const v of sp.letters) {
+      if (variables.has(v)) applyLenClause(sp.shape, { vars: [v], lit: 0 }, sp.clause, sp.ci);
+    }
+  }
+
+  const varBounds = resolveVarBounds(bounds, varEqualsPattern);
+  const clash = firstLengthClash(varBounds, bounds, varEqualsPattern);
+  if (clash) return { ok: false, error: clash };
+  for (const b of bindings) b.prefilter = compilePrefilter(b.tokens, varBounds);
 
   for (const v of Object.keys(varNotEqualsVar)) varNotEqualsVar[v] = [...new Set(varNotEqualsVar[v])];
 
@@ -491,7 +560,7 @@ export function parseUmiaqQuery(query) {
     tc.pattern = { tokens: tc.term.tokens, variables: tc.term.variables, wordLen: null, stars: 0, prefilter: compilePrefilter(tc.term.tokens, varBounds) };
   }
 
-  const constraints = { varBounds, declaredLen: bounds, varNotEqualsVar, sumLen, lenCompare, varEqualsPattern, varNotEqualsPattern, termEquals, termNotEquals, termCompare };
+  const constraints = { varBounds, varNotEqualsVar, sumLen, lenCompare, varEqualsPattern, varNotEqualsPattern, termEquals, termNotEquals, termCompare };
   const anagramSolve = planAnagramSolve(bindings, termEquals, termNotEquals, variables);
   if (!anagramSolve) {
     // Exotic anagram forms fall back to the permutation pool. This is its only expansion

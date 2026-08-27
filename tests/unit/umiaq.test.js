@@ -7,7 +7,6 @@ import {
   findTuples,
   variableRanges,
 } from '../../site/src/engine/umiaq.js';
-import { TOOLS } from '../../site/src/engine/tools.js';
 
 function bindings(query, word) {
   const parsed = parseUmiaqQuery(query);
@@ -105,6 +104,127 @@ test('parse: a sub-pattern that starts at zero relaxes the floor too', () => {
   assert.deepEqual(len('|A|>=2;A=*'), { min: 2, max: Infinity });  // an explicit floor still wins
 });
 
+test('parse: a length equals takes a range, in Grawlix range syntax', () => {
+  const len = q => parseUmiaqQuery('A;' + q).constraints.varBounds.A;
+  assert.deepEqual(len('|A|=8-9'), { min: 8, max: 9 });
+  assert.deepEqual(len('|A|=10+'), { min: 10, max: Infinity });
+  assert.deepEqual(len('|A|=0-6'), { min: 0, max: 6 });
+  assert.deepEqual(len('|A|=0+'),  { min: 0, max: Infinity });    // declares a zero floor, like |A|>=0
+  assert.deepEqual(len('|A|=9'),   { min: 9, max: 9 });           // a bare count still means exactly
+  assert.deepEqual(len('|A|=8–9'), { min: 8, max: 9 });           // en-dash, as everywhere else
+  assert.deepEqual(len('|A|=2-8;|A|<=5'), { min: 2, max: 5 });    // a range intersects like any bound
+});
+
+test('parse: a range narrows only =; the comparisons still want a bare count', () => {
+  const err = q => parseUmiaqQuery('A;' + q).error;
+  assert.match(err('|A|>=3-5'), /unsupported constraint/);
+  assert.match(err('|A|<3-5'),  /unsupported constraint/);
+  assert.match(err('|A|!=3-5'), /unsupported constraint/);
+  // An open low end is spelled 0-9, never -9, so a range can't be read as negative nine.
+  assert.match(err('|A|=-9'),   /invalid range -9/);
+  assert.match(err('|A|=9-'),   /invalid range 9-/);
+  assert.match(err('|A|=5-3'),  /invalid range 5-3/);
+});
+
+test('parse: a multi-element term takes a range too', () => {
+  const sum = q => parseUmiaqQuery('AB;BA;' + q).constraints.sumLen;
+  assert.deepEqual(sum('|AB|=8-9'),  [{ vars: ['A', 'B'], lit: 0, min: 8, max: 9 }]);
+  assert.deepEqual(sum('|AxB|=10+'), [{ vars: ['A', 'B'], lit: 1, min: 10, max: Infinity }]);
+});
+
+test('parse: |*| applies a length constraint to every variable the query uses', () => {
+  const zero = { min: 0, max: Infinity };
+  // The exact key set is the guard: a span must leave nothing behind for unused letters.
+  assert.deepEqual(parseUmiaqQuery('AB;BA;|*|>=0').constraints.varBounds, { A: zero, B: zero });
+  assert.deepEqual(parseUmiaqQuery('AxByC;|*|>=0').constraints.varBounds,
+                   { A: zero, B: zero, C: zero });
+});
+
+test('parse: | * | tolerates spaces inside the bars', () => {
+  assert.deepEqual(parseUmiaqQuery('A;| * |>=0').constraints.varBounds.A, { min: 0, max: Infinity });
+  assert.deepEqual(parseUmiaqQuery('ABCD;| A-C |>=0').constraints.varBounds.D, undefined);
+});
+
+test('parse: |A-C| scopes the constraint to a letter range', () => {
+  const b = parseUmiaqQuery('ABCD;|A-C|>=0').constraints.varBounds;
+  assert.deepEqual(b.A, { min: 0, max: Infinity });
+  assert.deepEqual(b.C, { min: 0, max: Infinity });
+  assert.equal(b.D, undefined);                                   // outside the range: keeps the floor of 1
+  assert.deepEqual(parseUmiaqQuery('A;|*|>=0').constraints.varBounds,
+                   parseUmiaqQuery('A;|A-Z|>=0').constraints.varBounds);   // |*| is sugar for |A-Z|
+});
+
+test('parse: |*| is a macro, so clause order never matters', () => {
+  const wide = parseUmiaqQuery('AB;BA;|*|=3-5;|B|>=2').constraints.varBounds;
+  const flip = parseUmiaqQuery('AB;BA;|B|>=2;|*|=3-5').constraints.varBounds;
+  assert.deepEqual(wide, flip);
+  assert.deepEqual(wide.A, { min: 3, max: 5 });
+  assert.deepEqual(wide.B, { min: 3, max: 5 });   // the looser |B|>=2 is a no-op, not an override
+});
+
+test('parse: a contradiction quotes the clauses as typed, in the order typed', () => {
+  const err = q => parseUmiaqQuery(q).error;
+  assert.equal(err('AB;BA;|*|=3;|B|=5'),  '|*|=3 conflicts with |B|=5');
+  assert.equal(err('AB;BA;|B|=5;|*|=3'),  '|B|=5 conflicts with |*|=3');
+  assert.equal(err('AB;BA;|*|=3;|*|=5'),  '|*|=3 conflicts with |*|=5');   // never an arbitrary letter
+  assert.equal(err('ABCD;|B-F|=3;|D|=9'), '|B-F|=3 conflicts with |D|=9');
+  assert.equal(err('A;|A|>=5;|A|<=3'),    '|A|>=5 conflicts with |A|<=3');
+});
+
+test('parse: a sub-pattern length conflicting with an explicit one is caught, not crashed', () => {
+  // Bounds implied by a sub-pattern are folded in after the explicit ones, so an unchecked
+  // conflict used to reach compilePrefilter and throw `.{5,3}` out of the parser.
+  assert.equal(parseUmiaqQuery('A;A=#@#;|A|=5').error, 'A=#@# conflicts with |A|=5');
+  assert.equal(parseUmiaqQuery('A;|A|>=5;A=??').error, '|A|>=5 conflicts with A=??');
+});
+
+test('parse: |*| against a relational right side resolves to the query variables', () => {
+  const cmp = parseUmiaqQuery('AB;BA;|*|=|B|').constraints.lenCompare;
+  assert.equal(cmp.length, 2);   // A and B, not 26 — this runs per candidate in the join
+  assert.deepEqual(cmp.map(c => c.left.vars[0]).sort(), ['A', 'B']);
+  assert.ok(cmp.every(c => c.op === '=' && c.right.vars[0] === 'B' && c.src === '|*|=|B|'));
+});
+
+test('parse: a span carries every operator, not just the ones that set a window', () => {
+  const cmp = parseUmiaqQuery('AB;BA;|*|!=3').constraints.lenCompare;
+  assert.deepEqual(cmp.map(c => [c.left.vars[0], c.op, c.right.lit]), [['A', '!=', 3], ['B', '!=', 3]]);
+  const len = q => parseUmiaqQuery('AB;BA;' + q).constraints.varBounds;
+  assert.deepEqual(len('|*|<=5'), { A: { min: 1, max: 5 }, B: { min: 1, max: 5 } });   // ceiling alone keeps the floor
+  assert.deepEqual(len('|*|>3'),  { A: { min: 4, max: Infinity }, B: { min: 4, max: Infinity } });
+});
+
+test('parse: a span over a query with no variables is inert, not an error', () => {
+  const p = parseUmiaqQuery('cat;|*|>=0');
+  assert.ok(p.ok, p.error);
+  assert.deepEqual(p.constraints.varBounds, {});
+});
+
+test('parse: a sub-pattern floor conflicts with an explicit ceiling too', () => {
+  assert.equal(parseUmiaqQuery('A;A=???;|A|<=2').error, 'A=??? conflicts with |A|<=2');
+});
+
+test('parse: variable-range errors', () => {
+  const err = q => parseUmiaqQuery('AB;' + q).error;
+  assert.match(err('|*A|>=0'),    /variables and literals/);   // * selects only when it stands alone
+  assert.match(err('|C-A|>=0'),   /empty variable range/);
+  assert.match(err('|A-C D|>=0'), /variable range/);
+  assert.match(err('|A|=|*|'),    /left of a length constraint/);
+});
+
+test('find: |*|>=0 frees every variable at once', async () => {
+  const pool = ['tenor', 'or', 'mitten', 'mit', 'tenant'];
+  assert.deepEqual(await tupleNorms('AtenB;AB;|*|>=0', pool),
+                   [['mitten', 'mit'], ['tenor', 'or']]);
+  assert.deepEqual(await tupleNorms('AtenB;AB;|A-A|>=0', pool), [['tenor', 'or']]);
+});
+
+test('find: a range on a summed term bounds the pair', async () => {
+  const pool = ['ape', 'pea', 'tone', 'neto'];
+  assert.deepEqual(await tupleNorms('AB;BA;|AB|=3', pool), [['ape', 'pea'], ['pea', 'ape']]);
+  assert.deepEqual(await tupleNorms('AB;BA;|AB|=3-4', pool),
+                   [['ape', 'pea'], ['neto', 'tone'], ['pea', 'ape'], ['tone', 'neto']]);
+});
+
 test('match: an empty variable binds only where a clause declares a zero floor', () => {
   assert.deepEqual(bindings('AtenB', 'tenor'), []);                       // A can't vanish
   assert.deepEqual(bindings('AtenB;|A|>=0;|B|>=0', 'tenor'), [{ A: '', B: 'or' }]);
@@ -127,27 +247,8 @@ test('find: AtenB;AB reaches a leading and a trailing ten once emptiness is allo
                    [['mitten', 'mit'], ['tenor', 'or']]);
 });
 
-test('quickFix: names only the variables an added |V|>=0 would actually free', () => {
-  const fix = q => TOOLS.umiaq.quickFix({ query: q });
-  assert.deepEqual(fix('AtenB;AB').params, { query: 'AtenB;AB;|A|>=0;|B|>=0' });
-  assert.equal(fix('AtenB;AB').label, 'Allow empty variables');
-  assert.deepEqual(fix('AtenB;AB;|A|>=0').params, { query: 'AtenB;AB;|A|>=0;|B|>=0' });
-  assert.equal(fix('AtenB;AB;|A|>=0;|B|>=0'), null);   // nothing left to free
-  assert.equal(fix('AtenB;AB;A=*;B=*'), null);
-  assert.equal(fix('ABBA;|A|>=2;B=#@#'), null);        // both are pinned above zero
-  assert.equal(fix('cat'), null);                     // no variables
-  assert.equal(fix('a[bc'), null);                    // doesn't parse
-});
-
-test('quickFix: the tooltip shows the clauses it is about to add', () => {
-  const title = q => TOOLS.umiaq.quickFix({ query: q }).title;
-  assert.equal(title('AtenB;AB'), "By default, variables can't be empty. Adds |A|>=0;|B|>=0.");
-  assert.equal(title('A?B;|B|>=2'), "By default, variables can't be empty. Adds |A|>=0.");   // B is already pinned
-  assert.equal(title('AxByC;ABC'), "By default, variables can't be empty. Adds |A|>=0;|B|>=0;|C|>=0.");
-});
-
 test('parse: errors', () => {
-  assert.match(parseUmiaqQuery('A;|A|>=5;|A|<=3').error, /contradict/);
+  assert.match(parseUmiaqQuery('A;|A|>=5;|A|<=3').error, /conflicts with/);
   assert.match(parseUmiaqQuery('a[bc').error, /unclosed/);
   assert.match(parseUmiaqQuery('~').error, /variable/);
   assert.match(parseUmiaqQuery('a/bc').error, /must start a binding/);
@@ -156,8 +257,9 @@ test('parse: errors', () => {
   assert.match(parseUmiaqQuery('/a.c').error, /letters, digits/);
   assert.match(parseUmiaqQuery('a=b').error, /unsupported constraint/);
   assert.match(parseUmiaqQuery('A=B?').error, /cannot contain variables/);
-  assert.match(parseUmiaqQuery('9-3:ab').error, /length prefix range is empty/);
-  assert.match(parseUmiaqQuery('7-:ab').error, /invalid length prefix/);
+  assert.match(parseUmiaqQuery('9-3:ab').error, /invalid range 9-3/);
+  assert.match(parseUmiaqQuery('7-:ab').error, /invalid range 7-/);
+  assert.match(parseUmiaqQuery('A;A=9-3:*').error, /invalid range 9-3/);
 });
 
 test('parse: a query of only constraints, or a trailing ;, is inert', () => {

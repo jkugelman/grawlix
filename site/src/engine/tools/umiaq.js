@@ -2,7 +2,7 @@
 
 import { buildHelpHTML } from '../../core/util.js';
 import { TUPLE_CAP_MOBILE } from '../../core/constants.js';
-import { parseUmiaqQuery, matchPattern, findTuples, variableColors, variableHighlights, varsForcedNonEmpty } from '../umiaq.js';
+import { parseUmiaqQuery, matchPattern, findTuples, variableColors, variableHighlights } from '../umiaq.js';
 
 // Memory ceiling, not a UX cap: the worker retains every streamed tuple for
 // scrollback, so an unbounded broad query would blow memory. Defaults to the
@@ -28,7 +28,9 @@ export const UMIAQ_HELP = buildHelpHTML([
   ['A=#@#', 'A fits a sub-pattern'],
   ['A!=#@#', "A doesn't fit a sub-pattern"],
   ['|AB|=n', 'length check (also < <= > >=)'],
+  ['|A|=8-9', 'a length range (also 10+, 0-6)'],
   ['|A|>=0', 'A may be empty'],
+  ['|*|>=0', 'every variable may be empty'],
   ['7-9:…', 'only 7-to-9-letter matches'],
   ['/word', 'an anagram of word'],
 ]);
@@ -53,21 +55,6 @@ export default {
   error(params) {
     const parsed = parseUmiaqQuery(params?.query || '');
     return parsed.ok || parsed.empty ? null : parsed.error;
-  },
-  // Variables are non-empty chunks by default, which quietly costs you the edge cases:
-  // `AtenB;AB` misses TENOR and MITTEN until A and B may be empty. Nothing in a correct-
-  // looking result set says so, so the tool offers the fix instead of waiting to be asked.
-  quickFix(params) {
-    const parsed = parseUmiaqQuery(params?.query || '');
-    if (!parsed.ok) return null;
-    const vars = varsForcedNonEmpty(parsed);
-    if (!vars.length) return null;
-    const clauses = vars.map(v => `|${v}|>=0`).join(';');
-    return {
-      label: 'Allow empty variables',
-      title: `By default, variables can't be empty. Adds ${clauses}.`,
-      params: { query: `${params.query};${clauses}` },
-    };
   },
   prepare(params) {
     const parsed = parseUmiaqQuery(params.query || '');

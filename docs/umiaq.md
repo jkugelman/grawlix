@@ -73,15 +73,27 @@ A **constraint** conditions the variables without contributing a word to the res
 
 `|A|=5` pins A to five characters. The comparisons `<`, `<=`, `>`, `>=` bound it (`|A|>=3`, `|A|<5`), and two of them intersect into a range (`|A|>=2;|A|<=5`). A term of more than one element sums: `|AB|=9` means A and B's lengths total nine, and `|AxB|=9` counts the literal too (`|A|` + 1 + `|B|`). The term may hold only variables and literals — a wildcard like `|A*|` has no fixed length and is rejected. Multi-element terms are checked at the tuple join, so they hold even when the variables live in different bindings.
 
+`=` also takes a **range**, in the same syntax used for score ranges, the Length filter, and the [length prefix](#length-prefix): `|A|=8-9` (eight or nine), `|A|=10+` (ten or more), `|A|=0-6` (up to six). `|AB|=8-9` ranges the sum the same way, and `|A|=0+` is a compact way to declare a [zero floor](#zero-length). A range is shorthand for the two comparisons it stands for, so it intersects with them like any other bound (`|A|=2-8;|A|<=5` is 2 to 5). Only `=` takes one — `|A|>=3-5` is meaningless and rejected, and so is `|A|!=3-5`. The open end of a range is always spelled out (`0-9`, `10+`), never as a bare `-9`, so a range can never be misread as a negative number.
+
 The right side can be **another term** instead of a number: `|A|=|B|` requires A and B to bind equal-length chunks, `|AB|<|CD|` compares two sums, and all six operators (`=`, `!=`, `<`, `<=`, `>`, `>=`) work on either shape. `!=` also takes a number — `|A|!=3` excludes a length. Unlike the numeric `=`/`<`/`…` forms, which narrow a variable's search window, a relational comparison and `|A|!=n` are pure filters — neither side is fixed, so they only prune at the tuple join, holding across bindings the same way a multi-element `|AB|=9` does.
+
+#### Every variable — `|*|` and `|A-C|`
+
+The left side may name a **span of variables** instead of a term. `|*|>=0` applies the constraint to every variable; `|A-C|>=0` applies it to A, B, and C. `|*|` is exactly sugar for `|A-Z|`.
+
+A span is a macro: `|*|>=0` means the same as writing `|A|>=0;|B|>=0;…` yourself, and intersects with the other clauses exactly as those would. Clause order stays irrelevant, and a narrower clause elsewhere simply intersects — `|*|=3-5;|B|>=2` leaves B at 3 to 5, the looser `>=2` changing nothing.
+
+A span creates no exceptions. `|*|=3;|B|=5` asks for a variable that is both three and five characters, and is rejected as `|*|=3 conflicts with |B|=5` — errors quote the clauses as you typed them, spans included. Write the per-variable clauses out when one variable should differ.
+
+A span covers its whole letter range, so a variable added to a query that already carries `|*|` picks the constraint up. Spans work only on a length constraint, and only on the left: `|A|=|*|` is rejected.
 
 ### Zero-length
 
-A variable binds at least one character unless some clause explicitly gives it a **minimum of zero**: `|A|>=0` (empty or longer), `|A|=0` (forced empty), or a sub-pattern that starts at zero — `A=*`, `A=0-6:*`. An upper bound on its own (`|A|<=5`) declares no minimum, so the floor stays.
+A variable binds at least one character unless some clause explicitly gives it a **minimum of zero**: `|A|>=0` (empty or longer), `|A|=0` (forced empty), `|A|=0+` or `|A|=0-6` (a range starting at zero), or a sub-pattern that starts at zero — `A=*`, `A=0-6:*`. An upper bound on its own (`|A|<=5`) declares no minimum, so the floor stays. `|*|>=0` frees every variable at once.
 
 That floor is what keeps a variable meaning *a chunk*. Let one vanish and its binding collapses into a weaker one: with A empty, `AB;BA` reads as `B;B` and answers every word W in the wordlist with the degenerate tuple (W, W), burying the APE / PEA pairs the query was for.
 
-It also quietly costs you the edge cases, which is the trap to know about. `AtenB;AB` — words that survive deleting a TEN — silently misses TENOR and MITTEN, where the TEN sits flush against an edge and A or B would have to be empty. The result set looks perfectly plausible; nothing in it says a floor hid the rest. So the Umiaq row carries an **Allow empty variables** link: it appends `|V|>=0` for each variable a floor is still holding, and disappears once none are. `AaB;AeB;AiB;AoB;AuB;|A|>=0;|B|>=0` is the same shape — sets of words differing only in a vowel, which can now appear in leading and trailing positions too.
+It also quietly costs you the edge cases, which is the trap to know about. `AtenB;AB` — words that survive deleting a TEN — silently misses TENOR and MITTEN, where the TEN sits flush against an edge and A or B would have to be empty. The result set looks perfectly plausible; nothing in it says a floor hid the rest. `AtenB;AB;|*|>=0` is the version that reaches them, and `AaB;AeB;AiB;AoB;AuB;|*|>=0` is the same shape — sets of words differing only in a vowel, which can now appear in leading and trailing positions too. Reaching for `|*|>=0` whenever a query looks suspiciously thin is the habit worth having.
 
 ### Sub-pattern — `A=pattern` and `A!=pattern`
 
@@ -120,7 +132,8 @@ Grawlix speaks its own dialect. Reusing Grawlix's search syntax and range conven
 - **Any-character is `?`, not `.`.** Grawlix reserves `.` — it separates the variable breakdown in results — so a pasted `.` errors rather than acting as a wildcard.
 - **Negation is `[^abc]`, not `[!abc]`.** A pasted `[!abc]` matches a literal `!` plus a, b, c.
 - **Digits are literals**, not Qat's "repeated any-letter" placeholders (`l0v0` is the literal string, not "same letter twice"). Variables cover that use.
-- **Lengths use the score-range syntax** (`10+:`, `0-6:`), not Qat's `10-:` / `-6:`. Zero-length is `|A|>=0`, not Qat's `|A|=0-` — and Grawlix also honors a zero-floor sub-pattern (`A=*`), which the reference tools don't. CopyQat goes the other way and has no zero-length escape at all.
+- **Lengths use the score-range syntax** (`10+`, `0-6`), not Qat's `10-` / `-6`. This applies both to the [length prefix](#length-prefix) (`10+:x*a`) and to a length constraint's right side (`|AB|=8-9`) — Nexus-Umiaq spells the latter the same way, so that one lines up, while `|AB|=8-` does not. Zero-length is `|A|>=0` or `|A|=0+`, not Qat's `|A|=0-`, and Grawlix also honors a zero-floor sub-pattern (`A=*`), which the reference tools don't. CopyQat goes the other way and has no zero-length escape at all.
+- **A constraint can cover every variable at once** — `|*|>=0`, `|A-C|=3-5`. The reference tools have no equivalent; each variable must be named.
 - **Sub-patterns take no parentheses** (`A=#@#`, not `A=(#@#)`). Upstream, parentheses distinguish a variable that must be a real *word* from one that is any *letter-sequence*; Grawlix has no word-form variable, so the parens would carry nothing.
 - **Grawlix searches your merged wordlist**, not a bundled dictionary — a difference in kind, not a missing feature.
 
