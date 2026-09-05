@@ -1196,15 +1196,21 @@ export function buildShareControlHTML() {
     `</div>`;
 }
 
-export function chainContentEntries(chain) {
-  const out = [];
-  let prevEntry = null;
+// Fold repeats of the previous atom's entry (a multi-search row stacks the same
+// word under several highlights). Keyed by (norm, display), not norm: a Space out
+// re-spacing shares its input's norm, and a norm key silently exports the glued input.
+function* contentAtoms(chain) {
+  let prevKey = null;
   for (const atom of chain.atoms) {
-    if (atom.wlEntry.norm === prevEntry) continue;
-    out.push(atom.wlEntry);
-    prevEntry = atom.wlEntry.norm;
+    const key = mergeKey(atom.wlEntry.norm, atom.wlEntry.display);
+    if (key === prevKey) continue;
+    yield atom;
+    prevKey = key;
   }
-  return out;
+}
+
+export function chainContentEntries(chain) {
+  return Array.from(contentAtoms(chain), atom => atom.wlEntry);
 }
 
 function currentContentAtomCount(stack) {
@@ -1306,14 +1312,10 @@ export function exportFilename(stack, ext) {
 
 function chainCopyText(chain) {
   const parts = [];
-  let prevNorm = null;
-  for (const atom of chain.atoms) {
+  for (const atom of contentAtoms(chain)) {
     const wlE = atom.wlEntry;
-    if (wlE.norm === prevNorm) continue;
-    const shown = displayOf(wlE).toUpperCase();
-    const piece = `${wlE.norm.length} ${shown}`;
+    const piece = `${wlE.norm.length} ${displayOf(wlE).toUpperCase()}`;
     parts.push(atom.glyph ? `${atom.glyph} ${piece}` : piece);
-    prevNorm = wlE.norm;
   }
   return parts.join(' ');
 }
@@ -1349,13 +1351,9 @@ export function buildCopyResults(rows, grouped) {
 export function flatCopyLines(chains) {
   const piecesPerChain = chains.map(chain => {
     const pieces = [];
-    let prevNorm = null;
-    for (const atom of chain.atoms) {
+    for (const atom of contentAtoms(chain)) {
       const wlE = atom.wlEntry;
-      if (wlE.norm === prevNorm) continue;
-      const shown = displayOf(wlE).toUpperCase();
-      pieces.push({ glyph: atom.glyph || '', len: String(wlE.norm.length), entry: shown });
-      prevNorm = wlE.norm;
+      pieces.push({ glyph: atom.glyph || '', len: String(wlE.norm.length), entry: displayOf(wlE).toUpperCase() });
     }
     return pieces;
   });

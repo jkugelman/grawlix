@@ -14,6 +14,9 @@ import {
 const wl = (norm, { display = null, score = 0, comment = '' } = {}) => ({ norm, display, score, comment });
 const atom = (norm, { display = null, score = 0, glyph = null } = {}) => ({ wlEntry: wl(norm, { display, score }), glyph });
 const chain = (...atoms) => ({ atoms });
+const group = (...chains) => ({ chains });
+const glued = () => atom('abarreloflaughs', { score: 80 });
+const respaced = () => atom('abarreloflaughs', { display: 'a barrel of laughs', score: 80, glyph: '→' });
 
 // A minimal exportFilename stack row. No state, no catalog: shipped makeToolRow
 // reads TOOLS, so it can't be fenced — this stubs only the members read here.
@@ -176,7 +179,7 @@ test('exportFilename: an over-long assembled name is truncated to 100 chars befo
   assert.equal(out, 'grawlix-search-' + 'a'.repeat(100 - 'grawlix-search-'.length) + '.txt');
 });
 
-// ─── chainContentEntries — consecutive-norm dedup ────────────────────────────
+// ─── chainContentEntries — consecutive same-entry fold ───────────────────────
 
 test('chainContentEntries: a single atom yields its wlEntry', () => {
   const a = atom('cat');
@@ -196,6 +199,14 @@ test('chainContentEntries: consecutive same-norm atoms collapse to the FIRST occ
 test('chainContentEntries: a non-consecutive repeat is NOT deduped (dedup is only adjacent)', () => {
   const out = chainContentEntries(chain(atom('cat'), atom('dog'), atom('cat')));
   assert.deepEqual(out.map(e => e.norm), ['cat', 'dog', 'cat']);
+});
+
+test('chainContentEntries: a same-norm atom with a different display (a Space out re-spacing) is kept', () => {
+  const input = glued();
+  const out = chainContentEntries(chain(input, respaced()));
+  assert.equal(out.length, 2);
+  assert.equal(out[0], input.wlEntry);
+  assert.equal(out[1].display, 'a barrel of laughs');
 });
 
 test('chainContentEntries: an empty chain yields no entries', () => {
@@ -242,9 +253,19 @@ test('flatCopyLines: a glyph-less first atom emits no leading glyph token', () =
 });
 
 test('flatCopyLines: consecutive same-norm atoms (multi-search row) collapse to one piece', () => {
-  // Two same-word search atoms fold (prevNorm guard), so the line is single-column.
+  // Two same-word search atoms fold (same-entry guard), so the line is single-column.
   const out = flatCopyLines([chain(atom('cat'), atom('cat'))]);
   assert.deepEqual(out, ['3 CAT']);
+});
+
+test('flatCopyLines: a same-norm re-spaced atom (Space out) stays its own piece', () => {
+  const out = flatCopyLines([chain(glued(), respaced())]);
+  assert.deepEqual(out, ['15 ABARRELOFLAUGHS → 15 A BARREL OF LAUGHS']);
+});
+
+test('buildCopyResults: a grouped chain keeps a same-norm re-spaced atom', () => {
+  const rows = [group(chain(glued(), respaced()))];
+  assert.equal(buildCopyResults(rows, true), '15 ABARRELOFLAUGHS → 15 A BARREL OF LAUGHS');
 });
 
 test('flatCopyLines: an empty chain list returns no lines', () => {
@@ -269,8 +290,6 @@ test('buildCopyResults: a corpus-sized flat result joins without a call-arity Ra
 });
 
 // ─── exportCountPhrase — toast count by tier ─────────────────────────────────
-
-const group = (...chains) => ({ chains });
 
 test('exportCountPhrase: flat counts one entry per row', () => {
   const rows = [chain(atom('cat')), chain(atom('dog')), chain(atom('emu'))];
@@ -317,6 +336,11 @@ test('buildWordlistText: the tail entry is the key; the score is the chain-wide 
   const { text, count } = buildWordlistText(rows, false);
   assert.equal(text, 'cats;20\n');
   assert.equal(count, 1);
+});
+
+test('buildWordlistText: a Space out re-spacing exports the spaced tail, not the glued input', () => {
+  const rows = [chain(glued(), respaced())];
+  assert.equal(buildWordlistText(rows, false).text, 'a barrel of laughs;80\n');
 });
 
 test('buildWordlistText: a display value is emitted verbatim (no uppercasing)', () => {

@@ -73,6 +73,56 @@ test('Copy lists group members per line, no group key', async ({ page }) => {
   expect(memberLine).toBeTruthy();
 });
 
+// Seed after the tool-less run settles: that run evicts the unigram asset, and a
+// seed it wipes silently sends Space out to the real multi-MB network fetch.
+async function addSpaceOutFixture(page) {
+  await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
+    name: 'SpaceOutTest',
+    entries: ['abarreloflaughs', 'barrel', 'laughs'],
+    scores:  [80, 50, 50],
+  }));
+  await page.evaluate(() => window.__grawlixTest.pipelineIdle());
+  await page.evaluate(() => window.__grawlixTest.setWorkerUnigramCorpus(
+    { a: -3, barrel: -11, of: -3, laughs: -10 }));
+}
+
+test('Copy keeps a Space out re-spacing beside its glued input', async ({ page }) => {
+  await gotoApp(page);
+  await addSpaceOutFixture(page);
+  await setStack(page, [{ tool: 'space_out' }]);
+
+  const text = await getExport(page, 'copy');
+  expect(text).toContain('15 ABARRELOFLAUGHS → 15 A BARREL OF LAUGHS');
+});
+
+test('Copy folds a trailing search\'s highlight slot but keeps the re-spacing it sits on', async ({ page }) => {
+  await gotoApp(page);
+  await addSpaceOutFixture(page);
+  await setStack(page, [{ tool: 'space_out' }, { tool: 'search', params: { pattern: 'abarreloflaughs' } }]);
+
+  const text = await getExport(page, 'copy');
+  expect(text).toBe('15 ABARRELOFLAUGHS → 15 A BARREL OF LAUGHS');
+});
+
+test('Wordlist exports a Space out re-spacing as the spaced tail', async ({ page }) => {
+  await gotoApp(page);
+  await addSpaceOutFixture(page);
+  await setStack(page, [{ tool: 'space_out' }]);
+
+  const { text } = await getExport(page, 'wordlist');
+  expect(text).toContain('a barrel of laughs;80\n');
+  expect(text).not.toContain('abarreloflaughs;80');
+});
+
+test('CSV carries a Space out re-spacing as entry_2 with blank comment and source', async ({ page }) => {
+  await gotoApp(page);
+  await addSpaceOutFixture(page);
+  await setStack(page, [{ tool: 'space_out' }]);
+
+  const text = await getExport(page, 'csv');
+  expect(text).toContain('80,80,abarreloflaughs,15,80,,SpaceOutTest,a barrel of laughs,15,80,,\r\n');
+});
+
 test('Markdown link omits backticks around numeric params', async ({ page }) => {
   await gotoApp(page);
   await addFixture(page);
