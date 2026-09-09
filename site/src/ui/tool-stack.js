@@ -140,10 +140,13 @@ export function buildPairListHTML(params, values, toolKey, rowToken) {
       ` data-row="${rowToken}" data-key="string" data-pair="${i}"`);
     const symbolHTML = buildTextInputHTML(symbolP, (values.symbol || [])[i] || '', toolKey,
       ` data-row="${rowToken}" data-key="symbol" data-pair="${i}" data-symbol-suggest`);
-    const control = i === 0
+    const remove = n > 1
+      ? `<button type="button" class="rebus-pair-remove" data-row="${rowToken}" data-pair="${i}" title="Remove" aria-label="Remove replacement"><svg width="10" height="10"><use href="#icon-x"/></svg></button>`
+      : '';
+    const add = i === n - 1
       ? `<button type="button" class="rebus-pair-add" data-row="${rowToken}" title="Add replacement" aria-label="Add replacement"><svg width="13" height="13"><use href="#icon-plus"/></svg></button>`
-      : `<button type="button" class="rebus-pair-remove" data-row="${rowToken}" data-pair="${i}" title="Remove" aria-label="Remove replacement"><svg width="10" height="10"><use href="#icon-x"/></svg></button>`;
-    rows += `<div class="rebus-pair">${stringHTML}<span class="rebus-arrow" aria-hidden="true">→</span>${symbolHTML}${control}</div>`;
+      : '';
+    rows += `<div class="rebus-pair">${stringHTML}<span class="rebus-arrow" aria-hidden="true">→</span>${symbolHTML}${remove}${add}</div>`;
   }
   return `<div class="rebus-pairs">${rows}</div>`;
 }

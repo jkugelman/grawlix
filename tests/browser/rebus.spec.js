@@ -39,18 +39,42 @@ test('typing a pair produces a synthetic entry absent from the corpus', async ({
   await expectVisible(page, ['barsⓉ']);
 });
 
-test('add/remove pairs — the × appears only past the first pair', async ({ page }) => {
+test('add/remove pairs — + rides the last pair, × every pair once there are two', async ({ page }) => {
   await gotoApp(page);
   await addRebusFixture(page);
   await addTool(page, 'rebus');
   const row = rebusRow(page);
+  const pairs = row.locator('.rebus-pair');
   await expect(row.locator('.rebus-pair-remove')).toHaveCount(0);
+  await expect(pairs.first().locator('.rebus-pair-add')).toHaveCount(1);
   await row.locator('.rebus-pair-add').click();
-  await expect(row.locator('.rebus-pair')).toHaveCount(2);
-  await expect(row.locator('.rebus-pair-remove')).toHaveCount(1);
-  await row.locator('.rebus-pair-remove').click();
-  await expect(row.locator('.rebus-pair')).toHaveCount(1);
+  await expect(pairs).toHaveCount(2);
+  await expect(row.locator('.rebus-pair-remove')).toHaveCount(2);
+  await expect(row.locator('.rebus-pair-add')).toHaveCount(1);
+  await expect(pairs.last().locator('.rebus-pair-add')).toHaveCount(1);
+  await pairs.last().locator('.rebus-pair-remove').click();
+  await expect(pairs).toHaveCount(1);
   await expect(row.locator('.rebus-pair-remove')).toHaveCount(0);
+  await expect(pairs.first().locator('.rebus-pair-add')).toHaveCount(1);
+});
+
+test('removing the first pair keeps the second', async ({ page }) => {
+  await gotoApp(page);
+  await addRebusFixture(page);
+  await addTool(page, 'rebus');
+  const row = rebusRow(page);
+  const pairs = row.locator('.rebus-pair');
+  await pairs.first().locator('input[data-key="string"]').fill('tool');
+  await pairs.first().locator('input[data-key="symbol"]').fill('Ⓣ');
+  await row.locator('.rebus-pair-add').click();
+  await pairs.last().locator('input[data-key="string"]').fill('star');
+  await pairs.last().locator('input[data-key="symbol"]').fill('★');
+  await expectVisible(page, ['barsⓉ', 'co★']);
+  await pairs.first().locator('.rebus-pair-remove').click();
+  await expect(pairs).toHaveCount(1);
+  await expect(pairs.first().locator('input[data-key="string"]')).toHaveValue('star');
+  await expect(pairs.first().locator('input[data-key="symbol"]')).toHaveValue('★');
+  await expectVisible(page, ['co★']);
 });
 
 test('the string box offers no cheat sheet — the find is a literal', async ({ page }) => {
