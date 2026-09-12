@@ -40,7 +40,7 @@ import { HL_COLORS } from '../engine/search.js';
 import {
   TOOL_CATEGORIES, FEATURED_TOOLS, TOOLS, groupColumnCSS, makeToolRow,
 } from '../engine/tools.js';
-import { MATCH_PARAM } from '../engine/tools/shared.js';
+import { MATCH_PARAM, isReplacing } from '../engine/tools/shared.js';
 import { runOnWorker, preloadWorkerAsset } from './pipeline-worker.js';
 import { resetPipelineProgress } from './entries-table.js';
 import { bumpPipelineVersion, setResultsStale } from '../data/state.js';
@@ -353,7 +353,7 @@ export const ToolStack = (() => {
 
   function isRowExpanded(token) {
     const row = token === 'bar' ? getSearchBarRow() : stack[token];
-    return !!(row && (row._replaceExpanded || (row.params.replace || '').trim()));
+    return !!row && isReplacing(row.params);
   }
 
   // Body-parented singleton (like SymbolSuggest) rather than a menu anchored
@@ -895,12 +895,10 @@ export const ToolStack = (() => {
         const row = token === 'bar' ? getSearchBarRow() : stack[parseInt(token, 10)];
         if (!row) return;
         const expanding = !isRowExpanded(token);
-        row._replaceExpanded = expanding;
         caret.setAttribute('aria-expanded', String(expanding));
         const wrap = caret.closest('.tool-row, .search-bar').querySelector('.tool-row-replace');
         wrap.hidden = !expanding;
         const replaceInput = wrap.querySelector('input');
-        const before = row.params.replace || '';
         if (expanding) {
           row.params.replace = replaceInput.value;
           replaceInput.focus();
@@ -908,10 +906,8 @@ export const ToolStack = (() => {
           delete row.params.replace;
         }
         syncInvertState(caret.closest('.tool-row, .search-bar'), row);
-        if ((row.params.replace || '') !== before) {
-          bumpPipelineVersion();
-          _navigate();
-        }
+        bumpPipelineVersion();
+        _navigate();
         return;
       }
     });

@@ -232,6 +232,7 @@ export function runReplace(wlEntry, prepared, wordlist) {
   const tailD = display.slice(dispPos);
   outNorm += armNorm ? norm.slice(inPos) : toNorm(tailD);
   outDisp += tailD;
+  if (!outNorm) return [];
   // A norm-preserving rewrite (`\s` → `-`) never resolves in-list — the lookup
   // would just re-emit the input row; only the coined display form means anything.
   const inList = outNorm !== norm && wordlist.norms.has(outNorm);

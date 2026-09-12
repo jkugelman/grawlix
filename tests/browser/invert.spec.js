@@ -95,6 +95,22 @@ test('typing a replacement clears invert and disables the toggle', async ({ page
   await expect(page.locator('.search-bar')).not.toHaveClass(/inverted/);
 });
 
+test('opening the replace field clears invert and disables the toggle before anything is typed', async ({ page }) => {
+  await gotoApp(page);
+  await fixture(page);
+  await page.fill('.search-bar input[data-key="pattern"]', 'c?t');
+  await barBtn(page).click();
+  expect(url(page)).toContain('not');
+
+  await page.locator('.search-bar .find-replace-caret').click();
+
+  expect(url(page)).not.toContain('not');
+  expect(url(page)).toContain('replace=');
+  await expect(barBtn(page)).toHaveClass(/disabled/);
+  await expect(barBtn(page)).toHaveAttribute('aria-disabled', 'true');
+  await expect(page.locator('.search-bar')).not.toHaveClass(/inverted/);
+});
+
 test('a disabled toggle ignores clicks', async ({ page }) => {
   await gotoApp(page);
   await fixture(page);

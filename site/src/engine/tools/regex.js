@@ -6,7 +6,7 @@ import {
 } from '../regex.js';
 import { buildHelpHTML } from '../../core/util.js';
 import { matchModeOk } from '../search.js';
-import { MATCH_PARAM, matchModeOf, ALLOW_UNLISTED_PARAM } from './shared.js';
+import { MATCH_PARAM, matchModeOf, ALLOW_UNLISTED_PARAM, isReplacing } from './shared.js';
 
 // The SyntaxError prefix is engine-specific: V8 echoes the pattern ("Invalid
 // regular expression: /<src>/<flags>: "), JSC bares it ("Invalid regular
@@ -37,7 +37,7 @@ export default {
       ['a|b', 'either a or b'],
       ['(…)', 'capture group'],
     ], { link: { url: 'https://regexone.com/', text: 'Learn regex at regexone.com →' } }) },
-    { key: 'replace', placeholder: 'replace', raw: true, help: buildHelpHTML([
+    { key: 'replace', placeholder: 'replace', raw: true, encodeEmpty: true, help: buildHelpHTML([
       ['$1', 'first capture group'],
       ['$2', 'second group, etc.'],
       ['$&', 'the whole match'],
@@ -46,11 +46,9 @@ export default {
     MATCH_PARAM,
     ALLOW_UNLISTED_PARAM,
   ],
-  // Blank replacement reads as filter mode, not "delete the match" — a blank
-  // field is indistinguishable from one that was never touched.
-  kind: params => (params.replace ? 'transform' : 'filter'),
+  kind: params => (isReplacing(params) ? 'transform' : 'filter'),
   input: 'highlight', output: 'highlight',
-  glyph: params => (params.replace ? '→' : null),
+  glyph: params => (isReplacing(params) ? '→' : null),
   // A half-typed, invalid pattern is inert like an empty one, so the view
   // neither blanks nor churns mid-keystroke.
   isInert(params) {
@@ -60,7 +58,6 @@ export default {
   error: params => regexError(params && params.pattern),
   matchOn: 'both',
   prepare(params) {
-    const replacement = params.replace || '';
     // Don't trim: in a regex a leading/trailing space is a literal that must
     // match. Re-adding `.trim()` reads as cleanup but silently drops it.
     const body = params.pattern;
@@ -73,11 +70,11 @@ export default {
     const matchMode = matchModeOf(params);
     const wrap = src => matchMode === 'full' ? '^(?:' + src + ')$' : src;
     const { capturing, runs } = analyzeRegexPattern(body);
-    if (replacement) {
+    if (isReplacing(params)) {
       // The functional `re` can't be wrapped for highlighting — synthetic
       // groups would renumber the user's `$N`; `hlRe` is the wrapped copy.
       const hlRe = capturing ? null : new RegExp(wrap(wrapRuns(body, runs)), 'gid');
-      return { mode: 'replace', re: new RegExp(wrap(body), 'gid'), hlRe, tokens: parseReplacement(replacement), allowUnlisted: !!params['unlisted'], matchMode };
+      return { mode: 'replace', re: new RegExp(wrap(body), 'gid'), hlRe, tokens: parseReplacement(params.replace), allowUnlisted: !!params['unlisted'], matchMode };
     }
     return { mode: 'filter', re: new RegExp(wrap(capturing ? body : wrapRuns(body, runs)), 'gid'), matchMode };
   },

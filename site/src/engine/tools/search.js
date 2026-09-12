@@ -2,7 +2,7 @@
 
 import { buildSearchPattern } from '../search.js';
 import { runReplace } from '../regex.js';
-import { MATCH_PARAM, matchModeOf, ALLOW_UNLISTED_PARAM, SEARCH_HELP } from './shared.js';
+import { MATCH_PARAM, matchModeOf, ALLOW_UNLISTED_PARAM, SEARCH_HELP, isReplacing } from './shared.js';
 
 export default {
   name: 'Search', icon: '<svg width="16" height="16" aria-hidden="true"><use href="#icon-search"/></svg>', category: 'search',
@@ -11,13 +11,13 @@ export default {
   findReplace: true,
   params: [
     { placeholder: 'pattern', help: SEARCH_HELP },
-    { key: 'replace', placeholder: 'replace', raw: true },
+    { key: 'replace', placeholder: 'replace', raw: true, encodeEmpty: true },
     MATCH_PARAM,
     ALLOW_UNLISTED_PARAM,
   ],
-  kind: params => (params.replace ? 'transform' : 'filter'),
+  kind: params => (isReplacing(params) ? 'transform' : 'filter'),
   input: 'highlight', output: 'highlight',
-  glyph: params => (params.replace ? '→' : null),
+  glyph: params => (isReplacing(params) ? '→' : null),
   // An empty (or invalid, e.g. a reversed range) query is a no-op: the row is
   // transparent — no filtering, no lens — so an empty permanent search bar
   // costs nothing and a half-typed pattern doesn't blank the view.
@@ -27,11 +27,11 @@ export default {
     const matchMode = matchModeOf(params);
     const matcher = buildSearchPattern(params.pattern || '', matchMode);
     if (!matcher) return null;
-    const replacement = params.replace || '';
-    if (replacement) {
+    if (isReplacing(params)) {
       // Not parseReplacement: `$` is plain text in search syntax, and parsing
       // would silently swallow `$N` (search patterns have no groups to echo).
-      return { mode: 'replace', re: matcher.globalRe, hlRe: matcher.hlRe, tokens: [{ lit: replacement }], allowUnlisted: !!params['unlisted'], matchMode };
+      const tokens = params.replace ? [{ lit: params.replace }] : [];
+      return { mode: 'replace', re: matcher.globalRe, hlRe: matcher.hlRe, tokens, allowUnlisted: !!params['unlisted'], matchMode };
     }
     return { mode: 'filter', matcher };
   },

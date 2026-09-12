@@ -26,6 +26,9 @@ export function matchModeOf(params) {
 export const SPAN_PARAM = { key: 'mode', type: 'checkbox', value: 'span', label: 'Spans words', title: 'The match must cross a word break' };
 export const ALLOW_UNLISTED_PARAM = { key: 'unlisted', type: 'checkbox', replaceScoped: true, label: 'Allow unlisted', title: "Keep replacements that aren't in the wordlist" };
 
+// `!= null`, not truthiness: an empty replacement is delete mode, and a truthiness "cleanup" silently reverts it to a filter.
+export const isReplacing = params => params.replace != null;
+
 export const SEARCH_HELP = buildHelpHTML([
   ['*', 'any string'],
   ['?', 'any letter or digit'],

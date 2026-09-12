@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { visible, sameVisible, run, rowByFirst, highlightTexts } from './harness.js';
+import { makeToolRow } from '../../../site/src/engine/tools.js';
 
 const LIB = ['cat', 'cats', 'scat', 'cot', 'dog', 'cog', 'bell', 'teen'];
 const REPLACE_LIB = ['cat', 'cats', 'scat', 'dog', 'dogs', 'bell', 'bel', 'teen', 'ten'];
@@ -95,4 +96,15 @@ test('replace colors both capture groups on the input and their swapped echoes o
   assert.deepEqual(highlightTexts(row.atoms[1]), ['s', 't']);
   assert.deepEqual(kinds(row.atoms[0]), ['search:0', 'search:1']);
   assert.deepEqual(kinds(row.atoms[1]), ['search:1', 'search:0']);
+});
+
+test('an empty replacement is a transform that deletes the match', async () => {
+  sameVisible(await visible(REPLACE_LIB, regex('s$', { replace: '' })),
+    [['cats', 'cat'], ['dogs', 'dog']]);
+});
+
+test('an empty replacement makes the row a transform with the arrow glyph', () => {
+  const row = makeToolRow('regex', { pattern: 's$', replace: '' });
+  assert.equal(row.kind(), 'transform');
+  assert.equal(row.def.glyph(row.params), '→');
 });

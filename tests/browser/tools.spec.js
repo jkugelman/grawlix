@@ -420,7 +420,7 @@ test('the match-mode label toggles on/off; only the arrow opens the mode menu', 
   expect(await mode()).toBe('word');
 });
 
-test('the caret expands a Search row into find/replace; only toggles that change the replacement re-run the pipeline', async ({ page }) => {
+test('the caret switches a Search row between filter and replace; every toggle re-runs the pipeline', async ({ page }) => {
   await gotoApp(page);
   await addAnagramFixture(page);
 
@@ -429,14 +429,20 @@ test('the caret expands a Search row into find/replace; only toggles that change
   const replace = row.locator('input[data-key="replace"]');
   const caret = row.locator('.find-replace-caret');
   const replaceParam = () => page.evaluate(() => ToolStack.getUserStack()[0].params.replace);
+  const rowKind = () => page.evaluate(() => ToolStack.getUserStack()[0].kind());
   const pipelineVersion = () => page.evaluate(() => window.__grawlixTest.pipelineVersion());
+  const url = () => new URL(page.url()).search;
 
   await expect(replace).toBeHidden();
+  expect(await rowKind()).toBe('filter');
 
   const v0 = await pipelineVersion();
   await caret.click();
   await expect(replace).toBeVisible();
-  expect(await pipelineVersion()).toBe(v0);
+  expect(await replaceParam()).toBe('');
+  expect(await rowKind()).toBe('transform');
+  expect(url()).toContain('replace=');
+  expect(await pipelineVersion()).toBe(v0 + 1);
   await replace.fill('dog');
   expect(await replaceParam()).toBe('dog');
 
@@ -444,6 +450,8 @@ test('the caret expands a Search row into find/replace; only toggles that change
   await caret.click();
   await expect(replace).toBeHidden();
   expect(await replaceParam()).toBeUndefined();
+  expect(await rowKind()).toBe('filter');
+  expect(url()).not.toContain('replace');
   await expect(replace).toHaveValue('dog');
   expect(await pipelineVersion()).toBe(v1 + 1);
 
@@ -453,12 +461,37 @@ test('the caret expands a Search row into find/replace; only toggles that change
   expect(await pipelineVersion()).toBe(v1 + 2);
 
   await replace.fill('');
-  const v2 = await pipelineVersion();
-  await caret.click();
-  await expect(replace).toBeHidden();
-  await caret.click();
-  await expect(replace).toBeVisible();
-  expect(await pipelineVersion()).toBe(v2);
+  expect(await replaceParam()).toBe('');
+  expect(await rowKind()).toBe('transform');
+});
+
+test('an open, empty replace field deletes the match', async ({ page }) => {
+  await gotoApp(page);
+  await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
+    name: 'DeleteTest',
+    entries: ['cat', 'cats', 'dog'],
+    scores: [60, 50, 40],
+  }));
+
+  await page.fill('.search-bar input[data-key="pattern"]', 's');
+  await expectVisible(page, ['cats']);
+
+  await page.locator('.search-bar .find-replace-caret').click();
+  await expectVisible(page, [['cats', 'cat']]);
+});
+
+test('a bare replace= in the URL boots the bar expanded and in delete mode', async ({ page }) => {
+  await gotoApp(page);
+  await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
+    name: 'DeleteTest',
+    entries: ['cat', 'cats', 'dog'],
+    scores: [60, 50, 40],
+  }));
+
+  await gotoApp(page, '/?search=s&replace=');
+  await expect(page.locator('.search-bar .find-replace-caret')).toHaveAttribute('aria-expanded', 'true');
+  await expect(page.locator('.search-bar input[data-key="replace"]')).toBeVisible();
+  await expectVisible(page, [['cats', 'cat']]);
 });
 
 test('score range drops chains whose journey touched an out-of-range atom', async ({ page }) => {

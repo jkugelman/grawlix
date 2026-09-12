@@ -294,6 +294,11 @@ test('runReplace: a norm-preserving rewrite is dropped without allowUnlisted', (
   assert.deepEqual(runReplace(wl('cat'), prepared, corpus(['cat'])), []);
 });
 
+test('runReplace: a deletion that empties the entry is dropped even with allowUnlisted', () => {
+  const prepared = { re: /cat/gid, hlRe: /(cat)/gid, tokens: parseReplacement(''), allowUnlisted: true };
+  assert.deepEqual(runReplace(wl('cat'), prepared, corpus([])), []);
+});
+
 test('runReplace: a zero-width matcher terminates (advance guard)', () => {
   // Reaching the assertion at all proves the guard advances lastIndex; a runaway
   // empty-match loop would hang the test.

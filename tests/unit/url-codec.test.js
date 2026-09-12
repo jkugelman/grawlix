@@ -47,6 +47,31 @@ test('scalar tools still round-trip (regression)', () => {
   assert.equal(rows[0].params.mode, 'full');
 });
 
+test('an empty replacement rides the URL as a bare replace= and decodes present', () => {
+  const qs = query(makeToolRow('search', { pattern: 'cat', replace: '' }));
+  assert.equal(qs, 'search=cat&replace=');
+  const { rows } = decode(qs);
+  assert.equal(rows[0].params.replace, '');
+  assert.equal(rows[0].kind(), 'transform');
+});
+
+test('a row without a replace key decodes without one', () => {
+  assert.equal('replace' in decode('search=cat').rows[0].params, false);
+  assert.equal('replace' in decode('regex=cat').rows[0].params, false);
+});
+
+test('an empty replace= on a regex row round-trips too', () => {
+  const qs = query(makeToolRow('regex', { pattern: 's$', replace: '' }));
+  assert.equal(qs, 'regex=' + enc('s$') + '&replace=');
+  assert.equal(decode(qs).rows[0].params.replace, '');
+});
+
+test('a hand-written not before an empty replace= is dropped like any transform', () => {
+  const { rows } = decode('search=cat&not&replace=');
+  assert.equal(rows[0].invert, false);
+  assert.equal(query(rows[0]), 'search=cat&replace=');
+});
+
 test('legacy whole-word key decodes as mode=full and re-encodes as the new key', () => {
   const { rows, droppedUnknown } = decode('search=cat&whole-word');
   assert.equal(droppedUnknown, false);

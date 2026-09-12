@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { visible, sameVisible, run, rowByFirst, highlightTexts } from './harness.js';
+import { makeToolRow } from '../../../site/src/engine/tools.js';
 
 const LIB = ['untested', 'united', 'retested', 'cat', 'cot', 'cart', 'cats', 'scat'];
 const search = (pattern, p = {}) => [{ tool: 'search', params: { pattern, ...p } }];
@@ -133,4 +134,28 @@ test('replace highlights the matched span in and the replacement out, same color
   assert.deepEqual(highlightTexts(row.atoms[0]), ['cat']);
   assert.deepEqual(highlightTexts(row.atoms[1]), ['dog']);
   assert.equal(row.atoms[0].highlights[0].kind, row.atoms[1].highlights[0].kind);
+});
+
+test('an empty replacement is a transform that deletes the match', async () => {
+  sameVisible(await visible(REPLACE_LIB, search('s', { replace: '' })),
+    [['cats', 'cat'], ['scat', 'cat'], ['dogs', 'dog']]);
+});
+
+test('an empty replacement makes the row a transform with the arrow glyph', () => {
+  const row = makeToolRow('search', { pattern: 's', replace: '' });
+  assert.equal(row.kind(), 'transform');
+  assert.equal(row.def.glyph(row.params), '→');
+});
+
+test('an empty replacement highlights the deleted span in and nothing out', async () => {
+  const { rows } = await run(REPLACE_LIB, search('s', { replace: '' }));
+  const row = rowByFirst(rows, 'cats');
+  assert.equal(row.atoms.length, 2);
+  assert.deepEqual(highlightTexts(row.atoms[0]), ['s']);
+  assert.deepEqual(highlightTexts(row.atoms[1]), []);
+});
+
+test('a deletion that empties the entry emits nothing, even with unlisted allowed', async () => {
+  sameVisible(await visible(['cat', 'cats'], search('cat', { replace: '', unlisted: true })),
+    [['cats', 's']]);
 });
