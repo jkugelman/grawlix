@@ -49,6 +49,91 @@ test('Markdown link prefixes a grouped tool with a ✱', async ({ page }) => {
   expect(text).toMatch(/^\[✱ Letter bank\]\(http/);
 });
 
+test('Markdown link names a replacing Search row Replace and shows the replacement after an arrow', async ({ page }) => {
+  await gotoApp(page);
+  await addFixture(page);
+  await setStack(page, [{ tool: 'search', params: { pattern: 'c?t', replace: 'dog' } }]);
+
+  const text = await getExport(page, 'markdown-link');
+  expect(text).toMatch(/^\[Replace `c\?t` → `dog`\]\(http/);
+});
+
+test('Markdown link shows delete mode as an arrow to empty', async ({ page }) => {
+  await gotoApp(page);
+  await addFixture(page);
+  await setStack(page, [{ tool: 'search', params: { pattern: 's', replace: '' } }]);
+
+  const text = await getExport(page, 'markdown-link');
+  expect(text).toMatch(/^\[Replace `s` → empty\]\(http/);
+});
+
+test('Markdown link shows the match mode after the pattern', async ({ page }) => {
+  await gotoApp(page);
+  await addFixture(page);
+  await setStack(page, [{ tool: 'search', params: { pattern: 'c?t', mode: 'full' } }]);
+
+  const text = await getExport(page, 'markdown-link');
+  expect(text).toMatch(/^\[Search `c\?t` \(whole entry\)\]\(http/);
+});
+
+test('Markdown link puts Allow unlisted after the replacement it scopes', async ({ page }) => {
+  await gotoApp(page);
+  await addFixture(page);
+  await setStack(page, [{ tool: 'search', params: { pattern: 'c?t', mode: 'word', replace: 'dog', unlisted: true } }]);
+
+  const text = await getExport(page, 'markdown-link');
+  expect(text).toMatch(/^\[Replace `c\?t` \(whole word\) → `dog` \(allow unlisted\)\]\(http/);
+});
+
+test('Markdown link omits Allow unlisted while the replace field is closed', async ({ page }) => {
+  await gotoApp(page);
+  await addFixture(page);
+  await setStack(page, [{ tool: 'search', params: { pattern: 'c?t', unlisted: true } }]);
+
+  const text = await getExport(page, 'markdown-link');
+  expect(text).toMatch(/^\[Search `c\?t`\]\(http/);
+});
+
+test('Markdown link labels a non-default choice on any tool', async ({ page }) => {
+  await gotoApp(page);
+  await addFixture(page);
+  await setStack(page, [{ tool: 'remove', params: { pattern: 'a', mode: 'one' } }]);
+
+  const text = await getExport(page, 'markdown-link');
+  expect(text).toMatch(/^\[Remove string `a` \(occurrences: one\)\]\(http/);
+});
+
+test('Markdown link names a label-less choice by its param key', async ({ page }) => {
+  await gotoApp(page);
+  await addFixture(page);
+  await setStack(page, [{ tool: 'rhymes', params: { entry: 'orange', match: 'strict' } }]);
+
+  const text = await getExport(page, 'markdown-link');
+  expect(text).toMatch(/^\[Rhymes `orange` \(match: strict\)\]\(http/);
+});
+
+test('Markdown link joins pipeline stages with › so a replacement arrow stays distinct', async ({ page }) => {
+  await gotoApp(page);
+  await addFixture(page);
+  await setStack(page, [
+    { tool: 'anagrams', params: { entry: 'lindsey' } },
+    { tool: 'search', params: { pattern: 's', replace: 'x' } },
+    { tool: 'search', params: { pattern: 'e', mode: 'word' } },
+  ]);
+
+  const text = await getExport(page, 'markdown-link');
+  expect(text).toMatch(/^\[Anagrams `lindsey` › Replace `s` → `x` › Search `e` \(whole word\)\]\(http/);
+});
+
+test('Markdown link backticks a regex replacement with group echoes', async ({ page }) => {
+  await gotoApp(page);
+  await addFixture(page);
+  await setStack(page, [{ tool: 'regex', params: { pattern: '(t)(s)$', replace: '$2$1' } }]);
+
+  const text = await getExport(page, 'markdown-link');
+  expect(text).toMatch(/^\[Regex `\(t\)\(s\)\$` → `\$2\$1`\]\(http/);
+});
+
 test('Copy renders multi-entry chains inline with their glyphs', async ({ page }) => {
   await gotoApp(page);
   await addFixture(page);

@@ -8,7 +8,7 @@ export default {
   name: 'Search', icon: '<svg width="16" height="16" aria-hidden="true"><use href="#icon-search"/></svg>', category: 'search',
   desc: 'Search (and replace) with wildcards',
   example: 'un*ed · c?t',
-  findReplace: true,
+  findReplace: true, replaceName: 'Replace',
   params: [
     { placeholder: 'pattern', help: SEARCH_HELP },
     { key: 'replace', placeholder: 'replace', raw: true, encodeEmpty: true },

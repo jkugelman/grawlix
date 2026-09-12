@@ -12,6 +12,7 @@ import { applyEditsWriteSet } from '../engine/edit-plan.js';
 import { parseRange } from '../engine/range.js';
 import { isLiteralQuery } from '../engine/search.js';
 import { TOOLS } from '../engine/tools.js';
+import { isReplacing } from '../engine/tools/shared.js';
 import { pendingNewTools, markToolsSeen } from '../data/new-tools.js';
 import { NewToolsReveal } from '../ui/new-tools-reveal.js';
 import {
@@ -1320,6 +1321,22 @@ function chainCopyText(chain) {
   return parts.join(' ');
 }
 
+function flagLabel(row, p) {
+  const v = row.params[p.key];
+  if (p.repeat) return null;
+  if (p.type === 'checkbox') return v ? p.label.toLowerCase() : null;
+  if (v === undefined || v === '' || v === p.default) return null;
+  const choice = p.choices?.find(c => c.value === v);
+  const text = choice ? choice.label.toLowerCase() : p.type === 'number' ? String(v) : '`' + v + '`';
+  if (p.type === 'match') return text;
+  return `${(p.label || p.key).toLowerCase()}: ${text}`;
+}
+
+function flagsSuffix(row, params) {
+  const labels = params.map(p => flagLabel(row, p)).filter(Boolean);
+  return labels.length ? ` (${labels.join(', ')})` : '';
+}
+
 // Backtick the params: a wildcard like `*EARNING` would otherwise trigger
 // italic-on-rest-of-line in markdown renderers that parse formatting inside
 // link text — a silent breakage in Discord/GitHub, invisible in plain text.
@@ -1329,17 +1346,25 @@ export function buildCopyLinkMarkdown(stack) {
   stack.forEach((row, i) => {
     const isBar = i === stack.length - 1 && row.tool === 'search';
     if (isBar && row.isInert()) return;
-    let label = row.reversed() ? row.def.reverseName : row.def.name;
-    const firstParam = row.def.params.find(p => row.params[p.key] && p.type !== 'checkbox');
-    if (firstParam) {
-      const v = row.params[firstParam.key];
-      label += firstParam.type === 'number' ? ` ${v}` : ' `' + v + '`';
+    const { def, params } = row;
+    const replacing = def.findReplace && isReplacing(params);
+    let label = row.reversed() ? def.reverseName : (replacing && def.replaceName) || def.name;
+    const rest = (row.grouped ? def.params.slice(1) : def.params).filter(p => p.key !== 'replace');
+    const primary = rest.find(p => (!p.type || p.type === 'number') && params[p.key]);
+    if (primary) {
+      const v = params[primary.key];
+      label += primary.type === 'number' ? ` ${v}` : ' `' + v + '`';
+    }
+    label += flagsSuffix(row, rest.filter(p => p !== primary && !p.replaceScoped));
+    if (replacing) {
+      label += params.replace ? ' → `' + params.replace + '`' : ' → empty';
+      label += flagsSuffix(row, rest.filter(p => p.replaceScoped));
     }
     if (row.grouped) label = '✱ ' + label;
     if (row.inverted()) label = '🚫 ' + label;
     labels.push(label);
   });
-  const desc = labels.length ? labels.join(' → ') : 'Grawlix';
+  const desc = labels.length ? labels.join(' › ') : 'Grawlix';
   return `[${desc}](${url})`;
 }
 
