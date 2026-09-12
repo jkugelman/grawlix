@@ -4,6 +4,7 @@
 
 import { SCORE_RANGE_HELP, LENGTH_HELP } from './range.js';
 import { OUTPUT_HELP } from './rescore.js';
+import { isReplacing } from './tools/shared.js';
 import anagrams from './tools/anagrams.js';
 import hidden_anagram from './tools/hidden_anagram.js';
 import letter_bank from './tools/letter_bank.js';
@@ -178,6 +179,10 @@ export function makeToolRow(tool, params = {}, grouped = false, invert = false, 
     // non-filter row, where a reader skipping the kind test diverges from the stage.
     inverted() { return !!row.invert && row.kind() === 'filter' && !def.reversible; },   // a reversible filter's label hosts direction, not invert
     reversed() { return !!row.reverse && !!def.reversible; },
+    name() {
+      if (row.reversed()) return def.reverseName;
+      return (def.findReplace && isReplacing(row.params) && def.replaceName) || def.name;
+    },
     // reversed() swaps which side highlights: the converse of a front-cut that marks
     // its INPUT is a front-grow that marks its OUTPUT. Read the wrong side and the
     // atom count reserves a slot on the wrong atom — rows overlap in the scroller, no error.

@@ -253,7 +253,7 @@ function reverseOptsFor(row, rowToken) {
 }
 
 function labelDefFor(row, def) {
-  return def.reversible && row.reversed() ? { icon: def.icon, name: def.reverseName } : def;
+  return { icon: def.icon, name: row.name() };
 }
 
 export function buildSearchBarHTML() {
@@ -264,7 +264,7 @@ export function buildSearchBarHTML() {
   const parts = buildToolRowPartsHTML(TOOLS.search.params, row.params, 'search',
     p => ` data-row="bar" data-key="${p.key}"${p.key === 'pattern' ? ' title="Search (Alt-S)"' : ''}`,
     { findReplace: true, rowToken: 'bar', expanded: ToolStack.isRowExpanded('bar') });
-  const label = buildToolLabelHTML(TOOLS.search);
+  const label = buildToolLabelHTML(labelDefFor(row, TOOLS.search));
   const invert = buildInvertButtonHTML(invertOptsFor(row, 'bar'));
   const solo = ToolStack.getUserStack().length === 0 ? ' solo' : '';
   const inverted = row.inverted() ? ' inverted' : '';
@@ -896,7 +896,8 @@ export const ToolStack = (() => {
         if (!row) return;
         const expanding = !isRowExpanded(token);
         caret.setAttribute('aria-expanded', String(expanding));
-        const wrap = caret.closest('.tool-row, .search-bar').querySelector('.tool-row-replace');
+        const rowEl = caret.closest('.tool-row, .search-bar');
+        const wrap = rowEl.querySelector('.tool-row-replace');
         wrap.hidden = !expanding;
         const replaceInput = wrap.querySelector('input');
         if (expanding) {
@@ -905,7 +906,8 @@ export const ToolStack = (() => {
         } else {
           delete row.params.replace;
         }
-        syncInvertState(caret.closest('.tool-row, .search-bar'), row);
+        rowEl.querySelector(':scope > .tool-label .tool-row-name').textContent = row.name();
+        syncInvertState(rowEl, row);
         bumpPipelineVersion();
         _navigate();
         return;

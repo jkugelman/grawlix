@@ -1348,7 +1348,7 @@ export function buildCopyLinkMarkdown(stack) {
     if (isBar && row.isInert()) return;
     const { def, params } = row;
     const replacing = def.findReplace && isReplacing(params);
-    let label = row.reversed() ? def.reverseName : (replacing && def.replaceName) || def.name;
+    let label = row.name();
     const rest = (row.grouped ? def.params.slice(1) : def.params).filter(p => p.key !== 'replace');
     const primary = rest.find(p => (!p.type || p.type === 'number') && params[p.key]);
     if (primary) {

@@ -24,6 +24,8 @@ async function searchBarBoxes(page) {
     const pick = (sel) => box(bar.querySelector(sel));
     return {
       bar: box(bar),
+      overflow: bar.scrollWidth - bar.clientWidth,
+      name: bar.querySelector('.tool-row-name').textContent,
       drag: pick('.drag-handle'),
       label: pick('.tool-label'),
       caret: pick('.find-replace-caret'),
@@ -31,6 +33,7 @@ async function searchBarBoxes(page) {
       replace: pick('.tool-row-replace .tool-row-param-text input'),
       matchToggle: pick('.tool-row-asides input[type="checkbox"]'),
       matchMenuBtn: pick('.tool-row-asides .match-mode-arrow'),
+      invert: pick('.tool-row-invert'),
     };
   });
 }
@@ -82,5 +85,23 @@ test.describe('Search bar layout', () => {
     const patternToToggle = b.matchToggle.left - b.pattern.right;
     expect(patternToToggle).toBeGreaterThanOrEqual(8);
     expect(patternToToggle).toBeLessThanOrEqual(18);
+  });
+
+  test('at 375px viewport: the bar named Replace fits without overflow', async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 700 });
+    await gotoApp(page);
+
+    const before = await searchBarBoxes(page);
+    await page.locator('.search-bar .find-replace-caret').click();
+    const b = await searchBarBoxes(page);
+
+    expect(b.name).toBe('Replace');
+    expect(b.overflow).toBeLessThanOrEqual(0);
+    expect(b.label.right).toBeLessThanOrEqual(b.caret.left);
+    expect(b.pattern.width).toBeGreaterThanOrEqual(64);
+    expect(b.pattern.width).toBeGreaterThanOrEqual(before.pattern.width - (b.label.width - before.label.width) - 1);
+    for (const el of [b.label, b.caret, b.pattern, b.matchToggle, b.matchMenuBtn, b.invert]) {
+      expect(el.right).toBeLessThanOrEqual(b.bar.right + 0.5);
+    }
   });
 });

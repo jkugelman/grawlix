@@ -432,15 +432,18 @@ test('the caret switches a Search row between filter and replace; every toggle r
   const rowKind = () => page.evaluate(() => ToolStack.getUserStack()[0].kind());
   const pipelineVersion = () => page.evaluate(() => window.__grawlixTest.pipelineVersion());
   const url = () => new URL(page.url()).search;
+  const name = row.locator('.tool-row-name');
 
   await expect(replace).toBeHidden();
   expect(await rowKind()).toBe('filter');
+  await expect(name).toHaveText('Search');
 
   const v0 = await pipelineVersion();
   await caret.click();
   await expect(replace).toBeVisible();
   expect(await replaceParam()).toBe('');
   expect(await rowKind()).toBe('transform');
+  await expect(name).toHaveText('Replace');
   expect(url()).toContain('replace=');
   expect(await pipelineVersion()).toBe(v0 + 1);
   await replace.fill('dog');
@@ -451,6 +454,7 @@ test('the caret switches a Search row between filter and replace; every toggle r
   await expect(replace).toBeHidden();
   expect(await replaceParam()).toBeUndefined();
   expect(await rowKind()).toBe('filter');
+  await expect(name).toHaveText('Search');
   expect(url()).not.toContain('replace');
   await expect(replace).toHaveValue('dog');
   expect(await pipelineVersion()).toBe(v1 + 1);
@@ -458,6 +462,7 @@ test('the caret switches a Search row between filter and replace; every toggle r
   await caret.click();
   await expect(replace).toBeVisible();
   expect(await replaceParam()).toBe('dog');
+  await expect(name).toHaveText('Replace');
   expect(await pipelineVersion()).toBe(v1 + 2);
 
   await replace.fill('');
@@ -491,6 +496,7 @@ test('a bare replace= in the URL boots the bar expanded and in delete mode', asy
   await gotoApp(page, '/?search=s&replace=');
   await expect(page.locator('.search-bar .find-replace-caret')).toHaveAttribute('aria-expanded', 'true');
   await expect(page.locator('.search-bar input[data-key="replace"]')).toBeVisible();
+  await expect(page.locator('.search-bar .tool-row-name')).toHaveText('Replace');
   await expectVisible(page, [['cats', 'cat']]);
 });
 

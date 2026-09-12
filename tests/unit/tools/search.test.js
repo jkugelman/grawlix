@@ -147,6 +147,13 @@ test('an empty replacement makes the row a transform with the arrow glyph', () =
   assert.equal(row.def.glyph(row.params), '→');
 });
 
+test('a replacing Search row is named Replace; Regex keeps its name', () => {
+  assert.equal(makeToolRow('search', { pattern: 's' }).name(), 'Search');
+  assert.equal(makeToolRow('search', { pattern: 's', replace: '' }).name(), 'Replace');
+  assert.equal(makeToolRow('search', { pattern: 's', replace: 'x' }).name(), 'Replace');
+  assert.equal(makeToolRow('regex', { pattern: 's', replace: 'x' }).name(), 'Regex');
+});
+
 test('an empty replacement highlights the deleted span in and nothing out', async () => {
   const { rows } = await run(REPLACE_LIB, search('s', { replace: '' }));
   const row = rowByFirst(rows, 'cats');
