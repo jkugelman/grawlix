@@ -405,17 +405,21 @@ export function sortGroupChains(groups, sortKey) {
 // A tuple's group comparator must be a TOTAL order, or the streaming emitter's
 // incremental merge wouldn't equal a from-scratch sort and completion would
 // reshuffle: the group axes tiebreak down to groupCount, constant N for a
-// fixed-arity tuple. g.key (the joined norms) is unique per tuple, so it's the
-// total tiebreak — and it only fixes otherwise-arbitrary ties, so the buffered
-// path's order is unchanged. The worker's stream merge imports this so the two
-// orders can't drift.
+// fixed-arity tuple. g.key (the lanes' spellings joined by \0) is unique per
+// tuple, so it's the total tiebreak — and it only fixes otherwise-arbitrary
+// ties, so the buffered path's order is unchanged. The worker's stream merge
+// imports this so the two orders can't drift.
 export function groupRowComparator(sortList, stack) {
   const axis = composeSortAxis(sortList, groupSortAxes(stack));
   if (!axis) return null;
   const dir = sortList[0].dir;
   if (!isTupleChain(stack)) return (a, b) => compareItems(a, b, axis, dir);
-  return (a, b) => compareItems(a, b, axis, dir) || String(a.key).localeCompare(String(b.key));
+  return (a, b) => compareItems(a, b, axis, dir) || compareKeys(String(a.key), String(b.key));
 }
+
+// Code-unit order, not localeCompare: ICU collation ignores the \0 lane separator,
+// so 'a\0bc' and 'ab\0c' would tie and the tiebreak would stop being total.
+export const compareKeys = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
 
 // Chains sort before the groups (the Entry group axis projects off chain seed
 // order via groupChainEntries) and unconditionally — gating the chain sort on the

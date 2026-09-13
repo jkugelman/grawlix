@@ -246,7 +246,8 @@ const SECTIONS = [
         a: `
           <p>Umiaq is search with <strong>variables</strong>. A capital letter stands for a chunk of letters that has to come out the same everywhere it appears. So <code>ABBA</code> finds words whose halves mirror, like NOON and DEED, and <code>AA</code> finds doubled words like MAMA and TUTU.</p>
           <p>The real trick is reusing a variable across several words, separated by a semicolon. <code>AB;BA</code> finds pairs where the same two chunks swap places, like APE and PEA, and the matches come back as side-by-side tuples. That cross-word link is the thing plain search and regex cannot express.</p>
-          <p>Everything else works like the search bar: lowercase is literal, <code>?</code> is any character, <code>*</code> any run, <code>#</code> and <code>@</code> a consonant and a vowel. The one quirk is that capitals are variables here, so unlike the search bar, case matters.</p>`,
+          <p>Everything else works like the search bar: lowercase is literal, <code>?</code> is any letter or digit, <code>*</code> any run, <code>#</code> and <code>@</code> a consonant and a vowel. The one quirk is that capitals are variables here, so unlike the search bar, case matters.</p>
+          <p>A space in the query is a literal space, so <code>A B;B A</code> finds two-word swaps like PEANUT BUTTER and BUTTER PEANUT. Put a backslash before a punctuation mark to match it as written, like <code>u\\.s\\.</code>, or before a capital to match that capital exactly.</p>`,
       },
     ],
   },

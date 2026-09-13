@@ -119,7 +119,7 @@ test('past the retain limit the stream is the only copy — terminal rows are em
   const { out, batches } = await streamWeave(['wallsockets', 'wallet', 'socks'], 0);
   assert.equal(out.laneKind, 'record');
   assert.equal(out.rows.length, 0, 'the tuple set must not be built a second time');
-  assert.deepEqual(batches.flat().map(g => g.key), ['wallsockets wallet socks']);
+  assert.deepEqual(batches.flat().map(g => g.key), ['wallsockets\0wallet\0socks']);
 });
 
 test('under the retain limit rows survive, so the run stays prefix-cacheable', async () => {

@@ -42,7 +42,7 @@ test('parse: a plain literal is arity 1 with no variables', () => {
   assert.equal(p.ok, true);
   assert.equal(p.arity, 1);
   assert.equal(p.variables.size, 0);
-  assert.deepEqual(p.bindings[0].tokens, [{ t: 'lit', s: 'cat' }]);
+  assert.deepEqual(p.bindings[0].tokens, [{ t: 'lit', s: 'cat', f: 'cat' }]);
 });
 
 test('parse: arity is the pattern count, ignoring constraint clauses', () => {
@@ -140,9 +140,9 @@ test('parse: |*| applies a length constraint to every variable the query uses', 
                    { A: zero, B: zero, C: zero });
 });
 
-test('parse: | * | tolerates spaces inside the bars', () => {
-  assert.deepEqual(parseUmiaqQuery('A;| * |>=0').constraints.varBounds.A, { min: 0, max: Infinity });
-  assert.deepEqual(parseUmiaqQuery('ABCD;| A-C |>=0').constraints.varBounds.D, undefined);
+test('parse: a space inside the bars is an error, not ignored', () => {
+  assert.match(parseUmiaqQuery('A;| * |>=0').error, /space|variable range/);
+  assert.match(parseUmiaqQuery('ABCD;| A-C |>=0').error, /space|variable range/);
 });
 
 test('parse: |A-C| scopes the constraint to a letter range', () => {

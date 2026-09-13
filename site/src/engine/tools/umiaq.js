@@ -2,7 +2,8 @@
 
 import { buildHelpHTML } from '../../core/util.js';
 import { TUPLE_CAP_MOBILE } from '../../core/constants.js';
-import { parseUmiaqQuery, matchPattern, findTuples, variableColors, variableHighlights } from '../umiaq.js';
+import { displayOf, foldedDisplayOf } from '../norm.js';
+import { parseUmiaqQuery, matchPattern, findTuples, variableColors, variableHighlights, caseOK } from '../umiaq.js';
 
 // Memory ceiling, not a UX cap: the worker retains every streamed tuple for
 // scrollback, so an unbounded broad query would blow memory. Defaults to the
@@ -33,6 +34,9 @@ export const UMIAQ_HELP = buildHelpHTML([
   ['|*|>=0', 'every variable may be empty'],
   ['7-9:…', 'only 7-to-9-letter matches'],
   ['/word', 'an anagram of word'],
+  ['A B', 'a space matches a spelled space'],
+  ['\\.', 'a literal punctuation mark'],
+  ['\\A', 'a literal capital A'],
 ]);
 
 export default {
@@ -51,6 +55,7 @@ export default {
   // Filter-mode only: lights a single binding's matched variables. Drop it and that
   // silently stops; the tuple path (other kind) colors its own lanes, ignoring this.
   input: 'highlight', output: 'plain',
+  matchOn: 'both',
   isInert: params => !parseUmiaqQuery(params?.query || '').ok,
   error(params) {
     const parsed = parseUmiaqQuery(params?.query || '');
@@ -62,11 +67,15 @@ export default {
     parsed.varColor = variableColors(parsed.variables);
     return parsed;
   },
-  run(entry, parsed) {
+  run(wlEntry, parsed) {
     if (!parsed) return true;
-    const matches = matchPattern(entry, parsed.bindings[0], parsed.constraints);
-    if (!matches.length) return false;
-    return variableHighlights(entry, parsed.bindings[0], matches[0], parsed.varColor);
+    const disp = parsed.arm === 'display';
+    const word = disp ? foldedDisplayOf(wlEntry) : wlEntry.norm;
+    const binding = parsed.bindings[0];
+    const matches = matchPattern(word, binding, parsed.constraints);
+    const m = parsed.caseSensitive ? matches.find(a => caseOK(displayOf(wlEntry), binding, a)) : matches[0];
+    if (!m) return false;
+    return variableHighlights(word, binding, m, parsed.varColor, disp ? 'display' : null);
   },
   findTuples(pool, parsed, ctx) {
     return findTuples(parsed, pool, { numResults: tupleMaxResults, onBatch: ctx.onBatch, y: ctx.y, signal: ctx.signal });

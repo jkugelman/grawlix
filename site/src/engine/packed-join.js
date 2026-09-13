@@ -22,7 +22,7 @@
 // packs; the worker's packability gates (packableRecordStack / tryPackGroupJoin) keep
 // a decorated-pool, multi-atom, or multi-key result on the eager path.
 
-import { composeSortAxis, compareItems } from './sort.js';
+import { composeSortAxis, compareItems, compareKeys } from './sort.js';
 import { displayOf } from './norm.js';
 import { parseViewFilter } from './range.js';
 import { cacheGroupStats, entryPredicate } from './executor.js';
@@ -47,6 +47,7 @@ export class PackedRecordJoin {
     this.hlStart = new Grow(Int16Array);
     this.hlEnd = new Grow(Int16Array);
     this.hlKind = new Grow(Int8Array);       // kind-id into `kinds` (VAR_HL_COLORS bounds it small)
+    this.hlDisp = new Grow(Uint8Array);      // 1 when the range is in display coordinates
     this.kinds = [];                         // kind-id → kind string
     this._kindIndex = new Map();
   }
@@ -70,7 +71,7 @@ export class PackedRecordJoin {
         if (chains[k].atoms.length !== 1 || atom.wlEntry._i == null) throw new Error('packed record lane is not a single corpus entry');
         this.laneIdx.push(atom.wlEntry._i);
         const hl = atom.highlights;
-        if (hl) for (const r of hl) { this.hlStart.push(r.start); this.hlEnd.push(r.end); this.hlKind.push(this._kindId(r.kind)); }
+        if (hl) for (const r of hl) { this.hlStart.push(r.start); this.hlEnd.push(r.end); this.hlKind.push(this._kindId(r.kind)); this.hlDisp.push(r.coord === 'display' ? 1 : 0); }
         this.hlPtr.push(this.hlStart.length);
       }
       this.count++;
@@ -79,12 +80,12 @@ export class PackedRecordJoin {
 
   laneEntry(corpus, ord, k) { return corpus.entries[this.laneIdx.a[ord * this.arity + k]]; }
 
-  // Space-joined lane norms — must equal tupleToGroup's key, or the sort tiebreak
+  // \0-joined lane spellings — must equal tupleToGroup's key, or the sort tiebreak
   // and group-key fetch resolve differently from the eager path.
   keyOf(corpus, ord) {
     const base = ord * this.arity, li = this.laneIdx.a, entries = corpus.entries;
     let s = '';
-    for (let k = 0; k < this.arity; k++) { if (k) s += ' '; s += entries[li[base + k]].norm; }
+    for (let k = 0; k < this.arity; k++) { if (k) s += '\0'; s += displayOf(entries[li[base + k]]); }
     return s;
   }
 
@@ -95,13 +96,17 @@ export class PackedRecordJoin {
     const lo = this.hlPtr.a[lane], hi = this.hlPtr.a[lane + 1];
     if (lo === hi) return null;
     const out = new Array(hi - lo);
-    for (let i = lo; i < hi; i++) out[i - lo] = { start: this.hlStart.a[i], end: this.hlEnd.a[i], kind: this.kinds[this.hlKind.a[i]] };
+    for (let i = lo; i < hi; i++) {
+      const r = { start: this.hlStart.a[i], end: this.hlEnd.a[i], kind: this.kinds[this.hlKind.a[i]] };
+      if (this.hlDisp.a[i]) r.coord = 'display';
+      out[i - lo] = r;
+    }
     return out;
   }
 
   get byteLength() {
     return this.laneIdx.length * 4 + this.hlPtr.length * 4
-      + this.hlStart.length * 2 + this.hlEnd.length * 2 + this.hlKind.length
+      + this.hlStart.length * 2 + this.hlEnd.length * 2 + this.hlKind.length + this.hlDisp.length
       + this.kinds.reduce((n, s) => n + s.length * 2 + 8, 0);
   }
 }
@@ -168,7 +173,7 @@ export function recordComparator(sortList, join, corpus) {
   if (!axis) return null;
   const dir = sortList[0].dir;
   const key = ord => join.keyOf(corpus, ord);
-  return (a, b) => compareItems(a, b, axis, dir) || key(a).localeCompare(key(b));
+  return (a, b) => compareItems(a, b, axis, dir) || compareKeys(key(a), key(b));
 }
 
 // The sorted+filtered ordinal permutation (the view). The join stays unfiltered so a

@@ -15,7 +15,7 @@ A query is a list of **clauses** separated by `;`, in any order. Each clause is 
 
 Every binding contributes one word to the output. **One binding** filters the wordlist word by word, like an ordinary search — `ABBA` finds words whose halves mirror (NOON, DEED), landing in the normal entries table. **Several bindings** make a **tuple search**: Umiaq finds *sets* of words that satisfy the shared variables together — `AB;BA` turns up pairs like APE / PEA where the same two chunks swap places, rendered as side-by-side lanes ([Systems and tuples](#systems-and-tuples)). Umiaq reads its mode off the query itself — the number of bindings — so there is no toggle.
 
-**Umiaq is the one case-sensitive tool.** A capital letter is a variable; a lowercase letter is a literal. So `cat` is the literal word CAT, while `CAT` is three variables. Matching happens over each entry's normalized form (accents and spaces stripped, lowercased), so a variable binds the same normalized chunk across a word's spellings.
+**Umiaq is the one case-sensitive tool.** A capital letter is a variable; a lowercase letter is a literal. So `cat` is the literal word CAT, while `CAT` is three variables. A query made of letters, digits, and the syntax below matches each entry's **normalized form** (accents, spaces, and punctuation stripped, lowercased), so a variable binds the same normalized chunk across a word's spellings. A query that carries a **space, a backslash escape, or a letter outside ASCII** matches the entry's **spelling** instead — see [Spelling](#spelling-spaces-punctuation-and-capitals).
 
 ## Elements
 
@@ -24,7 +24,7 @@ The building blocks of a pattern:
 | Element | Matches |
 |---|---|
 | `a`–`z`, `0`–`9` | that literal character |
-| `?` | any one character |
+| `?` | any one letter or digit |
 | `*` | any run of characters, including none |
 | `#` | any consonant |
 | `@` | any vowel |
@@ -33,8 +33,30 @@ The building blocks of a pattern:
 | `[l-p]` | a range — any one of l, m, n, o, p |
 | `A`–`Z` | a **variable** (see below) |
 | `~A` | the reverse of variable A |
+| a space | a spelled space; switches the query to [spelling matching](#spelling-spaces-punctuation-and-capitals) |
+| `\.`, `\-`, `\'` … | that literal mark; a backslash makes any punctuation mark or space literal |
+| `\A`–`\Z` | that literal capital, matched case-sensitively |
 
 **Y is a vowel.** `@` matches it and `#` does not — matching upstream Umiaq, OneLook, and Ingrid. These are Grawlix's shared search-bar classes, so `#`, `@`, and `[…]` behave identically here and in the search bar.
+
+## Spelling: spaces, punctuation, and capitals
+
+A query has two possible **arms**, and takes exactly one. A query of letters, digits, and syntax matches the **normalized form**, the way Search's first arm does. A query containing a space, a backslash escape, or a letter outside ASCII takes the **spelling arm**: every binding matches the entry as spelled, case-insensitively. `* *` keeps only entries written with a space; `A B;B A` finds two-word phrases whose words swap (PEANUT BUTTER / BUTTER PEANUT); `A B;AB` pairs a phrase with its run-together spelling (THE IRS / THEIRS); `u\.s\.` matches a spelled abbreviation.
+
+The arm is chosen once per query because neither arm can add a match the other finds. The normalized form holds no separators, so a query with a space can never match it; and a query without one gains nothing from spelling, because `?`, `#`, `@`, and `[…]` take a letter or digit only, never a separator. So nothing runs twice.
+
+On the spelling arm:
+
+- `?` and `[…]` match one letter or digit from any script, never a separator; `#` and `@` are the shared consonant and vowel sets, so an accented letter is neither. `*` and variables match any run, separators included, so `A B` on ROCK AND ROLL binds A to ROCK or ROCK AND. A variable binds the same spelled chunk everywhere it appears, so THE IRS and THE-IRS are different chunks. In a term target (`AB=c?t`) `?` and a class stand for `a`–`z` and digits, since the target is generated, not matched.
+- A lowercase literal matches either case. An **escaped capital** (`\N\A\S\A`) matches only that capital as written, and is allowed only in a binding. Grawlix keeps an entry's case only where it departs from its wordlist's convention, so on an all-caps list an escaped capital finds nothing.
+- Letters and digits from any script are bare literals: `café` matches CAFÉ and not CAFE, exactly as in Search.
+- An anagram bag holds letters and digits, so a spaced spelling never rearranges into it.
+- **Lengths count letters and digits**, the Length column's measure. `|A|`, `|AB|=n`, `|A|=|B|`, the `7:` prefix, and a sub-pattern's length all ignore spaces and punctuation, so `6:A B` finds THE IRS.
+- A tuple query reduces its pool to one entry per **folded spelling** (see [One spelling per norm in a tuple](#one-spelling-per-norm-in-a-tuple)).
+
+**Escapes.** A backslash makes the next character a literal: `u\.s\.`, `rock\-n\-roll`, `a\;b`, `A\ B`. Every character that is not a letter, digit, or space and not part of the syntax is **reserved**, and errors with a hint to escape it, so the syntax can grow without changing the meaning of an old query. `\` before a lowercase letter or digit is an error too, which keeps a pasted regex escape (`\s`, `\d`) from silently meaning a letter. A trailing `\` is an error.
+
+**Whitespace is never ignored.** Spaces at the ends of the query and around `;` are trimmed. A space inside a constraint (`|A| >= 3`), inside a length prefix (`7 :`), touching an operator (`A = #@#`), or inside `|…|` is an error.
 
 ## Anagram — `/letters`
 
@@ -129,8 +151,10 @@ Tuples are **positional**: APE / PEA and PEA / APE are different rows. Each vari
 
 Grawlix speaks its own dialect. Reusing Grawlix's search syntax and range conventions rather than Qat/Umiaq's own notation is a deliberate consistency-over-fidelity call — the reference notation is known to few constructors, and matching the rest of the app is worth more than fidelity to it. The consequences, especially for anyone pasting a pattern from Qat or CopyQat:
 
-- **Any-character is `?`, not `.`.** Grawlix reserves `.` — it separates the variable breakdown in results — so a pasted `.` errors rather than acting as a wildcard.
-- **Negation is `[^abc]`, not `[!abc]`.** A pasted `[!abc]` matches a literal `!` plus a, b, c.
+- **Any-character is `?`, not `.`.** Every punctuation mark outside the syntax is reserved, so a pasted `.` errors, with a hint to write `\.` for a literal dot.
+- **A space is a literal.** Qat and upstream Umiaq ignore spaces inside a pattern; their dictionaries carry none. Grawlix's wordlists do, so `A B` is two words and `AB` is one string ([Spelling](#spelling-spaces-punctuation-and-capitals)). Spaces around `;` still trim away.
+- **Backslash escapes.** Neither reference tool has an escape. Grawlix spells a literal punctuation mark, space, or capital as `\x`, and treats a backslash before a lowercase letter or digit as an error, so a pasted regex escape fails loudly.
+- **Negation is `[^abc]`, not `[!abc]`.** A class body takes letters, digits, `#`, `@`, a leading `^`, and a range dash, so a pasted `[!abc]` is an invalid class.
 - **Digits are literals**, not Qat's "repeated any-letter" placeholders (`l0v0` is the literal string, not "same letter twice"). Variables cover that use.
 - **Lengths use the score-range syntax** (`10+`, `0-6`), not Qat's `10-` / `-6`. This applies both to the [length prefix](#length-prefix) (`10+:x*a`) and to a length constraint's right side (`|AB|=8-9`) — Nexus-Umiaq spells the latter the same way, so that one lines up, while `|AB|=8-` does not. Zero-length is `|A|>=0` or `|A|=0+`, not Qat's `|A|=0-`, and Grawlix also honors a zero-floor sub-pattern (`A=*`), which the reference tools don't. CopyQat goes the other way and has no zero-length escape at all.
 - **A constraint can cover every variable at once** — `|*|>=0`, `|A-C|=3-5`. The reference tools have no equivalent; each variable must be named.
@@ -169,3 +193,5 @@ A norm can carry several spellings (`eta`/`ETA`), and Umiaq matches on norm, so 
 A query that emits a **tuple** now reduces its pool to one entry per norm up front, picked by `preferRow` (`engine/corpus.js`) — the same rule that decides which spelling represents a norm everywhere else: highest score, then the shorter spelling, then code-unit order. All three strategies see the canonical pool, so the existing norm-keyed dedupes become no-ops rather than tiebreakers, and the answer no longer depends on the plan.
 
 A **single** pattern is left alone and still shows every spelling, matching the entries table and every other tool. The asymmetry is deliberate: a tuple is a combination, so preserving spellings there multiplies results (two spellings across two lanes is four tuples saying the same thing), while a single pattern lists entries and the spellings *are* the distinction.
+
+On the [spelling arm](#spelling-spaces-punctuation-and-capitals) the pool reduces to one entry per **folded spelling** instead, so THE IRS and THEIRS are distinct lanes while THE IRS and THE irs collapse to the preferred one. A query with an escaped capital keeps case variants apart, since case is what it distinguishes, and runs on the exhaustive bucket path so every variant is a candidate.

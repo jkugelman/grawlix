@@ -117,7 +117,7 @@ test('a streamed run hands off cleanly to a settled tuple render', async ({ page
   // the mid-stream cache reset to the settled order rather than leaving a stale snapshot.
   const visibleKeys = await page.evaluate(async () => {
     const groups = await window.__grawlixTest.getVisibleGroups();
-    return groups.map(g => g.chains.map(c => c.join('')).join(' '));
+    return groups.map(g => g.chains.map(c => c.join('')).join('\0'));
   });
   expect(visibleKeys.length).toBeGreaterThan(0);
   const runId = await page.evaluate(() => window.__grawlixTest.lastCompletedRunId());

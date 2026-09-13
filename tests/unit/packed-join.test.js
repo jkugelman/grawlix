@@ -24,7 +24,7 @@ function scenario(rows) {
   const groups = rows.map(lanes => {
     const chains = lanes.map(([norm, display, score, hl]) =>
       ({ atoms: [{ wlEntry: entryFor(norm, display, score), highlights: hl ?? null, glyph: null }] }));
-    const g = { key: lanes.map(l => l[0]).join(' '), chains, anchor: null };
+    const g = { key: lanes.map(l => l[1] ?? l[0]).join('\0'), chains, anchor: null };
     cacheGroupStats(g);
     return g;
   });
@@ -102,7 +102,7 @@ test('recordView with a score range keeps a tuple only when every lane is in ran
   const eager = sortGroups(applyViewFilterToRows(groups.map(g => ({ ...g })), filter, 'record'), sort, TUPLE_STACK).map(g => g.key);
   const packed = [...recordView(join, { sort, scoreRange: range }, corpus)].map(ord => join.keyOf(corpus, ord));
   assert.deepEqual(packed, eager);
-  assert.deepEqual(packed, ['cccc dddd', 'eeee ffff']);
+  assert.deepEqual(packed, ['cccc\0dddd', 'eeee\0ffff']);
 });
 
 test('appendGroups streams in batches identically to one bulk pack', () => {

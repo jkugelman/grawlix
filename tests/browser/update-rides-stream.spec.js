@@ -71,7 +71,7 @@ test('a background structural update mid-stream defers — the tuple run finishe
 
     const runId = T.lastCompletedRunId();
     const reply = await T.fetchWorkerAllGroups(runId);
-    const tuples = reply ? reply.groups.map(g => g.key.split(' ')) : null;   // key = the tuple's space-joined lane norms
+    const tuples = reply ? reply.groups.map(g => g.key.split('\0')) : null;   // key = the tuple's \0-joined lane spellings
     return { streamRunId, finalRunId: runId, streamingAtUpdate, partialRunIds, tuples, fetchMode: T.lastFetchMode() };
   }, newBody);
 

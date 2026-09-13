@@ -57,6 +57,34 @@ export function displayOf(wlEntry) {
   return wlEntry.display ?? wlEntry.norm;
 }
 
+// Lowercases a code unit only when its lowercase is one code unit (İ → i̇ is two),
+// so a match position in the folded string is a display coordinate as-is.
+export function foldDisplay(s) {
+  let out = '';
+  for (let i = 0; i < s.length; i++) {
+    const c = s[i];
+    if (c >= 'A' && c <= 'Z') out += c.toLowerCase();
+    else if (c > '\x7f') { const l = c.toLowerCase(); out += l.length === 1 ? l : c; }
+    else out += c;
+  }
+  return out;
+}
+
+export function foldedDisplayOf(wlEntry) {
+  if (wlEntry.display == null) return wlEntry.norm;
+  return wlEntry._fold ??= foldDisplay(wlEntry.display);
+}
+
+export function normLen(s) {
+  if (/[^\x00-\x7f]/.test(s)) return toNorm(s).length;
+  let n = 0;
+  for (let i = 0; i < s.length; i++) {
+    const c = s.charCodeAt(i);
+    if ((c >= 48 && c <= 57) || (c >= 65 && c <= 90) || (c >= 97 && c <= 122)) n++;
+  }
+  return n;
+}
+
 export function projectRangesToDisplay(ranges, wlEntry) {
   if (!ranges?.length) return ranges;
   const map = normToDisplayMap(wlEntry);

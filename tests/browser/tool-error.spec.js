@@ -117,7 +117,7 @@ test('an invalid Umiaq query surfaces its parse error and clears on a fix', asyn
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'umiaq', params: { query: 'A;1>' } }]));
   const errBtn = page.locator('.tool-row-error-btn');
   await expect(errBtn).toBeVisible();
-  await expect(errBtn).toHaveAttribute('title', 'unexpected character ">"');
+  await expect(errBtn).toHaveAttribute('title', /^unexpected character ">"/);
 
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'umiaq', params: { query: 'AB' } }]));
   await expect(errBtn).toBeHidden();

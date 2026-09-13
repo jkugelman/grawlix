@@ -117,13 +117,14 @@ function tupleWithFilterTail(stack) {
   return { producer: stack[si], filters };
 }
 
-// Keyed by joined norms: that key is unique per tuple, so it addresses one tuple
-// for the worker's per-group fetch and is the total tiebreak the streaming merge
-// needs (see sort.js groupRowComparator). Each lane carries the tuple producer's
-// per-variable highlight ranges, so the rendered tuple colors its shared chunks.
+// Keyed by the lanes' spellings joined by \0: unique per tuple even when two
+// spellings share a norm, so it addresses one tuple for the worker's per-group
+// fetch and is the total tiebreak the streaming merge needs (see sort.js
+// groupRowComparator). Each lane carries the tuple producer's per-variable
+// highlight ranges, so the rendered tuple colors its shared chunks.
 function tupleToGroup(tuple) {
   return {
-    key: tuple.map(lane => lane.entry.norm).join(' '),
+    key: tuple.map(lane => displayOf(lane.entry)).join('\0'),
     chains: tuple.map(lane => ({ atoms: [{ wlEntry: lane.entry, highlights: lane.highlights, glyph: null }] })),
   };
 }

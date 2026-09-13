@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { stubPublisherFetches, gotoApp } from './helpers.js';
+import { stubPublisherFetches, gotoApp, reloadApp, addTool } from './helpers.js';
 
 // Umiaq is one polymorphic tool: a single pattern filters per word (arity 1, flat
 // table), several patterns find arity-N tuples rendered as
@@ -31,6 +31,112 @@ const tier = page => page.evaluate(() => window.__grawlixTest.windowedFlatDebug(
 const entries = page => page.evaluate(() => window.__grawlixTest.getVisibleEntries());
 const tuples = async page =>
   (await page.evaluate(() => window.__grawlixTest.getVisibleGroups())).map(g => g.chains.map(c => c.join('')));
+
+const SPELLED = {
+  entries: ['the IRS', 'theirs', 'peanut butter', 'butter peanut', 'bye bye', 'NASA', 'nasal', 'U.S.', 'cat', 'café au lait', "'cause"],
+  scores:  [60,        90,       80,              70,              50,        95,     40,      30,     20,    45,             35],
+};
+
+async function setupSpelled(page) {
+  await gotoApp(page);
+  await page.evaluate(w => window.__grawlixTest.addCustomWordlist({ name: 'SpelledWL', ...w }), SPELLED);
+  await page.evaluate(() => window.__grawlixTest.setScope('SpelledWL'));
+  await page.evaluate(() => window.__grawlixTest.pipelineIdle());
+}
+
+// The marked substrings in order, and the cell's text with the marks cut out — together
+// they pin where each highlight sits, not just that some highlight exists.
+const marksOf = (page, text) => page.evaluate(t => {
+  for (const cell of document.querySelectorAll('#vs-host .atom-entry')) {
+    if (cell.textContent.trim() !== t) continue;
+    const marks = [...cell.querySelectorAll('[class^="hl-umiaq-var-"]')].map(s => s.textContent);
+    const clone = cell.cloneNode(true);
+    for (const s of clone.querySelectorAll('[class^="hl-umiaq-var-"]')) s.remove();
+    return { marks, rest: clone.textContent };
+  }
+  return null;
+}, text);
+
+test('a space in the query keeps only entries spelled with a space', async ({ page }) => {
+  await setupSpelled(page);
+  await run(page, '* *');
+  expect((await entries(page)).slice().sort()).toEqual(['butter peanut', 'bye bye', 'café au lait', 'peanut butter', 'the IRS']);
+});
+
+test('a two-word swap query pairs spelled phrases', async ({ page }) => {
+  await setupSpelled(page);
+  await run(page, 'A B;B A;A!=B');
+  expect(await tier(page)).toBe('tuple');
+  const result = await tuples(page);
+  expect(result).toContainEqual(['peanut butter', 'butter peanut']);
+  expect(result).toContainEqual(['butter peanut', 'peanut butter']);
+  expect(result).toHaveLength(2);
+});
+
+test('a phrase pairs with its run-together spelling', async ({ page }) => {
+  await setupSpelled(page);
+  await run(page, 'A B;AB');
+  expect(await tuples(page)).toEqual([['the IRS', 'theirs']]);
+});
+
+test('an escaped capital matches only the capitalized spelling', async ({ page }) => {
+  await setupSpelled(page);
+  await run(page, '\\N\\A\\S\\A*');
+  expect(await entries(page)).toEqual(['NASA']);
+  await run(page, 'nasa*');
+  expect((await entries(page)).slice().sort()).toEqual(['NASA', 'nasal']);
+});
+
+test('escaped punctuation matches the spelled mark', async ({ page }) => {
+  await setupSpelled(page);
+  await run(page, 'u\\.s\\.');
+  expect(await entries(page)).toEqual(['U.S.']);
+});
+
+test('spelling-arm highlights sit on the spelled letters, with separators and marks left unmarked', async ({ page }) => {
+  await setupSpelled(page);
+  await run(page, 'A B');
+  expect(await marksOf(page, 'peanut butter')).toEqual({ marks: ['peanut', 'butter'], rest: ' ' });
+  // Norm coordinates would color "the" and " IR" here; the display coordinates color the words.
+  expect(await marksOf(page, 'the IRS')).toEqual({ marks: ['the', 'IRS'], rest: ' ' });
+  await run(page, 'A\\.B\\.');
+  expect(await marksOf(page, 'U.S.')).toEqual({ marks: ['U', 'S'], rest: '..' });
+  await run(page, 'A B C');
+  expect(await marksOf(page, 'café au lait')).toEqual({ marks: ['café', 'au', 'lait'], rest: '  ' });
+  await run(page, "\\'A");
+  expect(await marksOf(page, "'cause")).toEqual({ marks: ['cause'], rest: "'" });
+  await run(page, 'caf? *');
+  expect(await marksOf(page, 'café au lait')).toEqual({ marks: [], rest: 'café au lait' });
+});
+
+test('tuple lanes on the spelling arm highlight each word in display coordinates', async ({ page }) => {
+  await setupSpelled(page);
+  await run(page, 'A B;B A;A!=B');
+  expect(await marksOf(page, 'butter peanut')).toEqual({ marks: ['butter', 'peanut'], rest: ' ' });
+  expect(await marksOf(page, 'peanut butter')).toEqual({ marks: ['peanut', 'butter'], rest: ' ' });
+  await run(page, 'A B;AB');
+  expect(await marksOf(page, 'the IRS')).toEqual({ marks: ['the', 'IRS'], rest: ' ' });
+  expect(await marksOf(page, 'theirs')).toEqual({ marks: ['the', 'irs'], rest: '' });
+});
+
+test('a query with a space, a backslash, and a capital round-trips through the URL', async ({ page }) => {
+  await setupSpelled(page);
+  await addTool(page, 'umiaq');
+  const input = page.locator('.tool-row input[data-key="query"]');
+  await input.fill('A \\I\\R\\S');
+  await expect.poll(() => entries(page)).toEqual(['the IRS']);
+  expect(page.url()).toContain('umiaq');
+  await reloadApp(page);
+  await expect(page.locator('.tool-row input[data-key="query"]')).toHaveValue('A \\I\\R\\S');
+  await expect.poll(() => entries(page)).toEqual(['the IRS']);
+});
+
+test('a reserved character errors on the row with an escape hint and keeps results transparent', async ({ page }) => {
+  await setupSpelled(page);
+  await run(page, 'x&y');
+  await expect(page.locator('.tool-row-error-btn')).toHaveAttribute('title', /\\&/);
+  expect((await entries(page)).length).toBe(SPELLED.entries.length);
+});
 
 test('a single pattern is a flat per-word filter', async ({ page }) => {
   await setup(page);
