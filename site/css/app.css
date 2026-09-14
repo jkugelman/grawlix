@@ -1546,7 +1546,7 @@ html.dark-mode #discovery-banner { background: color-mix(in srgb, var(--accent) 
 
 .of-section { margin-bottom: 22px; }
 .of-ctrls { margin-top: 12px; }
-.of-flags { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 16px; }
+.of-flags { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: repeat(3, auto); grid-auto-flow: column; gap: 8px 16px; }
 .of-flag { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; cursor: pointer; }
 .of-flag input { cursor: pointer; }
 

@@ -369,7 +369,7 @@ test('buildWordlistText: a tail entry containing a semicolon is skipped and coun
 });
 
 test('buildWordlistText: an empty row set yields empty text, zero count, zero skipped', () => {
-  assert.deepEqual(buildWordlistText([], false), { text: '', count: 0, skipped: 0, emptied: 0 });
+  assert.deepEqual(buildWordlistText([], false), { text: '', count: 0, skipped: 0, emptied: 0, excluded: 0 });
 });
 
 test('buildWordlistText: an empty chain (no content) is silently ignored', () => {
@@ -382,21 +382,21 @@ test('buildWordlistText: an empty chain (no content) is silently ignored', () =>
 
 test('buildWordlistText: the output format strips the entry text', () => {
   const rows = [chain(atom('cafe', { display: 'café', score: 50 }))];
-  const fmt = { spaces: true, punctuation: true, diacritics: false, unicode: true, comments: true };
+  const fmt = { spaces: true, punctuation: true, digits: true, diacritics: false, unicode: true, comments: true };
   assert.equal(buildWordlistText(rows, false, fmt).text, 'cafe;50\n');
 });
 
 test('buildWordlistText: a comment rides along only when the format keeps comments', () => {
   const rows = [chain({ wlEntry: wl('cat', { score: 50, comment: 'feline' }), glyph: null })];
-  const keep = { spaces: true, punctuation: true, diacritics: true, unicode: true, comments: true };
-  const drop = { spaces: true, punctuation: true, diacritics: true, unicode: true, comments: false };
+  const keep = { spaces: true, punctuation: true, digits: true, diacritics: true, unicode: true, comments: true };
+  const drop = { spaces: true, punctuation: true, digits: true, diacritics: true, unicode: true, comments: false };
   assert.equal(buildWordlistText(rows, false, keep).text, 'cat;50;feline\n');
   assert.equal(buildWordlistText(rows, false, drop).text, 'cat;50\n');
 });
 
 test('buildWordlistText: stripping punctuation rescues an entry that would be skipped for its semicolon', () => {
   const rows = [chain(atom('semibad', { display: 'A;B', score: 5 }))];
-  const stripped = { spaces: false, punctuation: false, diacritics: false, unicode: true, comments: true };
+  const stripped = { spaces: false, punctuation: false, digits: true, diacritics: false, unicode: true, comments: true };
   const { text, count, skipped } = buildWordlistText(rows, false, stripped);
   assert.equal(text, 'AB;5\n');
   assert.equal(count, 1);
@@ -408,10 +408,19 @@ test('buildWordlistText: two entries stripped onto one line count once, best sco
     chain(atom('cafe', { display: 'café', score: 60 })),
     chain(atom('cafe', { display: 'cafe', score: 30 })),
   ];
-  const fmt = { spaces: true, punctuation: true, diacritics: false, unicode: true, comments: true };
+  const fmt = { spaces: true, punctuation: true, digits: true, diacritics: false, unicode: true, comments: true };
   const { text, count } = buildWordlistText(rows, false, fmt);
   assert.equal(text, 'cafe;60\ncafe;30\n');
   assert.equal(count, 2);
+});
+
+test('buildWordlistText: digits off skips a chain whose tail has a digit, and counts it', () => {
+  const rows = [chain(atom('r2d2', { display: 'R2D2', score: 50 })), chain(atom('cat', { score: 40 }))];
+  const fmt = { spaces: true, punctuation: true, digits: false, diacritics: true, unicode: true, comments: true };
+  const { text, count, excluded } = buildWordlistText(rows, false, fmt);
+  assert.equal(text, 'cat;40\n');
+  assert.equal(count, 1);
+  assert.equal(excluded, 1);
 });
 
 test('buildWordlistText (grouped): fans out across each group\'s chains', () => {
@@ -429,9 +438,17 @@ test('buildWordlistText (grouped): fans out across each group\'s chains', () => 
 test('buildTupleCSV: one row per tuple, lanes spread into per-lane columns', () => {
   const tup = (...lanes) => ({ chains: lanes.map(([n, s]) => chain(atom(n, { score: s }))) });
   const rows = [tup(['ape', 60], ['pea', 50]), tup(['bro', 40], ['rob', 30])];
-  const lines = buildTupleCSV(rows).trim().split('\r\n');
+  const lines = buildTupleCSV(rows).text.trim().split('\r\n');
   assert.equal(lines[0], 'entry_1,length_1,score_1,comment_1,source_1,entry_2,length_2,score_2,comment_2,source_2');
   assert.equal(lines[1], 'ape,3,60,,,pea,3,50,,');
   assert.equal(lines[2], 'bro,3,40,,,rob,3,30,,');
   assert.equal(lines.length, 3);
+});
+
+test('buildTupleCSV: digits off drops a whole tuple when any lane has a digit', () => {
+  const tup = (...lanes) => ({ chains: lanes.map(n => chain(atom(n))) });
+  const fmt = { spaces: true, punctuation: true, digits: false, diacritics: true, unicode: true, comments: true };
+  const { text, excluded } = buildTupleCSV([tup('ape', 'pea'), tup('ape', 'p2a')], fmt);
+  assert.deepEqual(text.trim().split('\r\n').slice(1), ['ape,3,0,,,pea,3,0,,']);
+  assert.equal(excluded, 1);
 });

@@ -4,7 +4,12 @@
 
 import { stripAccents, stripDiacritics } from './norm.js';
 
-export const AS_IS_FORMAT = { spaces: true, punctuation: true, diacritics: true, unicode: true, comments: true };
+export const AS_IS_FORMAT = { spaces: true, digits: true, punctuation: true, diacritics: true, unicode: true, comments: true };
+
+// The norm, not the display: unicode-off would otherwise write x² as a digit-bearing x2.
+export function formatExcludes(e, fmt) {
+  return !fmt.digits && /[0-9]/.test(e.norm);
+}
 
 export function formatEntryText(e, fmt) {
   let s = e.display ?? e.norm;
@@ -35,7 +40,7 @@ export function serializeEntries(entries, fmt = AS_IS_FORMAT) {
   const seen = new Set();
   const lines = [];
   for (const { e, text } of sortedEntries(entries, fmt)) {
-    if (!text) continue;
+    if (!text || formatExcludes(e, fmt)) continue;
     const line = (fmt.comments && e.comment) ? `${text};${e.score};${e.comment}` : `${text};${e.score}`;
     if (seen.has(line)) continue;   // only stripping can collide two entries onto one line
     seen.add(line);

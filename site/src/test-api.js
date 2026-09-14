@@ -573,7 +573,7 @@ const __grawlixTest = {
     if (format === 'copy')          return buildCopyResults(rows, grouped);
     if (format === 'markdown-link') return buildCopyLinkMarkdown(stack);
     if (format === 'wordlist')      return buildWordlistText(rows, grouped, getOutputFormat());
-    if (format === 'csv')      return buildCSVText(rows, grouped, stack, tuple, getOutputFormat());
+    if (format === 'csv')      return buildCSVText(rows, grouped, stack, tuple, getOutputFormat()).text;
     if (format === 'json')     return buildExportJSONObject(rows, grouped, stack, tuple);
     throw new Error(`Unknown export format: ${format}`);
   },

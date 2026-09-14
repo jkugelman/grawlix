@@ -27,7 +27,7 @@ export function setSegCtrlActive(container, target) {
   }
 }
 
-const OUTPUT_FLAGS = ['spaces', 'punctuation', 'diacritics', 'unicode', 'comments'];
+const OUTPUT_FLAGS = ['spaces', 'digits', 'punctuation', 'diacritics', 'unicode', 'comments'];
 
 export function buildOutputFormatControlsHTML(fmt) {
   const flags = OUTPUT_FLAGS.map(k =>

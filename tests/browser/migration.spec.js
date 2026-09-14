@@ -85,7 +85,7 @@ const V10_AFTER = {
     { input: '50', note: 'Fine' },
   ],
   scoringDirty: false,
-  mergedSettings: { outputFormat: { spaces: true, punctuation: true, diacritics: true, unicode: true, comments: true } },
+  mergedSettings: { outputFormat: { spaces: true, punctuation: true, digits: true, diacritics: true, unicode: true, comments: true } },
 };
 
 test('migration v9→v10 rewrites every "ignore" rescore output to "0"', async ({ page }) => {

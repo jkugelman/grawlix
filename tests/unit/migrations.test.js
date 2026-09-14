@@ -143,7 +143,7 @@ test('v13 → current renames the accents axis to diacritics and lands on unicod
   const blob = { mergedSettings: { outputFormat: { spaces: true, punctuation: false, accents: false, comments: true } } };
   migrateLs(blob, 13);
   assert.deepEqual(blob.mergedSettings.outputFormat,
-    { spaces: true, punctuation: false, diacritics: false, unicode: true, comments: true });
+    { spaces: true, punctuation: false, digits: true, diacritics: false, unicode: true, comments: true });
 });
 
 test('v13 → current defaults the widest axis to keep, so nothing that survives today is newly stripped', () => {
@@ -152,18 +152,31 @@ test('v13 → current defaults the widest axis to keep, so nothing that survives
   assert.equal(blob.mergedSettings.outputFormat.unicode, true);
 });
 
-test('v14 → v15 renames the ascii axis to unicode, carrying the value verbatim', () => {
+test('v14 → current renames the ascii axis to unicode, carrying the value verbatim', () => {
   const blob = { mergedSettings: { outputFormat: { spaces: true, punctuation: false, diacritics: false, ascii: false, comments: true } } };
   migrateLs(blob, 14);
   assert.deepEqual(blob.mergedSettings.outputFormat,
-    { spaces: true, punctuation: false, diacritics: false, unicode: false, comments: true });
+    { spaces: true, punctuation: false, digits: true, diacritics: false, unicode: false, comments: true });
 });
 
-test('v14 → v15 carries a kept ascii axis across as a kept unicode axis', () => {
+test('v14 → current carries a kept ascii axis across as a kept unicode axis', () => {
   const blob = { mergedSettings: { outputFormat: { spaces: true, punctuation: true, diacritics: true, ascii: true, comments: true } } };
   migrateLs(blob, 14);
   assert.deepEqual(blob.mergedSettings.outputFormat,
-    { spaces: true, punctuation: true, diacritics: true, unicode: true, comments: true });
+    { spaces: true, punctuation: true, digits: true, diacritics: true, unicode: true, comments: true });
+});
+
+test('v15 → v16 adds a kept digits axis, leaving the stored axes verbatim', () => {
+  const blob = { mergedSettings: { outputFormat: { spaces: false, punctuation: false, diacritics: false, unicode: false, comments: false } } };
+  migrateLs(blob, 15);
+  assert.deepEqual(blob.mergedSettings.outputFormat,
+    { spaces: false, punctuation: false, digits: true, diacritics: false, unicode: false, comments: false });
+});
+
+test('v15 → v16 no-ops when no output format was ever stored', () => {
+  const blob = { mergedSettings: {} };
+  migrateLs(blob, 15);
+  assert.equal(blob.mergedSettings.outputFormat, undefined);
 });
 
 test('v14 → v15 no-ops when no output format was ever stored', () => {

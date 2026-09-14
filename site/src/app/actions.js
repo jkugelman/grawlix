@@ -25,7 +25,7 @@ import {
   SCHEMA_VERSION, canMigrate, migrateLocalStorage, migrateIdbRecords, remapStoredUrls,
 } from '../data/migrations.js';
 import {
-  serializeEntries, formatEntryText, AS_IS_FORMAT,
+  serializeEntries, formatEntryText, formatExcludes, AS_IS_FORMAT,
 } from '../engine/serialize.js';
 import {
   getOutputFormat, getTrashScore, defaultScoreRange,
@@ -1233,14 +1233,17 @@ export function* iterDisplayChains(rows, grouped) {
 
 // A tuple row is one result; summing its lanes over-counts by the tuple arity
 // (the Umiaq ×4 bug this fixes).
-export function exportCountPhrase(rows, tier) {
-  if (tier === 'tuple') return pluralize(rows.length, 'result', 'results');
+export function exportCountPhrase(rows, tier, omitted = 0) {
+  let n = rows.length;
   if (tier === 'group') {
-    let n = 0;
+    n = 0;
     for (const g of rows) n += g.chains.length;
-    return pluralize(n, 'entry', 'entries');
   }
-  return pluralize(rows.length, 'entry', 'entries');
+  return tierCountPhrase(n - omitted, tier);
+}
+
+function tierCountPhrase(n, tier) {
+  return tier === 'tuple' ? pluralize(n, 'result', 'results') : pluralize(n, 'entry', 'entries');
 }
 
 function exportToolsMetadata(stack) {
@@ -1541,11 +1544,12 @@ export const openCopyPopover = (() => {
 
 export function buildWordlistText(rows, grouped, fmt = AS_IS_FORMAT) {
   const best = new Map();
-  let skipped = 0, emptied = 0;
+  let skipped = 0, emptied = 0, excluded = 0;
   for (const { chain } of iterDisplayChains(rows, grouped)) {
     const content = chainContentEntries(chain);
     if (!content.length) continue;
     const tail = content[content.length - 1];
+    if (formatExcludes(tail, fmt)) { excluded++; continue; }
     const formatted = formatEntryText(tail, fmt);
     if (formatted.includes(';')) { skipped++; continue; }
     if (!formatted) { emptied++; continue; }
@@ -1556,18 +1560,19 @@ export function buildWordlistText(rows, grouped, fmt = AS_IS_FORMAT) {
     if (cur === undefined || chainMin > cur.score) best.set(key, { ...tail, score: chainMin });
   }
   const text = serializeEntries([...best.values()], fmt);
-  return { text, count: text.split('\n').length - 1, skipped, emptied };
+  return { text, count: text.split('\n').length - 1, skipped, emptied, excluded };
 }
 
 export async function exportWordlist() {
   const scroller = getEntriesScroller();
   if (!scroller) return;
   const grouped = isMultiLaneTier(scroller.sortTier);
-  const { text, count, skipped, emptied } = buildWordlistText(await scroller.exportRows(), grouped, getOutputFormat());
+  const { text, count, skipped, emptied, excluded } = buildWordlistText(await scroller.exportRows(), grouped, getOutputFormat());
   triggerDownload(text, exportFilename(ToolStack.getStack(), 'txt'));
   const notes = [];
   if (skipped) notes.push(`${pluralize(skipped, 'entry', 'entries')} skipped due to semicolons`);
   if (emptied) notes.push(`${pluralize(emptied, 'entry', 'entries')} skipped as empty after stripping`);
+  if (excluded) notes.push(`${pluralize(excluded, 'entry', 'entries')} with digits skipped`);
   let msg = `Downloaded ${pluralize(count, 'entry', 'entries')}`;
   if (notes.length) msg += ` (${notes.join(', ')})`;
   showToast(msg);
@@ -1590,16 +1595,18 @@ export function buildTupleCSV(rows, fmt = AS_IS_FORMAT) {
   const header = [];
   for (let i = 1; i <= laneCount; i++) header.push(`entry_${i}`, `length_${i}`, `score_${i}`, `comment_${i}`, `source_${i}`);
   const out = [csvRow(header)];
+  let excluded = 0;
   for (const tuple of rows) {
+    const entries = tuple.chains.map(lane => chainContentEntries(lane)[0]);
+    if (entries.some(wlE => wlE && formatExcludes(wlE, fmt))) { excluded++; continue; }
     const cells = [];
-    for (const lane of tuple.chains) {
-      const wlE = chainContentEntries(lane)[0];
+    for (const wlE of entries) {
       if (!wlE) cells.push('', '', '', '', '');
       else cells.push(formatEntryText(wlE, fmt), wlE.norm.length, wlE.score, wlE.comment || '', wlE.wordlist?.name ?? '');
     }
     out.push(csvRow(cells));
   }
-  return out.join('\r\n') + '\r\n';
+  return { text: out.join('\r\n') + '\r\n', excluded };
 }
 
 export function buildCSVText(rows, grouped, stack, tuple = false, fmt = AS_IS_FORMAT) {
@@ -1623,8 +1630,10 @@ export function buildCSVText(rows, grouped, stack, tuple = false, fmt = AS_IS_FO
   }
 
   const out = [csvRow(header)];
+  let excluded = 0;
   for (const { group, chain } of iterDisplayChains(rows, grouped)) {
     const content = chainContentEntries(chain);
+    if (content.some(wlE => formatExcludes(wlE, fmt))) { excluded++; continue; }
     const cells = [];
     if (grouped) {
       cells.push(group.key, group.chains.length);
@@ -1647,17 +1656,19 @@ export function buildCSVText(rows, grouped, stack, tuple = false, fmt = AS_IS_FO
     }
     out.push(csvRow(cells));
   }
-  return out.join('\r\n') + '\r\n';
+  return { text: out.join('\r\n') + '\r\n', excluded };
 }
 
 export async function exportCSV() {
   const scroller = getEntriesScroller();
   if (!scroller) return;
-  const grouped = isMultiLaneTier(scroller.sortTier);
+  const tier = scroller.sortTier;
   const rows = await scroller.exportRows();
-  const text = buildCSVText(rows, grouped, ToolStack.getStack(), scroller.sortTier === 'tuple', getOutputFormat());
+  const { text, excluded } = buildCSVText(rows, isMultiLaneTier(tier), ToolStack.getStack(), tier === 'tuple', getOutputFormat());
   triggerDownload(text, exportFilename(ToolStack.getStack(), 'csv'));
-  showToast(`Downloaded ${exportCountPhrase(rows, scroller.sortTier)}`);
+  let msg = `Downloaded ${exportCountPhrase(rows, tier, excluded)}`;
+  if (excluded) msg += ` (${tierCountPhrase(excluded, tier)} with digits skipped)`;
+  showToast(msg);
 }
 
 // ── JSON ──
