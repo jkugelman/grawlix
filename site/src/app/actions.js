@@ -25,7 +25,7 @@ import {
   SCHEMA_VERSION, canMigrate, migrateLocalStorage, migrateIdbRecords, remapStoredUrls,
 } from '../data/migrations.js';
 import {
-  serializeEntries, formatEntryText, formatExcludes, AS_IS_FORMAT,
+  serializeEntries, formatEntryText, AS_IS_FORMAT,
 } from '../engine/serialize.js';
 import {
   getOutputFormat, getTrashScore, defaultScoreRange,
@@ -1549,8 +1549,8 @@ export function buildWordlistText(rows, grouped, fmt = AS_IS_FORMAT) {
     const content = chainContentEntries(chain);
     if (!content.length) continue;
     const tail = content[content.length - 1];
-    if (formatExcludes(tail, fmt)) { excluded++; continue; }
     const formatted = formatEntryText(tail, fmt);
+    if (formatted === null) { excluded++; continue; }
     if (formatted.includes(';')) { skipped++; continue; }
     if (!formatted) { emptied++; continue; }
     let chainMin = Infinity;
@@ -1563,16 +1563,21 @@ export function buildWordlistText(rows, grouped, fmt = AS_IS_FORMAT) {
   return { text, count: text.split('\n').length - 1, skipped, emptied, excluded };
 }
 
+function excludedKinds(fmt) {
+  return [!fmt.digits && 'digits', !fmt.symbols && 'symbols'].filter(Boolean).join(' or ');
+}
+
 export async function exportWordlist() {
   const scroller = getEntriesScroller();
   if (!scroller) return;
   const grouped = isMultiLaneTier(scroller.sortTier);
-  const { text, count, skipped, emptied, excluded } = buildWordlistText(await scroller.exportRows(), grouped, getOutputFormat());
+  const fmt = getOutputFormat();
+  const { text, count, skipped, emptied, excluded } = buildWordlistText(await scroller.exportRows(), grouped, fmt);
   triggerDownload(text, exportFilename(ToolStack.getStack(), 'txt'));
   const notes = [];
   if (skipped) notes.push(`${pluralize(skipped, 'entry', 'entries')} skipped due to semicolons`);
   if (emptied) notes.push(`${pluralize(emptied, 'entry', 'entries')} skipped as empty after stripping`);
-  if (excluded) notes.push(`${pluralize(excluded, 'entry', 'entries')} with digits skipped`);
+  if (excluded) notes.push(`${pluralize(excluded, 'entry', 'entries')} with ${excludedKinds(fmt)} skipped`);
   let msg = `Downloaded ${pluralize(count, 'entry', 'entries')}`;
   if (notes.length) msg += ` (${notes.join(', ')})`;
   showToast(msg);
@@ -1598,12 +1603,13 @@ export function buildTupleCSV(rows, fmt = AS_IS_FORMAT) {
   let excluded = 0;
   for (const tuple of rows) {
     const entries = tuple.chains.map(lane => chainContentEntries(lane)[0]);
-    if (entries.some(wlE => wlE && formatExcludes(wlE, fmt))) { excluded++; continue; }
+    const texts = entries.map(wlE => wlE && formatEntryText(wlE, fmt));
+    if (texts.includes(null)) { excluded++; continue; }
     const cells = [];
-    for (const wlE of entries) {
+    entries.forEach((wlE, i) => {
       if (!wlE) cells.push('', '', '', '', '');
-      else cells.push(formatEntryText(wlE, fmt), wlE.norm.length, wlE.score, wlE.comment || '', wlE.wordlist?.name ?? '');
-    }
+      else cells.push(texts[i], wlE.norm.length, wlE.score, wlE.comment || '', wlE.wordlist?.name ?? '');
+    });
     out.push(csvRow(cells));
   }
   return { text: out.join('\r\n') + '\r\n', excluded };
@@ -1633,7 +1639,8 @@ export function buildCSVText(rows, grouped, stack, tuple = false, fmt = AS_IS_FO
   let excluded = 0;
   for (const { group, chain } of iterDisplayChains(rows, grouped)) {
     const content = chainContentEntries(chain);
-    if (content.some(wlE => formatExcludes(wlE, fmt))) { excluded++; continue; }
+    const texts = content.map(wlE => formatEntryText(wlE, fmt));
+    if (texts.includes(null)) { excluded++; continue; }
     const cells = [];
     if (grouped) {
       cells.push(group.key, group.chains.length);
@@ -1650,7 +1657,7 @@ export function buildCSVText(rows, grouped, stack, tuple = false, fmt = AS_IS_FO
         cells.push('', '', '');
         if (!grouped) cells.push('', '');
       } else {
-        cells.push(formatEntryText(wlE, fmt), wlE.norm.length, wlE.score);
+        cells.push(texts[i], wlE.norm.length, wlE.score);
         if (!grouped) cells.push(wlE.comment || '', wlE.wordlist?.name ?? '');
       }
     }
@@ -1664,10 +1671,11 @@ export async function exportCSV() {
   if (!scroller) return;
   const tier = scroller.sortTier;
   const rows = await scroller.exportRows();
-  const { text, excluded } = buildCSVText(rows, isMultiLaneTier(tier), ToolStack.getStack(), tier === 'tuple', getOutputFormat());
+  const fmt = getOutputFormat();
+  const { text, excluded } = buildCSVText(rows, isMultiLaneTier(tier), ToolStack.getStack(), tier === 'tuple', fmt);
   triggerDownload(text, exportFilename(ToolStack.getStack(), 'csv'));
   let msg = `Downloaded ${exportCountPhrase(rows, tier, excluded)}`;
-  if (excluded) msg += ` (${tierCountPhrase(excluded, tier)} with digits skipped)`;
+  if (excluded) msg += ` (${tierCountPhrase(excluded, tier)} with ${excludedKinds(fmt)} skipped)`;
   showToast(msg);
 }
 

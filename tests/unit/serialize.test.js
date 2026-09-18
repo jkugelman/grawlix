@@ -2,11 +2,11 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { serializeEntries, formatEntryText } from '../../site/src/engine/serialize.js';
 
-const RICH       = { spaces: true,  punctuation: true,  digits: true, diacritics: true,  unicode: true, comments: true };
-const STRIPPED   = { spaces: false, punctuation: false, digits: true, diacritics: false, unicode: true, comments: true };
-const NO_ACCENTS = { spaces: true,  punctuation: true,  digits: true, diacritics: false, unicode: true, comments: true };
+const RICH       = { spaces: true,  punctuation: true,  digits: true, diacritics: true,  symbols: true, comments: true };
+const STRIPPED   = { spaces: false, punctuation: false, digits: true, diacritics: false, symbols: true, comments: true };
+const NO_ACCENTS = { spaces: true,  punctuation: true,  digits: true, diacritics: false, symbols: true, comments: true };
 
-const only = axis => ({ spaces: true, punctuation: true, digits: true, diacritics: true, unicode: true, comments: true, [axis]: false });
+const only = axis => ({ spaces: true, punctuation: true, digits: true, diacritics: true, symbols: true, comments: true, [axis]: false });
 
 test('serializeEntries (as-is): preserves display, spaces, accents, case, and comments verbatim', () => {
   const out = serializeEntries([
@@ -104,14 +104,14 @@ test('serializeEntries: with comments off, lines differing only by comment colla
   const out = serializeEntries([
     { norm: 'cafe', display: 'café', score: 60, comment: 'drink' },
     { norm: 'cafe', display: 'cafe', score: 60, comment: 'the band' },
-  ], { spaces: true, punctuation: true, digits: true, diacritics: false, unicode: true, comments: false });
+  ], { spaces: true, punctuation: true, digits: true, diacritics: false, symbols: true, comments: false });
   assert.equal(out, 'cafe;60\n');
 });
 
 test('serializeEntries: comments off drops the third field even when stripping', () => {
   const out = serializeEntries([
     { norm: 'cafe', display: 'café', score: 60, comment: 'drink' },
-  ], { spaces: true, punctuation: true, digits: true, diacritics: false, unicode: true, comments: false });
+  ], { spaces: true, punctuation: true, digits: true, diacritics: false, symbols: true, comments: false });
   assert.equal(out, 'cafe;60\n');
 });
 
@@ -162,13 +162,21 @@ test('diacritics axis folds real diacritics and leaves compatibility forms alone
   assert.equal(f('Xerox™'), 'Xerox™');
 });
 
-test('punctuation axis strips punctuation and nothing else', () => {
+test('punctuation axis strips silent marks and leaves the spoken ones to symbols', () => {
   const f = s => formatEntryText({ norm: 'x', display: s }, only('punctuation'));
   assert.equal(f('don’t'), 'dont');
   assert.equal(f('e-mail'), 'email');
-  assert.equal(f('R&B'), 'RB');
   assert.equal(f('a—b'), 'ab');
   assert.equal(f('D.N.A.'), 'DNA');
+  assert.equal(f('AC/DC'), 'ACDC');
+  assert.equal(f('M*A*S*H'), 'MASH');
+  assert.equal(f('¡No pasarán!'), 'No pasarán');
+  assert.equal(f('R&B'), 'R&B');
+  assert.equal(f('100%'), '100%');
+  assert.equal(f('C#'), 'C#');
+  assert.equal(f('don\'t @ me'), 'dont @ me');
+  assert.equal(f('99‰'), '99‰');
+  assert.equal(f('A+'), 'A+');
   assert.equal(f('hoⓤse'), 'hoⓤse');
   assert.equal(f('route ①'), 'route ①');
   assert.equal(f('poop 💩'), 'poop 💩');
@@ -176,35 +184,77 @@ test('punctuation axis strips punctuation and nothing else', () => {
   assert.equal(f('café'), 'café');
 });
 
-test('unicode axis compatibility-folds first, then drops what is left', () => {
-  const f = s => formatEntryText({ norm: 'x', display: s }, only('unicode'));
-  assert.equal(f('hoⓤse'), 'house');
-  assert.equal(f('ﬁnest'), 'finest');
-  assert.equal(f('route ①'), 'route 1');
-  assert.equal(f('Xerox™'), 'XeroxTM');
-  assert.equal(f('café'), 'cafe');
-  assert.equal(f('Việt'), 'Viet');
-  assert.equal(f('€100'), '100');
-  assert.equal(f('漢字'), '');
+test('symbols axis leaves out an entry that carries a symbol, ASCII or not', () => {
+  const f = s => formatEntryText({ norm: 'x', display: s }, only('symbols'));
+  for (const s of ['A+', 'AT&T', '100%', 'C#', 'don\'t @ me', '$100', 'P=NP', 'a<b', 'a|b', 'a~b', 'a^b', 'a`b',
+    '€100', '99‰', '54°40\' or Fight', 'Musa × paradisiaca', 'omega−3 fatty acid', 'poop 💩', 'a→b', 'a´b', '½']) {
+    assert.equal(f(s), null, s);
+  }
 });
 
-test('unicode runs before punctuation, so punctuation NFKD creates is still stripped', () => {
-  const fmt = { spaces: true, punctuation: false, digits: true, diacritics: true, unicode: false, comments: true };
-  assert.equal(formatEntryText({ norm: 'x', display: '℅' }, fmt), 'co');
-  assert.equal(formatEntryText({ norm: 'x', display: '⒈' }, fmt), '1');
+test('symbols axis leaves out an entry with a letter diacritics cannot reduce to A–Z', () => {
+  const f = s => formatEntryText({ norm: 'x', display: s }, only('symbols'));
+  assert.equal(f('漢字'), null);
+  assert.equal(f('Tokyo 東京'), null);
+  assert.equal(f('Москва'), null);
+  assert.equal(f('Αθήνα'), null);
+  assert.equal(f('ħ'), null);
 });
 
-test('spaces run last, so a space NFKD conjures out of a lone diacritic is still removed', () => {
-  const fmt = { spaces: false, punctuation: true, digits: true, diacritics: true, unicode: false, comments: true };
-  assert.equal(formatEntryText({ norm: 'ab', display: 'a´b' }, fmt), 'ab');
+test('symbols axis leaves out an entry with a letter or digit in disguise', () => {
+  const f = s => formatEntryText({ norm: 'x', display: s }, only('symbols'));
+  for (const s of ['hoⓤse', 'ﬁnest', 'route ①', 'Xerox™', 'x²', '℅', '⒈', 'ǆ', 'Ｆｕｌｌ', '№ 5']) {
+    assert.equal(f(s), null, s);
+  }
 });
 
-test('serializeEntries drops an entry that strips to nothing rather than writing ";50"', () => {
-  const fmt = { spaces: true, punctuation: true, digits: true, diacritics: true, unicode: false, comments: true };
+test('symbols axis deletes a modifier letter and plains a non-breaking space', () => {
+  const f = s => formatEntryText({ norm: 'x', display: s }, only('symbols'));
+  assert.equal(f('Hawaiʻi'), 'Hawaii');
+  assert.equal(f('a\u00a0b'), 'a b');
+});
+
+test('symbols axis leaves accents to diacritics and marks to punctuation', () => {
+  const f = s => formatEntryText({ norm: 'x', display: s }, only('symbols'));
+  assert.equal(f('café'), 'café');
+  assert.equal(f('Việt'), 'Việt');
+  assert.equal(f('Jo Nesbø'), 'Jo Nesbø');
+  assert.equal(f('Straße'), 'Straße');
+  assert.equal(f('¡No pasarán!'), '¡No pasarán!');
+  assert.equal(f('Soviet–Afghan War'), 'Soviet–Afghan War');
+  assert.equal(f('don’t'), 'don’t');
+  assert.equal(f('don\'t'), 'don\'t');
+  assert.equal(f('AC/DC'), 'AC/DC');
+  assert.equal(formatEntryText({ norm: 'cat', display: null }, only('symbols')), 'cat');
+});
+
+test('diacritics, punctuation, and symbols all off writes plain ASCII', () => {
+  const fmt = { spaces: true, punctuation: false, digits: true, diacritics: false, symbols: false, comments: true };
+  const f = s => formatEntryText({ norm: 'x', display: s }, fmt);
+  assert.equal(f('¡No pasarán!'), 'No pasaran');
+  assert.equal(f('Soviet–Afghan War'), 'SovietAfghan War');
+  assert.equal(f('Jo Nesbø'), 'Jo Nesbo');
+  assert.equal(f('Thích Nhất Hạnh'), 'Thich Nhat Hanh');
+  assert.equal(f('hoⓤse'), null);
+  for (const s of ['¡No pasarán!', 'Soviet–Afghan War', 'Ea-nāṣir', 'Pacuła', 'Ænema', 'a\u00a0b', 'ǆ', '㈱', '№ 5', 'ⓐⓑ', 'Ｆｕｌｌ']) {
+    const out = f(s);
+    assert.ok(out === null || /^[\x00-\x7f]*$/.test(out), `${s} → ${out}`);
+  }
+});
+
+test('formatEntryText returns null, not text, for an entry digits-off leaves out', () => {
+  assert.equal(formatEntryText({ norm: 'r2d2', display: 'R2D2' }, only('digits')), null);
+  assert.equal(formatEntryText({ norm: 'x2', display: 'x²' }, only('digits')), null);
+});
+
+test('serializeEntries leaves out what the symbols axis leaves out', () => {
   const out = serializeEntries([
     { norm: 'cat',   display: null,   score: 40, comment: '' },
     { norm: 'hanzi', display: '漢字', score: 50, comment: '' },
-  ], fmt);
+    { norm: 'a',     display: 'A+',   score: 40, comment: 'Grade' },
+    { norm: 'att',   display: 'AT&T', score: 40, comment: '' },
+    { norm: 'hart',  display: 'HAⓡT', score: 30, comment: '' },
+  ], only('symbols'));
   assert.equal(out, 'cat;40\n');
 });
 
@@ -212,17 +262,12 @@ test('serializeEntries drops an all-punctuation entry under the punctuation axis
   assert.equal(serializeEntries([{ norm: 'x', display: '!!!', score: 10, comment: '' }], only('punctuation')), '');
 });
 
-test('diacritics runs before unicode, so an accented letter survives as its base', () => {
-  const fmt = { spaces: true, punctuation: true, digits: true, diacritics: false, unicode: false, comments: true };
-  assert.equal(formatEntryText({ norm: 'x', display: 'café' }, fmt), 'cafe');
-});
-
-test('a circled mark survives diacritics and punctuation, and reduces only under unicode', () => {
+test('a circled mark survives diacritics and punctuation, and leaves the entry out only under symbols', () => {
   // The whole reason the axes were reworked: Optional letters emits ⓤ, which the
   // old accents axis folded to u and the old punctuation axis deleted outright.
   const e = { norm: 'house', display: 'hoⓤse' };
   assert.equal(formatEntryText(e, RICH), 'hoⓤse');
   assert.equal(formatEntryText(e, only('diacritics')), 'hoⓤse');
   assert.equal(formatEntryText(e, only('punctuation')), 'hoⓤse');
-  assert.equal(formatEntryText(e, only('unicode')), 'house');
+  assert.equal(formatEntryText(e, only('symbols')), null);
 });

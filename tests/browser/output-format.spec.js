@@ -16,14 +16,14 @@ test.describe('output format setting', () => {
   test('getOutputFormat defaults to fully rich and round-trips through mergedSettings', async ({ page }) => {
     await gotoApp(page);
     expect(await page.evaluate(() => getOutputFormat())).toMatchObject(
-      { spaces: true, punctuation: true, digits: true, diacritics: true, unicode: true, comments: true });
+      { spaces: true, punctuation: true, digits: true, diacritics: true, symbols: true, comments: true });
 
     const got = await page.evaluate(() => {
-      const stripped = { spaces: false, punctuation: false, digits: true, diacritics: false, unicode: true, comments: false };
+      const stripped = { spaces: false, punctuation: false, digits: true, diacritics: false, symbols: true, comments: false };
       Storage.writeMergedSettings({ ...Storage.readMergedSettings(), outputFormat: stripped });
       return getOutputFormat();
     });
-    expect(got).toMatchObject({ spaces: false, punctuation: false, digits: true, diacritics: false, unicode: true, comments: false });
+    expect(got).toMatchObject({ spaces: false, punctuation: false, digits: true, diacritics: false, symbols: true, comments: false });
   });
 });
 
@@ -39,7 +39,7 @@ test.describe('output format UI', () => {
     await gotoApp(page);
     await page.evaluate(() => SettingsDialog.open());
     await expect(page.locator('#output-format-ctrls .of-flag')).toHaveText(
-      ['Spaces', 'Digits', 'Punctuation', 'Diacritics', 'Unicode', 'Comments']);
+      ['Spaces', 'Digits', 'Diacritics', 'Punctuation', 'Symbols', 'Comments']);
   });
 
   test('changing a flag in Settings persists immediately, before closing', async ({ page }) => {
@@ -60,7 +60,7 @@ test.describe('output format UI', () => {
     expect(rich.suggestedFilename()).toBe('Src rescored.txt');
     expect(await readDownload(rich)).toContain('BLUE JAY;80');
 
-    await page.evaluate(() => setOutputFormat({ spaces: false, punctuation: false, digits: true, diacritics: false, unicode: true, comments: true }));
+    await page.evaluate(() => setOutputFormat({ spaces: false, punctuation: false, digits: true, diacritics: false, symbols: true, comments: true }));
     const strippedDl = page.waitForEvent('download');
     await page.evaluate(() => downloadSourceWordlist(state.sources.find(w => w.name === 'Src')));
     expect(await readDownload(await strippedDl)).toContain('BLUEJAY;80');
@@ -69,7 +69,7 @@ test.describe('output format UI', () => {
   test('My Edits Download applies the output format like any source; Download original is the editable file verbatim', async ({ page }) => {
     await gotoApp(page);
     await page.evaluate(() => saveEdit({ norm: '', display: '', score: 0, comment: '' }, { raw: 'BLUE JAY', score: 50, comment: '' }));
-    await page.evaluate(() => setOutputFormat({ spaces: false, punctuation: false, digits: true, diacritics: false, unicode: true, comments: true }));
+    await page.evaluate(() => setOutputFormat({ spaces: false, punctuation: false, digits: true, diacritics: false, symbols: true, comments: true }));
     await page.evaluate(async () => { await persistEdits(state.sources.find(w => w.type === 'edits')); });
 
     const dl = page.waitForEvent('download');
@@ -131,7 +131,7 @@ test.describe('results exports follow the output format', () => {
     }));
   }
 
-  const STRIP = { spaces: false, punctuation: false, digits: true, diacritics: false, unicode: true, comments: true };
+  const STRIP = { spaces: false, punctuation: false, digits: true, diacritics: false, symbols: true, comments: true };
 
   test('Results as wordlist strips spaces, punctuation, and diacritics', async ({ page }) => {
     await gotoApp(page);
@@ -149,7 +149,7 @@ test.describe('results exports follow the output format', () => {
   test('Results as wordlist drops comments when the comments flag is off', async ({ page }) => {
     await gotoApp(page);
     await addRichFixture(page);
-    await page.evaluate(() => setOutputFormat({ spaces: true, punctuation: true, digits: true, diacritics: true, unicode: true, comments: false }));
+    await page.evaluate(() => setOutputFormat({ spaces: true, punctuation: true, digits: true, diacritics: true, symbols: true, comments: false }));
 
     const { text } = await page.evaluate(() => window.__grawlixTest.exportText('wordlist'));
     expect(text).toContain('BLUE JAY;50\n');
@@ -183,6 +183,23 @@ test.describe('results exports follow the output format', () => {
     const csv = await page.evaluate(() => window.__grawlixTest.exportText('csv'));
     expect(csv).toContain('BLUE JAY,');
     expect(csv).not.toMatch(/R2D2|RD,/);
+  });
+
+  test('with symbols off, Results as wordlist and CSV leave out entries with symbols whole', async ({ page }) => {
+    await gotoApp(page);
+    await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
+      name: 'Syms', entries: ['A+', 'AT&T', 'BLUE JAY'], scores: [50, 50, 50],
+    }));
+    await page.evaluate(() => setOutputFormat({ ...getOutputFormat(), symbols: false }));
+
+    const { text, excluded } = await page.evaluate(() => window.__grawlixTest.exportText('wordlist'));
+    expect(text).toContain('BLUE JAY;50');
+    expect(text).not.toMatch(/A\+|AT&?T/);
+    expect(excluded).toBe(2);
+
+    const csv = await page.evaluate(() => window.__grawlixTest.exportText('csv'));
+    expect(csv).toContain('BLUE JAY,');
+    expect(csv).not.toMatch(/A\+|AT&?T/);
   });
 
   test('Results as JSON is a programmatic format — the output format never touches it', async ({ page }) => {
