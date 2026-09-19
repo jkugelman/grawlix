@@ -8,8 +8,8 @@ const DICT = [
 const FREQS = { road: -3, rage: -3, code: -3, page: -3, cage: -3, center: -3, stage: -3 };
 const LIST = {
   name: 'Phrases',
-  entries: ['roadrage', 'codepage', 'road', 'rage', 'code', 'page', 'cage', 'center'],
-  scores: [50, 50, 50, 50, 50, 50, 50, 50],
+  entries: ['roadrage', 'codepage', 'road', 'rage', 'code', 'page', 'cage', 'center', 'RR', 'red rover'],
+  scores: [50, 50, 50, 50, 50, 50, 50, 50, 50, 50],
 };
 
 const members = gs => gs.flatMap(g => g.chains.map(c => c[0])).sort();
@@ -58,4 +58,16 @@ test('the table outlives an edit that adds entries, and reads the new ones', asy
   await page.evaluate(() => window.__grawlixTest.createMyEntry('centerstage', 50));
   await expectGroups(page, members, ['cage', 'centerstage', 'code', 'codepage', 'page', 'rage', 'road', 'roadrage', 'stage']);
   expect(await cacheState(page)).toMatchObject({ misses: 1, size: 1 });
+});
+
+test('a second tool reads the table the first built', async ({ page }) => {
+  await seed(page);
+  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'rhymes', grouped: true }]));
+  await expectGroups(page, members, ['cage', 'code', 'codepage', 'page', 'rage', 'road', 'roadrage']);
+
+  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'initialisms', grouped: true }]));
+  await expectGroups(page, members, ['red rover', 'roadrage']);
+  const state = await cacheState(page);
+  expect(state.hits).toBeGreaterThanOrEqual(1);
+  expect(state.misses).toBe(1);
 });

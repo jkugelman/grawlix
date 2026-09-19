@@ -617,7 +617,7 @@ export async function bucketize(chains, def, ctx, prepared) {
     const chains = memberHighlights ? groupChains.map(chain => {
       const tail = rowLastEntry(chain);
       const text = useDisplay ? displayOf(tail) : tail.norm;
-      const hl = { wlEntry: tail, highlights: tagCoord(memberHighlights(text, key), coord), glyph: null };
+      const hl = { wlEntry: tail, highlights: tagCoord(memberHighlights(text, key, ctx), coord), glyph: null };
       return { atoms: collapseRepeatAtoms([...rowAtoms(chain), hl]) };
     }) : groupChains;
     groups.push({ key, chains, anchor });

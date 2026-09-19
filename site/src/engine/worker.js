@@ -468,7 +468,7 @@ function makeStreamEmitter(runId, viewSpec, scope, stack, signal, streamState, r
 
     if (!streamState.streamed) {
       streamState.streamed = true;
-      lastFlatResult = { runId, version: 0, indices: batchIndices, anchors, join, scope, viewSpec, highlighters: compileFlatHighlighters(stack), familySort: isFamilySort(viewSpec.sort) };
+      lastFlatResult = { runId, version: 0, indices: batchIndices, anchors, join, scope, viewSpec, highlighters: compileFlatHighlighters(stack, renderCtx(scope)), familySort: isFamilySort(viewSpec.sort) };
       lastGroupedResult = null;
       lastTransformResult = null;
     } else {
@@ -701,7 +701,7 @@ function groupResultLength(r) { return r.packed ? r.view.length : r.groups.lengt
 function materializePackedRow(r, corpus, i) {
   return r.laneKind === 'record'
     ? materializeRecordRow(r.join, corpus, r.view[i])
-    : materializeGroupRow(r.join, corpus, r.view[i], activeGroupRow(r.stack)?.def ?? null);
+    : materializeGroupRow(r.join, corpus, r.view[i], activeGroupRow(r.stack)?.def ?? null, renderCtx(r.scope));
 }
 
 function encodeGroupWindow(r, lo, hi) {
@@ -1093,7 +1093,7 @@ function deriveFlatResult(runId, join, viewSpec, scope, stack) {
   const filter = parseViewFilter(viewSpec);
   return {
     runId, version: 1, indices, anchors, join, scope, viewSpec,
-    highlighters: compileFlatHighlighters(stack), familySort: isFamilySort(viewSpec.sort),
+    highlighters: compileFlatHighlighters(stack, renderCtx(scope)), familySort: isFamilySort(viewSpec.sort),
     histogram: flatHistogram(join, filter, scope, ownedCorpus), stats: flatViewStats(indices, ownedCorpus),
     widthHints: computeWidthHints(indices, ownedCorpus),
   };
@@ -1288,6 +1288,21 @@ function makePrepareCache(scope) {
       // stage would otherwise price in that stage's time and outrank everything.
       const elapsed = performance.now() - (missedAt.get(toolKey) ?? performance.now());
       artifactCache.admit(keyOf(toolKey), { value, scope, corpus, patch }, elapsed, () => bytes);
+    },
+  };
+}
+
+// What a highlight re-derived at render time may consult: the vocab, and a peek at
+// the artifacts, read-only and uncounted so a repaint never skews the cache's telemetry.
+function renderCtx(scope) {
+  return {
+    vocab: ownedMerged,
+    cache: {
+      get(toolKey) {
+        const e = artifactCache.peek(scope + '\0' + toolKey);
+        return e && cacheEntryValid(e) ? e.value : null;
+      },
+      put() {},
     },
   };
 }

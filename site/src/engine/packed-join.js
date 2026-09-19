@@ -267,10 +267,11 @@ function tagCoord(ranges, coord) {
 
 // One group's display object for the fetched window, from a view record (`{ ord,
 // members }`, the sorted+filtered member `_i`s). Member highlights are RE-DERIVED from
-// the tool's `memberHighlights(text, key)` — a pure function of the member text + group
-// key, so recomputing at fetch is exact (the flat-tier model; safe unlike a tuple's
-// ambiguous re-derivation). `def` is the active group tool's def.
-export function materializeGroupRow(join, corpus, record, def) {
+// the tool's `memberHighlights(text, key, ctx)` — a pure function of the member text,
+// the group key, and the vocab `ctx` carries, so recomputing at fetch is exact (the
+// flat-tier model; safe unlike a tuple's ambiguous re-derivation). `def` is the active
+// group tool's def.
+export function materializeGroupRow(join, corpus, record, def, ctx) {
   const entries = corpus.entries;
   const key = join.keys[record.ord];
   const aIdx = join.anchorIdx.a[record.ord];
@@ -286,7 +287,7 @@ export function materializeGroupRow(join, corpus, record, def) {
     if (e.score > maxS) maxS = e.score;
     if (e.norm.length < minL) minL = e.norm.length;
     if (e.norm.length > maxL) maxL = e.norm.length;
-    const highlights = mh ? tagCoord(mh(useDisplay ? displayOf(e) : e.norm, key), coord) : null;
+    const highlights = mh ? tagCoord(mh(useDisplay ? displayOf(e) : e.norm, key, ctx), coord) : null;
     chains[m] = { atoms: [{ wlEntry: e, highlights, glyph: null }] };
   }
   return { key, anchor: aIdx >= 0 ? entries[aIdx] : null, _minScore: minS, _maxScore: maxS, _minLength: minL, _maxLength: maxL, _count: members.length, chains };

@@ -12,17 +12,18 @@ import { collapseRepeatAtoms } from './executor.js';
 // reproduce the executor's runToolStage + collapseRepeatAtoms exactly — any
 // divergence is a silent visual bug (wrong marks, or an atom count that mismatches
 // the row's reserved line height). A flat chain has no transforms, so the only
-// highlighting filters are Search/Regex in filter mode.
-export function compileFlatHighlighters(stack) {
+// highlighters are its highlighting filters.
+export function compileFlatHighlighters(stack, ctx) {
   const out = [];
   for (const row of stack) {
     const { def } = row;
     if (row.isInert() || row.kind() !== 'filter' || !row.inputHi() || row.inverted()) continue;
     const params = normalizeParams(row.params, def.params);
-    // Sync prepare only — the render path can't await; Search/Regex prepare is
-    // sync and ignores ctx, so a future async-prepare highlighting filter would
-    // silently ship a Promise as `prepared` here.
-    const prepared = def.prepare ? def.prepare(params, {}) : params;
+    // Sync only — the render path can't await, and an async prepare would silently
+    // ship a Promise as `prepared`. A filter whose prepare awaits or reads ctx
+    // declares a sync `replay(params, ctx)` that rebuilds the same value.
+    const prepared = def.replay ? def.replay(params, ctx)
+      : def.prepare ? def.prepare(params, {}) : params;
     const coord = def.matchOn === 'display' ? 'display' : 'norm';
     out.push({ def, prepared, coord });
   }
