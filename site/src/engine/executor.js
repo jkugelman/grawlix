@@ -178,6 +178,8 @@ function makeWorkingSetView(rows) {
   };
 }
 
+const NO_PREPARE_CACHE = { get: () => null, put() {} };
+
 function makeCtx(wordlist, vocab, signal, y, grouped = false, reversed = false) {
   return {
     wordlist,
@@ -188,6 +190,7 @@ function makeCtx(wordlist, vocab, signal, y, grouped = false, reversed = false) 
     due: y.due,
     yield: y.yield,
     progress: y.progress,
+    cache: y.cache,
     async forEach(iterable, fn) {
       const total = iterable?.length;
       let i = 0, yielded = false;
@@ -269,8 +272,9 @@ function cloneState(state) {
 // answer, not an error. They coincide only in the merged scope, which is why defaulting
 // vocab to wordlist reads as harmless and is not.
 export async function executePipeline(wordlist, stack, signal,
-                                      { emit = null, resume = null, onProgress = null, vocab = wordlist } = {}) {
+                                      { emit = null, resume = null, onProgress = null, vocab = wordlist, prepareCache = null } = {}) {
   const y = makeYielder(signal, onProgress);
+  y.cache = prepareCache ?? NO_PREPARE_CACHE;
   for (const stackRow of stack) stackRow._error = null;
 
   const userStackLen = stack.length - 1;   // stack[userStackLen] is the trailing search row

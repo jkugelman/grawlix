@@ -2,7 +2,9 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { setCmuDict } from '../../../site/src/engine/phonetics.js';
 import { setUnigramCorpus, invalidateUnigramCorpus } from '../../../site/src/engine/segmenter.js';
-import { visible, sameVisible, groups } from './harness.js';
+import { executePipeline } from '../../../site/src/engine/executor.js';
+import { makeToolRow } from '../../../site/src/engine/tools.js';
+import { visible, sameVisible, groups, merged, rowWords } from './harness.js';
 
 // Corpus state is module-global and these run in one process, so a seeded corpus
 // would leak forward and silently start spacing out the unspaced-by-design fixtures.
@@ -124,13 +126,15 @@ test('trusts the dictionary over a split — NOTABLE is not NO TABLE', async () 
   sameVisible(out, ['table']);
 });
 
+// A plural never gets here — the segmenter credits its stem and keeps it whole — so
+// the tail has to be a letter no suffix explains, or the test passes without testing.
 test('rejects a split whose last part is a lone letter', async () => {
   seedSpacing(
-    { MESS: ['M EH1 S'], LESS: ['L EH1 S'], S: ['EH1 S'] },
-    { yowler: -3, s: -3, less: -3, mess: -3 });
-  const out = await visible(['yowlers', 'yowler', 'less'],
-    [{ tool: 'rhymes', params: { entry: 'mess' } }]);
-  sameVisible(out, ['less']);
+    { DAY: ['D EY1'], PLAY: ['P L EY1'], J: ['JH EY1'] },
+    { avenue: -4, j: -5, play: -3, day: -3 });
+  const out = await visible(['avenuej', 'avenue', 'play'],
+    [{ tool: 'rhymes', params: { entry: 'day' } }]);
+  sameVisible(out, ['play']);
 });
 
 // Frequencies tuned twice over: the glued form beats the split by more than the default
@@ -251,4 +255,20 @@ test('one family, however many readings its members share', async () => {
     [{ tool: 'rhymes', grouped: true, params: { match: 'whole' } }]);
   assert.equal(fams.length, 1);
   sameVisible(fams[0].chains.map(c => c[0]), ['in the mood', 'in the nude']);
+});
+
+test('the spacing table is built once and reused across target changes', async () => {
+  seedSpacing(RAGE_CMU, RAGE_FREQS);
+  const wl = merged(['roadrage', 'parkingrage', 'road', 'rage', 'parking', 'bird', 'cage']);
+  const store = new Map();
+  let puts = 0;
+  const cache = { get: k => store.get(k) ?? null, put: (k, v) => { puts++; store.set(k, v); } };
+  const rhymesWith = entry =>
+    executePipeline(wl, [makeToolRow('rhymes', { entry })], null, { prepareCache: cache })
+      .then(out => out.rows.map(rowWords));
+
+  sameVisible(await rhymesWith('cage'), ['roadrage', 'parkingrage', 'rage']);
+  assert.equal(puts, 1);
+  sameVisible(await rhymesWith('bird cage'), ['roadrage', 'parkingrage', 'rage']);
+  assert.equal(puts, 1);
 });

@@ -784,6 +784,25 @@ export function partialCacheStateForTest(timeout = 2000) {
   });
 }
 
+export function configureArtifactCacheForTest(opts) {
+  getWorker().postMessage({ type: '__testArtifactCacheConfig', ...opts });
+}
+
+export function artifactCacheStateForTest(timeout = 2000) {
+  const w = getWorker();
+  return new Promise(resolve => {
+    const timer = setTimeout(() => { w.removeEventListener('message', onMessage); resolve(null); }, timeout);
+    function onMessage({ data }) {
+      if (data?.type !== '__testArtifactCacheState') return;
+      clearTimeout(timer);
+      w.removeEventListener('message', onMessage);
+      resolve({ size: data.size, bytes: data.bytes, hits: data.hits, misses: data.misses, keys: data.keys });
+    }
+    w.addEventListener('message', onMessage);
+    w.postMessage({ type: '__testArtifactCacheState' });
+  });
+}
+
 export function retainedResultInfoForTest(timeout = 2000) {
   const w = getWorker();
   return new Promise(resolve => {

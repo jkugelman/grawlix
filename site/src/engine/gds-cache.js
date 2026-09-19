@@ -1,12 +1,12 @@
 // ─── Byte-budgeted GreedyDual-Size cache ── see docs/worker-protocol.md ──────
-// A single storage substrate shared by the worker's three pipeline roles — finished
-// results, prefix states, and partial (superseded) joins. `GdsCache` is the POOL: it
-// owns ONE byte budget, ONE GreedyDual-Size eviction order, and the byte accounting,
-// and is deliberately ignorant of ADMISSION (worthiness) and of VALIDITY: a `RoleCache`
-// decides what's worth storing and the caller proves freshness (corpus identity) itself.
-// Fold either in here and a caller that skips the check would serve a stale corpus's rows
-// with nothing to catch it. The three roles share the pool so they evict against ONE
-// budget by global H, instead of each hoarding a private allowance.
+// A single storage substrate shared by the worker's four pipeline roles — finished
+// results, prefix states, partial (superseded) joins, and prepare artifacts. `GdsCache`
+// is the POOL: it owns ONE byte budget, ONE GreedyDual-Size eviction order, and the byte
+// accounting, and is deliberately ignorant of ADMISSION (worthiness) and of VALIDITY: a
+// `RoleCache` decides what's worth storing and the caller proves freshness (corpus
+// identity) itself. Fold either in here and a caller that skips the check would serve a
+// stale corpus's rows with nothing to catch it. The roles share the pool so they evict
+// against ONE budget by global H, instead of each hoarding a private allowance.
 export class GdsCache {
   constructor({ maxBytes }) {
     this.maxBytes = maxBytes;
@@ -68,7 +68,7 @@ export class GdsCache {
 }
 
 // ─── Role-scoped view over a shared GdsCache pool ─────────────────────────────
-// One per pipeline role (finished / prefix / partial). It owns the ADMISSION policy —
+// One per pipeline role (finished / prefix / partial / artifact). It owns the ADMISSION policy —
 // the recompute-time floor and the per-entry byte ceiling — and namespaces its keys with
 // a role tag so the three roles coexist in the one pool without colliding. Storage, the
 // byte budget, and eviction are the pool's: admitting a finished result can evict a prefix
@@ -111,6 +111,8 @@ export class RoleCache {
   }
 
   clear() { this.pool.purgeKeys(k => this.#mine(k)); }
+
+  *entries() { for (const [k, e] of this.pool.map) if (this.#mine(k)) yield e; }
 
   // Role-scoped introspection (test-only): filter the shared pool by role tag.
   keys() { return this.pool.keys().filter(k => this.#mine(k)); }

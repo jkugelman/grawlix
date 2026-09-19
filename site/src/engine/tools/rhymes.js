@@ -1,8 +1,8 @@
 'use strict';
 
 import { loadCmuDict, hasCmuDict, rhymingPartsOf, lastWordKey, hasPronunciation } from '../phonetics.js';
-import { loadUnigramCorpus, hasUnigramCorpus, bestCompoundSplit, SPACE_OUT_WINDOWS } from '../segmenter.js';
-import { bestSpaceOutSplit, spaceOutSplits } from '../space-out.js';
+import { hasUnigramCorpus, SPACE_OUT_WINDOWS } from '../segmenter.js';
+import { buildSpacingTable, loadSpacingCorpus, isUnspaced, spaceOutSplits } from '../space-out.js';
 import { toNorm } from '../norm.js';
 
 async function ensureDict() {
@@ -13,45 +13,16 @@ async function ensureDict() {
   }
 }
 
-// Optional, unlike the dictionary: without the corpus every entry still rhymes on
-// whatever CMU can read directly, so a failed fetch costs coverage, not the tool.
-async function ensureSegmenter() {
-  try {
-    await loadUnigramCorpus();
-  } catch { /* offline → unspaced entries stay unreadable, as before */ }
-}
-
-// Module-level, not per-run: a keystroke re-prepares the row, and re-spacing a 500k
-// list costs seconds each time. Keyed on vocab identity because splits are scored
-// against the wordlist's own norms — they go stale when the merge is rebuilt. Only
-// entries that reach the segmenter are stored; caching the cheap paths would hold a
-// string per entry for a lookup already cheaper than the Map.
-let _splitVocab = null;
-const _splitCache = new Map();
-
 // Each clause silently corrupts the rhyme if dropped: CMU knowing the whole string
-// settles it (NOTABLE must not read as NO TABLE), a spaced entry is already spelled,
-// and a one-letter tail is rankedSplits' short-part escape hatch showing through
-// (YOWLERS → YOWLER S), rhyming the entry on a bare letter.
+// settles it (NOTABLE must not read as NO TABLE), and a spaced entry is already spelled.
 //
 // Past those clauses the dictionary has already declined the glued string, so keeping
 // it unsplit is worth exactly nothing — it yields no rhyme at all. That is what earns
-// the compound fallback its guess where Space out, which may legitimately answer
-// "already one word", gets none: RICKROLL is unrhymable until something splits it.
-function spacedReading(display, vocab) {
-  if (!vocab || !hasUnigramCorpus() || /[\s-]/.test(display) || hasPronunciation(display)) return display;
-  if (vocab !== _splitVocab) {
-    _splitVocab = vocab;
-    _splitCache.clear();
-  }
-  const hit = _splitCache.get(display);
-  if (hit !== undefined) return hit;
-  const norm = toNorm(display);
-  const spaced = bestSpaceOutSplit(norm, vocab);
-  const parts = spaced && spaced[spaced.length - 1].length > 1 ? spaced : bestCompoundSplit(norm, vocab);
-  const reading = parts ? parts.join(' ') : display;
-  _splitCache.set(display, reading);
-  return reading;
+// the reader's `guess` over its `best`, which may legitimately answer "already one
+// word": RICKROLL is unrhymable until something splits it.
+function spacedReading(display, spacing) {
+  if (!isUnspaced(display) || hasPronunciation(display)) return display;
+  return spacing.guess(toNorm(display))?.join(' ') ?? display;
 }
 
 // The typed entry earns a wider search than the wordlist gets. At the default
@@ -60,11 +31,11 @@ function spacedReading(display, vocab) {
 // who pastes an unspaced entry gets nothing, with nothing on screen to say why.
 // Widening for the whole wordlist instead is what costs: it rescues 4% of XWI but
 // reads them as `orbs → or bs` and `not ate`.
-function typedReading(text, vocab) {
-  const narrow = spacedReading(text, vocab);
-  if (narrow !== text || !vocab || !hasUnigramCorpus()) return narrow;
-  if (/[\s-]/.test(text) || hasPronunciation(text)) return narrow;
-  const wide = spaceOutSplits(toNorm(text), vocab, { window: SPACE_OUT_WINDOWS.many, limit: 20 })
+function typedReading(text, spacing) {
+  const narrow = spacedReading(text, spacing);
+  if (narrow !== text || !hasUnigramCorpus()) return narrow;
+  if (!isUnspaced(text) || hasPronunciation(text)) return narrow;
+  const wide = spaceOutSplits(toNorm(text), spacing.vocab, { window: SPACE_OUT_WINDOWS.many, limit: 20 })
     .find(parts => parts.length >= 2 && parts[parts.length - 1].length > 1);
   return wide ? wide.join(' ') : narrow;
 }
@@ -88,15 +59,15 @@ export default {
   isInert: params => !(params.entry || '').trim(),
   async prepare(params, ctx) {
     await ensureDict();
-    await ensureSegmenter();
-    const vocab = ctx?.vocab || null;
-    const entry = typedReading((params.entry || '').trim(), vocab);
+    await loadSpacingCorpus();
+    const spacing = await buildSpacingTable(ctx);
+    const entry = typedReading((params.entry || '').trim(), spacing);
     const mode = params.match || 'loose';
-    return { targetParts: rhymingPartsOf(entry, mode), targetLastWord: lastWordKey(entry), mode, vocab };
+    return { targetParts: rhymingPartsOf(entry, mode), targetLastWord: lastWordKey(entry), mode, spacing };
   },
   run(display, prepared) {
     if (!hasCmuDict() || !prepared.targetParts.length) return false;
-    const reading = spacedReading(display, prepared.vocab);
+    const reading = spacedReading(display, prepared.spacing);
     // Same last word is a repeat, not a rhyme — "Agatha"/"Aunt Agatha", or a word with itself.
     if (lastWordKey(reading) === prepared.targetLastWord) return false;
     for (const part of rhymingPartsOf(reading, prepared.mode)) {
@@ -107,13 +78,13 @@ export default {
   group: {
     async prepare(params, ctx) {
       await ensureDict();
-      await ensureSegmenter();
-      return { mode: params.match || 'loose', vocab: ctx?.vocab || null };
+      await loadSpacingCorpus();
+      return { mode: params.match || 'loose', spacing: await buildSpacingTable(ctx) };
     },
-    key: (display, prepared) => rhymingPartsOf(spacedReading(display, prepared.vocab), prepared.mode),
+    key: (display, prepared) => rhymingPartsOf(spacedReading(display, prepared.spacing), prepared.mode),
     // All one word ("Agatha"/"Aunt Agatha") is a repeat; a real family needs ≥2 distinct
     // rhyming words. Read off the spaced form, so ROADRAGE and PARKINGRAGE count as one.
     keepGroup: (members, prepared) =>
-      new Set(members.map(m => lastWordKey(spacedReading(m, prepared.vocab)))).size >= 2,
+      new Set(members.map(m => lastWordKey(spacedReading(m, prepared.spacing)))).size >= 2,
   },
 };

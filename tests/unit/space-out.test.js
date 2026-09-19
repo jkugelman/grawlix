@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { setUnigramCorpus, configureSpaceOutBigrams } from '../../site/src/engine/segmenter.js';
-import { casePart, spaceOutSplits, bestSpaceOutSplit } from '../../site/src/engine/space-out.js';
+import { setUnigramCorpus, invalidateUnigramCorpus, configureSpaceOutBigrams } from '../../site/src/engine/segmenter.js';
+import { casePart, spaceOutSplits, bestSpaceOutSplit, buildSpacingTable, spacingReader } from '../../site/src/engine/space-out.js';
 import { merged } from './tools/harness.js';
 
 // The wordlist-aware layer over rankedSplits, shared by the entry panel's rename
@@ -74,4 +74,104 @@ test('spaceOutSplits: limit caps the results, window widens them', () => {
 test('bestSpaceOutSplit: a whole word yields null, not a one-part split', () => {
   setUnigramCorpus({ dog: -2, do: -9, g: -12 });
   assert.equal(bestSpaceOutSplit('dog', merged(['dog', 'do'])), null);
+});
+
+// ─── Spacing table ───────────────────────────────────────────────────────────
+
+function fakeCache() {
+  const store = new Map();
+  return {
+    store,
+    get: key => store.get(key)?.value ?? null,
+    put: (key, value, bytes, opts = {}) => store.set(key, { value, bytes, ...opts }),
+  };
+}
+
+function ctxOver(specs, cache = fakeCache()) {
+  const wl = merged(specs);
+  return {
+    cache, wordlist: wl, vocab: wl,
+    forEach: async (items, fn) => { let i = 0; for (const item of items) fn(item, i++); },
+  };
+}
+
+const PHRASES = { helen: -5, of: -2, troy: -5, dog: -2, do: -9, g: -12 };
+const LIST = ['helenoftroy', 'Helen of Troy', 'helen', 'of', 'troy', 'dog', 'do'];
+
+test('buildSpacingTable: reads every unspaced entry once and caches the table', async () => {
+  setUnigramCorpus(PHRASES);
+  const ctx = ctxOver(LIST);
+  const reader = await buildSpacingTable(ctx);
+  assert.deepEqual(reader.best('helenoftroy'), ['helen', 'of', 'troy']);
+  assert.equal(reader.best('dog'), null);
+  assert.equal(ctx.cache.store.size, 1);
+  const [{ value, bytes, patch }] = ctx.cache.store.values();
+  assert.ok(bytes > 0);
+  assert.equal(typeof patch, 'function');
+  assert.equal((await buildSpacingTable(ctx)).table, value);
+});
+
+test('buildSpacingTable: caches nothing while the corpus is missing', async () => {
+  invalidateUnigramCorpus();
+  const ctx = ctxOver(LIST);
+  const reader = await buildSpacingTable(ctx);
+  assert.equal(reader.best('helenoftroy'), null);
+  assert.equal(ctx.cache.store.size, 0);
+  setUnigramCorpus(PHRASES);
+  assert.deepEqual(reader.best('helenoftroy'), ['helen', 'of', 'troy']);
+});
+
+test('spacingReader: reads on demand and never caches a table', () => {
+  setUnigramCorpus(PHRASES);
+  const ctx = ctxOver(LIST);
+  assert.deepEqual(spacingReader(ctx).best('helenoftroy'), ['helen', 'of', 'troy']);
+  assert.equal(ctx.cache.store.size, 0);
+});
+
+test('spacingReader: reads through a table an earlier run built', async () => {
+  setUnigramCorpus(PHRASES);
+  const ctx = ctxOver(LIST);
+  const { table } = await buildSpacingTable(ctx);
+  assert.equal(spacingReader(ctx).table, table);
+});
+
+test('a norm the table never read is read on the spot, not taken for one word', async () => {
+  setUnigramCorpus(PHRASES);
+  const ctx = ctxOver(['dog', 'helen', 'of', 'troy']);
+  const reader = await buildSpacingTable(ctx);
+  assert.deepEqual(reader.best('helenoftroy'), ['helen', 'of', 'troy']);
+});
+
+test('the patch drops exactly the readings a vocab change can reach', async () => {
+  setUnigramCorpus({ ...PHRASES, bake: -5, sale: -5 });
+  const ctx = ctxOver([...LIST, 'bakesaling', 'bake', 'sale']);
+  const { table } = await buildSpacingTable(ctx);
+  const [{ patch }] = ctx.cache.store.values();
+  const kept = () => [...table.best.keys()].sort();
+  const all = kept();
+
+  patch(table, ['zebra', 'a']);
+  assert.deepEqual(kept(), all);
+
+  patch(table, ['troy']);
+  assert.deepEqual(kept(), all.filter(n => !n.includes('troy')));
+
+  // `sale` reaches BAKESALING only through the stem's restored e.
+  patch(table, ['sale']);
+  assert.ok(!table.best.has('bakesaling'));
+  assert.ok(table.best.has('dog'));
+});
+
+test('guess: a compound the corpus carries whole still gets a reading', () => {
+  setUnigramCorpus({ rickroll: -17.57, rick: -10.80, roll: -9.81 });
+  const reader = spacingReader(ctxOver(['rickroll', 'rick', 'roll']));
+  assert.equal(reader.best('rickroll'), null);
+  assert.deepEqual(reader.guess('rickroll'), ['rick', 'roll']);
+});
+
+test('guess: a split ending in a lone letter is no reading', () => {
+  setUnigramCorpus({ avenue: -4, j: -5 });
+  const reader = spacingReader(ctxOver(['avenuej', 'avenue']));
+  assert.deepEqual(reader.best('avenuej'), ['avenue', 'j']);
+  assert.equal(reader.guess('avenuej'), null);
 });

@@ -295,6 +295,7 @@ async function runOne({ runId, stack: serialized, sort, scope, existsQuery, scor
   const genAtStart = ownedConfigVersion;
   reapUnusedAssets(serialized);
   const resume = makePrefixResume(serialized, scope);
+  const prepareCache = makePrepareCache(scope);
 
   let out;
   const streamState = { streamed: false };
@@ -311,7 +312,7 @@ async function runOne({ runId, stack: serialized, sort, scope, existsQuery, scor
       : tier === 'transform' ? makeTransformStreamEmitter(runId, viewSpec, scope, stack, signal, streamState, resumeCtx)
       : null;
     const onProgress = fraction => { if (!signal.aborted) postMessage({ type: 'progress', runId, fraction }); };
-    out = await executePipeline(ownedCorpus, stack, signal, { emit, resume, onProgress, vocab: ownedMerged });
+    out = await executePipeline(ownedCorpus, stack, signal, { emit, resume, onProgress, vocab: ownedMerged, prepareCache });
   } catch (e) {
     if (isAbortError(e) || signal.aborted) { stashPartialOnAbort(runId, serialized, scope, t0, genAtStart); return; }
     if (divergenceError(e)) {
@@ -1160,6 +1161,8 @@ const partialCache = new RoleCache(pipelineCache, 'partial', admissionOpts);
 let cacheHits = 0, cacheMisses = 0;       // finished-role telemetry (__testResultCacheState)
 let prefixHits = 0, prefixMisses = 0;     // prefix-role telemetry (__testPrefixCacheState)
 let partialHits = 0, partialStashes = 0;  // partial-role telemetry (__testPartialCacheState)
+const artifactCache = new RoleCache(pipelineCache, 'artifact', admissionOpts);
+let artifactHits = 0, artifactMisses = 0;
 
 // Keys all three caches. Excludes the view fields (sort, score-range) — they reproject on a
 // hit — and KEEPS the trailing search row (a prefix key is a stack SLICE, so the search
@@ -1263,6 +1266,32 @@ function makePrefixResume(serialized, scope) {
   };
 }
 
+// Keyed (scope, toolKey), never resultCacheKey: that one hashes the tool's params, and
+// an artifact is whatever a prepare computes that its params don't change.
+function makePrepareCache(scope) {
+  const genAtStart = ownedConfigVersion;
+  const keyOf = toolKey => scope + '\0' + toolKey;
+  const missedAt = new Map();
+  return {
+    get(toolKey) {
+      const e = artifactCache.peek(keyOf(toolKey));
+      if (e && cacheEntryValid(e)) { artifactCache.touch(e); artifactHits++; return e.value; }
+      artifactMisses++;
+      missedAt.set(toolKey, performance.now());
+      return null;
+    },
+    put(toolKey, value, bytes, { patch = null } = {}) {
+      if (!ownedCorpusFresh || ownedScope !== scope || ownedConfigVersion !== genAtStart) return;
+      const corpus = scope === MERGED_ID ? ownedMerged : ownedCorpus;
+      if (!corpus) return;
+      // Timed from the miss, not the run: an artifact built behind a slow upstream
+      // stage would otherwise price in that stage's time and outrank everything.
+      const elapsed = performance.now() - (missedAt.get(toolKey) ?? performance.now());
+      artifactCache.admit(keyOf(toolKey), { value, scope, corpus, patch }, elapsed, () => bytes);
+    },
+  };
+}
+
 // Deletes the consumed entry so the join it hands the resuming emitter (which appends past
 // catch-up) is never also aliased by a live cache entry.
 function armPartialResume(runId, cacheKey, tier, viewSpec, scope, stack, streamState) {
@@ -1339,8 +1368,16 @@ function purgeDiscardedCacheEntries() {
 // An in-place splice that swapped row objects (replaced===true) leaves the corpus OBJECT
 // identical, so the identity test can't catch it — purge that corpus's entries directly.
 function purgeCacheForCorpus(corpus) {
-  const bound = e => e.corpus === corpus;
+  const bound = e => e.corpus === corpus && !e.patch;
   pipelineCache.purge(bound);
+}
+
+// A `patch` exempts an artifact from the replacing-splice purge, so it must hold no row
+// objects or corpus indices — those are what the purge exists to drop. The vocab can
+// still stale it, so it hears every norm that entered or left the merge.
+function patchArtifacts(flippedNorms) {
+  if (!flippedNorms.length) return;
+  for (const e of artifactCache.entries()) e.patch?.(e.value, flippedNorms);
 }
 
 function clearResultCache() {
@@ -2231,7 +2268,10 @@ function applyOwnedEdit(source, affectedNorms) {
   // computeMergedBucket (not the rawScore-carrying scoped variant): the merged
   // corpus drops rawScore on every entry (a full buildCorpus merge would too), so
   // the in-place splice must drop it to stay byte-identical to a rebuild.
-  const mergedReplaced = spliceOwnedCorpus(ownedMerged, affectedNorms, norm => withFamilies(computeMergedBucket(norm, ownedBuilt), ownedMerged.vocab));
+  const norms = [...affectedNorms];
+  const wasInMerge = norms.map(n => ownedMerged.norms.has(n));
+  const mergedReplaced = spliceOwnedCorpus(ownedMerged, norms, norm => withFamilies(computeMergedBucket(norm, ownedBuilt), ownedMerged.vocab));
+  patchArtifacts(norms.filter((n, i) => ownedMerged.norms.has(n) !== wasInMerge[i]));
   // replaced===true strands a retained join's indices/refs on the swapped-out rows;
   // replaced===false only mutated scores in place, so the entry stays valid and its
   // next hit recomputes the score-derived view.
@@ -2242,7 +2282,7 @@ function applyOwnedEdit(source, affectedNorms) {
   // source it's a distinct single-source build — diverge from that and the scoped
   // view drifts from a rebuild with no error.
   if (ownedScope === source.dbKey && ownedCorpus !== ownedMerged) {
-    const scopedReplaced = spliceOwnedCorpus(ownedCorpus, affectedNorms, norm => withFamilies(recomputeScopedBucket(norm, source), ownedCorpus.vocab));
+    const scopedReplaced = spliceOwnedCorpus(ownedCorpus, norms, norm => withFamilies(recomputeScopedBucket(norm, source), ownedCorpus.vocab));
     if (scopedReplaced) purgeCacheForCorpus(ownedCorpus);
     replaced = scopedReplaced || replaced;
   }
@@ -3054,6 +3094,15 @@ onmessage = ({ data }) => {
 
     case '__testPartialCacheState':
       postMessage({ type: '__testPartialCacheState', size: partialCache.size, bytes: partialCache.bytes, hits: partialHits, stashes: partialStashes, resumedFrom: lastPartialResumeLen, keys: partialCache.keys() });
+      break;
+
+    case '__testArtifactCacheConfig':
+      artifactCache.configure({ minMs: data.minMs, maxBytes: data.maxBytes, maxEntryBytes: data.maxEntryBytes });
+      artifactHits = artifactMisses = 0;
+      break;
+
+    case '__testArtifactCacheState':
+      postMessage({ type: '__testArtifactCacheState', size: artifactCache.size, bytes: artifactCache.bytes, hits: artifactHits, misses: artifactMisses, keys: artifactCache.keys() });
       break;
 
     // Test-only: the retained grouped/record result's representation + packed byte
