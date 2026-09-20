@@ -14,6 +14,11 @@ export const SPACE_OUT_BIGRAM_WEIGHT = 2;
 export const SPACE_OUT_OOV_PER_LETTER = 1.5 * Math.LN10;
 export const SPACE_OUT_MORPHEME_PENALTY = 1.0;
 export const SPACE_OUT_SUFFIXES = ['s', 'es', 'ed', 'ied', 'ing', 'er', 'est', 'ly', 'ies'];
+// Stem credit only, kept off SPACE_OUT_SUFFIXES because the compound reading peels and
+// gates on that list as inflections. -ness earns its place by almost never being a word
+// of its own: the same credit for -ize glues CLASS SIZE and WIN A PRIZE into one word.
+export const SPACE_OUT_DERIVED_SUFFIXES = ['ness', 'nesses', 'iness', 'inesses'];
+const SPACE_OUT_STEM_SUFFIXES = [...SPACE_OUT_SUFFIXES, ...SPACE_OUT_DERIVED_SUFFIXES];
 
 // Manual space-out overrides: a glued part's norm → its forced spacing, applied
 // per segmentation part so `ofthe → of the` fires mid-entry (ageofthepyramids),
@@ -72,6 +77,57 @@ const SPACE_OUT_SPACINGS = [
 // a function and throws mid-split.
 export const SPACE_OUT_OVERRIDES = new Map(
   SPACE_OUT_SPACINGS.map(spacing => [toNorm(spacing), spacing]));
+
+// Bound affixes that reach the scorer as parts, because some wordlist carries them as
+// entries or they are short enough to need none, and that it strands beside the word
+// they belong to: ABATER S, UN ABATING, SULFUR IZE. joinAffixes puts them back.
+//
+// Mined like the overrides: a fragment qualifies when a 738k-entry merge strands it 100+
+// times and the 54k really-spaced entries of a real wordlist break on at most two. That
+// gate is what keeps out the free words that look like affixes. DE breaks 32 phrases
+// (CLAIR DE LUNE), FORE swallows the AND of FORE AND AFT, a lone Y, E, N, L, or D ends
+// LETTER Y and GUNS N ROSES, and ABLE, ALLY, ION, and IAN are words.
+export const SPACE_OUT_BOUND_SUFFIXES = new Set([
+  's', 'ism', 'isms', 'ist', 'ists', 'ic', 'ish', 'ier', 'iest', 'ily', 'ity', 'ful', 'ably',
+  'ment', 'ments', 'ation', 'ations',
+  'ize', 'izes', 'ized', 'ization', 'izations', 'ise', 'ises', 'ised', 'ising', 'isation', 'isations',
+  // Reached only by the linking-i merge below, so each begins with the i it swallows.
+  'ia', 'izing', 'ities', 'iform', 'iforms', 'iformes', 'ification', 'ifications', 'ified', 'iflora',
+]);
+export const SPACE_OUT_BOUND_PREFIXES = new Set([
+  're', 'un', 'non', 'pre', 'mis', 'dis', 'co', 'anti', 'semi', 'inter', 'hyper', 'micro',
+]);
+
+// A suffix needs a word of 2+ letters before it, so H M S PINAFORE keeps its S. A prefix
+// needs 3+ letters after it, so it cannot swallow a TO or an OF. Joins chain, which is
+// how CHANNEL IS ATION comes back through ISATION.
+function joinAffixes(parts) {
+  const out = [];
+  let prefix = '';
+  parts.forEach((part, i) => {
+    const next = parts[i + 1];
+    if (SPACE_OUT_BOUND_PREFIXES.has(part) && next !== undefined && toNorm(next).length >= 3) {
+      prefix += part;
+      return;
+    }
+    // A derivational ending starting with i (ACRONYM IZING) reaches the scorer split,
+    // because a lone i is a cheap real word. Merged forward only when the pair spells a
+    // listed ending, so the pronoun in ALL I DO is untouched. Compared raw, so an
+    // override's capital `I` — always the pronoun — never merges.
+    if (part === 'i' && next !== undefined && SPACE_OUT_BOUND_SUFFIXES.has('i' + next)) {
+      prefix += part;
+      return;
+    }
+    out.push(prefix + part);
+    prefix = '';
+    while (out.length >= 2 && SPACE_OUT_BOUND_SUFFIXES.has(out[out.length - 1])
+        && toNorm(out[out.length - 2]).length >= 2) {
+      const suffix = out.pop();
+      out[out.length - 1] += suffix;
+    }
+  });
+  return out;
+}
 
 // Shipped word-pair table (engine/space-out-bigrams-data.js), injected by the worker.
 // Null until then, so importing the segmenter alone keeps ranking on the pure-unigram
@@ -132,7 +188,7 @@ export function morphemeStemLogFreq(word) {
     const lf = unigramLogFreqs.get(s);
     if (lf !== undefined && lf > best) best = lf;
   };
-  for (const suf of SPACE_OUT_SUFFIXES) {
+  for (const suf of SPACE_OUT_STEM_SUFFIXES) {
     if (!word.endsWith(suf)) continue;
     const stemLen = word.length - suf.length;
     if (stemLen < 2) continue;
@@ -141,8 +197,8 @@ export function morphemeStemLogFreq(word) {
     if (suf === 'ed' || suf === 'ing' || suf === 'er' || suf === 'est') {
       tryStem(stem + 'e');  // raced, racing, racer, ...
     }
-    if (suf === 'ies' || suf === 'ied') {
-      tryStem(stem + 'y');  // tries, tried
+    if (suf === 'ies' || suf === 'ied' || suf === 'iness' || suf === 'inesses') {
+      tryStem(stem + 'y');  // tries, tried, happiness
     }
   }
   return best;
@@ -241,8 +297,14 @@ const isDigit = c => c >= '0' && c <= '9';
 const splitsMidDigit = (s, i) => i < s.length && isDigit(s[i - 1]) && isDigit(s[i]);
 const isAllowedPart = (p, wordlist) => p.length <= 2 || wordlist.norms.has(p);
 
+// Well-formed, not merely Roman letters: DID I and MMM MMM MMM MMM are all-Roman and
+// must still split, and neither is a valid numeral. A numeral is never words.
+const ROMAN_NUMERAL = /^m{0,4}(cm|cd|d?c{0,3})(xc|xl|l?x{0,3})(ix|iv|v?i{0,3})$/;
+export const isRomanNumeral = entry => entry.length > 0 && ROMAN_NUMERAL.test(entry);
+
 export function rankedSplits(entry, window, wordlist) {
   if (entry.length < 1) return [];
+  if (isRomanNumeral(entry)) return [[entry]];
 
   const bestMemo = new Map();
   bestMemo.set('', 0);
@@ -291,7 +353,7 @@ export function rankedSplits(entry, window, wordlist) {
   // With no bigram table the bonus is 0, so the order is the pure-unigram score untouched.
   const richness = ps => ps.join(' ').replace(/[a-z0-9 ]/g, '').length;
   const scored = results.map(({ score, parts }) => {
-    const expanded = parts.flatMap(p => SPACE_OUT_OVERRIDES.get(p)?.split(' ') ?? [p]);
+    const expanded = joinAffixes(parts.flatMap(p => SPACE_OUT_OVERRIDES.get(p)?.split(' ') ?? [p]));
     const norms = expanded.map(toNorm);
     return { parts: expanded, norms, score: score + bigramBonus(norms) };
   });
@@ -380,7 +442,7 @@ function inflectionOf(word) {
 }
 
 export function bestCompoundSplit(entry, wordlist) {
-  if (!unigramLogFreqs) return null;
+  if (!unigramLogFreqs || isRomanNumeral(entry)) return null;
   const inflected = inflectionOf(entry);
   // Split the stem, not the inflected form, so the ending rides along instead of
   // steering: RICKROLLING is RICK ROLLING, where splitting directly reads CALL USING.

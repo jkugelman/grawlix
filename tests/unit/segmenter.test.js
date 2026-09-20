@@ -149,6 +149,18 @@ test('morphemeStemLogFreq: "ied" restores a "y" (tried -> try)', () => {
   assert.equal(morphemeStemLogFreq('tried'), -3);
 });
 
+test('morphemeStemLogFreq: "ness" strips to a corpus stem, plural included', () => {
+  const { morphemeStemLogFreq } = corpus([['agile', -4]]);
+  assert.equal(morphemeStemLogFreq('agileness'), -4);
+  assert.equal(morphemeStemLogFreq('agilenesses'), -4);
+});
+
+test('morphemeStemLogFreq: "iness" restores a "y" (savoriness -> savory)', () => {
+  const { morphemeStemLogFreq } = corpus([['savory', -5]]);
+  assert.equal(morphemeStemLogFreq('savoriness'), -5);
+  assert.equal(morphemeStemLogFreq('savorinesses'), -5);
+});
+
 test('morphemeStemLogFreq: no stemmable suffix returns -Infinity', () => {
   const { morphemeStemLogFreq } = corpus([['race', -2]]);
   assert.equal(morphemeStemLogFreq('zzz'), -Infinity);
@@ -204,6 +216,60 @@ test('rankedSplits: with no known parts only short (<=2 char) pieces are allowed
   assert.equal(out[0].length, 3);
   assert.ok(out.every(parts => parts.join('') === 'xyzqk'));
   assert.ok(out.every(parts => parts.every(p => p.length <= 2)));
+});
+
+test('rankedSplits: a -ness word the corpus lacks stays whole through its stem', () => {
+  // Without the stem credit SAVORINESS is out-of-vocabulary, and the three cheap
+  // real words SAVOR I NESS outscore it.
+  const { rankedSplits } = corpus([['savor', -5], ['savory', -5], ['i', -2], ['ness', -5]]);
+  const [top] = rankedSplits('savoriness', 5, allowed('savor', 'savory', 'ness', 'savoriness'));
+  assert.deepEqual(top, ['savoriness']);
+});
+
+test('rankedSplits: a stranded plural or possessive S rejoins its word', () => {
+  const { rankedSplits } = corpus([['harley', -5], ['davidson', -5], ['bowser', -5], ['castle', -4], ['s', -3]]);
+  const vocab = allowed('harley', 'davidson', 'bowser', 'castle');
+  assert.deepEqual(rankedSplits('harleydavidsons', 5, vocab)[0], ['harley', 'davidsons']);
+  assert.deepEqual(rankedSplits('bowserscastle', 5, vocab)[0], ['bowsers', 'castle']);
+});
+
+test('rankedSplits: a stranded prefix or suffix rejoins into one word, listed once', () => {
+  const { rankedSplits } = corpus([['abating', -5], ['sulfur', -5], ['ize', -6]]);
+  const vocab = allowed('abating', 'unabating', 'sulfur', 'ize', 'sulfurize');
+  assert.deepEqual(rankedSplits('unabating', 5, vocab), [['unabating']]);
+  assert.deepEqual(rankedSplits('sulfurize', 5, vocab), [['sulfurize']]);
+});
+
+test('rankedSplits: affix joins chain, so IS ATION comes back through ISATION', () => {
+  const { rankedSplits } = corpus([['channel', -5], ['is', -2], ['ation', -6]]);
+  assert.deepEqual(rankedSplits('channelisation', 5, allowed('channel', 'ation'))[0], ['channelisation']);
+});
+
+test('rankedSplits: an initial keeps its S, and a prefix leaves a two-letter word alone', () => {
+  const { rankedSplits } = corpus([['h', -4], ['m', -4], ['s', -3], ['pinafore', -6], ['do', -3], ['re', -5], ['mi', -5]]);
+  assert.deepEqual(rankedSplits('hmspinafore', 5, allowed('pinafore'))[0], ['h', 'm', 's', 'pinafore']);
+  assert.deepEqual(rankedSplits('doremi', 5, allowed())[0], ['do', 're', 'mi']);
+});
+
+test('rankedSplits: a well-formed roman numeral is never split', () => {
+  const { rankedSplits } = corpus([['dccc', -6], ['lxxvii', -6], ['i', -2], ['mix', -4]]);
+  assert.deepEqual(rankedSplits('dccclxxviii', 5, allowed('dccc', 'lxxvii', 'i')), [['dccclxxviii']]);
+  assert.deepEqual(rankedSplits('mix', 5, allowed('mi', 'x')), [['mix']]);
+});
+
+// All-roman-letter is not the test: these are real phrases whose glued form would
+// vanish under one, and none is a valid numeral.
+test('rankedSplits: roman letters that spell no numeral still split', () => {
+  const { rankedSplits } = corpus([['did', -3], ['i', -2], ['mm', -4], ['civil', -3]]);
+  assert.deepEqual(rankedSplits('didi', 5, allowed('did', 'i'))[0], ['did', 'i']);
+  assert.deepEqual(rankedSplits('mmmmmmmmmmmm', 5, allowed('mm'))[0].length > 1, true);
+  assert.deepEqual(rankedSplits('civil', 5, allowed('civil')), [['civil']]);
+});
+
+test('rankedSplits: a lone i merges forward into a latin ending, never into a verb', () => {
+  const { rankedSplits } = corpus([['acronym', -5], ['i', -2], ['zing', -5], ['all', -2], ['do', -2]]);
+  assert.deepEqual(rankedSplits('acronymizing', 5, allowed('acronym', 'zing'))[0], ['acronymizing']);
+  assert.deepEqual(rankedSplits('allido', 5, allowed('all', 'do'))[0], ['all', 'i', 'do']);
 });
 
 test('rankedSplits: a numeric run is never cut mid-digit', () => {
