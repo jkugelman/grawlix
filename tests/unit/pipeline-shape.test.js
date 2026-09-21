@@ -89,6 +89,8 @@ const agreementStacks = {
   'search then marked transform': [search(), markedXform()],
   'input-marked transform': [inputXform()],
   'search then input-marked transform': [search(), inputXform()],
+  'two marked transforms keep the output slot and the next input mark apart': [markedXform(), markedXform()],
+  'two input-marked transforms fold each input mark into the plain output above': [inputXform(), inputXform()],
   'inert search is transparent': [inertSearch(), search()],
   'mixed pipeline': [search(), plainFilter(), plainXform(), search(), markedXform()],
   'inverted search claims no slot': [notSearch()],
@@ -132,6 +134,12 @@ test('currentAtomCount: a marked transform after a search adds input-mark + outp
 test('currentAtomCount: a marked transform with no slot tail folds its input mark', () => {
   // originator tail is NOT a slot, so the input mark folds: just +1 for output.
   assert.equal(currentAtomCount([markedXform()]), 2);
+});
+
+test('currentAtomCount: a second transform adds a line for its input mark only over a marked output', () => {
+  assert.equal(currentAtomCount([markedXform(), markedXform()]), 4);
+  assert.equal(currentAtomCount([inputXform(), inputXform()]), 3);
+  assert.equal(currentAtomCount([inputXform(), markedXform()]), 3);
 });
 
 test('currentAtomCount: an inert row is skipped entirely', () => {

@@ -126,6 +126,12 @@ export function parseReplacement(str) {
   return tokens;
 }
 
+const tokenMarksOutput = (tok, capturing) => capturing ? tok.group !== undefined : tok.lit !== undefined;
+
+// Shares `runReplace`'s per-token test: answer false for a replacement it does
+// color and the executor drops those output marks without a trace.
+export const replacementMarksOutput = (tokens, capturing) => tokens.some(tok => tokenMarksOutput(tok, capturing));
+
 // A capture group and its `$N` echoes must resolve to the same color so
 // rearranged text visibly moves between the input and output atoms.
 export function kindForGroup(g) {
@@ -204,10 +210,11 @@ export function runReplace(wlEntry, prepared, wordlist) {
     let litIdx = 0;
     for (const tok of tokens) {
       let normVal, dispVal, kind = null;
+      const marks = tokenMarksOutput(tok, groups);
       if (tok.lit !== undefined) {
         normVal = toNorm(tok.lit);
         dispVal = tok.lit;
-        if (!groups) kind = SEARCH_KINDS[litIdx++ % HL_COLORS];
+        if (marks) kind = SEARCH_KINDS[litIdx++ % HL_COLORS];
       } else {
         if (armNorm) {
           const span = m.indices[tok.group];
@@ -217,7 +224,7 @@ export function runReplace(wlEntry, prepared, wordlist) {
           dispVal = m[tok.group] || '';
           normVal = toNorm(dispVal);
         }
-        if (dispVal && groups) kind = kindForGroup(tok.group);
+        if (dispVal && marks) kind = kindForGroup(tok.group);
       }
       if (kind) {
         normHl.push({ start: outNorm.length, end: outNorm.length + normVal.length, kind });

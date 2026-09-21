@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   analyzeRegexPattern, isCapturingGroup, matchingParen, wrapRuns,
-  parseReplacement, kindForGroup, regexExecAll, runReplace,
+  parseReplacement, replacementMarksOutput, kindForGroup, regexExecAll, runReplace,
 } from '../../site/src/engine/regex.js';
 import regexTool from '../../site/src/engine/tools/regex.js';
 
@@ -113,6 +113,20 @@ test('parseReplacement: a non-special `$x` and a trailing `$` are literal', () =
 
 test('parseReplacement: interleaved literals and groups tokenize in order', () => {
   assert.deepEqual(parseReplacement('a$1b'), [{ lit: 'a' }, { group: 1 }, { lit: 'b' }]);
+});
+
+test('replacementMarksOutput: without capture groups, only literal text marks the output', () => {
+  assert.equal(replacementMarksOutput(parseReplacement('dog'), false), true);
+  assert.equal(replacementMarksOutput(parseReplacement(''), false), false);
+  assert.equal(replacementMarksOutput(parseReplacement('$&'), false), false);
+  assert.equal(replacementMarksOutput(parseReplacement('$&s'), false), true);
+});
+
+test('replacementMarksOutput: with capture groups, only the echoes mark the output', () => {
+  assert.equal(replacementMarksOutput(parseReplacement('$2$1'), true), true);
+  assert.equal(replacementMarksOutput(parseReplacement('$&'), true), true);
+  assert.equal(replacementMarksOutput(parseReplacement('dog'), true), false);
+  assert.equal(replacementMarksOutput(parseReplacement(''), true), false);
 });
 
 test('kindForGroup: group 0 and below map to color 0; later groups cycle by HL_COLORS', () => {

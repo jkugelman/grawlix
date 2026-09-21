@@ -18,14 +18,14 @@ test.beforeEach(async ({ page }) => {
   await stubPublisherFetches(page);
 });
 
-// dog/park/lived are the transform OUTPUTS — drop one as "unused filler" and its
+// dog/park/lived/cart are the transform OUTPUTS — drop one as "unused filler" and its
 // row silently disappears (a transform keeps an output only when it's a real
 // entry), leaving the count assertion nothing to read.
 async function addFixture(page) {
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
     name: 'AtomCount',
-    entries: ['lindsey', 'cat', 'act', 'dog', 'devil', 'lived', 'spark', 'park'],
-    scores:  Array(8).fill(50),
+    entries: ['lindsey', 'cat', 'act', 'dog', 'devil', 'lived', 'spark', 'park', 'carts', 'cart'],
+    scores:  Array(10).fill(50),
   }));
 }
 
@@ -99,6 +99,24 @@ const cases = [
       { tool: 'search', params: { pattern: 'cat', replace: 'dog' } },
     ],
     atoms: 3,
+  },
+  {
+    name: 'two deletions fold each unmarked output into the next input mark → 3 atoms',
+    rowHasText: 'carts',
+    stack: [
+      { tool: 'search', params: { pattern: 's', replace: '' } },
+      { tool: 'search', params: { pattern: 'r', replace: '' } },
+    ],
+    atoms: 3,
+  },
+  {
+    name: 'two filled replacements keep the marked output and the next input mark apart → 4 atoms',
+    rowHasText: 'act',
+    stack: [
+      { tool: 'search', params: { pattern: 'act', replace: 'cat' } },
+      { tool: 'search', params: { pattern: 'cat', replace: 'dog' } },
+    ],
+    atoms: 4,
   },
 ];
 

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { visible, sameVisible, run, rowByFirst, highlightTexts } from './harness.js';
+import { visible, sameVisible, run, rowByFirst, highlightTexts, atomWord } from './harness.js';
 import { makeToolRow } from '../../../site/src/engine/tools.js';
 
 const LIB = ['cat', 'cats', 'scat', 'cot', 'dog', 'cog', 'bell', 'teen'];
@@ -107,4 +107,30 @@ test('an empty replacement makes the row a transform with the arrow glyph', () =
   const row = makeToolRow('regex', { pattern: 's$', replace: '' });
   assert.equal(row.kind(), 'transform');
   assert.equal(row.def.glyph(row.params), '→');
+});
+
+const CHAIN_LIB = ['carts', 'cart', 'cat', 'act', 'dog'];
+const replaceRow = (pattern, replace) => ({ tool: 'regex', params: { pattern, replace } });
+
+test('a deletion leaves its output unmarked, so the next replace marks that same line', async () => {
+  const { rows, atomCount } = await run(CHAIN_LIB, [replaceRow('s$', ''), replaceRow('r', '')]);
+  assert.equal(rows.length, 1);
+  assert.deepEqual(rows[0].atoms.map(atomWord), ['carts', 'cart', 'cat']);
+  assert.deepEqual(rows[0].atoms.map(highlightTexts), [['s'], ['r'], []]);
+  assert.equal(atomCount, 3);
+});
+
+test('literal replacement text beside a capture group is never colored, so the output is unmarked too', async () => {
+  const { rows, atomCount } = await run(CHAIN_LIB, [replaceRow('(c)art$', 'cat'), replaceRow('cat', 'dog')]);
+  assert.equal(rows.length, 1);
+  assert.deepEqual(rows[0].atoms.map(atomWord), ['cart', 'cat', 'dog']);
+  assert.deepEqual(rows[0].atoms.map(highlightTexts), [['c'], ['cat'], ['dog']]);
+  assert.equal(atomCount, 3);
+});
+
+test('a filled replacement marks its output, so the next replace marks a line of its own', async () => {
+  const { rows, atomCount } = await run(CHAIN_LIB, [replaceRow('act', 'cat'), replaceRow('cat', 'dog')]);
+  assert.equal(rows.length, 1);
+  assert.deepEqual(rows[0].atoms.map(atomWord), ['act', 'cat', 'cat', 'dog']);
+  assert.equal(atomCount, 4);
 });

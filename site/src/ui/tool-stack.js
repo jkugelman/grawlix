@@ -18,8 +18,10 @@
 // `input` / `output` each say what the row does with one side of the relation:
 // `'highlight'` (the atom is shown and marked), `'plain'` (shown, unmarked), or
 // `'hidden'` (no atom at all — the row shows only the other side). Default is
-// `'plain'`. `currentAtomCount` reads them to derive the static atom count;
-// transforms also carry a relation `glyph`.
+// `'plain'`. Either may be a `params => side` function, so read a side through
+// the row (`inputHi()`/`outputHi()`), never off `def`: a function compared to
+// `'highlight'` is silently false. `currentAtomCount` reads them to derive the
+// static atom count; transforms also carry a relation `glyph`.
 //
 // An optional `async prepare(params, ctx)` runs once per stage, after every
 // upstream stage has finished; its return value is handed to `run` in place of

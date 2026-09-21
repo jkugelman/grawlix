@@ -421,6 +421,7 @@ async function runToolStage(rows, stackRow, prepared, wordlist, y, emit = null) 
   const kind = stackRow.kind();
   const invert = stackRow.inverted();
   const glyph = stackRow.glyph();
+  const inputHi = stackRow.inputHi(), outputHi = stackRow.outputHi(), showInput = stackRow.inputShown();
   const matchOn = def.matchOn || 'norm';
   const coord = matchOn === 'display' ? 'display' : 'norm';
   const next = [];
@@ -438,7 +439,7 @@ async function runToolStage(rows, stackRow, prepared, wordlist, y, emit = null) 
         // tool declares. currentAtomCount agrees via inverted() — disagree and rows overlap.
         if (!result) next.push(row);
       } else if (result) {
-        if (stackRow.inputHi()) {
+        if (inputHi) {
           const highlights = Array.isArray(result) ? tagCoord(result, coord) : [];
           next.push({ atoms: [...rowAtoms(row),
             { wlEntry: tailEntry, highlights, glyph }] });
@@ -459,15 +460,14 @@ async function runToolStage(rows, stackRow, prepared, wordlist, y, emit = null) 
         const targets = variants && variants.length
           ? variants
           : [synthWlEntry(text, scoreSrc)];
-        const showInput = stackRow.inputShown();
         for (const wlEntry of targets) {
           const atoms = showInput ? rowAtoms(row).slice() : [];
-          if (showInput && stackRow.inputHi()) {
+          if (showInput && inputHi) {
             atoms.push({ wlEntry: tailEntry, highlights: tagCoord(out.inputHighlights || [], coord), glyph: null });
           }
           atoms.push({
             wlEntry,
-            highlights: stackRow.outputHi() ? tagCoord(out.outputHighlights || [], coord) : null,
+            highlights: outputHi ? tagCoord(out.outputHighlights || [], coord) : null,
             glyph,
           });
           next.push({ atoms });
@@ -526,7 +526,7 @@ async function runGroupFilterStage(rows, stackRow, prepared, wordlist, y) {
   if (!anyMatch) return [];
   // `matched` has no home on a bare row, so promote every member to a chain here —
   // the grouped path is off the steady-state hot path, so the wrapper is affordable.
-  if (def.input !== 'highlight') return rows.map((row, i) => ({ atoms: rowAtoms(row), matched: !!results[i] }));
+  if (!stackRow.inputHi()) return rows.map((row, i) => ({ atoms: rowAtoms(row), matched: !!results[i] }));
   const next = new Array(rows.length);
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i];

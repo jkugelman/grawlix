@@ -627,7 +627,7 @@ function packableRecordStack(stack) {
   for (let i = ti + 1; i < stack.length; i++) {
     const row = stack[i];
     if (row.isInert()) continue;
-    if (row.kind() !== 'filter' || row.def.input === 'highlight') return false;
+    if (row.kind() !== 'filter' || row.inputHi()) return false;
   }
   return true;
 }

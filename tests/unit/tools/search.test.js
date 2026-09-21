@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { visible, sameVisible, run, rowByFirst, highlightTexts } from './harness.js';
+import { visible, sameVisible, run, rowByFirst, highlightTexts, atomWord } from './harness.js';
 import { makeToolRow } from '../../../site/src/engine/tools.js';
 
 const LIB = ['untested', 'united', 'retested', 'cat', 'cot', 'cart', 'cats', 'scat'];
@@ -160,6 +160,26 @@ test('an empty replacement highlights the deleted span in and nothing out', asyn
   assert.equal(row.atoms.length, 2);
   assert.deepEqual(highlightTexts(row.atoms[0]), ['s']);
   assert.deepEqual(highlightTexts(row.atoms[1]), []);
+});
+
+const CHAIN_LIB = ['carts', 'cart', 'cat', 'act', 'dog'];
+const replaceRow = (pattern, replace) => ({ tool: 'search', params: { pattern, replace } });
+
+test('a deletion leaves its output unmarked, so the next replace marks that same line', async () => {
+  const { rows, atomCount } = await run(CHAIN_LIB, [replaceRow('s', ''), replaceRow('r', '')]);
+  assert.equal(rows.length, 1);
+  assert.deepEqual(rows[0].atoms.map(atomWord), ['carts', 'cart', 'cat']);
+  assert.deepEqual(rows[0].atoms.map(highlightTexts), [['s'], ['r'], []]);
+  assert.deepEqual(rows[0].atoms.map(a => a.glyph), [null, '→', '→']);
+  assert.equal(atomCount, 3);
+});
+
+test('a filled replacement marks its output, so the next replace marks a line of its own', async () => {
+  const { rows, atomCount } = await run(CHAIN_LIB, [replaceRow('act', 'cat'), replaceRow('cat', 'dog')]);
+  assert.equal(rows.length, 1);
+  assert.deepEqual(rows[0].atoms.map(atomWord), ['act', 'cat', 'cat', 'dog']);
+  assert.deepEqual(rows[0].atoms.map(highlightTexts), [['act'], ['cat'], ['cat'], ['dog']]);
+  assert.equal(atomCount, 4);
 });
 
 test('a deletion that empties the entry emits nothing, even with unlisted allowed', async () => {

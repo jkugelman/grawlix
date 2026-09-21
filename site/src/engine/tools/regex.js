@@ -2,7 +2,7 @@
 
 import {
   analyzeRegexPattern, wrapRuns, parseReplacement,
-  regexExecAll, runReplace,
+  regexExecAll, runReplace, replacementMarksOutput,
 } from '../regex.js';
 import { buildHelpHTML } from '../../core/util.js';
 import { matchModeOk } from '../search.js';
@@ -47,7 +47,9 @@ export default {
     ALLOW_UNLISTED_PARAM,
   ],
   kind: params => (isReplacing(params) ? 'transform' : 'filter'),
-  input: 'highlight', output: 'highlight',
+  input: 'highlight',
+  output: params => (replacementMarksOutput(parseReplacement(params.replace ?? ''), analyzeRegexPattern(params.pattern || '').capturing)
+    ? 'highlight' : 'plain'),
   glyph: params => (isReplacing(params) ? '→' : null),
   // A half-typed, invalid pattern is inert like an empty one, so the view
   // neither blanks nor churns mid-keystroke.

@@ -1,8 +1,12 @@
 'use strict';
 
 import { buildSearchPattern } from '../search.js';
-import { runReplace } from '../regex.js';
+import { runReplace, replacementMarksOutput } from '../regex.js';
 import { MATCH_PARAM, matchModeOf, ALLOW_UNLISTED_PARAM, SEARCH_HELP, isReplacing } from './shared.js';
+
+// Not parseReplacement: `$` is plain text in search syntax, and parsing
+// would silently swallow `$N` (search patterns have no groups to echo).
+const replaceTokens = params => (params.replace ? [{ lit: params.replace }] : []);
 
 export default {
   name: 'Search', icon: '<svg width="16" height="16" aria-hidden="true"><use href="#icon-search"/></svg>', category: 'search',
@@ -16,7 +20,8 @@ export default {
     ALLOW_UNLISTED_PARAM,
   ],
   kind: params => (isReplacing(params) ? 'transform' : 'filter'),
-  input: 'highlight', output: 'highlight',
+  input: 'highlight',
+  output: params => (replacementMarksOutput(replaceTokens(params), false) ? 'highlight' : 'plain'),
   glyph: params => (isReplacing(params) ? '→' : null),
   // An empty (or invalid, e.g. a reversed range) query is a no-op: the row is
   // transparent — no filtering, no lens — so an empty permanent search bar
@@ -28,10 +33,7 @@ export default {
     const matcher = buildSearchPattern(params.pattern || '', matchMode);
     if (!matcher) return null;
     if (isReplacing(params)) {
-      // Not parseReplacement: `$` is plain text in search syntax, and parsing
-      // would silently swallow `$N` (search patterns have no groups to echo).
-      const tokens = params.replace ? [{ lit: params.replace }] : [];
-      return { mode: 'replace', re: matcher.globalRe, hlRe: matcher.hlRe, tokens, allowUnlisted: !!params['unlisted'], matchMode };
+      return { mode: 'replace', re: matcher.globalRe, hlRe: matcher.hlRe, tokens: replaceTokens(params), allowUnlisted: !!params['unlisted'], matchMode };
     }
     return { mode: 'filter', matcher };
   },
