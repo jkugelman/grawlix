@@ -61,6 +61,7 @@ export function buildScoreBadgeHTML(score) {
 }
 
 export function buildScoreCellHTML(wlEntry, preview) {
+  if (wlEntry.coined) return `<span class="score-none" aria-label="no score">—</span>`;
   if (preview && wlEntry.rawScore != null && wlEntry.rawScore !== wlEntry.score) {
     return `<span class="atom-score-raw">${wlEntry.rawScore}</span>`
       + `<span class="atom-score-arrow">→</span>`

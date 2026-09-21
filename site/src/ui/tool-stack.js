@@ -34,8 +34,8 @@
 // owns the outer loop, cooperative yielding, abort, atom construction, and
 // chain bookkeeping. Filters return `null`/`false` (drop), `true` (keep), or a
 // `Range[]` (keep + highlights). Transforms return `TransformOutput[]`, each
-// `{ entry, inputHighlights?, outputHighlights? }` where `entry` is a string
-// or `[string, score]` for a tool-synthesized entry not in the wordlist.
+// `{ entry, coined?, inputHighlights?, outputHighlights? }` where `entry` is a
+// string or `[string, score]` for a tool-synthesized entry not in the wordlist.
 
 import { esc } from '../core/util.js';
 import { HL_COLORS } from '../engine/search.js';

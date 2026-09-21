@@ -470,8 +470,9 @@ function rebuildRebindEntry(row) {
 function decodeAtom(atom, sourceById) {
   let wlEntry;
   if ('s' in atom) {
-    const { norm, display, score } = atom.s;
+    const { norm, display, score, coined } = atom.s;
     wlEntry = { norm, display, score, comment: '', wordlist: null };
+    if (coined) wlEntry.coined = true;
   } else {
     wlEntry = {
       norm: atom.norm, display: atom.display, score: atom.score, rawScore: atom.rawScore,

@@ -28,7 +28,7 @@ import {
   serializeEntries, formatEntryText, AS_IS_FORMAT,
 } from '../engine/serialize.js';
 import {
-  getOutputFormat, getTrashScore, defaultScoreRange,
+  getOutputFormat, getTrashScore, defaultScoreRange, DEFAULT_TRASH_SCORE,
 } from '../data/serialize.js';
 import {
   compileRescoreRules, maybeAutoSeedRescoreRules, getRescoredEntries, rescoreEntry, applyRescoring,
@@ -1542,7 +1542,7 @@ export const openCopyPopover = (() => {
 
 // ── Wordlist ──
 
-export function buildWordlistText(rows, grouped, fmt = AS_IS_FORMAT) {
+export function buildWordlistText(rows, grouped, fmt = AS_IS_FORMAT, trashScore = DEFAULT_TRASH_SCORE) {
   const best = new Map();
   let skipped = 0, emptied = 0, excluded = 0;
   for (const { chain } of iterDisplayChains(rows, grouped)) {
@@ -1553,11 +1553,14 @@ export function buildWordlistText(rows, grouped, fmt = AS_IS_FORMAT) {
     if (formatted === null) { excluded++; continue; }
     if (formatted.includes(';')) { skipped++; continue; }
     if (!formatted) { emptied++; continue; }
-    let chainMin = Infinity;
-    for (const wlE of content) if (wlE.score < chainMin) chainMin = wlE.score;
+    let score = trashScore;
+    if (!tail.coined) {
+      score = Infinity;
+      for (const wlE of content) if (wlE.score < score) score = wlE.score;
+    }
     const key = displayOf(tail);
     const cur = best.get(key);
-    if (cur === undefined || chainMin > cur.score) best.set(key, { ...tail, score: chainMin });
+    if (cur === undefined || score > cur.score) best.set(key, { ...tail, score });
   }
   const text = serializeEntries([...best.values()], fmt);
   return { text, count: text.split('\n').length - 1, skipped, emptied, excluded };
@@ -1572,7 +1575,7 @@ export async function exportWordlist() {
   if (!scroller) return;
   const grouped = isMultiLaneTier(scroller.sortTier);
   const fmt = getOutputFormat();
-  const { text, count, skipped, emptied, excluded } = buildWordlistText(await scroller.exportRows(), grouped, fmt);
+  const { text, count, skipped, emptied, excluded } = buildWordlistText(await scroller.exportRows(), grouped, fmt, getTrashScore());
   triggerDownload(text, exportFilename(ToolStack.getStack(), 'txt'));
   const notes = [];
   if (skipped) notes.push(`${pluralize(skipped, 'entry', 'entries')} skipped due to semicolons`);
@@ -1657,7 +1660,7 @@ export function buildCSVText(rows, grouped, stack, tuple = false, fmt = AS_IS_FO
         cells.push('', '', '');
         if (!grouped) cells.push('', '');
       } else {
-        cells.push(texts[i], wlE.norm.length, wlE.score);
+        cells.push(texts[i], wlE.norm.length, wlE.coined ? '' : wlE.score);
         if (!grouped) cells.push(wlE.comment || '', wlE.wordlist?.name ?? '');
       }
     }
@@ -1690,7 +1693,7 @@ export function buildExportJSONObject(rows, grouped, stack, tuple = false) {
 
   function chainObj(chain, includeProvenance) {
     const entries = chainContentEntries(chain).map(wlE => {
-      const e = { entry: displayOf(wlE), score: wlE.score };
+      const e = { entry: displayOf(wlE), score: wlE.coined ? null : wlE.score };
       if (includeProvenance) {
         e.comment = wlE.comment || '';
         e.source = wlE.wordlist?.name ?? null;

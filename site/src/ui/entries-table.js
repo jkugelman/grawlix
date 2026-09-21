@@ -472,7 +472,7 @@ function buildGroupChainHTML(chain, ci, memberFind = null) {
     const entryCell = `<span class="atom-entry${noedit}"${truncTitle}>${glyphHTML}${text}</span>`;
     const scoreCell = isRepeat
       ? `<span class="atom-score"></span>`
-      : `<span class="atom-score${noedit}">${buildScoreBadgeHTML(wlEntry.score)}</span>`;
+      : `<span class="atom-score${noedit}">${buildScoreCellHTML(wlEntry, false)}</span>`;
     html.push(`<span class="atom" data-atom="${ai}">${entryCell}${scoreCell}</span>`);
   }
   return `<div class="group-chain" data-chain="${ci}">${html.join('')}</div>`;

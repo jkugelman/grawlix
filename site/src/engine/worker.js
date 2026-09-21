@@ -1977,6 +1977,7 @@ function encodeAtom(atom) {
   let out;
   if (wlEntry.wordlist == null) {
     out = { s: { norm: wlEntry.norm, display: wlEntry.display, score: wlEntry.score } };
+    if (wlEntry.coined) out.s.coined = true;
   } else {
     const { sourceIds, activeIds } = shipContributors(wlEntry);
     out = {

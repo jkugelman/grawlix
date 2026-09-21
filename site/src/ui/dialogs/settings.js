@@ -71,7 +71,7 @@ export const SettingsDialog = (() => {
       <div class="dialog-row">
         <div>
           <div class="dialog-row-label">Trash score</div>
-          <div class="dialog-row-sub">Score given to deleted entries</div>
+          <div class="dialog-row-sub">Score given to deleted and unlisted entries</div>
         </div>
         <input id="trash-score-input" class="trash-score-input" type="number" min="0">
       </div>

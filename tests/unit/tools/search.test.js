@@ -182,6 +182,30 @@ test('a filled replacement marks its output, so the next replace marks a line of
   assert.equal(atomCount, 4);
 });
 
+test('an unlisted output is coined: it carries its source score for the download but is marked unscored', async () => {
+  const lib = [{ entry: 'scat', score: 50 }];
+  const { rows } = await run(lib, search('cat', { replace: 'dog', unlisted: true }));
+  const out = rows[0].atoms[1].wlEntry;
+  assert.equal(out.norm, 'sdog');
+  assert.equal(out.coined, true);
+  assert.equal(out.score, 50);
+});
+
+test('a same-letters rewrite is coined like any other unlisted output', async () => {
+  const { rows } = await run([{ entry: 'the IRS', score: 60 }], search(' ', { replace: '-', unlisted: true }));
+  const out = rows[0].atoms[1].wlEntry;
+  assert.equal(out.display, 'the-IRS');
+  assert.equal(out.coined, true);
+});
+
+test('an output that is itself an entry is real, not coined, even with unlisted allowed', async () => {
+  const lib = [{ entry: 'cats', score: 50 }, { entry: 'dogs', score: 30 }];
+  const { rows } = await run(lib, search('cat', { replace: 'dog', unlisted: true }));
+  const out = rows[0].atoms[1].wlEntry;
+  assert.equal(out.coined, undefined);
+  assert.equal(out.score, 30);
+});
+
 test('a deletion that empties the entry emits nothing, even with unlisted allowed', async () => {
   sameVisible(await visible(['cat', 'cats'], search('cat', { replace: '', unlisted: true })),
     [['cats', 's']]);

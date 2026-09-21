@@ -247,5 +247,5 @@ export function runReplace(wlEntry, prepared, wordlist) {
   if (!allowUnlisted || (outNorm === norm && outDisp === display)) return [];
   // Array-wrap is load-bearing: it's the executor's synthetic-entry signal, so
   // an off-list result inherits the source score. Unwrap it and scores zero out.
-  return [{ entry: [outDisp], inputHighlights, outputHighlights: dispHl }];
+  return [{ entry: [outDisp], coined: true, inputHighlights, outputHighlights: dispHl }];
 }

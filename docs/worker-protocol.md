@@ -542,7 +542,7 @@ There is no separate outbound-flush message. A local My Edits edit's debounced p
 - `atomCount` — atoms per row (the scroller also derives this from the stack alone, so row heights don't block on the result).
 - The **atom encoding** — the shared unit of the transform/grouped tiers. An atom is a small tagged object, exactly one of:
   - `{ norm, display, score, rawScore, comment, sourceId, sourceIds, activeIds }` — a **corpus atom**, shipped rich/self-contained (the same field set `buildFlatRows` emits), so main decodes it with no resident corpus. `sourceId` is the winning source's `dbKey`, `sourceIds`/`activeIds` the presence/active contributor sets (see *Message encoding*); `rawScore` is `undefined` for an unrescored row.
-  - `{ s: { norm, display, score } }` — a **synthetic** atom: a tool output that exists in no wordlist (`wlEntry.wordlist === null`). Inline and self-contained, **not** looked up by norm on receipt.
+  - `{ s: { norm, display, score, coined? } }` — a **synthetic** atom: a tool output that exists in no wordlist (`wlEntry.wordlist === null`). Inline and self-contained, **not** looked up by norm on receipt. `coined: true` rides along when the tool declared the output coined; main draws a dash in place of its score badge.
   - plus optional `h` (the atom's `highlights`, omitted when null) and `g` (its `glyph`, one of `'→' | '↔' | '⊃'`, omitted when null).
 - `payload` — tiered:
   - **filter/search** (the common, laggy case): **no off-screen highlights, no per-row objects** beyond the inline first window, no transfer. `payload = { count, widthHints, stats, histogramCounts, histogramLayout, existsInScope, rebindQuery, rebindEntry, rebindExists, filtered, firstRows }`.

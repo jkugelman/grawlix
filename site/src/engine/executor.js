@@ -459,7 +459,7 @@ async function runToolStage(rows, stackRow, prepared, wordlist, y, emit = null) 
           : synthetic ? tailEntry : ZERO_SCORE;
         const targets = variants && variants.length
           ? variants
-          : [synthWlEntry(text, scoreSrc)];
+          : [synthWlEntry(text, scoreSrc, !!out.coined)];
         for (const wlEntry of targets) {
           const atoms = showInput ? rowAtoms(row).slice() : [];
           if (showInput && inputHi) {

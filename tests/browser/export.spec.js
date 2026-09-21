@@ -237,6 +237,82 @@ test('Wordlist dumps tail entries with chain-min score, alphabetically sorted', 
   expect(text).toBe('car;50;auto\nwing;30\n');   // comments ride along at the default format
 });
 
+const COIN = [{ tool: 'search', params: { pattern: 'c', replace: 'x', unlisted: true } }];
+
+test('a coined Replace output shows a dash for its score; the entry it came from keeps its badge', async ({ page }) => {
+  await gotoApp(page);
+  await addFixture(page);
+  await setStack(page, COIN);
+
+  const row = page.locator('#vs-host .entry-row', { hasText: 'sxar' });
+  await expect(row).toHaveCount(1);
+  await expect(row.locator('.atom').nth(0).locator('.atom-score')).toHaveText('50');
+  await expect(row.locator('.atom').nth(1).locator('.atom-score')).toHaveText('—');
+  await expect(row.locator('.atom').nth(1).locator('.score-badge')).toHaveCount(0);
+});
+
+test('a Rebus form keeps its score badge', async ({ page }) => {
+  await gotoApp(page);
+  await addFixture(page);
+  await setStack(page, [{ tool: 'rebus', params: { string: ['car'], symbol: ['Ⓒ'] } }]);
+
+  const row = page.locator('#vs-host .entry-row', { hasText: 'sⒸ' });
+  await expect(row).toHaveCount(1);
+  await expect(row.locator('.atom-score')).toHaveText('50');
+});
+
+test('Wordlist writes a coined output at score 0, the usual mark for an unvetted entry', async ({ page }) => {
+  await gotoApp(page);
+  await addFixture(page);
+  await setStack(page, COIN);
+
+  const { text } = await getExport(page, 'wordlist');
+  expect(text).toBe('sxar;0\nxar;0\nxat;0\nxot;0\n');
+});
+
+test('Wordlist writes a coined output at the trash score set in Settings', async ({ page }) => {
+  await gotoApp(page);
+  await addFixture(page);
+  await page.locator('#btn-settings').click();
+  await page.locator('#trash-score-input').fill('7');
+  await page.locator('#trash-score-input').blur();
+  await page.locator('#settings-dialog .dialog-close-btn').click();
+  await setStack(page, COIN);
+
+  const { text } = await getExport(page, 'wordlist');
+  expect(text).toBe('sxar;7\nxar;7\nxat;7\nxot;7\n');
+});
+
+test('the score range judges a coined output by the entry it came from, not by the 0 it downloads with', async ({ page }) => {
+  await gotoApp(page);
+  await addFixture(page);
+  await setStack(page, COIN);
+  await page.evaluate(() => AppView.onScoreRange('55+'));
+
+  const { text } = await getExport(page, 'wordlist');
+  expect(text).toBe('xar;0\nxat;0\n');
+});
+
+test('CSV leaves a coined output\'s score cell blank; min and max still carry the number', async ({ page }) => {
+  await gotoApp(page);
+  await addFixture(page);
+  await setStack(page, COIN);
+
+  const text = await getExport(page, 'csv');
+  const line = text.split('\r\n').find(l => l.includes('sxar'));
+  expect(line).toBe('50,50,scar,4,50,,ExportTest,sxar,4,,,');
+});
+
+test('JSON gives a coined output a null score', async ({ page }) => {
+  await gotoApp(page);
+  await addFixture(page);
+  await setStack(page, COIN);
+
+  const obj = await getExport(page, 'json');
+  const chain = obj.groups[0].chains.find(c => c.entries[0].entry === 'scar');
+  expect(chain.entries.map(e => e.score)).toEqual([50, null]);
+});
+
 test('CSV flat one-entry rows: header is entry,length,score,comment,source', async ({ page }) => {
   await gotoApp(page);
   await addFixture(page);

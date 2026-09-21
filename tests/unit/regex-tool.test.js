@@ -202,7 +202,7 @@ test('runReplace: allowUnlisted keeps an off-list result, array-wrapped for a sy
   const prepared = { re: /(cat)/gid, hlRe: null, tokens: parseReplacement('$1z'), allowUnlisted: true };
   const out = runReplace(wl('cat'), prepared, corpus([]));
   assert.deepEqual(out, [{
-    entry: ['catz'],
+    entry: ['catz'], coined: true,
     inputHighlights: [{ start: 0, end: 3, kind: 'search:0' }],
     outputHighlights: [{ start: 0, end: 3, kind: 'search:0', coord: 'display' }],
   }]);
@@ -223,7 +223,7 @@ test('runReplace: a synthetic result splices the replacement into the display', 
   const entry = wl('03bonnieandclyde', "'03 Bonnie and Clyde");
   const out = runReplace(entry, prepared, corpus([]));
   assert.deepEqual(out, [{
-    entry: ["'03 xxx and Clyde"],
+    entry: ["'03 xxx and Clyde"], coined: true,
     inputHighlights: [{ start: 2, end: 8, kind: 'search:0' }],
     outputHighlights: [{ start: 4, end: 7, kind: 'search:0', coord: 'display' }],
   }]);
@@ -281,7 +281,7 @@ test('runReplace: a display-only pattern falls back to the display arm', () => {
   const prepared = { re: /\s/gd, hlRe: null, tokens: [{ lit: '-' }], allowUnlisted: true };
   const out = runReplace(wl('helenoftroy', 'Helen of Troy'), prepared, corpus([]));
   assert.deepEqual(out, [{
-    entry: ['Helen-of-Troy'],
+    entry: ['Helen-of-Troy'], coined: true,
     inputHighlights: [],
     outputHighlights: [
       { start: 5, end: 6, kind: 'search:0', coord: 'display' },

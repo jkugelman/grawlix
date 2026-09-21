@@ -22,6 +22,12 @@ test('passes single-word entries through when no split improves on the whole wor
   assert.equal(rowByFirst(rows, 'dog').atoms.length, 2);
 });
 
+test('the spaced form re-renders a scored entry, so it is not coined', async () => {
+  corpus({ wonder: -2, land: -2 });
+  const { rows } = await run(['wonderland'], [{ tool: 'space_out' }]);
+  assert.equal(rowByFirst(rows, 'wonderland').atoms[1].wlEntry.coined, undefined);
+});
+
 test('renders the synthetic split entry with the input entry score', async () => {
   corpus({ a: -3, barrel: -11, of: -3, laughs: -10, barr: -13, elo: -14, fla: -12 });
   const { rows } = await run(

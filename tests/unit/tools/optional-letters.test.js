@@ -12,6 +12,11 @@ test('marks a letter whose removal leaves another entry', async () => {
   assert.deepEqual(marked(rows), ['haⓡt']);
 });
 
+test('the circled form re-renders a scored entry, so it is not coined', async () => {
+  const { rows } = await run(['hart', 'hat'], stack);
+  assert.equal(rows[0].atoms.at(-1).wlEntry.coined, undefined);
+});
+
 test('the first and last letters are droppable too', async () => {
   const { rows } = await run(['hart', 'art', 'har'], stack);
   assert.deepEqual(marked(rows), ['harⓣ', 'ⓗart']);

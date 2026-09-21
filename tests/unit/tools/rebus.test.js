@@ -13,6 +13,11 @@ test('splices the glyph and emits a synthetic entry, inheriting the input score'
   assert.equal(out.wordlist, null);  // synthetic, not a real entry
 });
 
+test('the symbol form re-renders a scored entry, so it is not coined', async () => {
+  const { rows } = await run([{ entry: 'barstool', score: 70 }], rebus(['tool'], ['Ⓣ']));
+  assert.equal(rowByFirst(rows, 'barsⓉ').atoms.at(-1).wlEntry.coined, undefined);
+});
+
 test('the synthetic output score tracks the source entry live, not a frozen copy', async () => {
   const { rows, wordlist } = await run([{ entry: 'barstool', score: 70 }], rebus(['tool'], ['Ⓣ']));
   const out = rowByFirst(rows, 'barsⓉ').atoms.at(-1).wlEntry;

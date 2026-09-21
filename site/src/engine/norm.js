@@ -251,10 +251,12 @@ export function buildUserWlEntry(raw, score, comment) {
 // from), not a copy: a synthetic output carries its own display but borrows the
 // input's score, so an in-place score edit shows through a kept prefix tile
 // instead of a frozen value. `source` is any object exposing `.score`.
-export function synthWlEntry(text, source) {
+export function synthWlEntry(text, source, coined = false) {
   const norm = toNorm(text);
   const display = text === norm ? null : text;
-  return { norm, display, comment: '', wordlist: null, get score() { return source.score; } };
+  const wlEntry = { norm, display, comment: '', wordlist: null, get score() { return source.score; } };
+  if (coined) wlEntry.coined = true;
+  return wlEntry;
 }
 
 // Validates a chunk from a Range GET. Drops the last line (may be truncated

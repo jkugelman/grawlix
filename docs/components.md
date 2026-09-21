@@ -49,7 +49,7 @@ Small, stable, cross-cutting — reuse rather than reimplement:
 
 - **Dialogs** — [`ui/dialogs/dialog.js`](../site/src/ui/dialogs/dialog.js): `createDialog(id, opts)` builds the element and delegates dismiss clicks; `showDialog(el, onClose?)` opens it and handles focus. Never hand-wire backdrop close, `tabIndex`, or post-`showModal()` focus. The full contract, including promise-returning dialogs, is in [`CLAUDE.md`](../CLAUDE.md) § *Component architecture*.
 - **Icons** — [`ui/icons.js`](../site/src/ui/icons.js): `buildIconHTML(descriptor, name, seed)` renders a wordlist/publisher icon from its stored descriptor; `getWordlistIcon(wordlist)` is the usual call site. Never store the generated markup.
-- **Score badges** — [`model/score-display.js`](../site/src/model/score-display.js): `buildScoreBadgeHTML(score)` and `buildScoreCellHTML(wlEntry, preview)`.
+- **Score badges** — [`model/score-display.js`](../site/src/model/score-display.js): `buildScoreBadgeHTML(score)` and `buildScoreCellHTML(wlEntry, preview)` — the cell builder draws a faint em dash (`.score-none`) in place of the badge for a coined entry, the table's one "no value" placeholder.
 - **Toasts** — [`ui/toasts.js`](../site/src/ui/toasts.js): `showToast`, `showActionToast`, `showUndoToast`.
 - **Text** — [`core/util.js`](../site/src/core/util.js): `esc` (escape for interpolation into HTML — use it on every interpolated value), `pluralize`, `plural`, `timeAgo`, `formatBytes`, `buildHelpHTML`.
 
@@ -74,6 +74,7 @@ Classes emitted by the builders above. If you're styling one of these, the rule 
 | `.drag-ghost-layer`, `.drag-ghost`, `.drop-line` | `makeReorderable` |
 | `.popup-help` | `PopupHelp` |
 | `.score-badge` | `buildScoreBadgeHTML` |
+| `.score-none` | `buildScoreCellHTML` |
 | `.wordlist-icon` | `buildIconHTML` |
 | `.toast` | `showToast` |
 
