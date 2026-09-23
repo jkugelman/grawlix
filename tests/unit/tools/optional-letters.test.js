@@ -2,6 +2,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { run, rowByFirst, atomWord } from './harness.js';
 import { toNorm } from '../../../site/src/engine/norm.js';
+import { TOOLS, toolAssets } from '../../../site/src/engine/tools.js';
+import { setUnigramCorpus, invalidateUnigramCorpus } from '../../../site/src/engine/segmenter.js';
 
 const stack = [{ tool: 'optional_letters' }];
 const withPlurals = [{ tool: 'optional_letters', params: { plurals: true } }];
@@ -191,4 +193,26 @@ test('a non-plural S that is merely dull stays skipped', async () => {
     const { rows } = await run([long, short], stack);
     assert.equal(rows.length, 0, long);
   }
+});
+
+// ─── Run-together entries ────────────────────────────────────────────────────
+
+const FREQS = { cats: -4, and: -2, dogs: -4 };
+const RUN_TOGETHER = ['catsanddogs', 'catanddogs', 'catsanddog', 'cats', 'and', 'dogs'];
+
+test('a plural word inside a run-together entry is skipped, read through the segmenter', async () => {
+  setUnigramCorpus(FREQS);
+  const { rows } = await run(RUN_TOGETHER, stack);
+  assert.deepEqual(marked(rows).filter(m => m.startsWith('cat')), []);
+});
+
+test('without the corpus a run-together entry reads as one word, so only its last S is skipped', async () => {
+  invalidateUnigramCorpus();
+  const { rows } = await run(RUN_TOGETHER, stack);
+  assert.deepEqual(marked(rows).filter(m => m.startsWith('cat')), ['catⓢanddogs']);
+});
+
+test('the word-frequency corpus is needed only while plurals are skipped', () => {
+  assert.deepEqual(toolAssets(TOOLS.optional_letters, {}), ['unigrams']);
+  assert.deepEqual(toolAssets(TOOLS.optional_letters, { plurals: true }), []);
 });
