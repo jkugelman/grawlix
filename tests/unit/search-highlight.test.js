@@ -140,11 +140,49 @@ test('buildSearchPattern: mode=span highlights only the spanning matches', () =>
   ]);
 });
 
+const reader = readings => ({ best: norm => readings[norm] ?? null });
+
+test('buildSearchPattern: mode=span reads an unspaced entry through the reader', () => {
+  const pat = buildSearchPattern('at', 'span', { reader: reader({ datatable: ['data', 'table'] }) });
+  assert.equal(pat.test(wl('datatable')), true);
+  assert.equal(pat.test(wl('database')), false);
+  assert.deepEqual(pat.searchRanges(wl('datatable')), [
+    { start: 3, end: 5, kind: 'search:0', coord: 'norm' },
+  ]);
+});
+
+test('buildSearchPattern: mode=word reads an unspaced entry through the reader', () => {
+  const pat = buildSearchPattern('cat', 'word', { reader: reader({ catfood: ['cat', 'food'] }) });
+  assert.equal(pat.test(wl('catfood')), true);
+  assert.equal(pat.test(wl('copycat')), false);
+  assert.equal(pat.test(wl('cat')), true);
+});
+
+test('buildSearchPattern: a display-arm match on an unspaced entry is gated in norm coordinates', () => {
+  const pat = buildSearchPattern('kan', 'span', { reader: reader({ rockandroll: ['rock', 'and', 'roll'] }) });
+  const e = wl('rockandroll', 'RockAndRoll');
+  assert.equal(pat.test(e), true);
+  assert.deepEqual(pat.searchRanges(e), [{ start: 3, end: 6, kind: 'search:0', coord: 'display' }]);
+});
+
+test('buildSearchPattern: authored spacing wins over the reader', () => {
+  const pat = buildSearchPattern('eir', 'span', { reader: reader({ theirs: ['th', 'eirs'] }) });
+  assert.equal(pat.test(wl('theirs', 'the IRS')), true);    // the|IRS
+  assert.equal(pat.test(wl('theirs')), false);              // th|eirs
+});
+
+test('buildSearchPattern: mode=span rejects a one-letter match before consulting the reader', () => {
+  let reads = 0;
+  const pat = buildSearchPattern('a', 'span', { reader: { best: () => { reads++; return ['a', 'b']; } } });
+  assert.equal(pat.test(wl('ab')), false);
+  assert.equal(reads, 0);
+});
+
 test('buildSearchPattern: literal mode treats every wildcard character as plain text', () => {
-  const pat = buildSearchPattern('c*t', '', true);
+  const pat = buildSearchPattern('c*t', '', { literal: true });
   assert.equal(matches(pat, 'cat'), false);   // '*' is a literal, not "any run"
   assert.equal(matches(pat, 'c*t'), true);
-  const cls = buildSearchPattern('a[bc]', '', true);
+  const cls = buildSearchPattern('a[bc]', '', { literal: true });
   assert.equal(matches(cls, 'ab'), false);     // '[bc]' is not a character class
   assert.equal(matches(cls, 'a[bc]'), true);
 });

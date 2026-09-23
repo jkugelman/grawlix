@@ -6,7 +6,10 @@ import {
 } from '../regex.js';
 import { buildHelpHTML } from '../../core/util.js';
 import { matchModeOk } from '../search.js';
-import { MATCH_PARAM, matchModeOf, ALLOW_UNLISTED_PARAM, isReplacing } from './shared.js';
+import {
+  MATCH_PARAM, matchModeOf, ALLOW_UNLISTED_PARAM, isReplacing,
+  matchModeAssets, matchModeSpacing, matchModeSpacingLazy,
+} from './shared.js';
 
 // The SyntaxError prefix is engine-specific: V8 echoes the pattern ("Invalid
 // regular expression: /<src>/<flags>: "), JSC bares it ("Invalid regular
@@ -17,6 +20,28 @@ function regexError(pattern) {
   if (!src) return null;
   try { new RegExp(src); return null; }
   catch (e) { return String(e.message).replace(/^Invalid regular expression:\s*(?:\/.*\/[a-z]*:\s*)?/, ''); }
+}
+
+function build(params, spacing) {
+  // Don't trim: in a regex a leading/trailing space is a literal that must
+  // match. Re-adding `.trim()` reads as cleanup but silently drops it.
+  const body = params.pattern;
+  // Flags `gid`: `i` lets a raw (un-lowercased, so `\D \S \B` survive)
+  // pattern match case-insensitively; `d` exposes match indices for
+  // highlighting. The pattern runs against both norm and display (see run),
+  // so `\s`, `-`, or an accent can match the punctuation display carries but
+  // norm strips. The whole-entry wrap is non-capturing so `$N` backrefs keep
+  // their group numbers.
+  const matchMode = matchModeOf(params);
+  const wrap = src => matchMode === 'full' ? '^(?:' + src + ')$' : src;
+  const { capturing, runs } = analyzeRegexPattern(body);
+  if (isReplacing(params)) {
+    // The functional `re` can't be wrapped for highlighting — synthetic
+    // groups would renumber the user's `$N`; `hlRe` is the wrapped copy.
+    const hlRe = capturing ? null : new RegExp(wrap(wrapRuns(body, runs)), 'gid');
+    return { mode: 'replace', re: new RegExp(wrap(body), 'gid'), hlRe, tokens: parseReplacement(params.replace), allowUnlisted: !!params['unlisted'], matchMode, spacing };
+  }
+  return { mode: 'filter', re: new RegExp(wrap(capturing ? body : wrapRuns(body, runs)), 'gid'), matchMode, spacing };
 }
 
 export default {
@@ -59,34 +84,17 @@ export default {
   },
   error: params => regexError(params && params.pattern),
   matchOn: 'both',
-  prepare(params) {
-    // Don't trim: in a regex a leading/trailing space is a literal that must
-    // match. Re-adding `.trim()` reads as cleanup but silently drops it.
-    const body = params.pattern;
-    // Flags `gid`: `i` lets a raw (un-lowercased, so `\D \S \B` survive)
-    // pattern match case-insensitively; `d` exposes match indices for
-    // highlighting. The pattern runs against both norm and display (see run),
-    // so `\s`, `-`, or an accent can match the punctuation display carries but
-    // norm strips. The whole-entry wrap is non-capturing so `$N` backrefs keep
-    // their group numbers.
-    const matchMode = matchModeOf(params);
-    const wrap = src => matchMode === 'full' ? '^(?:' + src + ')$' : src;
-    const { capturing, runs } = analyzeRegexPattern(body);
-    if (isReplacing(params)) {
-      // The functional `re` can't be wrapped for highlighting — synthetic
-      // groups would renumber the user's `$N`; `hlRe` is the wrapped copy.
-      const hlRe = capturing ? null : new RegExp(wrap(wrapRuns(body, runs)), 'gid');
-      return { mode: 'replace', re: new RegExp(wrap(body), 'gid'), hlRe, tokens: parseReplacement(params.replace), allowUnlisted: !!params['unlisted'], matchMode };
-    }
-    return { mode: 'filter', re: new RegExp(wrap(capturing ? body : wrapRuns(body, runs)), 'gid'), matchMode };
+  assets: matchModeAssets,
+  async prepare(params, ctx) {
+    return build(params, await matchModeSpacing(params, ctx));
   },
+  replay: (params, ctx) => build(params, matchModeSpacingLazy(params, ctx)),
   run(wlEntry, prepared, wordlist) {
     if (prepared.mode === 'filter') {
-      const { re, matchMode } = prepared;
+      const { re, matchMode, spacing } = prepared;
       const d = wlEntry.display;
-      if (matchMode === 'span' && d == null) return null;
-      const normRes = regexExecAll(re, wlEntry.norm, matchModeOk(matchMode, wlEntry, 'norm'));
-      const dispRes = d != null ? regexExecAll(re, d, matchModeOk(matchMode, wlEntry, 'display')) : null;
+      const normRes = regexExecAll(re, wlEntry.norm, matchModeOk(matchMode, wlEntry, 'norm', spacing));
+      const dispRes = d != null ? regexExecAll(re, d, matchModeOk(matchMode, wlEntry, 'display', spacing)) : null;
       if (!normRes.hit && !dispRes?.hit) return null;
       if (dispRes?.ranges.length) return dispRes.ranges.map(r => ({ ...r, coord: 'display' }));
       if (normRes.ranges.length) return normRes.ranges.map(r => ({ ...r, coord: 'norm' }));

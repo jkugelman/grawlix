@@ -40,7 +40,7 @@
 import { esc } from '../core/util.js';
 import { HL_COLORS } from '../engine/search.js';
 import {
-  TOOL_CATEGORIES, FEATURED_TOOLS, TOOLS, groupColumnCSS, makeToolRow,
+  TOOL_CATEGORIES, FEATURED_TOOLS, TOOLS, groupColumnCSS, makeToolRow, toolAssets,
 } from '../engine/tools.js';
 import { MATCH_PARAM, isReplacing } from '../engine/tools/shared.js';
 import { runOnWorker, preloadWorkerAsset } from './pipeline-worker.js';
@@ -657,8 +657,9 @@ export const ToolStack = (() => {
     if (grouped && !TOOLS[toolKey].group) return;
     if (grouped && stack.some(r => r.grouped)) return;
     const idx = stack.length - 1;            // insert just above the Search bar
-    stack.splice(idx, 0, makeToolRow(toolKey, {}, grouped));
-    for (const asset of TOOLS[toolKey].assets || []) preloadWorkerAsset(asset);
+    const row = makeToolRow(toolKey, {}, grouped);
+    stack.splice(idx, 0, row);
+    for (const asset of toolAssets(row.def, row.params)) preloadWorkerAsset(asset);
     rerenderRows();
     focusRowInput(idx);
     flashRow(idx);

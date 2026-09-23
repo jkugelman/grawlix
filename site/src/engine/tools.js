@@ -156,6 +156,13 @@ export function normalizeParams(params, schema) {
   return out;
 }
 
+// A declaration may depend on params. The Search bar never leaves the stack, so
+// a flat declaration there would pin the ~100 MB unigram corpus for the session.
+export function toolAssets(def, params) {
+  const assets = typeof def.assets === 'function' ? def.assets(params) : def.assets;
+  return assets || [];
+}
+
 export function makeToolRow(tool, params = {}, grouped = false, invert = false, reverse = false) {
   const def = TOOLS[tool];
   if (!grouped) {

@@ -100,69 +100,75 @@ export function projectRangesToDisplay(ranges, wlEntry) {
   });
 }
 
+// ─── Word breaks ─────────────────────────────────────────────────────────────
+
 // Deliberately whitespace + hyphen, not all punctuation: ISNT inside "isn't"
 // is one word, not a spanning match. Widening this silently changes what the
-// Spans-words filter keeps.
+// Whole-word and Spans-words gates keep.
 export const WORD_BREAK_RE = /[\s-]/;
+export const isUnspaced = display => !WORD_BREAK_RE.test(display);
 
-function hasNormChar(ch) {
-  return /[a-z0-9]/.test(stripAccents(ch).toLowerCase());
+const NO_BREAKS = Object.freeze([]);
+
+// Norm offsets strictly inside the norm. A display carrying a break is never
+// re-read: the reader's guess can disagree with authored spacing, and a gate
+// built on the guess would silently contradict the spacing shown on the row.
+export function wordBreaks(wlEntry, reader = null) {
+  const display = wlEntry.display;
+  if (display != null && WORD_BREAK_RE.test(display)) return wlEntry._breaks ??= displayBreaks(wlEntry);
+  if (!reader) return NO_BREAKS;
+  const parts = reader.best(wlEntry.norm);
+  return parts ? partBreaks(parts) : NO_BREAKS;
 }
 
-// The edge trim is load-bearing: a display-coord match can start or end on a
-// separator (a regex `\s` at its edge), and without the trim such a one-word
-// match silently counts as spanning.
-export function matchSpansWords(wlEntry, start, end, coord = 'norm') {
-  const display = wlEntry.display;
-  if (display == null || end <= start) return false;
-  if (coord === 'display') {
-    let s = start, e = end;
-    while (s < e && !hasNormChar(display[s])) s++;
-    while (e > s && !hasNormChar(display[e - 1])) e--;
-    return WORD_BREAK_RE.test(display.slice(s, e));
+function displayBreaks(wlEntry) {
+  const map = normToDisplayMap(wlEntry), display = wlEntry.display;
+  const breaks = [];
+  for (let i = 1; i < map.length; i++) {
+    if (map[i] - map[i - 1] > 1 && WORD_BREAK_RE.test(display.slice(map[i - 1] + 1, map[i]))) breaks.push(i);
   }
-  const map = normToDisplayMap(wlEntry);
-  if (!map || !map.length || start >= map.length) return false;
-  const last = Math.min(end, map.length) - 1;
-  return WORD_BREAK_RE.test(display.slice(map[start], map[last] + 1));
+  return breaks;
+}
+
+export function partBreaks(parts) {
+  const breaks = [];
+  let at = 0;
+  for (let i = 0; i < parts.length - 1; i++) {
+    at += normLen(parts[i]);
+    breaks.push(at);
+  }
+  return breaks;
+}
+
+export function spansWords(breaks, start, end) {
+  for (let i = 0; i < breaks.length; i++) {
+    if (breaks[i] > start && breaks[i] < end) return true;
+  }
+  return false;
 }
 
 // Deliberately allows the window to cover *several* complete words, not just
 // one — tightening it to a single word silently stops norm-arm queries from
 // matching exact multi-word phrases, with no error to show for it.
-export function matchIsWholeWords(wlEntry, start, end, coord = 'norm') {
+export function isWholeWords(breaks, normLen, start, end) {
   if (end <= start) return false;
-  const display = wlEntry.display;
-  if (display == null) return start === 0 && end === wlEntry.norm.length;
-  if (coord === 'display') {
-    let s = start, e = end;
-    while (s < e && !hasNormChar(display[s])) s++;
-    while (e > s && !hasNormChar(display[e - 1])) e--;
-    if (s === e) return false;
-    return boundaryBefore(display, s) && boundaryAfter(display, e);
-  }
+  return (start === 0 || breaks.includes(start)) && (end === normLen || breaks.includes(end));
+}
+
+// Counting letters drops a separator at either edge, which is load-bearing: a
+// regex `\s` can extend a one-word match onto a space, and without the drop
+// that match silently counts as spanning.
+export function displayRangeToNorm(wlEntry, start, end) {
   const map = normToDisplayMap(wlEntry);
-  if (!map || !map.length || start >= map.length || end > map.length) return false;
-  const startOk = start === 0 || WORD_BREAK_RE.test(display.slice(map[start - 1] + 1, map[start]));
-  const endOk = end === map.length || WORD_BREAK_RE.test(display.slice(map[end - 1] + 1, map[end]));
-  return startOk && endOk;
+  if (!map) return [start, end];
+  let ns = 0;
+  while (ns < map.length && map[ns] < start) ns++;
+  let ne = ns;
+  while (ne < map.length && map[ne] < end) ne++;
+  return [ns, ne];
 }
 
-function boundaryBefore(display, pos) {
-  for (let i = pos - 1; i >= 0; i--) {
-    if (hasNormChar(display[i])) return false;
-    if (WORD_BREAK_RE.test(display[i])) return true;
-  }
-  return true;
-}
-
-function boundaryAfter(display, pos) {
-  for (let i = pos; i < display.length; i++) {
-    if (hasNormChar(display[i])) return false;
-    if (WORD_BREAK_RE.test(display[i])) return true;
-  }
-  return true;
-}
+// ─── Wordlist lines ──────────────────────────────────────────────────────────
 
 export function parseWordlistLine(line) {
   if (!line) return null;

@@ -2,8 +2,8 @@
 
 import { loadCmuDict, hasCmuDict, rhymingPartsOf, lastWordKey, hasPronunciation } from '../phonetics.js';
 import { hasUnigramCorpus, SPACE_OUT_WINDOWS } from '../segmenter.js';
-import { buildSpacingTable, loadSpacingCorpus, isUnspaced, spaceOutSplits } from '../space-out.js';
-import { toNorm } from '../norm.js';
+import { buildSpacingTable, loadSpacingCorpus, spaceOutSplits } from '../space-out.js';
+import { toNorm, isUnspaced } from '../norm.js';
 
 async function ensureDict() {
   try {

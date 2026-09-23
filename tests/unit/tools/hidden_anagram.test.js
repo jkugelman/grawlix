@@ -1,6 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { visible, sameVisible, run, rowByFirst, highlightTexts } from './harness.js';
+import { visible, sameVisible, run, rowByFirst, highlightTexts, merged } from './harness.js';
+import { makeToolRow } from '../../../site/src/engine/tools.js';
+import { executePipeline } from '../../../site/src/engine/executor.js';
+import { setUnigramCorpus, invalidateUnigramCorpus } from '../../../site/src/engine/segmenter.js';
 
 const LIB = [
   'windiest',   // w·indies·t — hides INSIDE rearranged as "indies"
@@ -76,4 +79,29 @@ test('word spanning skips a same-word window for a later crossing one', async ()
   const lib = ['stale bread', 'least ale'];
   const out = await visible(lib, [{ tool: 'hidden_anagram', params: { entry: 'tales', mode: 'span' } }]);
   sameVisible(out, ['least ale']);
+});
+
+// ─── Unspaced entries ────────────────────────────────────────────────────────
+
+const FREQS = { melts: -4, away: -3, lastly: -4, salt: -4 };
+
+test('word spanning reads a run-together phrase through the segmenter', async () => {
+  setUnigramCorpus(FREQS);
+  sameVisible(await visible(['meltsaway', 'lastly', 'melts', 'away'],
+    [{ tool: 'hidden_anagram', params: { entry: 'salt', mode: 'span' } }]), ['meltsaway']);
+});
+
+test('word spanning without the corpus treats a run-together entry as one word', async () => {
+  invalidateUnigramCorpus();
+  sameVisible(await visible(['meltsaway', 'melts', 'away'],
+    [{ tool: 'hidden_anagram', params: { entry: 'salt', mode: 'span' } }]), []);
+});
+
+test('word spanning reads on demand and builds no table', async () => {
+  setUnigramCorpus(FREQS);
+  const store = new Map();
+  const cache = { get: k => store.get(k) ?? null, put: (k, v) => store.set(k, v) };
+  await executePipeline(merged(['meltsaway', 'melts', 'away']),
+    [makeToolRow('hidden_anagram', { entry: 'salt', mode: 'span' })], null, { prepareCache: cache });
+  assert.equal(store.size, 0);
 });

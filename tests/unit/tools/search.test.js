@@ -1,7 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { visible, sameVisible, run, rowByFirst, highlightTexts, atomWord } from './harness.js';
-import { makeToolRow } from '../../../site/src/engine/tools.js';
+import { visible, sameVisible, run, rowByFirst, highlightTexts, atomWord, merged } from './harness.js';
+import { makeToolRow, TOOLS, toolAssets } from '../../../site/src/engine/tools.js';
+import { executePipeline } from '../../../site/src/engine/executor.js';
+import { setUnigramCorpus, invalidateUnigramCorpus } from '../../../site/src/engine/segmenter.js';
 
 const LIB = ['untested', 'united', 'retested', 'cat', 'cot', 'cart', 'cats', 'scat'];
 const search = (pattern, p = {}) => [{ tool: 'search', params: { pattern, ...p } }];
@@ -209,4 +211,74 @@ test('an output that is itself an entry is real, not coined, even with unlisted 
 test('a deletion that empties the entry emits nothing, even with unlisted allowed', async () => {
   sameVisible(await visible(['cat', 'cats'], search('cat', { replace: '', unlisted: true })),
     [['cats', 's']]);
+});
+
+// ─── Unspaced entries ────────────────────────────────────────────────────────
+
+const FREQS = { the: -2, irs: -6, theirs: -4, data: -3, table: -3, cat: -3, food: -3, copy: -3, copycat: -4 };
+const spaced = () => setUnigramCorpus(FREQS);
+
+test('mode=span reads a run-together entry through the segmenter', async () => {
+  spaced();
+  sameVisible(await visible(['datatable', 'database', 'data', 'table'], search('at', { mode: 'span' })),
+    ['datatable']);
+});
+
+test('mode=span: an entry the segmenter reads as one word has no break to span', async () => {
+  spaced();
+  sameVisible(await visible(['theirs', 'the', 'irs'], search('heir', { mode: 'span' })), []);
+});
+
+test('mode=word reads a run-together entry through the segmenter', async () => {
+  spaced();
+  sameVisible(await visible(['catfood', 'copycat', 'cat', 'food', 'copy'], search('cat', { mode: 'word' })),
+    ['cat', 'catfood']);
+});
+
+test('mode=span highlights only the crossing match of a run-together entry', async () => {
+  spaced();
+  const { rows } = await run(['datatable', 'data', 'table'], search('at', { mode: 'span' }));
+  const row = rowByFirst(rows, 'datatable');
+  assert.deepEqual(highlightTexts(row.atoms[row.atoms.length - 1]), ['at']);
+});
+
+test('mode=span constrains a replacement on a run-together entry to the crossing match', async () => {
+  spaced();
+  sameVisible(await visible(['datatable', 'data', 'table'], search('at', { replace: 'x', unlisted: true, mode: 'span' })),
+    [['datatable', 'datxable']]);
+});
+
+test('without the word-frequency corpus a run-together entry is one word', async () => {
+  invalidateUnigramCorpus();
+  sameVisible(await visible(['datatable', 'data', 'table'], search('at', { mode: 'span' })), []);
+  sameVisible(await visible(['catfood', 'cat', 'food'], search('cat', { mode: 'word' })), ['cat']);
+});
+
+test('a word-relative mode builds the spacing table; a later run reuses it', async () => {
+  spaced();
+  const wl = merged(['datatable', 'data', 'table']);
+  const store = new Map();
+  const cache = { get: k => store.get(k) ?? null, put: (k, v) => store.set(k, v) };
+  const runSearch = params => executePipeline(wl, [makeToolRow('search', params)], null, { prepareCache: cache });
+
+  await runSearch({ pattern: 'at' });
+  assert.equal(store.size, 0);
+  await runSearch({ pattern: 'at', mode: 'span' });
+  assert.equal(store.size, 1);
+  const [table] = store.values();
+  assert.equal(table.best.get('datatable'), 'data table');
+  const before = table.best.size;
+  await runSearch({ pattern: 'ta', mode: 'word' });
+  assert.equal(store.size, 1);
+  assert.equal(table.best.size, before);
+});
+
+test('the unigram corpus is declared only while a word-relative mode is on', () => {
+  assert.deepEqual(toolAssets(TOOLS.search, { pattern: 'cat' }), []);
+  assert.deepEqual(toolAssets(TOOLS.search, { pattern: 'cat', mode: 'full' }), []);
+  assert.deepEqual(toolAssets(TOOLS.search, { pattern: 'cat', mode: 'word' }), ['unigrams']);
+  assert.deepEqual(toolAssets(TOOLS.search, { pattern: 'cat', mode: 'span' }), ['unigrams']);
+  assert.deepEqual(toolAssets(TOOLS.regex, { pattern: 'c.t', mode: 'span' }), ['unigrams']);
+  assert.deepEqual(toolAssets(TOOLS.hidden_anagram, { entry: 'salt', mode: 'span' }), ['unigrams']);
+  assert.deepEqual(toolAssets(TOOLS.rhymes, {}), ['cmudict', 'unigrams']);
 });

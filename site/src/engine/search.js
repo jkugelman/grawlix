@@ -1,7 +1,7 @@
 'use strict';
 
 import { esc } from '../core/util.js';
-import { matchSpansWords, matchIsWholeWords, WORD_BREAK_RE } from './norm.js';
+import { wordBreaks, spansWords, isWholeWords, displayRangeToNorm } from './norm.js';
 
 // ─── Search ───────────────────────────────────────────────────────────────────
 
@@ -34,10 +34,12 @@ export function patternLengthRange(query) {
 // stripped) and its verbatim display, matching if either does — norm forgives
 // separators (`theirs` finds "the IRS"); display requires a typed space/accent.
 // `mode` is the match-extent mode: '' (anywhere), 'full' (whole entry,
-// anchored), 'word' (whole words), or 'span' (crosses a word break).
-// `literal` treats the query as plain text (no wildcards) so Ctrl-F can share
-// this exact matcher and stay in agreement with Search on what matches.
-export function buildSearchPattern(query, mode = '', literal = false) {
+// anchored), 'word' (whole words), or 'span' (crosses a word break); the two
+// word-relative modes read an unspaced entry's words through `reader`, a
+// SpacingReader, when one is given. `literal` treats the query as plain text
+// (no wildcards) so Ctrl-F can share this exact matcher and stay in agreement
+// with Search on what matches.
+export function buildSearchPattern(query, mode = '', { literal = false, reader = null } = {}) {
   // Don't trim: a typed space is a literal that anchors to a word boundary in
   // the display arm. Re-adding `.trim()` reads as an oversight but silently
   // kills that — even an all-whitespace query is a real space search.
@@ -98,31 +100,39 @@ export function buildSearchPattern(query, mode = '', literal = false) {
         return d != null && filterRe.test(d);
       }
       const d = wlEntry.display;
-      if (mode === 'span' && (d == null || !WORD_BREAK_RE.test(d))) return false;
-      return anyMatch(globalRe, wlEntry.norm, matchModeOk(mode, wlEntry, 'norm'))
-          || (d != null && anyMatch(globalRe, d, matchModeOk(mode, wlEntry, 'display')));
+      return anyMatch(globalRe, wlEntry.norm, matchModeOk(mode, wlEntry, 'norm', reader))
+          || (d != null && anyMatch(globalRe, d, matchModeOk(mode, wlEntry, 'display', reader)));
     },
     // Prefer the display arm's ranges (already in display coordinates); fall back
     // to the norm arm, whose coordinates projectRangesToDisplay maps at render.
     searchRanges(wlEntry) {
       const d = wlEntry.display;
       if (d != null) {
-        const dispRanges = searchRangesFor(d, hlRe, gated ? matchModeOk(mode, wlEntry, 'display') : null);
+        const dispRanges = searchRangesFor(d, hlRe, matchModeOk(mode, wlEntry, 'display', reader));
         if (dispRanges.length) return tag(dispRanges, 'display');
-      } else if (mode === 'span') {
-        return [];
       }
-      return tag(searchRangesFor(wlEntry.norm, hlRe, gated ? matchModeOk(mode, wlEntry, 'norm') : null), 'norm');
+      return tag(searchRangesFor(wlEntry.norm, hlRe, matchModeOk(mode, wlEntry, 'norm', reader)), 'norm');
     },
     globalRe,
     hlRe,
   };
 }
 
-export function matchModeOk(mode, wlEntry, coord) {
-  if (mode === 'word') return m => matchIsWholeWords(wlEntry, m.index, m.index + m[0].length, coord);
-  if (mode === 'span') return m => matchSpansWords(wlEntry, m.index, m.index + m[0].length, coord);
-  return null;
+// The per-match gate for the word-relative modes, null for the rest. Breaks are
+// read on the first match, not up front, so an entry the pattern rejects never
+// costs a spacing-table lookup.
+export function matchModeOk(mode, wlEntry, coord, reader = null) {
+  if (mode !== 'word' && mode !== 'span') return null;
+  let breaks = null;
+  return m => {
+    let start = m.index, end = start + m[0].length;
+    if (coord === 'display') [start, end] = displayRangeToNorm(wlEntry, start, end);
+    if (mode === 'span' && end - start < 2) return false;
+    breaks ??= wordBreaks(wlEntry, reader);
+    return mode === 'word'
+      ? isWholeWords(breaks, wlEntry.norm.length, start, end)
+      : spansWords(breaks, start, end);
+  };
 }
 
 function anyMatch(re, text, matchOk) {

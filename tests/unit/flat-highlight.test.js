@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { makeToolRow } from '../../site/src/engine/tools.js';
 import { executePipeline } from '../../site/src/engine/executor.js';
 import { compileFlatHighlighters, materializeFlatRow } from '../../site/src/engine/flat-highlight.js';
+import { setUnigramCorpus } from '../../site/src/engine/segmenter.js';
 
 // Oracle for the relocated materializeFlatRow: it must reproduce the executor's
 // flat-chain output exactly. The equivalence is non-obvious — a highlighting
@@ -24,7 +25,13 @@ const CORPUS_ENTRIES = [
   wlEntry('cat'),
   wlEntry('untether'),
   wlEntry('reunited'),
+  wlEntry('teacup'),
+  wlEntry('tea'),
+  wlEntry('cup'),
 ];
+
+// The worker's renderCtx shape: an empty artifact peek, so a replay reads spacing on the spot.
+const renderCtx = corpus => ({ vocab: corpus, cache: { get: () => null, put() {} } });
 
 const projectRow = row => row.atoms.map(a => ({
   norm: a.wlEntry.norm,
@@ -39,7 +46,7 @@ async function executorFlatRows(corpus, stack) {
 }
 
 function materializedFlatRows(corpus, stack) {
-  const highlighters = compileFlatHighlighters(stack);
+  const highlighters = compileFlatHighlighters(stack, renderCtx(corpus));
   return corpus.entries.map(e => materializeFlatRow(e, highlighters));
 }
 
@@ -58,6 +65,10 @@ const fixtures = {
     makeToolRow('search', { pattern: 'UN*' }),
     makeToolRow('regex', { pattern: '.*ED$' }),
   ],
+  'span mode reading a run-together entry through the segmenter': () => {
+    setUnigramCorpus({ tea: -3, cup: -3, united: -3, untied: -3, cat: -2, untether: -4, reunited: -4 });
+    return [makeToolRow('search', { pattern: 'ACU', mode: 'span' })];
+  },
 };
 
 for (const [name, build] of Object.entries(fixtures)) {
@@ -65,9 +76,10 @@ for (const [name, build] of Object.entries(fixtures)) {
     const stack = build();
 
     const execRows = await executorFlatRows(makeCorpus(CORPUS_ENTRIES.map(e => ({ ...e }))), stack);
-    const matRows = materializedFlatRows(makeCorpus(CORPUS_ENTRIES.map(e => ({ ...e }))), stack);
+    const matCorpus = makeCorpus(CORPUS_ENTRIES.map(e => ({ ...e })));
+    const matRows = materializedFlatRows(matCorpus, stack);
 
-    const highlighters = compileFlatHighlighters(stack);
+    const highlighters = compileFlatHighlighters(stack, renderCtx(matCorpus));
     const survivingMat = matRows.filter((_, i) => {
       const e = CORPUS_ENTRIES[i];
       return highlighters.every(({ def, prepared }) => {

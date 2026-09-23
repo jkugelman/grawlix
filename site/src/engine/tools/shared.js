@@ -1,6 +1,7 @@
 'use strict';
 
 import { buildHelpHTML } from '../../core/util.js';
+import { buildSpacingTable, spacingReader, loadSpacingCorpus } from '../space-out.js';
 
 // ─── Cross-tool helpers ──────────────────────────────────────────────────────
 // Only helpers used by 2+ tools belong here; single-use helpers live in their
@@ -20,6 +21,23 @@ export function matchModeOf(params) {
   const v = params && params.mode;
   return v === 'full' || v === 'word' || v === 'span' ? v : '';
 }
+
+export function matchModeReadsWords(params) {
+  const mode = matchModeOf(params);
+  return mode === 'word' || mode === 'span';
+}
+
+export const matchModeAssets = params => (matchModeReadsWords(params) ? ['unigrams'] : []);
+
+// Built up front rather than read on demand: a short pattern's candidates run to
+// hundreds of thousands, and reading each on the spot costs seconds per keystroke.
+export async function matchModeSpacing(params, ctx) {
+  if (!matchModeReadsWords(params)) return null;
+  await loadSpacingCorpus();
+  return buildSpacingTable(ctx);
+}
+
+export const matchModeSpacingLazy = (params, ctx) => (matchModeReadsWords(params) ? spacingReader(ctx) : null);
 
 // `value` (not a boolean checkbox) so the URL reads mode=span like Search and
 // Regex — the key can grow into the full mode menu without breaking links.

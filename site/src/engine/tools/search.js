@@ -2,11 +2,24 @@
 
 import { buildSearchPattern } from '../search.js';
 import { runReplace, replacementMarksOutput } from '../regex.js';
-import { MATCH_PARAM, matchModeOf, ALLOW_UNLISTED_PARAM, SEARCH_HELP, isReplacing } from './shared.js';
+import {
+  MATCH_PARAM, matchModeOf, ALLOW_UNLISTED_PARAM, SEARCH_HELP, isReplacing,
+  matchModeAssets, matchModeSpacing, matchModeSpacingLazy,
+} from './shared.js';
 
 // Not parseReplacement: `$` is plain text in search syntax, and parsing
 // would silently swallow `$N` (search patterns have no groups to echo).
 const replaceTokens = params => (params.replace ? [{ lit: params.replace }] : []);
+
+function build(params, spacing) {
+  const matchMode = matchModeOf(params);
+  const matcher = buildSearchPattern(params.pattern || '', matchMode, { reader: spacing });
+  if (!matcher) return null;
+  if (isReplacing(params)) {
+    return { mode: 'replace', re: matcher.globalRe, hlRe: matcher.hlRe, tokens: replaceTokens(params), allowUnlisted: !!params['unlisted'], matchMode, spacing };
+  }
+  return { mode: 'filter', matcher };
+}
 
 export default {
   name: 'Search', icon: '<svg width="16" height="16" aria-hidden="true"><use href="#icon-search"/></svg>', category: 'search',
@@ -28,15 +41,11 @@ export default {
   // costs nothing and a half-typed pattern doesn't blank the view.
   isInert: params => !buildSearchPattern(params && params.pattern || ''),
   matchOn: 'both',
-  prepare(params) {
-    const matchMode = matchModeOf(params);
-    const matcher = buildSearchPattern(params.pattern || '', matchMode);
-    if (!matcher) return null;
-    if (isReplacing(params)) {
-      return { mode: 'replace', re: matcher.globalRe, hlRe: matcher.hlRe, tokens: replaceTokens(params), allowUnlisted: !!params['unlisted'], matchMode };
-    }
-    return { mode: 'filter', matcher };
+  assets: matchModeAssets,
+  async prepare(params, ctx) {
+    return build(params, await matchModeSpacing(params, ctx));
   },
+  replay: (params, ctx) => build(params, matchModeSpacingLazy(params, ctx)),
   run(wlEntry, prepared, wordlist) {
     if (!prepared) return true;
     if (prepared.mode === 'replace') return runReplace(wlEntry, prepared, wordlist);

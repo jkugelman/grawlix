@@ -1,5 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { setUnigramCorpus } from '../../../site/src/engine/segmenter.js';
 import { visible, sameVisible, run, rowByFirst, highlightTexts, atomWord } from './harness.js';
 import { makeToolRow } from '../../../site/src/engine/tools.js';
 
@@ -133,4 +134,29 @@ test('a filled replacement marks its output, so the next replace marks a line of
   assert.equal(rows.length, 1);
   assert.deepEqual(rows[0].atoms.map(atomWord), ['act', 'cat', 'cat', 'dog']);
   assert.equal(atomCount, 4);
+});
+
+// ─── Unspaced entries ────────────────────────────────────────────────────────
+
+const FREQS = { the: -2, irs: -6, theirs: -4, data: -3, table: -3, cat: -3, food: -3, copy: -3, copycat: -4, rock: -3, roll: -3 };
+const spaced = () => setUnigramCorpus(FREQS);
+
+test('mode=span reads a run-together entry through the segmenter', async () => {
+  spaced();
+  sameVisible(await visible(['datatable', 'theirs', 'data', 'table', 'the', 'irs'], regex('at.', { mode: 'span' })),
+    ['datatable']);
+});
+
+test('mode=word reads a run-together entry through the segmenter', async () => {
+  spaced();
+  sameVisible(await visible(['catfood', 'copycat', 'cat', 'food', 'copy'], regex('c.t', { mode: 'word' })),
+    ['cat', 'catfood']);
+});
+
+test('a display-arm match on a run-together entry is gated in norm coordinates', async () => {
+  spaced();
+  const { rows } = await run(['Rock&Roll', 'rock', 'roll'], regex('k&r', { mode: 'span' }));
+  const row = rowByFirst(rows, 'Rock&Roll');
+  assert.ok(row, 'the display-only match survives the gate');
+  assert.deepEqual(highlightTexts(row.atoms[row.atoms.length - 1]), ['k&R']);
 });

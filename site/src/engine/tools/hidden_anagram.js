@@ -1,7 +1,16 @@
 'use strict';
 
-import { toNorm, matchSpansWords } from '../norm.js';
-import { SPAN_PARAM, matchModeOf } from './shared.js';
+import { toNorm, wordBreaks, spansWords } from '../norm.js';
+import { loadSpacingCorpus } from '../space-out.js';
+import { SPAN_PARAM, matchModeOf, matchModeReadsWords, matchModeAssets, matchModeSpacingLazy } from './shared.js';
+
+function build(params, spacing) {
+  const needle = toNorm(params.entry || '');
+  if (!needle) return null;
+  const need = new Map();
+  for (const ch of needle) need.set(ch, (need.get(ch) || 0) + 1);
+  return { needle, need, len: needle.length, spanning: matchModeOf(params) === 'span', spacing };
+}
 
 export default {
   name: 'Hidden anagram', icon: '🫥', category: 'anagram',
@@ -11,19 +20,20 @@ export default {
   kind: 'filter', input: 'highlight', output: 'plain',
   matchOn: 'both',
   isInert: params => !toNorm((params && params.entry) || ''),
-  prepare(params) {
-    const needle = toNorm(params.entry || '');
-    if (!needle) return null;
-    const need = new Map();
-    for (const ch of needle) need.set(ch, (need.get(ch) || 0) + 1);
-    return { needle, need, len: needle.length, spansWords: matchModeOf(params) === 'span' };
+  assets: matchModeAssets,
+  // Reads on demand rather than building the table: the anagram window leaves so
+  // few candidates that building would make the first keystroke the slowest.
+  async prepare(params, ctx) {
+    if (matchModeReadsWords(params)) await loadSpacingCorpus();
+    return build(params, matchModeSpacingLazy(params, ctx));
   },
+  replay: (params, ctx) => build(params, matchModeSpacingLazy(params, ctx)),
   run(wlEntry, target, wordlist) {
     if (!target) return true;
-    const { needle, need, len, spansWords } = target;
+    const { needle, need, len, spanning, spacing } = target;
     const entry = wlEntry.norm;
     if (entry.length <= len) return false;   // hidden inside a *longer* word — a whole-word anagram is the Anagrams tool
-    if (spansWords && wlEntry.display == null) return false;
+    let breaks = null;
 
     // A window covering every required letter (deficit 0) can hold no stray one —
     // it's the needle's length — so containment alone is a full anagram test.
@@ -48,7 +58,7 @@ export default {
         const start = i - len + 1;
         // Require a real rearrangement: the input spelled straight is containment, not an anagram.
         if (entry.slice(start, start + len) !== needle
-            && (!spansWords || matchSpansWords(wlEntry, start, start + len)))
+            && (!spanning || spansWords(breaks ??= wordBreaks(wlEntry, spacing), start, start + len)))
           return [{ start, end: start + len, kind: 'search:0' }];
       }
     }

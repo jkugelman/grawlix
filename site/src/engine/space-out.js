@@ -1,7 +1,7 @@
 'use strict';
 
 import { mergeKey, bestRowForNorm } from './corpus.js';
-import { displayOf, toNorm } from './norm.js';
+import { displayOf, toNorm, isUnspaced } from './norm.js';
 import { SPACE_OUT_WINDOWS, rankedSplits, bestCompoundSplit, hasUnigramCorpus, loadUnigramCorpus } from './segmenter.js';
 
 // ─── Wordlist-aware spacing ──────────────────────────────────────────────────
@@ -44,8 +44,6 @@ export function bestSpaceOutSplit(norm, wordlist) {
 const SPACING_TABLE_KEY = 'space-out/readings';
 const BYTES_PER_TABLE_SLOT = 24;
 const BYTES_PER_STRING_HEADER = 16;
-
-export const isUnspaced = display => !/[\s-]/.test(display);
 
 const hasUsableTail = parts => toNorm(parts[parts.length - 1]).length > 1;
 

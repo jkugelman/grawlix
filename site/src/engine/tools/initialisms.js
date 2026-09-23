@@ -1,7 +1,7 @@
 'use strict';
 import { bestRowForNorm } from '../corpus.js';
-import { toNorm } from '../norm.js';
-import { buildSpacingTable, spacingReader, loadSpacingCorpus, isUnspaced } from '../space-out.js';
+import { toNorm, isUnspaced } from '../norm.js';
+import { buildSpacingTable, spacingReader, loadSpacingCorpus } from '../space-out.js';
 
 export function wordSplits(display) {
   const stripped = display.split(/[ ]+/).filter(Boolean);

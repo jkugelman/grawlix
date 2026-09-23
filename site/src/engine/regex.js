@@ -177,13 +177,12 @@ export function execMatches(re, text, matchOk = null) {
 // misaligns in-list highlights, which must stay in norm coords because the
 // executor re-resolves the result onto the real entry.
 export function runReplace(wlEntry, prepared, wordlist) {
-  const { re, hlRe, tokens, allowUnlisted, matchMode } = prepared;
+  const { re, hlRe, tokens, allowUnlisted, matchMode, spacing = null } = prepared;
   const norm = wlEntry.norm, display = displayOf(wlEntry);
-  if (matchMode === 'span' && wlEntry.display == null) return [];
-  let armNorm = true, matches = execMatches(re, norm, matchModeOk(matchMode, wlEntry, 'norm'));
+  let armNorm = true, matches = execMatches(re, norm, matchModeOk(matchMode, wlEntry, 'norm', spacing));
   if (!matches.length && wlEntry.display != null) {
     armNorm = false;
-    matches = execMatches(re, display, matchModeOk(matchMode, wlEntry, 'display'));
+    matches = execMatches(re, display, matchModeOk(matchMode, wlEntry, 'display', spacing));
   }
   if (!matches.length) return [];
   const src = armNorm ? norm : display;

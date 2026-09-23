@@ -1,7 +1,7 @@
 // ─── Pipeline worker host ── see docs/worker-protocol.md ─────────────────────
 
 import { MERGED_ID } from '../core/constants.js';
-import { TOOLS, makeToolRow, configureUmiaq, configureWeave } from './tools.js';
+import { TOOLS, makeToolRow, toolAssets, configureUmiaq, configureWeave } from './tools.js';
 import { executePipeline, configureExecutorYield, lastPipelineSeedFrom, lastPipelineTailMs, bottomLineAtoms, applyViewFilterToRows, entryPredicate, chainPredicate, rowLastEntry, rowAtoms, collapseRepeatAtoms, streamPlan, cacheGroupStats, currentAtomCount } from './executor.js';
 import { GdsCache, RoleCache } from './gds-cache.js';
 import { sortGroups, sortChainRows, activeGroupRow, groupRowComparator, chainRowComparator, chainSortTier, DEFAULT_SORT_BY_TIER, entrySortKey, foldAnchor, foldChainAnchor, chainFamily, chainAnchors, usesEntryAxis, compareValues } from './sort.js';
@@ -148,7 +148,7 @@ let diffCounter = 0;
 // syncConfig: it holds lean copies (names no corpus) and outlives runs; main frees
 // each entry by UI reachability (`freeDiff`).
 const retainedDiffs = new Map();
-let lastUserStackSig = null;
+let lastNeededAssetsSig = null;
 let selfConfig = null;
 let ownedBuilt = null;      // the retained per-source rich wordlists from the last syncConfig
 let ownedMerged = null;     // eager self-built MERGED corpus; feeds the config summaries regardless of active scope
@@ -191,19 +191,6 @@ function deserializeStack(serialized) {
     rows.push(row);
   }
   return rows;
-}
-
-// Frees ~100 MB+ the moment a tool stops needing it; that resident weight can tip
-// iOS's shared jetsam budget into a reload. Don't "tidy" invalidate() into also
-// deleting the IDB key (as handleCheckAssets does) — re-adding would then re-fetch.
-function evictUnusedAssets(serialized) {
-  const needed = new Set();
-  for (const { tool } of serialized) {
-    for (const asset of TOOLS[tool]?.assets || []) needed.add(asset);
-  }
-  for (const asset of DATA_ASSETS) {
-    if (asset.has() && !needed.has(asset.key)) asset.invalidate();
-  }
 }
 
 // ─── Run loop & supersession ─────────────────────────────────────────────────
@@ -256,16 +243,30 @@ async function drainRuns() {
   }
 }
 
-// When the user stack changes, free any large data asset the new stack no longer
-// references (~100 MB+ that can tip iOS's jetsam budget). Cache freshness needs no
-// hook here: the prefix cache keys by prefix (a changed row keys a different prefix)
-// and gates every seed on the corpus-object identity test, so a stale tile is dropped
-// at probe time rather than proactively.
+function neededAssets(serialized) {
+  const needed = new Set();
+  for (const { tool, params } of serialized) {
+    if (TOOLS[tool]) for (const asset of toolAssets(TOOLS[tool], params)) needed.add(asset);
+  }
+  return needed;
+}
+
+// Frees ~100 MB+ the moment no row needs it; that resident weight can tip iOS's
+// shared jetsam budget into a reload. Keyed on the set of assets the stack needs,
+// not on the stack: the Search bar's match mode decides whether the unigram
+// corpus is needed, and its pattern changes every keystroke. Don't "tidy"
+// invalidate() into also deleting the IDB key (as handleCheckAssets does) —
+// re-adding would then re-fetch. Cache freshness needs no hook here: the prefix
+// cache keys by prefix (a changed row keys a different prefix) and gates every
+// seed on the corpus-object identity test, so a stale tile is dropped at probe
+// time rather than proactively.
 function reapUnusedAssets(serialized) {
-  const userStackSig = JSON.stringify(serialized.slice(0, -1));
-  if (userStackSig !== lastUserStackSig) {
-    evictUnusedAssets(serialized);
-    lastUserStackSig = userStackSig;
+  const needed = neededAssets(serialized);
+  const sig = [...needed].sort().join('\0');
+  if (sig === lastNeededAssetsSig) return;
+  lastNeededAssetsSig = sig;
+  for (const asset of DATA_ASSETS) {
+    if (asset.has() && !needed.has(asset.key)) asset.invalidate();
   }
 }
 
