@@ -10,20 +10,14 @@ test.beforeEach(async ({ page }) => {
   await stubPublisherFetches(page);
 });
 
-test('the entries table sorts a multi-word base ahead of its inflections', async ({ page }) => {
+test('the entries table sorts a spaced entry beside its run-together twin', async ({ page }) => {
   await gotoApp(page);
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
     name: 'Src',
-    entries: ['lather', 'lathered', 'lathering', 'lathers',
-              'lather up', 'lathered up', 'lathering up', 'lathers up'],
-    scores: [50, 50, 50, 50, 50, 50, 50, 50],
+    entries: ['accountpayable', 'accountplanning', 'accounts payable', 'account'],
+    scores: [50, 50, 50, 50],
   }));
-  // The base leads each family: "lather up" sorts ahead of its inflections, the
-  // way "lather" leads its own — entries collate by display, so the space wins.
-  await expectVisible(page, [
-    'lather', 'lathered', 'lathering', 'lathers',
-    'lather up', 'lathered up', 'lathering up', 'lathers up',
-  ], { ordered: true });
+  await expectVisible(page, ['account', 'accountpayable', 'accounts payable', 'accountplanning'], { ordered: true });
 });
 
 test('Entry desc reverses families fully — clusters and the members inside each', async ({ page }) => {

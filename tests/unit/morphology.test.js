@@ -66,7 +66,12 @@ test('leading articles strip; internal articles stay', () => {
   const v = collectVocab(['best', 'the best', 'have a go at', 'had a go at']);
   assert.equal(familyKey('the best', v), familyKey('best', v));
   assert.equal(familyKey('had a go at', v), familyKey('have a go at', v));
-  assert.equal(familyKey('have a go at', v), 'have a go at');
+  assert.equal(familyKey('have a go at', v), 'haveagoat');
+});
+
+test('a phrase and its run-together spelling share a family', () => {
+  const v = collectVocab(['account', 'accounts', 'payable', 'accountpayable']);
+  assert.equal(familyKey('accounts payable', v), familyKey('accountpayable', v));
 });
 
 test('familyTokens strips a leading article but keeps a lone article', () => {
@@ -84,13 +89,13 @@ test('a bare two-letter auxiliary keeps its base against the homographic +e word
 
 test('a contraction does not reduce through the word its apostrophe-strip spells', () => {
   const v = collectVocab(["we're", 'were', 'be', "i's", 'is', 'wizard']);
-  assert.equal(familyKey("We're Off to See the Wizard", v), 'were off to see the wizard');
+  assert.equal(familyKey("We're Off to See the Wizard", v), 'wereofftoseethewizard');
   assert.equal(familyKey("i's", v), 'is');
 });
 
 test('a trailing possessive apostrophe still reduces (the word itself is intact)', () => {
   const v = collectVocab(['wife', 'wives', 'tale', 'tales']);
-  assert.equal(familyKey("old wives' tale", v), 'old wife tale');
+  assert.equal(familyKey("old wives' tale", v), 'oldwifetale');
 });
 
 test('accents fold into the key (café groups with cafe)', () => {

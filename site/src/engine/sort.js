@@ -32,10 +32,11 @@ export const rowMinScore = r => r.atoms ? Math.min(...r.atoms.map(a => a.wlEntry
 export const rowMaxScore = r => r.atoms ? Math.max(...r.atoms.map(a => a.wlEntry.score)) : r.score;
 export const rowMinLength = r => r.atoms ? Math.min(...r.atoms.map(a => a.wlEntry.norm.length)) : r.norm.length;
 export const rowMaxLength = r => r.atoms ? Math.max(...r.atoms.map(a => a.wlEntry.norm.length)) : r.norm.length;
-// Collate alphabetically on displayOf, not norm: toNorm strips spaces, so a
-// multi-word base ("lather up") would silently sort after its inflections.
-const rowFirstDisplay = r => displayOf(rowFirstEntry(r));
-const rowLastDisplay = r => displayOf(rowLastEntry(r));
+// Letters first, spelling second: a space or mark costs no position, so spacing
+// out a run-together entry leaves it beside its bare twin instead of moving it.
+export const collationKey = wlEntry => [wlEntry.norm, displayOf(wlEntry)];
+const rowFirstDisplay = r => collationKey(rowFirstEntry(r));
+const rowLastDisplay = r => collationKey(rowLastEntry(r));
 // Later atoms joined with a low separator: a string compare then orders them
 // atom-by-atom, since every row in a run carries the same atom count.
 const rowChainTail = r => !r.atoms ? '' : r.atoms.slice(1).map(a => a.wlEntry.norm).join('\u0000');
@@ -48,10 +49,10 @@ const rowChainTail = r => !r.atoms ? '' : r.atoms.slice(1).map(a => a.wlEntry.no
 // VISIBLE member instead — visible, since a member the filter hides is one the user
 // cannot see either.
 
-// familyTokens, not displayOf: raw display diverges on case and accents (`ETA`/`eta`),
-// so the min would pick a member the comparator does not rank first.
+// familyTokens, not the norm: the anchor drops a leading article (`the best` files
+// under B), and joins without spaces to collate the way the family key groups.
 export function anchorTextOf(wlEntry) {
-  return familyTokens(displayOf(wlEntry)).join(' ');
+  return familyTokens(displayOf(wlEntry)).join('');
 }
 
 // True only when the anchor DROPPED, obliging the caller to repair already-placed
@@ -70,10 +71,10 @@ export function foldAnchor(anchors, wlEntry) {
 // Anchor and family as ONE composite primary, never two ranks: a second sort pick
 // composes AHEAD of an axis's own tiebreakers, so ranking them separately lets that
 // pick interleave two families that share an anchor and shatters the table's
-// family brackets. A row with no family key keeps collating on its own display.
+// family brackets. A row with no family key keeps collating on its own letters.
 export function entrySortKey(wlEntry, anchors) {
   const family = wlEntry.family;
-  if (!family) { const display = displayOf(wlEntry); return [display, display]; }
+  if (!family) return [wlEntry.norm, wlEntry.norm];
   return [anchors?.get(family) ?? family, family];
 }
 
@@ -316,7 +317,7 @@ export function groupSortAxes(stack) {
       updated = {
         ...axis,
         label: anchorLabel,
-        primary: g => displayOf(g.anchor),
+        primary: g => collationKey(g.anchor),
         tiebreakers: [{ project: groupCount, dir: 'desc' }],
       };
     }
@@ -329,7 +330,7 @@ export function groupSortAxes(stack) {
       label: `${anchorLabel} length`,
       primary: g => g.anchor.norm.length,
       tiebreakers: [
-        { project: g => displayOf(g.anchor), dir: 'asc' },
+        { project: g => collationKey(g.anchor), dir: 'asc' },
         { project: groupCount,               dir: 'desc' },
       ],
     };
@@ -337,7 +338,7 @@ export function groupSortAxes(stack) {
       label: `${anchorLabel} score`,
       primary: g => g.anchor.score,
       tiebreakers: [
-        { project: g => displayOf(g.anchor), dir: 'asc' },
+        { project: g => collationKey(g.anchor), dir: 'asc' },
         { project: groupCount,               dir: 'desc' },
       ],
     };
@@ -394,9 +395,8 @@ export function compareValues(a, b) {
 }
 
 export function sortGroupChains(groups, sortKey) {
-  const seedEntry = c => rowFirstDisplay(c);
   const seedScore = c => rowFirstEntry(c).score;
-  const byNorm = (a, b) => seedEntry(a).localeCompare(seedEntry(b));
+  const byNorm = (a, b) => compareValues(rowFirstDisplay(a), rowFirstDisplay(b));
   const byScore = (a, b) => seedScore(b) - seedScore(a) || byNorm(a, b);
   const cmp = sortKey === 'entry' ? byNorm : byScore;
   for (const g of groups) g.chains.sort(cmp);

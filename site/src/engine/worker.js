@@ -4,7 +4,7 @@ import { MERGED_ID } from '../core/constants.js';
 import { TOOLS, makeToolRow, toolAssets, configureUmiaq, configureWeave } from './tools.js';
 import { executePipeline, configureExecutorYield, lastPipelineSeedFrom, lastPipelineTailMs, bottomLineAtoms, applyViewFilterToRows, entryPredicate, chainPredicate, rowLastEntry, rowAtoms, collapseRepeatAtoms, streamPlan, cacheGroupStats, currentAtomCount } from './executor.js';
 import { GdsCache, RoleCache } from './gds-cache.js';
-import { sortGroups, sortChainRows, activeGroupRow, groupRowComparator, chainRowComparator, chainSortTier, DEFAULT_SORT_BY_TIER, entrySortKey, foldAnchor, foldChainAnchor, chainFamily, chainAnchors, usesEntryAxis, compareValues } from './sort.js';
+import { sortGroups, sortChainRows, activeGroupRow, groupRowComparator, chainRowComparator, chainSortTier, DEFAULT_SORT_BY_TIER, entrySortKey, foldAnchor, foldChainAnchor, chainFamily, chainAnchors, usesEntryAxis, compareValues, collationKey } from './sort.js';
 import { PackedRecordJoin, packRecordJoin, materializeRecordRow, recordView, recordComparator, recordPasses, PackedGroupJoin, tryPackGroupJoin, buildGroupFlyweights, materializeGroupRow } from './packed-join.js';
 import {
   configureIO as configureSegmenterIO, setUnigramCorpus, configureSpaceOutBigrams,
@@ -1922,19 +1922,19 @@ const FLAT_SORT_AXES = {
     // display omits dir → follows the primary toggle (see sort.js's entry axis):
     // the within-family order continues the family-clustered alphabetical sort.
     primary: (e, anchors) => entrySortKey(e, anchors),
-    tiebreakers: [{ p: e => displayOf(e) }, { p: e => e.score, dir: -1 }],
+    tiebreakers: [{ p: e => collationKey(e) }, { p: e => e.score, dir: -1 }],
   },
   length: {
     primary: e => e.norm.length,
-    tiebreakers: [{ p: e => e.score, dir: -1 }, { p: e => displayOf(e), dir: 1 }],
+    tiebreakers: [{ p: e => e.score, dir: -1 }, { p: e => collationKey(e), dir: 1 }],
   },
   score: {
     primary: e => e.score,
-    tiebreakers: [{ p: e => e.norm.length, dir: -1 }, { p: e => displayOf(e), dir: 1 }],
+    tiebreakers: [{ p: e => e.norm.length, dir: -1 }, { p: e => collationKey(e), dir: 1 }],
   },
   comment: {
     primary: e => e.comment || '',
-    tiebreakers: [{ p: e => displayOf(e), dir: 1 }],
+    tiebreakers: [{ p: e => collationKey(e), dir: 1 }],
   },
 };
 const cmpVal = compareValues;

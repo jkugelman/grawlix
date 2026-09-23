@@ -83,14 +83,20 @@ test('sortGroups: Min length and Max length read the cluster length spread indep
   assert.deepEqual(keys(byMax), ['mid', 'wide']);   // max 4 < max 5
 });
 
-test('single Entry sort: a multi-word base leads its inflections, collated on display not stripped norm', () => {
-  // Regression: norm "latherup" collates after "lathersup", burying the base at
-  // the family tail; the display's space sorts ahead of any letter, so it leads.
-  const e = display => ({ norm: display.replace(/[^a-z]/g, ''), display, score: 50, family: 'lather up' });
-  const rows = [e('lathers up'), e('lathering up'), e('lather up'), e('lathered up')];
+test('single Entry sort: a family collates on letters, so a spelling sits beside its run-together twin', () => {
+  const e = display => ({ norm: display.replace(/[^a-z]/g, ''), display, score: 50, family: 'latherup' });
+  const rows = [e('lathersup'), e('lathers up'), e('latherup'), e('lathered up'), e('lather up')];
   const axis = composeSortAxis([{ key: 'entry', dir: 'asc' }], sortAxes('single', null));
   const out = rows.slice().sort((a, b) => compareItems(a, b, axis, 'asc')).map(r => r.display);
-  assert.deepEqual(out, ['lather up', 'lathered up', 'lathering up', 'lathers up']);
+  assert.deepEqual(out, ['lathered up', 'lathers up', 'lathersup', 'lather up', 'latherup']);
+});
+
+test('single Score sort: tied scores break on letters, keeping spelling twins together', () => {
+  const e = display => ({ norm: display.replace(/[^a-z]/g, ''), display, score: 50, family: '' });
+  const rows = [e('roadrage'), e('roadhog'), e('road rage'), e('road map')];
+  const axis = composeSortAxis([{ key: 'score', dir: 'desc' }], sortAxes('single', null));
+  const out = rows.slice().sort((a, b) => compareItems(a, b, axis, 'desc')).map(r => r.display);
+  assert.deepEqual(out, ['road rage', 'roadrage', 'roadhog', 'road map']);
 });
 
 test('single Entry desc reverses members within a family, not just the cluster order', () => {
@@ -185,11 +191,11 @@ test('foldAnchor: a family takes its alphabetically first member, reporting only
   // Returns "must repair", not "changed": a seed places no rows, so reporting it
   // would fire a full repair pass per first-seen family.
   assert.equal(foldAnchor(m, e('is band', 'be band')), false);
-  assert.equal(m.get('be band'), 'is band');
+  assert.equal(m.get('be band'), 'isband');
   assert.equal(foldAnchor(m, e('AM band', 'be band')), true);
-  assert.equal(m.get('be band'), 'am band');
+  assert.equal(m.get('be band'), 'amband');
   assert.equal(foldAnchor(m, e('was band', 'be band')), false);
-  assert.equal(m.get('be band'), 'am band');
+  assert.equal(m.get('be band'), 'amband');
 });
 
 test('foldAnchor: the anchor is the article-stripped token string, not the raw display', () => {

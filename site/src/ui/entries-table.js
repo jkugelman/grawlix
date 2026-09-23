@@ -4096,7 +4096,7 @@ export const EntryPanel = (() => {
       }
       familyMembers = members.sort(
         (a, b) => (a.viaName === true) - (b.viaName === true)
-               || (a.display ?? a.norm).localeCompare(b.display ?? b.norm) || a.norm.localeCompare(b.norm));
+               || a.norm.localeCompare(b.norm) || (a.display ?? a.norm).localeCompare(b.display ?? b.norm));
       // Keyed on the text, not on each reply: an un-ready retry re-applies the same
       // query, and re-collapsing under the user there would undo a reveal they made.
       if (familyEntry !== firedFor) familyExpanded = false;

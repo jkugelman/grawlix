@@ -102,10 +102,12 @@ export function familyTokens(text) {
   return familyWords(text).map(w => w.norm);
 }
 
+// Joined without spaces so a phrase and its run-together spelling (`accounts
+// payable` / `accountpayable`) share a family: spacing an entry must not move it.
 export function familyKey(text, vocab) {
   const words = familyWords(text);
   if (!words.length) return text.toLowerCase();
-  return words.map(w => reduceToken(w.norm, vocab, w.raw) ?? w.norm).join(' ');
+  return words.map(w => reduceToken(w.norm, vocab, w.raw) ?? w.norm).join('');
 }
 
 // ─── Name relatives ──────────────────────────────────────────────────────────
