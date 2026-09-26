@@ -104,7 +104,7 @@ class SpacingReader {
   }
 }
 
-const emptyTable = () => ({ best: new Map(), compound: new Map() });
+const emptyTable = () => ({ best: new Map(), compound: new Map(), complete: false, elapsedMs: 0 });
 
 // For a tool that works without readings: a failed fetch costs it coverage, not the run.
 export async function loadSpacingCorpus() {
@@ -120,12 +120,23 @@ export function spacingReader(ctx) {
 
 export async function buildSpacingTable(ctx) {
   const cached = ctx.cache.get(SPACING_TABLE_KEY);
-  if (cached) return new SpacingReader(cached, ctx.vocab);
-  const reader = new SpacingReader(emptyTable(), ctx.vocab);
-  if (!hasUnigramCorpus()) return reader;
-  await ctx.forEach(ctx.wordlist.entries, wlEntry => {
-    if (isUnspaced(displayOf(wlEntry))) reader.read(wlEntry.norm);
-  });
-  ctx.cache.put(SPACING_TABLE_KEY, reader.table, priceOf(reader.table), { patch: dropStaleReadings });
+  if (cached?.complete || !hasUnigramCorpus()) return new SpacingReader(cached ?? emptyTable(), ctx.vocab);
+  const reader = new SpacingReader(cached ? ctx.cache.take(SPACING_TABLE_KEY) : emptyTable(), ctx.vocab);
+  const { table } = reader;
+  const startedAt = performance.now();
+  const keep = () => {
+    table.elapsedMs += performance.now() - startedAt;
+    ctx.cache.put(SPACING_TABLE_KEY, table, priceOf(table), { patch: dropStaleReadings, elapsed: table.elapsedMs });
+  };
+  try {
+    await ctx.forEach(ctx.wordlist.entries, wlEntry => {
+      if (isUnspaced(displayOf(wlEntry))) reader.read(wlEntry.norm);
+    });
+  } catch (e) {
+    keep();   // a keystroke's superseded run hands its readings on, or each one restarts from zero
+    throw e;
+  }
+  table.complete = true;
+  keep();
   return reader;
 }

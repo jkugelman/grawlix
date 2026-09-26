@@ -83,6 +83,7 @@ function fakeCache() {
   return {
     store,
     get: key => store.get(key)?.value ?? null,
+    take: key => { const value = store.get(key)?.value ?? null; store.delete(key); return value; },
     put: (key, value, bytes, opts = {}) => store.set(key, { value, bytes, ...opts }),
   };
 }
@@ -109,6 +110,37 @@ test('buildSpacingTable: reads every unspaced entry once and caches the table', 
   assert.ok(bytes > 0);
   assert.equal(typeof patch, 'function');
   assert.equal((await buildSpacingTable(ctx)).table, value);
+});
+
+test('buildSpacingTable: a cancelled build caches its readings and the next build finishes them', async () => {
+  setUnigramCorpus(PHRASES);
+  const fresh = (await buildSpacingTable(ctxOver(LIST))).table;
+
+  const ctx = ctxOver(LIST);
+  const fullForEach = ctx.forEach;
+  const visited = new Set();
+  ctx.forEach = async (items, fn) => {
+    let i = 0;
+    for (const item of items) {
+      if (i === 3) throw Object.assign(new Error('superseded'), { name: 'AbortError' });
+      visited.add(item.norm);
+      fn(item, i++);
+    }
+  };
+  await assert.rejects(buildSpacingTable(ctx), { name: 'AbortError' });
+  const [{ value: partial }] = ctx.cache.store.values();
+  assert.equal(partial.complete, false);
+  assert.ok(partial.best.size > 0 && partial.best.size < fresh.best.size);
+  for (const norm of partial.best.keys()) assert.ok(visited.has(norm));
+
+  ctx.forEach = fullForEach;
+  const reader = await buildSpacingTable(ctx);
+  assert.equal(reader.table, partial);
+  assert.equal(partial.complete, true);
+  assert.deepEqual(new Map(partial.best), new Map(fresh.best));
+  assert.deepEqual(new Map(partial.compound), new Map(fresh.compound));
+  assert.equal(ctx.cache.store.size, 1);
+  assert.equal((await buildSpacingTable(ctx)).table, partial);
 });
 
 test('buildSpacingTable: caches nothing while the corpus is missing', async () => {

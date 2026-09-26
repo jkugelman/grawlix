@@ -178,7 +178,7 @@ function makeWorkingSetView(rows) {
   };
 }
 
-const NO_PREPARE_CACHE = { get: () => null, put() {} };
+const NO_PREPARE_CACHE = { get: () => null, take: () => null, put() {} };
 
 function makeCtx(wordlist, vocab, signal, y, grouped = false, reversed = false) {
   return {

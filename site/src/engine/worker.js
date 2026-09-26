@@ -1281,13 +1281,22 @@ function makePrepareCache(scope) {
       missedAt.set(toolKey, performance.now());
       return null;
     },
-    put(toolKey, value, bytes, { patch = null } = {}) {
+    // Removes the artifact so a prepare can keep building it privately: left in place,
+    // an edit mid-build would patch it and then refuse the re-put that prices it whole.
+    take(toolKey) {
+      const e = artifactCache.peek(keyOf(toolKey));
+      artifactCache.delete(keyOf(toolKey));
+      return e && cacheEntryValid(e) ? e.value : null;
+    },
+    // `elapsed` prices an artifact built across runs: a resumed build had no miss to
+    // time from, and a 0ms price would fall under the floor and be refused silently.
+    put(toolKey, value, bytes, { patch = null, elapsed = null } = {}) {
       if (!ownedCorpusFresh || ownedScope !== scope || ownedConfigVersion !== genAtStart) return;
       const corpus = scope === MERGED_ID ? ownedMerged : ownedCorpus;
       if (!corpus) return;
       // Timed from the miss, not the run: an artifact built behind a slow upstream
       // stage would otherwise price in that stage's time and outrank everything.
-      const elapsed = performance.now() - (missedAt.get(toolKey) ?? performance.now());
+      elapsed ??= performance.now() - (missedAt.get(toolKey) ?? performance.now());
       artifactCache.admit(keyOf(toolKey), { value, scope, corpus, patch }, elapsed, () => bytes);
     },
   };

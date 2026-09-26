@@ -72,7 +72,7 @@ test('a second tool reads the table the first built', async ({ page }) => {
   expect(state.misses).toBe(1);
 });
 
-// ─── Background updates ─────────────────────────────────────────────────────
+// ─── Background updates & superseded builds ──────────────────────────────────
 
 const PUBLISHED = 'roadrage;50\nroad;50\nrage;50\ncode;50\npage;50\n';
 
@@ -120,4 +120,35 @@ test('the table a rebuilding background update repatches with serves the next se
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'search', params: { pattern: 'code', mode: 'word' } }]));
   await expectVisible(page, ['code', 'codepage']);
   expect(await cacheState(page)).toMatchObject({ misses: 2, size: 1 });
+});
+
+test('a search superseded mid-build hands its partial table to the next', async ({ page }) => {
+  await gotoApp(page);
+  await page.evaluate(async () => {
+    const letters = 'bcdfhjklmnpstvwxyz';
+    let s = 1;
+    const rnd = () => (s = (s * 16807) % 2147483647) / 2147483647;
+    const entries = ['roadrage', 'road', 'rage'], scores = [50, 50, 50];
+    for (let i = 0; i < 30000; i++) {
+      let w = '';
+      for (let k = 0; k < 10; k++) w += letters[Math.floor(rnd() * letters.length)];
+      entries.push(w); scores.push(50);
+    }
+    await window.__grawlixTest.addCustomWordlist({ name: 'Big', entries, scores });
+    await window.__grawlixTest.syncWorkerConfig();
+  });
+  await page.evaluate(() => window.__grawlixTest.pipelineIdle());
+  await page.evaluate(() => window.__grawlixTest.configureArtifactCacheForTest({ minMs: 0 }));
+  await page.evaluate(c => window.__grawlixTest.setWorkerUnigramCorpus(c), FREQS);
+  await page.evaluate(() => window.__grawlixTest.setWorkerYieldIntervalForTest(1));
+
+  await page.evaluate(() => { window.__grawlixTest.setStack([{ tool: 'search', params: { pattern: 'road', mode: 'word' } }]); });
+  // Without the ring the first build may never have started, and the test passes vacuously.
+  await expect(page.locator('#entries-table-panel.has-progress')).toHaveCount(1);
+  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'search', params: { pattern: 'rage', mode: 'word' } }]));
+  await expectVisible(page, ['rage', 'roadrage']);
+
+  const state = await cacheState(page);
+  expect(state.hits).toBeGreaterThanOrEqual(1);
+  expect(state).toMatchObject({ misses: 1, size: 1 });
 });
