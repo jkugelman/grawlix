@@ -356,7 +356,7 @@ async function runRepatch({ runId, reprojectId, stack: serialized, sort, scoreRa
   let out;
   try {
     out = await executePipeline(ownedCorpus, stack, signal,   // buffered (no emit): one atomic snapshot, not a strobing re-stream
-      { resume: makePrefixResume(serialized, lastFlatResult.scope), vocab: ownedMerged });
+      { resume: makePrefixResume(serialized, lastFlatResult.scope), vocab: ownedMerged, prepareCache: makePrepareCache(lastFlatResult.scope) });
   } catch (e) {
     // Aborted ⇒ a newer run superseded us and refreshes the display, so reply nothing
     // (main's pending reproject self-heals); a real error re-runs.

@@ -71,3 +71,53 @@ test('a second tool reads the table the first built', async ({ page }) => {
   expect(state.hits).toBeGreaterThanOrEqual(1);
   expect(state.misses).toBe(1);
 });
+
+// ─── Background updates ─────────────────────────────────────────────────────
+
+const PUBLISHED = 'roadrage;50\nroad;50\nrage;50\ncode;50\npage;50\n';
+
+// Publisher-backed: a custom list never auto-updates, so it never repatches and these pass vacuously.
+async function seedPublished(page, feed) {
+  await page.route(/jkugelman-wordlist/, route => {
+    const body = feed.updated ? feed.updatedBody : PUBLISHED;
+    route.fulfill({ status: 200, contentType: 'text/plain', headers: { 'content-length': String(body.length) }, body });
+  });
+  await gotoApp(page);
+  await page.evaluate(() => window.__grawlixTest.pipelineIdle());
+  await page.evaluate(() => window.__grawlixTest.configureArtifactCacheForTest({ minMs: 0 }));
+  await page.evaluate(c => window.__grawlixTest.setWorkerUnigramCorpus(c), FREQS);
+  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'search', params: { pattern: 'page', mode: 'word' } }]));
+  await expectVisible(page, ['page']);
+  expect(await cacheState(page)).toMatchObject({ misses: 1, size: 1 });
+}
+
+async function autoUpdate(page, feed) {
+  feed.updated = true;
+  await page.locator('#btn-settings').click();
+  await page.locator('#auto-update-seg .seg-btn[data-val="on"]').click();
+  await page.keyboard.press('Escape');
+}
+
+test('a background update that splices in place repatches through the cached table', async ({ page }) => {
+  const feed = { updated: false, updatedBody: PUBLISHED + 'codepage;50\n' };
+  await seedPublished(page, feed);
+  await autoUpdate(page, feed);
+  await expectVisible(page, ['codepage', 'page']);
+  const state = await cacheState(page);
+  expect(state.hits).toBeGreaterThanOrEqual(1);
+  expect(state).toMatchObject({ misses: 1, size: 1 });
+});
+
+test('the table a rebuilding background update repatches with serves the next search', async ({ page }) => {
+  // Past the splice cap, or the update splices in place and this repeats the test above.
+  const filler = Array.from({ length: 300 }, (_, i) => `zz${i}q;50\n`).join('');
+  const feed = { updated: false, updatedBody: PUBLISHED + 'codepage;50\n' + filler };
+  await seedPublished(page, feed);
+  await autoUpdate(page, feed);
+  await expectVisible(page, ['codepage', 'page']);
+  expect(await cacheState(page)).toMatchObject({ misses: 2, size: 1 });
+
+  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'search', params: { pattern: 'code', mode: 'word' } }]));
+  await expectVisible(page, ['code', 'codepage']);
+  expect(await cacheState(page)).toMatchObject({ misses: 2, size: 1 });
+});
