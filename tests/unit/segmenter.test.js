@@ -251,6 +251,33 @@ test('rankedSplits: "less" earns no stem credit, so FAR LESS stays two words', (
   assert.deepEqual(top, ['far', 'less']);
 });
 
+test('rankedSplits: a rare glued token splits into its far commoner pieces', () => {
+  const { rankedSplits } = corpus([['high', -5], ['road', -5], ['highroad', -13]]);
+  const [top] = rankedSplits('highroad', 5, allowed('high', 'road', 'highroad'));
+  assert.deepEqual(top, ['high', 'road']);
+});
+
+test('rankedSplits: a common compound keeps its own frequency and stays whole', () => {
+  const { rankedSplits } = corpus([['high', -5], ['road', -5], ['highroad', -10]]);
+  const [top] = rankedSplits('highroad', 5, allowed('high', 'road', 'highroad'));
+  assert.deepEqual(top, ['highroad']);
+});
+
+test('rankedSplits: a two-letter piece never marks a token glued (INGROWN stays whole)', () => {
+  const { rankedSplits } = corpus([['in', -2], ['grown', -6], ['ingrown', -13]]);
+  const [top] = rankedSplits('ingrown', 5, allowed('grown', 'ingrown'));
+  assert.deepEqual(top, ['ingrown']);
+});
+
+test('rankedSplits: a stem-credited word inherits its glued stem\'s discount', () => {
+  const { rankedSplits } = corpus([
+    ['duty', -6], ['free', -5], ['dutyfree', -13], ['shop', -7], ['hop', -9],
+  ]);
+  const [top] = rankedSplits('dutyfreeshop', 5,
+    allowed('duty', 'free', 'dutyfree', 'dutyfrees', 'shop', 'hop', 'dutyfreeshop'));
+  assert.deepEqual(top, ['duty', 'free', 'shop']);
+});
+
 test('rankedSplits: a stranded plural or possessive S rejoins its word', () => {
   const { rankedSplits } = corpus([['harley', -5], ['davidson', -5], ['bowser', -5], ['castle', -4], ['s', -3]]);
   const vocab = allowed('harley', 'davidson', 'bowser', 'castle');
@@ -398,7 +425,7 @@ const RICKROLL = [['rickroll', -17.57], ['rick', -10.80], ['roll', -9.81]];
 test('bestCompoundSplit: reads a compound rankedSplits calls already-one-word', () => {
   const { rankedSplits } = corpus(RICKROLL, -17.57);
   const w = allowed('rickroll', 'rick', 'roll');
-  assert.deepEqual(rankedSplits('rickroll', 10, w), [['rickroll']]);
+  assert.deepEqual(rankedSplits('rickroll', 10, w)[0], ['rickroll']);
   assert.deepEqual(bestCompoundSplit('rickroll', w), ['rick', 'roll']);
 });
 

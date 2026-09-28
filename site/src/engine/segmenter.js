@@ -185,12 +185,13 @@ export function invalidateUnigramCorpus() {
   unigramLoadPromise = null;
 }
 
-export function morphemeStemLogFreq(word) {
-  if (!unigramLogFreqs) return -Infinity;
-  let best = -Infinity;
+function creditedStem(word) {
+  if (!unigramLogFreqs) return null;
+  let best = null;
+  let bestLf = -Infinity;
   const tryStem = s => {
     const lf = unigramLogFreqs.get(s);
-    if (lf !== undefined && lf > best) best = lf;
+    if (lf !== undefined && lf > bestLf) { best = s; bestLf = lf; }
   };
   for (const suf of SPACE_OUT_STEM_SUFFIXES) {
     if (!word.endsWith(suf)) continue;
@@ -206,12 +207,47 @@ export function morphemeStemLogFreq(word) {
   return best;
 }
 
+export function morphemeStemLogFreq(word) {
+  const stem = creditedStem(word);
+  return stem === null ? -Infinity : unigramLogFreqs.get(stem);
+}
+
 export function unigramLogFreq(word) {
   const lf = unigramLogFreqs?.get(word);
   if (lf !== undefined) return lf;
   const stemLf = morphemeStemLogFreq(word);
   if (stemLf > -Infinity) return stemLf - SPACE_OUT_MORPHEME_PENALTY;
   return unigramMinLogFreq - word.length * SPACE_OUT_OOV_PER_LETTER;
+}
+
+// wordfreq carries hashtag run-togethers (HIGHROAD, REDLIGHT, HOTWATER) as tokens, and
+// each one glues the phrase it came from: TOOK THE HIGHROAD. A rare token that splits
+// into two pieces, each far commoner than itself, is discounted when ranking splits.
+// That spaces out some closed compounds (MOUNTAIN TOP), which read fine either way.
+// Pieces run 3+ letters, since IN, BE, and BY would split INGROWN and BEHELD too.
+export const SPACE_OUT_GLUED_MAX_LOG_FREQ = -12;
+export const SPACE_OUT_GLUED_PIECE_MARGIN = 4;
+export const SPACE_OUT_GLUED_PENALTY = 6;
+const GLUED_MIN_PIECE = 3;
+
+function isGluedToken(token) {
+  const lf = unigramLogFreqs.get(token);
+  if (lf === undefined || lf >= SPACE_OUT_GLUED_MAX_LOG_FREQ) return false;
+  const floor = lf + SPACE_OUT_GLUED_PIECE_MARGIN;
+  for (let i = GLUED_MIN_PIECE; i <= token.length - GLUED_MIN_PIECE; i++) {
+    if (unigramLogFreqs.get(token.slice(0, i)) >= floor
+        && unigramLogFreqs.get(token.slice(i)) >= floor) return true;
+  }
+  return false;
+}
+
+// A stem-credited word carries its stem's discount. Otherwise the credit is a way around
+// it, and the next word's S moves over to take it: DUTYFREES HOP, SECONDHANDS TORE.
+function rankingLogFreq(part) {
+  const lf = unigramLogFreq(part);
+  if (!unigramLogFreqs) return lf;
+  const token = unigramLogFreqs.has(part) ? part : creditedStem(part);
+  return token !== null && isGluedToken(token) ? lf - SPACE_OUT_GLUED_PENALTY : lf;
 }
 
 export function msgpackDecode(bytes) {
@@ -318,7 +354,7 @@ export function rankedSplits(entry, window, wordlist) {
       if (splitsMidDigit(s, i)) continue;
       const p = s.slice(0, i);
       if (!isAllowedPart(p, wordlist)) continue;
-      const score = unigramLogFreq(p) - SPACE_OUT_PART_PENALTY + bestFor(s.slice(i));
+      const score = rankingLogFreq(p) - SPACE_OUT_PART_PENALTY + bestFor(s.slice(i));
       if (score > best) best = score;
     }
     bestMemo.set(s, best);
@@ -342,7 +378,7 @@ export function rankedSplits(entry, window, wordlist) {
       const p = s.slice(0, i);
       if (!isAllowedPart(p, wordlist)) continue;
       acc.push(p);
-      enumerate(s.slice(i), accScore + unigramLogFreq(p) - SPACE_OUT_PART_PENALTY);
+      enumerate(s.slice(i), accScore + rankingLogFreq(p) - SPACE_OUT_PART_PENALTY);
       acc.pop();
     }
   }
@@ -376,9 +412,9 @@ export function rankedSplits(entry, window, wordlist) {
 
 // ─── Compound readings ───────────────────────────────────────────────────────
 //
-// rankedSplits anchors its window on the best score of all — the unsplit entry,
-// whenever the corpus carries the glued form as its own token — and so prunes that
-// entry's own split away: RICKROLL beats RICK ROLL by 10.04 against a window of 10.
+// rankedSplits ranks the unsplit entry first whenever the corpus carries the glued
+// form as a token of its own and it outscores every split: RICKROLL beats RICK ROLL
+// by 4.04 even after the glued-token discount.
 // bestCompoundSplit answers a caller that needs a reading regardless: the best split
 // into 2+ parts, with the unsplit form off the table.
 //
