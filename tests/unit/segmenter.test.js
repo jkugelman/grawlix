@@ -161,6 +161,19 @@ test('morphemeStemLogFreq: "iness" restores a "y" (savoriness -> savory)', () =>
   assert.equal(morphemeStemLogFreq('savorinesses'), -5);
 });
 
+test('morphemeStemLogFreq: "ier", "iest", "ily" restore a "y" (slinkiest -> slinky)', () => {
+  const { morphemeStemLogFreq } = corpus([['slinky', -6]]);
+  assert.equal(morphemeStemLogFreq('slinkier'), -6);
+  assert.equal(morphemeStemLogFreq('slinkiest'), -6);
+  assert.equal(morphemeStemLogFreq('slinkily'), -6);
+});
+
+test('morphemeStemLogFreq: "ful" strips to a corpus stem, plural included', () => {
+  const { morphemeStemLogFreq } = corpus([['jug', -5]]);
+  assert.equal(morphemeStemLogFreq('jugful'), -5);
+  assert.equal(morphemeStemLogFreq('jugfuls'), -5);
+});
+
 test('morphemeStemLogFreq: no stemmable suffix returns -Infinity', () => {
   const { morphemeStemLogFreq } = corpus([['race', -2]]);
   assert.equal(morphemeStemLogFreq('zzz'), -Infinity);
@@ -224,6 +237,18 @@ test('rankedSplits: a -ness word the corpus lacks stays whole through its stem',
   const { rankedSplits } = corpus([['savor', -5], ['savory', -5], ['i', -2], ['ness', -5]]);
   const [top] = rankedSplits('savoriness', 5, allowed('savor', 'savory', 'ness', 'savoriness'));
   assert.deepEqual(top, ['savoriness']);
+});
+
+test('rankedSplits: a superlative the corpus lacks stays whole through its stem', () => {
+  const { rankedSplits } = corpus([['weepy', -6], ['weepies', -6], ['t', -3]]);
+  const [top] = rankedSplits('weepiest', 5, allowed('weepy', 'weepies', 'weepiest'));
+  assert.deepEqual(top, ['weepiest']);
+});
+
+test('rankedSplits: "less" earns no stem credit, so FAR LESS stays two words', () => {
+  const { rankedSplits } = corpus([['far', -4], ['less', -4]]);
+  const [top] = rankedSplits('farless', 5, allowed('far', 'less', 'farless'));
+  assert.deepEqual(top, ['far', 'less']);
 });
 
 test('rankedSplits: a stranded plural or possessive S rejoins its word', () => {

@@ -15,9 +15,13 @@ export const SPACE_OUT_OOV_PER_LETTER = 1.5 * Math.LN10;
 export const SPACE_OUT_MORPHEME_PENALTY = 1.0;
 export const SPACE_OUT_SUFFIXES = ['s', 'es', 'ed', 'ied', 'ing', 'er', 'est', 'ly', 'ies'];
 // Stem credit only, kept off SPACE_OUT_SUFFIXES because the compound reading peels and
-// gates on that list as inflections. -ness earns its place by almost never being a word
-// of its own: the same credit for -ize glues CLASS SIZE and WIN A PRIZE into one word.
-export const SPACE_OUT_DERIVED_SUFFIXES = ['ness', 'nesses', 'iness', 'inesses'];
+// gates on that list as inflections. Each earns its place by almost never being a word
+// of its own: the same credit for -ize glues CLASS SIZE and WIN A PRIZE into one word,
+// and -less glues FAR LESS.
+export const SPACE_OUT_DERIVED_SUFFIXES = [
+  'ness', 'nesses', 'iness', 'inesses', 'ier', 'iest', 'ily', 'ful', 'fuls',
+];
+const Y_TO_I_SUFFIXES = new Set(['ies', 'ied', 'iness', 'inesses', 'ier', 'iest', 'ily']);
 const SPACE_OUT_STEM_SUFFIXES = [...SPACE_OUT_SUFFIXES, ...SPACE_OUT_DERIVED_SUFFIXES];
 
 // Manual space-out overrides: a glued part's norm → its forced spacing, applied
@@ -197,9 +201,7 @@ export function morphemeStemLogFreq(word) {
     if (suf === 'ed' || suf === 'ing' || suf === 'er' || suf === 'est') {
       tryStem(stem + 'e');  // raced, racing, racer, ...
     }
-    if (suf === 'ies' || suf === 'ied' || suf === 'iness' || suf === 'inesses') {
-      tryStem(stem + 'y');  // tries, tried, happiness
-    }
+    if (Y_TO_I_SUFFIXES.has(suf)) tryStem(stem + 'y');
   }
   return best;
 }
