@@ -10,7 +10,7 @@ export const UNIGRAM_CORPUS_SIZE_KEY = 'corpus_unigrams_size';
 
 export const SPACE_OUT_WINDOWS = { few: 5, many: 10 };
 export const SPACE_OUT_PART_PENALTY = 7;
-export const SPACE_OUT_BIGRAM_WEIGHT = 2;
+export const SPACE_OUT_BIGRAM_WEIGHT = 3;
 export const SPACE_OUT_OOV_PER_LETTER = 1.5 * Math.LN10;
 export const SPACE_OUT_MORPHEME_PENALTY = 1.0;
 export const SPACE_OUT_SUFFIXES = ['s', 'es', 'ed', 'ied', 'ing', 'er', 'est', 'ly', 'ies'];
