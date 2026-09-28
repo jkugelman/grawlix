@@ -524,8 +524,9 @@ async function planForSave(args) {
 }
 
 // A set-preserving edit (replaced === false) keeps the retained join valid — the corpus
-// was spliced in place — so a reproject re-derives the view with the new scores, no
-// re-join, any tier, mid-stream. A structural edit (replaced) shifts the join → re-run.
+// was spliced in place — so a reproject re-derives the view with the new scores (or,
+// for a respelling the worker proved leaves a Search-only result's matches unchanged,
+// the new spellings), no re-join. A structural edit (replaced) shifts the join → re-run.
 // Riding the ack (not pre-edit state) reprojects even a run that settled in the FIFO gap.
 function refreshAfterEdit(refreshFn, ackPromise) {
   if (!refreshFn) return;

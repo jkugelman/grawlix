@@ -469,7 +469,7 @@ function makeStreamEmitter(runId, viewSpec, scope, stack, signal, streamState, r
 
     if (!streamState.streamed) {
       streamState.streamed = true;
-      lastFlatResult = { runId, version: 0, indices: batchIndices, anchors, join, scope, viewSpec, highlighters: compileFlatHighlighters(stack, renderCtx(scope)), familySort: isFamilySort(viewSpec.sort) };
+      lastFlatResult = { runId, version: 0, indices: batchIndices, anchors, join, scope, viewSpec, stack, highlighters: compileFlatHighlighters(stack, renderCtx(scope)), familySort: isFamilySort(viewSpec.sort) };
       lastGroupedResult = null;
       lastTransformResult = null;
     } else {
@@ -1093,7 +1093,7 @@ function deriveFlatResult(runId, join, viewSpec, scope, stack) {
   const { indices, anchors } = flatViewIndices(join, viewSpec, ownedCorpus);
   const filter = parseViewFilter(viewSpec);
   return {
-    runId, version: 1, indices, anchors, join, scope, viewSpec,
+    runId, version: 1, indices, anchors, join, scope, viewSpec, stack,
     highlighters: compileFlatHighlighters(stack, renderCtx(scope)), familySort: isFamilySort(viewSpec.sort),
     histogram: flatHistogram(join, filter, scope, ownedCorpus), stats: flatViewStats(indices, ownedCorpus),
     widthHints: computeWidthHints(indices, ownedCorpus),
@@ -2232,12 +2232,14 @@ function recomputeScopedBucket(norm, source) {
 // bucketFn recomputes one norm's resolved rows. (The pipeline seeds straight off
 // `entries`, so there is no separate chain array to keep in lockstep.)
 //
-// `replaced` is true when any norm swapped its row objects; the caller keeps the
-// prefix cache's tiles (their chains hold those objects) only while it stays false.
+// `replaced` is true when any norm's rows shifted position; `restyled` when a norm
+// only respelled its rows, swapped into their existing slots. Either swaps row
+// objects, so the caller keeps the prefix cache's tiles (their chains hold those
+// objects) only while both stay false.
 function spliceOwnedCorpus(cache, affectedNorms, bucketFn) {
   const { entries, norms, byKey, sourceCounts } = cache;
   const countDelta = new Map();
-  let replaced = false;
+  let replaced = false, restyled = false;
   for (const norm of affectedNorms) {
     const lo = mergedNormLowerBound(entries, norm);
     let hi = lo;
@@ -2263,6 +2265,16 @@ function spliceOwnedCorpus(cache, affectedNorms, bucketFn) {
         old.wordlist = r.wordlist; old.family = r.family;
         if ('rawScore' in r) old.rawScore = r.rawScore;
       }
+    } else if (rows.length === hi - lo && restyleKeepsResult(cache, lo, rows)) {
+      // Fresh objects, not respelled old ones: norm.js caches spelling-derived
+      // values (_normMap, _fold, _breaks) on the row, which a respell would leave stale.
+      restyled = true;
+      for (let k = 0; k < rows.length; k++) {
+        byKey.delete(mergeKey(norm, entries[lo + k].display));
+        rows[k]._i = lo + k;
+        entries[lo + k] = rows[k];
+        byKey.set(mergeKey(norm, rows[k].display), rows[k]);
+      }
     } else {
       replaced = true;
       for (let i = lo; i < hi; i++) byKey.delete(mergeKey(norm, entries[i].display));
@@ -2277,7 +2289,23 @@ function spliceOwnedCorpus(cache, affectedNorms, bucketFn) {
     if (sc) sc.count += d;
     else sourceCounts.push({ wordlist: wl, count: d });
   }
-  return replaced;
+  return { replaced, restyled };
+}
+
+// Slot-for-slot, the displayed flat join (corpus positions) stays valid and main
+// reprojects it like a score edit — but only if no slot's Search verdict flips: before
+// is the join's own record, after is the new row re-tested. A live run has scanned
+// slots against the old spellings and grouped/transform results hold row objects.
+function restyleKeepsResult(corpus, lo, rows) {
+  if (running || lastGroupedResult || lastTransformResult) return false;
+  const r = lastFlatResult;
+  if (!r || corpus !== ownedCorpus) return true;
+  if (r.pinnedCorpus || r.scope !== ownedScope) return false;
+  const active = r.stack.filter(row => !row.isInert());
+  if (!active.every(row => row.tool === 'search' && row.kind() === 'filter' && !row.inverted())) return false;
+  if (r.highlighters.length !== active.length) return false;
+  return rows.every((row, k) =>
+    r.join.includes(lo + k) === r.highlighters.every(h => h.def.run(row, h.prepared, null) !== null));
 }
 
 // Spliced rows key against the last full build's vocab; an edit's own new tokens
@@ -2296,21 +2324,22 @@ function applyOwnedEdit(source, affectedNorms) {
   // the in-place splice must drop it to stay byte-identical to a rebuild.
   const norms = [...affectedNorms];
   const wasInMerge = norms.map(n => ownedMerged.norms.has(n));
-  const mergedReplaced = spliceOwnedCorpus(ownedMerged, norms, norm => withFamilies(computeMergedBucket(norm, ownedBuilt), ownedMerged.vocab));
+  const merged = spliceOwnedCorpus(ownedMerged, norms, norm => withFamilies(computeMergedBucket(norm, ownedBuilt), ownedMerged.vocab));
   patchArtifacts(norms.filter((n, i) => ownedMerged.norms.has(n) !== wasInMerge[i]));
   // replaced===true strands a retained join's indices/refs on the swapped-out rows;
   // replaced===false only mutated scores in place, so the entry stays valid and its
-  // next hit recomputes the score-derived view.
-  if (mergedReplaced) purgeCacheForCorpus(ownedMerged);
-  let replaced = mergedReplaced;
+  // next hit recomputes the score-derived view. A restyle keeps positions but swaps
+  // objects and spellings, so a cached result for any other query may now be wrong.
+  if (merged.replaced || merged.restyled) purgeCacheForCorpus(ownedMerged);
+  let replaced = merged.replaced;
 
   // For MERGED scope ownedCorpus === ownedMerged (spliced above). Scoped to this
   // source it's a distinct single-source build — diverge from that and the scoped
   // view drifts from a rebuild with no error.
   if (ownedScope === source.dbKey && ownedCorpus !== ownedMerged) {
-    const scopedReplaced = spliceOwnedCorpus(ownedCorpus, norms, norm => withFamilies(recomputeScopedBucket(norm, source), ownedCorpus.vocab));
-    if (scopedReplaced) purgeCacheForCorpus(ownedCorpus);
-    replaced = scopedReplaced || replaced;
+    const scoped = spliceOwnedCorpus(ownedCorpus, norms, norm => withFamilies(recomputeScopedBucket(norm, source), ownedCorpus.vocab));
+    if (scoped.replaced || scoped.restyled) purgeCacheForCorpus(ownedCorpus);
+    replaced = scoped.replaced || replaced;
   }
 
   // A replacing splice shifts later indices, so restamp `_i` (mirroring setOwnedCorpus);

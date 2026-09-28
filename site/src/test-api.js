@@ -243,6 +243,14 @@ const __grawlixTest = {
     return saveEntry('rescore', clicked, { raw: orig.display ?? orig.norm, score, comment: seed.comment ?? '' }, refreshMergedScroller);
   },
 
+  // The entry panel's rename: saveEntry WITH refreshFn, so it takes refreshAfterEdit's
+  // reproject-or-re-run fork (saveMyEditFrom's bare refresh always re-runs).
+  renameFrom(orig, raw) {
+    const seed = editsRawSeed(orig.norm, orig.display) ?? { norm: orig.norm, display: orig.display ?? orig.norm, score: 0, comment: '' };
+    const clicked = { norm: orig.norm, display: orig.display ?? null, score: seed.score, comment: seed.comment ?? '' };
+    return saveEntry('edit', clicked, { raw, score: seed.score, comment: seed.comment ?? '' }, refreshMergedScroller);
+  },
+
   // The + button's create path — distinct from saveMyEditFrom's edit/rename.
   async createMyEntry(raw, score, comment = '') {
     await saveEntry('create', null, { raw, score, comment });
