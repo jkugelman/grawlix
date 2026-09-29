@@ -21,7 +21,7 @@ import { sourceAccessor, invalidateSourceAccessor, parseWordlistColumns, columns
 import { buildCorpus, assignFamilies, scopeSourceIds, mergedContributors, resolveEditSeedWinner, mergeKey, bestRowForNorm, mergedNormLowerBound, computeMergedBucket, diffWordlistEntries, isDistinguishing, concreteDisplay } from './corpus.js';
 import { familyKey, generateRelativeNorms, configureCommonWords,
          nameParts, nameAnchorRun, NAME_RELATIVE_CAP } from './morphology.js';
-import { COMMON_WORDS } from './common-words-data.js';
+import { COMMON_WORDS, LEMMA_BASES } from './common-words-data.js';
 import { SPACE_OUT_BIGRAMS } from './space-out-bigrams-data.js';
 import { getHistogramLayout, invalidateHistogramLayout, bucketCounts } from './histogram.js';
 import { computeStatsRaw } from './stats.js';
@@ -31,7 +31,7 @@ import { serializeEntries } from './serialize.js';
 import { threeWayMergeEdits, sameEditsEntries } from './edits-merge.js';
 import { applyEditsWriteSet, planEntryWrite } from './edit-plan.js';
 
-configureCommonWords(COMMON_WORDS);
+configureCommonWords(COMMON_WORDS, LEMMA_BASES);
 configureSpaceOutBigrams(SPACE_OUT_BIGRAMS);
 
 // scheduler.yield() (the executor's default) starves the worker's run/cancel

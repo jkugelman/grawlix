@@ -3,52 +3,12 @@
 // (https://creativecommons.org/licenses/by/4.0/); attribution rides in the
 // generated file's header and THIRD-PARTY-NOTICES.
 import { writeFile } from 'node:fs/promises';
-import { inflateRawSync } from 'node:zlib';
 import { toNorm } from '../site/src/engine/norm.js';
+import { candidates } from '../site/src/engine/morphology.js';
+import { fetchWordNet } from './wordnet.js';
 
-const ZIP = 'https://en-word.net/static/english-wordnet-2025.zip';
 const OUT = new URL('../site/src/engine/irregulars-data.js', import.meta.url);
 
-// Read named members from a zip via its central directory (EOCD at offset -22
-// from EOF holds the entry count and directory offset; each directory record is
-// 46 bytes + name/extra/comment and points at a local header).
-function unzip(buf, wanted) {
-  let p = buf.length - 22;
-  while (p >= 0 && buf.readUInt32LE(p) !== 0x06054b50) p--;
-  if (p < 0) throw new Error('no end-of-central-directory record');
-  let cd = buf.readUInt32LE(p + 16);
-  const out = {};
-  for (let i = buf.readUInt16LE(p + 10); i > 0; i--) {
-    const method = buf.readUInt16LE(cd + 10), compSize = buf.readUInt32LE(cd + 20);
-    const nameLen = buf.readUInt16LE(cd + 28), extraLen = buf.readUInt16LE(cd + 30), commLen = buf.readUInt16LE(cd + 32);
-    const lho = buf.readUInt32LE(cd + 42);
-    const name = buf.toString('utf8', cd + 46, cd + 46 + nameLen);
-    if (wanted.some(w => name.endsWith(w))) {
-      const start = lho + 30 + buf.readUInt16LE(lho + 26) + buf.readUInt16LE(lho + 28);
-      const data = buf.subarray(start, start + compSize);
-      out[name.split('/').pop()] = (method === 8 ? inflateRawSync(data) : data).toString('utf8');
-    }
-    cd += 46 + nameLen + extraLen + commLen;
-  }
-  return out;
-}
-
-function undouble(s) { return /([bcdfghjklmnpqrstvwxz])\1$/.test(s) ? s.slice(0, -1) : s; }
-
-// Must stay in lockstep with morphology.js's candidates(): a pair whose base a
-// rule already reaches is dropped here, so drift would silently bloat or thin
-// the shipped data.
-function candidates(word) {
-  const set = new Set([word]);
-  const add = s => { if (s && s.length >= 2) set.add(s); };
-  if (word.endsWith('ies') && word.length > 4) { add(word.slice(0, -3) + 'y'); add(word.slice(0, -2)); }
-  if (word.endsWith('ied') && word.length > 4) add(word.slice(0, -3) + 'y');
-  if (word.endsWith('es') && word.length > 3) { add(word.slice(0, -2)); add(word.slice(0, -1)); }
-  if (word.endsWith('s') && !word.endsWith('ss') && word.length > 2) add(word.slice(0, -1));
-  if (word.endsWith('ed') && word.length > 3) { add(word.slice(0, -2)); add(word.slice(0, -1)); add(undouble(word.slice(0, -2))); }
-  if (word.endsWith('ing') && word.length > 4) { add(word.slice(0, -3)); add(word.slice(0, -3) + 'e'); add(undouble(word.slice(0, -3))); }
-  return set;
-}
 function ruleReaches(surface, base) { for (const c of candidates(surface)) if (c === base) return true; return false; }
 function lcp(a, b) { let i = 0; while (i < a.length && i < b.length && a[i] === b[i]) i++; return i; }
 
@@ -68,10 +28,7 @@ function reduce(text) {
   return map;
 }
 
-const res = await fetch(ZIP);
-if (!res.ok) throw new Error(`fetch ${ZIP}: ${res.status}`);
-const { 'noun.exc': noun, 'verb.exc': verb } = unzip(Buffer.from(await res.arrayBuffer()), ['noun.exc', 'verb.exc']);
-if (!noun || !verb) throw new Error('noun.exc / verb.exc not found in archive');
+const { 'noun.exc': noun, 'verb.exc': verb } = await fetchWordNet(['noun.exc', 'verb.exc']);
 
 const map = new Map([...reduce(noun), ...reduce(verb)]);
 const lines = [...map].sort((a, b) => a[0] < b[0] ? -1 : 1).map(([s, b]) => `${s} ${b}`);

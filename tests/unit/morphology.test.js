@@ -1,9 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { familyKey, collectVocab, familyTokens, inflectForms, generateRelativeNorms, configureCommonWords } from '../../site/src/engine/morphology.js';
-import { COMMON_WORDS } from '../../site/src/engine/common-words-data.js';
+import { COMMON_WORDS, LEMMA_BASES } from '../../site/src/engine/common-words-data.js';
 
-configureCommonWords(COMMON_WORDS);
+configureCommonWords(COMMON_WORDS, LEMMA_BASES);
 
 const GROUPS = [
   ['eat', 'eats', 'eating', 'ate', 'eaten'],
@@ -129,6 +129,42 @@ test('with no common candidate, reduction falls back to the longest in-vocab ste
   const keys = new Set(['zorf', 'zorfs', 'zorfed', 'zorfing'].map(e => familyKey(e, v)));
   assert.equal(keys.size, 1, `expected one key, got: ${[...keys].join(', ')}`);
   assert.equal(familyKey('zorfed', v), 'zorf');
+});
+
+test('a lowercase base outranks a longer one the list only capitalizes', () => {
+  const v = collectVocab(['goad', 'goads', 'goaded', 'goading', 'Goade']);
+  const keys = new Set(['goad', 'goads', 'goaded', 'goading'].map(e => familyKey(e, v)));
+  assert.equal(keys.size, 1, `expected one key, got: ${[...keys].join(', ')}`);
+  assert.equal(familyKey('goaded', v), 'goad');
+  assert.notEqual(familyKey('Goade', v), 'goad');
+});
+
+test('a capitalized-only base still anchors a word with no lowercase rival', () => {
+  const v = collectVocab(['Beethoven', 'beethovens', 'Capone', 'Capones']);
+  assert.equal(familyKey('beethovens', v), 'beethoven');
+  assert.equal(familyKey('Capones', v), 'capone');
+});
+
+test('a typed word absent from the list takes its case from the typing', () => {
+  const v = collectVocab(['goad', 'Goade']);
+  assert.equal(familyKey('goaded', v), 'goad');
+});
+
+test('a common word never reduces to a junk fragment of itself', () => {
+  const v = collectVocab(['nothing', 'Noth', 'bus', 'BU', 'speed', 'Spee', 'spe', 'bring', 'Br', 'bre', 'naked', 'nak']);
+  for (const w of ['nothing', 'bus', 'speed', 'bring', 'naked']) assert.equal(familyKey(w, v), w);
+});
+
+test('a common word still reduces to an uncommon dictionary base', () => {
+  const v = collectVocab(['depress', 'depressing', 'invert', 'inverted', 'recur', 'recurring']);
+  assert.equal(familyKey('depressing', v), 'depress');
+  assert.equal(familyKey('inverted', v), 'invert');
+  assert.equal(familyKey('recurring', v), 'recur');
+});
+
+test('a non-inflection whose false base is a real word keys to itself', () => {
+  const v = collectVocab(['upstairs', 'upstair', 'pudding', 'pud', 'species', 'specie']);
+  for (const w of ['upstairs', 'pudding', 'species']) assert.equal(familyKey(w, v), w);
 });
 
 // ─── Inflection generation (Related-entries widening) ──────────────────────────

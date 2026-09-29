@@ -32,12 +32,21 @@ for (const [base, forms] of Object.entries({
   for (const form of forms) addIrregular(form, base);
 }
 
+// Non-inflections whose false base is a real word, so no rule below can refuse it
+// (`upstairs` → `upstair`, `pudding` → `pud`); each silently joins a stranger's family.
+const NOT_INFLECTED = new Set([
+  'deed', 'downstairs', 'genus', 'herring', 'kansas', 'overseas', 'pilates',
+  'pudding', 'sideways', 'species', 'tweed', 'upstairs', 'wretched',
+]);
+
 // Injected by the worker (the only place families are computed) rather than
 // imported, so the ~80 KB word list rides the worker bundle alone and not the
 // main bundle, which pulls morphology transitively but never reduces a token.
 let commonWords = new Set();
-export function configureCommonWords(raw) {
-  commonWords = new Set(raw.trim().split('\n'));
+let lemmaBases = new Set();
+export function configureCommonWords(words, bases) {
+  commonWords = new Set(words.trim().split('\n'));
+  lemmaBases = new Set(bases.trim().split('\n'));
 }
 
 const ARTICLES = new Set(['a', 'an', 'the']);
@@ -48,7 +57,7 @@ function undouble(s) {
   return /([bcdfghjklmnpqrstvwxz])\1$/.test(s) ? s.slice(0, -1) : s;
 }
 
-function candidates(word) {
+export function candidates(word) {
   const set = new Set([word]);
   const add = s => { if (s && s.length >= 2) set.add(s); };
   if (word.endsWith('ies') && word.length > 4) { add(word.slice(0, -3) + 'y'); add(word.slice(0, -2)); }
@@ -65,21 +74,37 @@ function candidates(word) {
 // contractions — it only ever shortens, and is gated on the list's own vocab.
 const ELIDING_APOSTROPHE = /['’](?=\p{L})/u;
 
+const writtenLowercase = raw => {
+  const letter = raw.match(/\p{L}/u)?.[0];
+  return !letter || letter === letter.toLowerCase();
+};
+
 // Irregulars resolve to base first; without that, men/ate have no shorter
 // candidate and silently split from man/eat.
 function reduceToken(word, vocab, raw = word) {
+  if (NOT_INFLECTED.has(word)) return null;
   const base = ELIDING_APOSTROPHE.test(raw) ? undefined : IRREGULARS.get(word);
   if (base !== undefined) return base;
+  // A lowercase base outranks one the list only capitalizes, else a surname one
+  // letter longer than the true base captures it (`goaded` → `Goade`). A common
+  // word takes only a lowercase base that is common or a lemma, else it keys to a
+  // junk fragment (`nothing` → `Noth`, `speed` → `spee`).
+  const lower = vocab.writesLowercase(word) ?? writtenLowercase(raw);
+  const guarded = commonWords.has(word);
   // A common candidate outranks a longer one, else a spurious longer stem in the
   // list (French `calle` for `called`) beats the true base `call` on length and
   // silently splits the paradigm. An all-uncommon set falls back to longest, so
   // out-of-dictionary fill still anchors against the list's own vocabulary.
-  let best = null, bestCommon = false;
+  let best = null, bestLower = false, bestCommon = false;
   for (const cand of candidates(word)) {
     if (cand === word || cand.length >= word.length || !vocab.has(cand)) continue;
+    const candLower = !lower || !vocab.capitalized.has(cand);
     const common = commonWords.has(cand);
-    if (best === null || (common && !bestCommon) || (common === bestCommon && cand.length > best.length)) {
+    if (guarded && !(candLower && (common || lemmaBases.has(cand)))) continue;
+    if (best === null || (candLower !== bestLower ? candLower
+        : common !== bestCommon ? common : cand.length > best.length)) {
       best = cand;
+      bestLower = candLower;
       bestCommon = common;
     }
   }
@@ -87,10 +112,6 @@ function reduceToken(word, vocab, raw = word) {
 }
 
 // ─── Family key ──────────────────────────────────────────────────────────────
-
-function tokenize(text) {
-  return text.split(/\s+/).map(toNorm).filter(Boolean);
-}
 
 function familyWords(text) {
   const words = text.split(/\s+/).map(raw => ({ raw, norm: toNorm(raw) })).filter(w => w.norm);
@@ -188,10 +209,32 @@ export function nameAnchorRun(a, b) {
   return null;
 }
 
+// A word the list only ever capitalizes is a name, not a base for its lowercase
+// words. A second set because it's ~5% of the words; a per-word flag in a Map
+// costs ~6 MB more on a full merge.
+class Vocab {
+  words = new Set();
+  capitalized = new Set();
+
+  has(word) { return this.words.has(word); }
+
+  add(raw) {
+    const norm = toNorm(raw);
+    if (!norm) return;
+    if (writtenLowercase(raw)) this.capitalized.delete(norm);
+    else if (!this.words.has(norm)) this.capitalized.add(norm);
+    this.words.add(norm);
+  }
+
+  writesLowercase(word) {
+    return this.words.has(word) ? !this.capitalized.has(word) : undefined;
+  }
+}
+
 export function collectVocab(texts) {
-  const vocab = new Set();
+  const vocab = new Vocab();
   for (const text of texts) {
-    for (const token of tokenize(text)) vocab.add(token);
+    for (const raw of text.split(/\s+/)) vocab.add(raw);
   }
   return vocab;
 }

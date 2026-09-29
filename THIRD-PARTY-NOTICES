@@ -13,7 +13,7 @@ Wordlists
 Linguistic data
 ---------------
 
-- Open English WordNet — inflectional exception lists (noun.exc, verb.exc), reduced to irregular base forms — CC BY 4.0 — https://en-word.net/
+- Open English WordNet — inflectional exception lists (noun.exc, verb.exc), reduced to irregular base forms, and the ~700 lemmas that common words reduce to, used as a word-family reduction guard — CC BY 4.0 — https://en-word.net/
 - wordfreq — Robyn Speer — Apache-2.0 — a bundled list of the 30,000 most frequent English words from the large_en corpus, used as a word-family reduction tiebreak — https://github.com/rspeer/wordfreq
 
 
@@ -102,10 +102,12 @@ Copyright (c) the Open English WordNet contributors.
 Licensed under the Creative Commons Attribution 4.0 International License
 (CC BY 4.0): https://creativecommons.org/licenses/by/4.0/
 
-Grawlix bundles a modified form of the noun.exc and verb.exc inflectional
-exception lists from the 2025 release: reduced to lines mapping an irregular
-surface form to its base, with forms a suffix rule already reaches removed. No
-other WordNet data is used.
+Grawlix bundles modified extracts of the 2025 release: the noun.exc and
+verb.exc inflectional exception lists, reduced to lines mapping an irregular
+surface form to its base, with forms a suffix rule already reaches removed; and
+the single-word lemmas of the index.noun, index.verb, index.adj and index.adv
+files, reduced to those a common English word reduces to. No other WordNet data
+is used.
 
 
 wordfreq — https://github.com/rspeer/wordfreq
