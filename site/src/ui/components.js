@@ -27,11 +27,19 @@ export function setSegCtrlActive(container, target) {
   }
 }
 
-const OUTPUT_FLAGS = ['spaces', 'digits', 'diacritics', 'punctuation', 'symbols', 'comments'];
+const OUTPUT_FLAG_TIPS = {
+  spaces:      'Spaces between words. Unchecked, they are removed: ICE CREAM becomes ICECREAM.',
+  digits:      'The numbers 0-9. Unchecked, entries with a digit are left out, since R2D2 without its 2s is a different entry.',
+  diacritics:  'Accents and other marks on letters. Unchecked, they become plain letters: café becomes cafe.',
+  punctuation: "Silent marks like ' - . / ! Unchecked, they are removed: don't becomes dont, AC/DC becomes ACDC.",
+  symbols:     'Non-silent characters like + = $ & % #, and non-Latin letters like 東京. Unchecked, entries with them are left out, since KE$HA without its $ is KEHA.',
+  comments:    'The comment at the end of a line. Unchecked, comments are left off.',
+};
+const OUTPUT_FLAGS = Object.keys(OUTPUT_FLAG_TIPS);
 
 export function buildOutputFormatControlsHTML(fmt) {
   const flags = OUTPUT_FLAGS.map(k =>
-    `<label class="of-flag"><input type="checkbox" data-flag="${k}"${fmt[k] ? ' checked' : ''}> ${k[0].toUpperCase() + k.slice(1)}</label>`
+    `<label class="of-flag" title="${esc(OUTPUT_FLAG_TIPS[k])}"><input type="checkbox" data-flag="${k}"${fmt[k] ? ' checked' : ''}> ${k[0].toUpperCase() + k.slice(1)}</label>`
   ).join('');
   return `<div class="of-flags">${flags}</div>`;
 }

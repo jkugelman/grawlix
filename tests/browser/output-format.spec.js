@@ -42,6 +42,13 @@ test.describe('output format UI', () => {
       ['Spaces', 'Digits', 'Diacritics', 'Punctuation', 'Symbols', 'Comments']);
   });
 
+  test('every flag has a tooltip explaining what unchecking it does', async ({ page }) => {
+    await gotoApp(page);
+    await page.evaluate(() => SettingsDialog.open());
+    for (const title of await page.locator('#output-format-ctrls .of-flag').evaluateAll(els => els.map(e => e.title)))
+      expect(title).toContain('Unchecked');
+  });
+
   test('changing a flag in Settings persists immediately, before closing', async ({ page }) => {
     await gotoApp(page);
     await page.evaluate(() => SettingsDialog.open());
