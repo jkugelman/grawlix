@@ -12,6 +12,7 @@ const CMU = {
   READ: ['R EH1 D', 'R IY1 D'], RED: ['R EH1 D'], REED: ['R IY1 D'],
   BOB: ['B AA1 B'], KNIGHT: ['N AY1 T'], NIGHT: ['N AY1 T'], PHONE: ['F OW1 N'],
   CO: ['K OW1', 'K AH1 M P AH0 N IY0'], AND: ['AH0 N D', 'AE1 N D'], R: ['AA1 R'],
+  SAXOPHONE: ['S AE1 K S AH0 F OW2 N'], NEON: ['N IY1 AA0 N'],
 };
 
 // Corpus state is module-global and these run in one process, so a corpus seeded
@@ -22,8 +23,8 @@ const seed = (freqs = null) => {
   setCmuDict(CMU);
 };
 
-async function hits(specs, entry) {
-  const { rows } = await run(specs, [{ tool: 'phone_search', params: { entry } }]);
+async function hits(specs, entry, mode) {
+  const { rows } = await run(specs, [{ tool: 'phone_search', params: mode ? { entry, mode } : { entry } }]);
   return Object.fromEntries(rows.map(row => {
     const atom = rowAtoms(row).at(-1);
     return [atom.wlEntry.display ?? atom.wlEntry.norm, highlightTexts(atom)];
@@ -50,7 +51,7 @@ test('matches by sound, not spelling', async () => {
 
 test('silent letters at a word’s edge ride along with the sounds beside them', async () => {
   seed();
-  assert.deepEqual(await hits(['phone'], 'phone'), { phone: ['phone'] });
+  assert.deepEqual(await hits(['saxophone'], 'phone'), { saxophone: ['phone'] });
 });
 
 test('a sound run may cross a word break, marked on both sides', async () => {
@@ -96,14 +97,50 @@ const FIGURE_CMU = {
   OUT: ['AW1 T'],
 };
 
-test('hide search words drops the query word and its inflections, not words containing it', async () => {
+test('skips matches of the query word and its inflections, not words containing it', async () => {
   invalidateUnigramCorpus();
   setUnigramCorpus({ figure: -3, skating: -3 });
   setCmuDict(FIGURE_CMU);
   const specs = ['figure', 'figures', { entry: 'figured out' }, { entry: 'figure skating' }, 'figureskating',
     'configure', 'figurine', 'skating'];
-  sameVisible(await visible(specs, [{ tool: 'phone_search', params: { entry: 'figure', hide: true } }]),
-    ['configure', 'figurine']);
   sameVisible(await visible(specs, [{ tool: 'phone_search', params: { entry: 'figure' } }]),
-    ['figure', 'figures', 'figured out', 'figure skating', 'figureskating', 'configure', 'figurine']);
+    ['configure', 'figurine']);
+});
+
+// ─── Match modes and wildcards ───────────────────────────────────────────────
+
+test('whole entry finds homophones', async () => {
+  seed();
+  assert.deepEqual(await hits(['knight', 'night', { entry: 'Bob Knight' }], 'knight', 'full'), { night: ['night'] });
+});
+
+test('whole word needs the sounds to start and end on word breaks', async () => {
+  seed();
+  assert.deepEqual(await hits(['tee', 'arty', { entry: 'not even' }], 'tea', 'word'), { tee: ['tee'] });
+});
+
+test('spans words needs the sounds to cross a word break', async () => {
+  seed();
+  assert.deepEqual(await hits(['tee', 'arty', { entry: 'not even' }], 'tea', 'span'), { 'not even': ['t', 'e'] });
+});
+
+test('* at an end frees that end of the match', async () => {
+  seed();
+  const specs = ['neon', 'honey', 'tee'];
+  assert.deepEqual(await hits(specs, 'knee*', 'full'), { neon: ['ne'] });
+  assert.deepEqual(await hits(specs, '*knee', 'full'), { honey: ['ney'] });
+  assert.deepEqual(await hits(specs, 'knee', 'full'), {});
+});
+
+test('* between words may match no sounds at all', async () => {
+  seed();
+  assert.deepEqual(await hits(['arty', 'arbiter'], 'are*tea'), { arty: ['arty'] });
+  assert.deepEqual(await hits(['arty', 'arbiter'], 'are * tea', 'full'), { arty: ['arty'] });
+});
+
+test('* steps over a word that can’t be read, but the sounds can’t', async () => {
+  seed();
+  assert.deepEqual(await hits([{ entry: 'honey 52 tee' }], 'knee*tea'), { 'honey 52 tee': ['ney', 'tee'] });
+  assert.deepEqual(await hits(['night', { entry: 'night 52' }], 'knight', 'full'), { night: ['night'] });
+  assert.deepEqual(await hits([{ entry: 'night 52' }], 'knight*', 'full'), { 'night 52': ['night'] });
 });

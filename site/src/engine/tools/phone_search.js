@@ -7,6 +7,8 @@ import { buildSpacingTable, loadSpacingCorpus, spacingReader } from '../space-ou
 import { stripAccents } from '../norm.js';
 import { SEARCH_KINDS } from '../search.js';
 import { candidates } from '../morphology.js';
+import { buildHelpHTML } from '../../core/util.js';
+import { MATCH_PARAM, matchModeOf } from './shared.js';
 
 async function ensureDict() {
   try {
@@ -81,37 +83,45 @@ function unitsOf(token, spacing, wide) {
   return null;
 }
 
-// An unreadable token ends the run: joining its neighbors would hear sounds
-// across a gap the entry doesn't close.
-function segmentsOf(display, spacing, wide = false) {
-  const segments = [];
-  let cur = [];
-  for (const token of tokensOf(display)) {
-    const units = unitsOf(token, spacing, wide);
-    if (units) { cur.push(...units); continue; }
-    if (cur.length) segments.push(cur);
-    cur = [];
-  }
-  if (cur.length) segments.push(cur);
-  return segments;
+function itemsOf(display, spacing, wide = false) {
+  const items = [];
+  for (const token of tokensOf(display)) items.push(...(unitsOf(token, spacing, wide) ?? [null]));
+  return items;
 }
 
 const MAX_READINGS = 16;
 
-// Every way to say a segment, one pronunciation per word: [{ code, picks }],
-// where picks[k] is the index into units[k].sounds.
-function readingsOf(units) {
+// An unreadable word reads as one code unit no sound matches: a run of sounds
+// can't be heard across it, but a `*` can step over it.
+const HOLE = '\u0001';
+
+// Every way to say an entry, one pronunciation per word: [{ code, picks }],
+// where picks[k] is the index into items[k].sounds.
+function readingsOf(items) {
   let readings = [{ code: '', picks: [] }];
-  for (const unit of units) {
+  for (const item of items) {
+    if (!item) {
+      readings = readings.map(r => ({ code: r.code + HOLE, picks: [...r.picks, -1] }));
+      continue;
+    }
     const next = [];
     for (const r of readings) {
-      for (let s = 0; s < unit.sounds.length && next.length < MAX_READINGS; s++) {
-        next.push({ code: r.code + unit.sounds[s].code, picks: [...r.picks, s] });
+      for (let s = 0; s < item.sounds.length && next.length < MAX_READINGS; s++) {
+        next.push({ code: r.code + item.sounds[s].code, picks: [...r.picks, s] });
       }
     }
     readings = next;
   }
   return readings;
+}
+
+const lengthOf = (items, reading, k) => (items[k] ? items[k].sounds[reading.picks[k]].phones.length : 1);
+
+function breaksOf(items, reading) {
+  const breaks = [0];
+  let off = 0;
+  for (let k = 0; k < items.length; k++) breaks.push(off += lengthOf(items, reading, k));
+  return breaks;
 }
 
 // ─── Highlighting ────────────────────────────────────────────────────────────
@@ -130,17 +140,17 @@ function alignmentOf(letters, sound) {
   return steps;
 }
 
-function rangesForHit(units, reading, a, b) {
+function rangesForHit(items, reading, a, b) {
   const out = [];
   let off = 0;
-  for (let k = 0; k < units.length && off < b; k++) {
-    const unit = units[k];
-    const sound = unit.sounds[reading.picks[k]];
-    const len = sound.phones.length;
+  for (let k = 0; k < items.length && off < b; k++) {
+    const item = items[k];
+    const len = lengthOf(items, reading, k);
     const lo = Math.max(a, off) - off, hi = Math.min(b, off + len) - off;
-    if (lo < hi) {
-      const [s, e] = lettersForPhones(alignmentOf(unit.letters, sound), lo, hi, unit.letters.length);
-      out.push({ start: unit.at[s], end: unit.at[e - 1] + 1 });
+    if (item && lo < hi) {
+      const sound = item.sounds[reading.picks[k]];
+      const [s, e] = lettersForPhones(alignmentOf(item.letters, sound), lo, hi, item.letters.length);
+      out.push({ start: item.at[s], end: item.at[e - 1] + 1 });
     }
     off += len;
   }
@@ -158,34 +168,106 @@ function mergeRanges(ranges) {
   return out.map(r => ({ ...r, kind: SEARCH_KINDS[0] }));
 }
 
-// ─── Tool ────────────────────────────────────────────────────────────────────
+// ─── Matching ────────────────────────────────────────────────────────────────
 
+// The query splits on `*` into pieces, each read as whole words: `pho*` is the
+// word PHO and a gap. A gap at either end frees that end from the match mode's
+// anchor, so `knee*` on Whole entry finds entries that start with the sound.
 function queryOf(text, spacing) {
-  const segments = segmentsOf(text, spacing, true);
-  if (segments.length !== 1) return { targets: [], words: [] };
-  return {
-    targets: [...new Set(readingsOf(segments[0]).map(r => r.code))],
-    words: segments[0].map(unit => unit.letters),
-  };
+  const parts = text.split('*');
+  const pieces = [];
+  for (const part of parts) {
+    if (!part.trim()) continue;
+    const items = itemsOf(part, spacing, true);
+    if (!items.length || items.includes(null)) return null;
+    pieces.push({
+      codes: [...new Set(readingsOf(items).map(r => r.code))],
+      words: items.map(item => item.letters),
+    });
+  }
+  if (!pieces.length) return null;
+  return { pieces, leading: !parts[0].trim(), trailing: !parts[parts.length - 1].trim() };
 }
 
-// The hit is the query's own words: it starts on a word, runs through whole words
-// spelled as the query's, and ends inside one that is the last query word or an
+// The hit is the piece's own words: it starts on a word, runs through whole words
+// spelled as the piece's, and ends inside one that is the last piece word or an
 // inflection of it (FIGURES, FIGURED). A split-out part counts as a word, so
 // FIGURESKATING hides like FIGURE SKATING; CONFIGURE's match starts mid-word.
-function isSearchWord(units, reading, a, b, words) {
-  const len = k => units[k].sounds[reading.picks[k]].phones.length;
+function isSearchWord(items, reading, a, b, words) {
   let off = 0, k = 0;
-  while (k < units.length && off < a) off += len(k++);
-  if (off !== a || k + words.length > units.length) return false;
+  while (k < items.length && off < a) off += lengthOf(items, reading, k++);
+  if (off !== a || k + words.length > items.length) return false;
   for (let i = 0; i < words.length - 1; i++, k++) {
-    if (units[k].letters !== words[i]) return false;
-    off += len(k);
+    if (items[k]?.letters !== words[i]) return false;
+    off += lengthOf(items, reading, k);
   }
-  return b > off && b <= off + len(k) && candidates(units[k].letters).has(words[words.length - 1]);
+  return !!items[k] && b > off && b <= off + lengthOf(items, reading, k)
+    && candidates(items[k].letters).has(words[words.length - 1]);
 }
 
-const build = (params, spacing) => ({ ...queryOf((params.entry || '').trim(), spacing), hideSearch: !!params.hide, spacing });
+function occurrencesOf(piece, items, reading) {
+  const out = [];
+  for (const target of piece.codes) {
+    for (let at = reading.code.indexOf(target); at !== -1; at = reading.code.indexOf(target, at + 1)) {
+      const end = at + target.length;
+      if (!isSearchWord(items, reading, at, end, piece.words)) out.push({ start: at, end });
+    }
+  }
+  return out;
+}
+
+// Every piece occurrence that lies on some complete match. A forward pass finds
+// the earliest start a chain of pieces can reach each occurrence from, and a
+// backward pass the latest end it can go on to. Spans words needs a break
+// between the two, and the widest start and end give it the most room.
+function hitsIn(items, reading, query, mode) {
+  const occs = [];
+  for (const piece of query.pieces) {
+    const found = occurrencesOf(piece, items, reading);
+    if (!found.length) return [];
+    occs.push(found);
+  }
+  const len = reading.code.length;
+  const breaks = mode === 'word' || mode === 'span' ? breaksOf(items, reading) : null;
+  const startsOK = x => (mode === 'full' ? x === 0 : mode === 'word' ? breaks.includes(x) : true);
+  const endsOK = x => (mode === 'full' ? x === len : mode === 'word' ? breaks.includes(x) : true);
+  const last = occs.length - 1;
+
+  const from = occs.map(o => o.map(() => Infinity));
+  occs[0].forEach((o, j) => {
+    if (query.leading) from[0][j] = 0;
+    else if (startsOK(o.start)) from[0][j] = o.start;
+  });
+  for (let i = 1; i <= last; i++) {
+    occs[i].forEach((o, j) => occs[i - 1].forEach((p, q) => {
+      if (p.end <= o.start) from[i][j] = Math.min(from[i][j], from[i - 1][q]);
+    }));
+  }
+
+  const to = occs.map(o => o.map(() => -Infinity));
+  occs[last].forEach((o, j) => {
+    if (query.trailing) to[last][j] = len;
+    else if (endsOK(o.end)) to[last][j] = o.end;
+  });
+  for (let i = last - 1; i >= 0; i--) {
+    occs[i].forEach((o, j) => occs[i + 1].forEach((n, q) => {
+      if (n.start >= o.end) to[i][j] = Math.max(to[i][j], to[i + 1][q]);
+    }));
+  }
+
+  const hits = [];
+  occs.forEach((o, i) => o.forEach((occ, j) => {
+    const s = from[i][j], e = to[i][j];
+    if (s === Infinity || e === -Infinity) return;
+    if (mode === 'span' && !breaks.some(b => s < b && b < e)) return;
+    hits.push(occ);
+  }));
+  return hits;
+}
+
+// ─── Tool ────────────────────────────────────────────────────────────────────
+
+const build = (params, spacing) => ({ query: queryOf(params.entry || '', spacing), mode: matchModeOf(params), spacing });
 
 export default {
   name: 'Phone search', icon: '📱', category: 'phonetic',
@@ -193,13 +275,12 @@ export default {
   example: 'knee → honey, neon',
   assets: ['cmudict', 'unigrams'],
   params: [
-    { placeholder: 'entry' },
-    { key: 'hide', type: 'checkbox', label: 'Hide search words',
-      title: "Don't show matches with the search term" },
+    { placeholder: 'entry', help: buildHelpHTML([['*', 'any sounds']]) },
+    MATCH_PARAM,
   ],
   kind: 'filter', input: 'highlight', output: 'plain',
   matchOn: 'display',
-  isInert: params => !(params.entry || '').trim(),
+  isInert: params => !/[^\s*]/.test(params.entry || ''),
   async prepare(params, ctx) {
     await ensureDict();
     await loadSpacingCorpus();
@@ -207,16 +288,13 @@ export default {
   },
   replay: (params, ctx) => build(params, spacingReader(ctx)),
   run(display, prepared) {
-    if (!hasCmuDict() || !prepared.targets.length) return false;
+    if (!hasCmuDict() || !prepared.query) return false;
+    const items = itemsOf(display, prepared.spacing);
+    if (!items.some(Boolean)) return false;
     const ranges = [];
-    for (const units of segmentsOf(display, prepared.spacing)) {
-      for (const reading of readingsOf(units)) {
-        for (const target of prepared.targets) {
-          for (let at = reading.code.indexOf(target); at !== -1; at = reading.code.indexOf(target, at + 1)) {
-            if (prepared.hideSearch && isSearchWord(units, reading, at, at + target.length, prepared.words)) continue;
-            ranges.push(...rangesForHit(units, reading, at, at + target.length));
-          }
-        }
+    for (const reading of readingsOf(items)) {
+      for (const hit of hitsIn(items, reading, prepared.query, prepared.mode)) {
+        ranges.push(...rangesForHit(items, reading, hit.start, hit.end));
       }
     }
     return ranges.length ? mergeRanges(ranges) : false;
