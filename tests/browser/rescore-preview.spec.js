@@ -250,6 +250,28 @@ test('Neutralize blanks rule outputs, drops scoring:false rows, and clears the a
   await expect(oceanScore(page).locator('.score-badge')).toHaveText('350');
 });
 
+test('a background refresh mid-click does not swallow an editor click', async ({ page }) => {
+  await gotoApp(page);
+  await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
+    name: 'Src', entries: ['ocean', 'tide'], scores: [350, 40],
+  }));
+  await page.evaluate(() => window.__grawlixTest.setRescoreRules('Src', [
+    { input: '350', length: '', output: '80', note: '' },
+  ]));
+  await scopeViaSelector(page, 'Src');
+  await openRescoreEditor(page);
+  await neutralizeBtn(page).click({ trial: true });   // waits for the expand to uncover it
+  const box = await neutralizeBtn(page).boundingBox();
+
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  // Any WordlistSelector.refresh() stands in for a worker summary landing.
+  await page.evaluate(() => window.__grawlixTest.setUpdateAvailable('Src', false));
+  await page.mouse.up();
+
+  await expect(applyBtn(page)).toBeEnabled();
+});
+
 test('Neutralize is absent on All Wordlists (tier labels have nothing to neutralize)', async ({ page }) => {
   await gotoApp(page);
   await seedRemappedSource(page);
@@ -303,12 +325,8 @@ test('Make permanent bakes an unsaved draft and leaves the editor open', async (
   await seedBakeable(page);
   await ruleOutput(page).fill('80');
 
-  // A rescore-editor repaint can swallow the bake click; retry until the confirm
-  // dialog opens (same race as wordlist-selector's bake-button test).
-  await expect(async () => {
-    await bakeBtn(page).click();
-    await expect(page.locator('#confirm-dialog')).toBeVisible({ timeout: 2000 });
-  }).toPass({ timeout: 15000 });
+  await bakeBtn(page).click();
+  await expect(page.locator('#confirm-dialog')).toBeVisible();
   await page.locator('#confirm-dialog #btn-confirm-ok').click();
   await page.evaluate(() => window.__grawlixTest.pipelineIdle());
 

@@ -41,17 +41,10 @@ const readJK = page =>
 const expectRuleRows = (page, n) =>
   expect(page.locator('#rescore-editor .rule-row')).toHaveCount(n);
 
-// A rescore-editor repaint rebuilds the footer and can swallow a click landing
-// on it, leaving the dialog closed and the rest of the test asserting against an
-// un-reset draft (wordlist-selector.spec.js hit the same thing on bake). Re-click
-// until the dialog opens, skipping the click once it has so the retry can't fire
-// a second one into the modal.
 async function clickResetAwaitingConfirm(page) {
   const dialog = page.locator('#confirm-dialog');
-  await expect(async () => {
-    if (!await dialog.isVisible()) await page.locator('.rule-reset-btn').click();
-    await expect(dialog).toBeVisible({ timeout: 2000 });
-  }).toPass({ timeout: 15_000 });
+  await page.locator('.rule-reset-btn').click();
+  await expect(dialog).toBeVisible();
   return dialog;
 }
 

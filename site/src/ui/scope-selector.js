@@ -103,6 +103,10 @@ export function renderSyncIndicators() {
 export const WordlistSelector = (() => {
   let bar, root, appEl, trigger, menu, actions, dlSlot, rescoreSlot, kebabSlot;
   let editor, editorInner;
+  // A rebuild between press and release detaches the pressed button and the
+  // browser drops the click. Background refreshes and a rule field's blur-commit
+  // both land there, so a press inside the editor holds renders until release.
+  let pressHeld = false, renderPending = false;
   let editorOpen = false;
   let triggerMax = 0;
 
@@ -290,6 +294,8 @@ export const WordlistSelector = (() => {
   function toggleEditor() { editorOpen ? attemptCloseEditor() : expandEditor(); }
   function renderEditorContent() {
     if (!editorOpen) return;
+    if (pressHeld) { renderPending = true; return; }
+    renderPending = false;
     editorInner.innerHTML = state.selected === MERGED_ID
       ? buildScoringSectionHTML()
       : buildRescoreSectionHTML();
@@ -392,6 +398,16 @@ export const WordlistSelector = (() => {
 
     editor       = bar.querySelector('#rescore-editor');
     editorInner  = editor.querySelector('.rescore-editor-inner');
+    editorInner.addEventListener('pointerdown', () => { pressHeld = true; });
+    const releasePress = () => {
+      if (!pressHeld) return;
+      pressHeld = false;
+      // A mouse release dispatches its click in this same task; the timeout
+      // lands the held render after it.
+      setTimeout(() => { if (renderPending) renderEditorContent(); });
+    };
+    window.addEventListener('pointerup', releasePress, true);
+    window.addEventListener('pointercancel', releasePress, true);
 
     trigger.addEventListener('click', () => root.classList.contains('open') ? close() : open());
     menu.addEventListener('click', async e => {

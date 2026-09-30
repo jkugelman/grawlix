@@ -82,13 +82,16 @@ header h1 { font-size: 19px; font-weight: 600; letter-spacing: -0.01em; line-hei
 .wls-actions:empty, .wls-dl-slot:empty, .wls-rescore-slot:empty, .wls-kebab-slot:empty { display: none; }
 /* grid 0fr is not display:none, so the collapsed editor stays in layout + the
    a11y tree; the hidden attribute (set after the close transition) is what
-   actually removes it, keeping Playwright's toBeVisible/toBeHidden honest. */
-#rescore-editor { display: grid; grid-template-rows: 0fr; opacity: 0; overflow: hidden; transition: grid-template-rows 0.2s ease, opacity 0.2s ease; }
+   actually removes it, keeping Playwright's toBeVisible/toBeHidden honest.
+   clip, not hidden: a scroll container gets scrolled to reveal a focused or
+   clicked control mid-expand, then snaps back as it grows, sliding the
+   control out from under the pointer. */
+#rescore-editor { display: grid; grid-template-rows: 0fr; opacity: 0; overflow: clip; transition: grid-template-rows 0.2s ease, opacity 0.2s ease; }
 #rescore-editor[hidden] { display: none; }
 #wordlist-bar.rescore-open #rescore-editor { grid-template-rows: 1fr; opacity: 1; }
 /* min-width:0 lets this grid item shrink to the editor's width instead of
    growing to the rule rows' min-content, which would push the footer's Apply
-   button past the viewport on a phone (overflow:hidden clips it off). */
+   button past the viewport on a phone (the editor's clip cuts it off). */
 .rescore-editor-inner { min-width: 0; min-height: 0; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border2); }
 @media (prefers-reduced-motion: reduce) {
   #rescore-editor { transition: none; }
