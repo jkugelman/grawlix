@@ -33,7 +33,7 @@ import { configurePipelineWorker, fetchWorkerSerialize, fetchWorkerMergeDisk } f
 import { configureManagePanel, ManagePanel } from './ui/manage-panel.js';
 import { configureDiscoveryBanner, DiscoveryBanner } from './ui/discovery-banner.js';
 import {
-  configureRendering, renderAll, renderMergedDetail, mountStatsBarOverflowObservers, mountHeaderHeightObserver, attachHelpPopups,
+  configureRendering, renderAll, renderMergedDetail, mountStatsBarOverflowObservers, attachHelpPopups,
 } from './ui/rendering.js';
 import { Router } from './app/router.js';
 import {
@@ -185,8 +185,7 @@ function boot() {
   });
 
   // App-shell components must exist before init()'s renderAll: the render
-  // effect's first run calls WordlistSelector.refresh() + DiscoveryBanner.refresh()
-  // and renders the panel (whose sticky observer watches #wordlist-bar).
+  // effect's first run calls WordlistSelector.refresh() + DiscoveryBanner.refresh().
   WordlistSelector.mount();
   ManagePanel.mount();
   DiscoveryBanner.mount();
@@ -198,7 +197,6 @@ function boot() {
   effect(() => { fetchStatus$.get(); renderFetchStatus(); });
 
   mountStatsBarOverflowObservers();
-  mountHeaderHeightObserver();
 
   maybeRemoveSplashEarly();
   init();

@@ -16,9 +16,6 @@ export function configureDiscoveryBanner({ runImport }) {
   if (runImport) _import = runImport;
 }
 
-// A plain sibling under #wordlist-bar, deliberately NOT mounted inside it: the
-// bar is sticky, so a dismissable one-time notice nested in it would permanently
-// eat pinned height via the --wordlist-bar-h cascade instead of scrolling away.
 const MYEDITS_KEY = 'banner_myedits_dismissed';
 
 export const DiscoveryBanner = (() => {

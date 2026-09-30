@@ -8,16 +8,16 @@ This is the user-facing manual. Eventually it'll be turned into an in-app manual
 
 ## The app shell
 
-**Header.** Wordmark, the personal "Made with…" byline, settings, and a `?` button that opens Help (an FAQ with acknowledgements). Sticks at the top while you scroll.
+**Header.** Wordmark, the personal "Made with…" byline, settings, and a `?` button that opens Help (an FAQ with acknowledgements).
 
 **Start over.** Click the wordmark to clear every tool, drop back to the default sort, empty the URL, and scroll to the top. Your wordlists, your scope, and your score filter stay where they are. It's a link, so ⌘/Ctrl-click still opens a clean Grawlix in a new tab.
 
 **One screen.** Everything lives on a single screen. The page itself scrolls — there's only one scrollbar.
 
 The screen, top to bottom:
-- **Tool gallery.** Cards laid out as a responsive grid.
 - **Wordlist bar.** Holds the wordlist selector and the actions for whatever wordlist you're looking at (see *The wordlist bar* below).
-- **Sticky region** that anchors just below the header as you scroll into the entries table:
+- **Tool gallery.** Cards laid out as a responsive grid.
+- **Sticky region** that pins to the top of the screen as you scroll into the entries table:
   - Tool stack (only when you've added tools — the search bar sits at the bottom either way).
   - Stats bar with histogram (click or drag across the histogram to filter by score range), plus a **Lengths** box.
   - Entry headers labelling the columns below.
@@ -250,7 +250,7 @@ The open entry shows in the address bar (`?entry=BAGEL`), so it's bookmarkable a
 
 **Where your edits show up.** An edit lands in My Edits and surfaces wherever My Edits participates: in **All Wordlists** (where My Edits sits on top by default, so your edit wins there) and when you scope to **My Edits** itself. A scoped wordlist always shows its *own* values, so editing an entry that XWI carries won't change the XWI-scoped view — the edit lives in My Edits, visible in All Wordlists and in My Edits' own view. (This is why a foreign scope opens the panel read-only: an in-place edit there would immediately vanish, so the panel doesn't offer one.) The provenance panel still shows your My Edits value alongside the others.
 
-**Adding new entries.** A floating **＋** button in the bottom-right corner opens the entry editor in the center of the screen. If you've just searched for a plain word that no wordlist has, it starts with that word filled in (a wildcard search, or one that already matches something, opens blank). Type a score and an optional comment, press Enter, and the entry lands in My Edits. The ＋ only ever creates: if you type an entry that's already in My Edits, Save stays disabled and the editor says it already exists, with an **Edit it instead** link that opens the existing entry for editing. (An entry that exists only on another wordlist is fine to add — it gets its own copy in My Edits.) When the entry is already on one of your other wordlists you get the same note and the same **Edit it instead** link, except Save stays enabled — adding it there is a normal thing to do, and it's how you give an entry your own score. The note names the spelling your wordlists use when it differs from what you typed, so typing `kingtut` offers you `King Tut`. That makes the ＋ button a quick way to *reach* an entry as well as create one: type the name, click through, and edit the entry that's already there without hunting for it in the table.
+**Adding new entries.** A floating **＋** button in the bottom-right corner opens the entry editor. If you've just searched for a plain word that no wordlist has, it starts with that word filled in (a wildcard search, or one that already matches something, opens blank). Type a score and an optional comment, press Enter, and the entry lands in My Edits. The ＋ only ever creates: if you type an entry that's already in My Edits, Save stays disabled and the editor says it already exists, with an **Edit it instead** link that opens the existing entry for editing. (An entry that exists only on another wordlist is fine to add — it gets its own copy in My Edits.) When the entry is already on one of your other wordlists you get the same note and the same **Edit it instead** link, except Save stays enabled — adding it there is a normal thing to do, and it's how you give an entry your own score. The note names the spelling your wordlists use when it differs from what you typed, so typing `kingtut` offers you `King Tut`. That makes the ＋ button a quick way to *reach* an entry as well as create one: type the name, click through, and edit the entry that's already there without hunting for it in the table.
 
 ## My Edits
 
@@ -279,7 +279,7 @@ The **sync button** (a status pill once connected) sits at the right of the bar 
 
 ## Rescoring and scoring rules
 
-The **adjustments (sliders) icon** beside the selector opens an inline editor that expands in place, pinned while the table scrolls beneath it. What it edits depends on your scope:
+The **adjustments (sliders) icon** beside the selector opens an inline editor that expands in place above the tool gallery. What it edits depends on your scope:
 
 - On a **source** (or My Edits), it edits that wordlist's **rescore rules**.
 - On **All Wordlists**, it edits the **scoring tiers** — the labels for the unified scale.

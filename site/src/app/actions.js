@@ -249,8 +249,7 @@ export async function init() {
   // The splash deliberately stays up behind it (z-200 vs the panel's z-600) until the
   // build lands — it covers the still-empty table and its "0 entries" for exactly the
   // stretch those would read as a wrong answer rather than an unfinished one.
-  // Never removed: it reveals the header over the splash, which stays for the rest of the load.
-  if (Router.openPendingEntry()) document.documentElement.classList.add('entry-boot');
+  Router.openPendingEntry();
 
   await Promise.all([firstPaint, workerReady]);
 

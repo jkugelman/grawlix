@@ -11,9 +11,7 @@
      fixed. */
   --stats-bar-h: 57px;
   --tool-stack-h: 53px;
-  --wordlist-bar-h: 39px;
   --sticky-stack-h: 138px;
-  --header-h: 84px;
   --entry-panel-w: 500px;
 }
 html.dark-mode {

@@ -1174,9 +1174,7 @@ export class EntriesScroller extends BaseVirtualScroller {
   repaintActiveRow() { this._render(); }
 
   _stickyOffsetPx() {
-    const cs = getComputedStyle(document.documentElement);
-    const px = v => parseFloat(cs.getPropertyValue(v)) || 0;
-    return px('--header-h') + px('--wordlist-bar-h') + px('--sticky-stack-h');
+    return parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--sticky-stack-h')) || 0;
   }
 
   _pageRows() {

@@ -328,8 +328,6 @@ export function mountPanel(panel) {
   const obs = stickyObserver();
   obs.disconnect();
   obs.observe(stickyStack);
-  const wordlistBar = document.getElementById('wordlist-bar');
-  if (wordlistBar) obs.observe(wordlistBar);
   // Delegate rather than bind the header cells directly: rebuildEntryHeaders
   // replaces them via outerHTML on every sort change, which would orphan a
   // direct listener after the first sort.
@@ -469,8 +467,6 @@ export function publishBarHeights() {
   if (stats) document.documentElement.style.setProperty('--stats-bar-h', stats.offsetHeight + 'px');
   const stickyStack = document.querySelector('#app .sticky-stack');
   if (stickyStack) document.documentElement.style.setProperty('--sticky-stack-h', stickyStack.offsetHeight + 'px');
-  const bar = document.getElementById('wordlist-bar');
-  if (bar) document.documentElement.style.setProperty('--wordlist-bar-h', bar.offsetHeight + 'px');
 }
 // Lazily constructed: a sibling ui module (entries-table) imports this one, and
 // its node unit tests evaluate the module where ResizeObserver doesn't exist.
@@ -509,15 +505,6 @@ export function mountStatsBarOverflowObservers() {
     if (host && records.every(r => host.contains(r.target))) return;
     refreshStatsBarOverflow();
   }).observe(parent, { childList: true, subtree: true });
-}
-
-export function mountHeaderHeightObserver() {
-  const headerEl = document.querySelector('header');
-  const publish = () => document.documentElement.style.setProperty(
-    '--header-h', headerEl.offsetHeight + 'px'
-  );
-  publish();
-  new ResizeObserver(publish).observe(headerEl);
 }
 
 // Help anchors are rebuilt whenever the panel re-renders (mountPanel,

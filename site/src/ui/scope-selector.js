@@ -390,10 +390,6 @@ export const WordlistSelector = (() => {
     rescoreSlot = bar.querySelector('.wls-rescore-slot');
     kebabSlot   = bar.querySelector('.wls-kebab-slot');
 
-    // The editor must stay inside #wordlist-bar: the sticky
-    // ResizeObserver watches the bar and cascades the table's offset from its
-    // height, so an editor mounted elsewhere would expand under the pinned
-    // headers instead of pushing them down.
     editor       = bar.querySelector('#rescore-editor');
     editorInner  = editor.querySelector('.rescore-editor-inner');
 

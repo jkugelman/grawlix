@@ -11,10 +11,13 @@ input[type="file"] { display: none; }
    content grows past the viewport and the scrollbar appears. */
 html { overflow-y: scroll; }
 body { font-family: var(--font-sans); font-size: 14px; background: var(--bg); color: var(--text); }
-main { display: flex; flex-direction: column; min-height: calc(100vh - var(--header-h)); }
+body { display: flex; flex-direction: column; min-height: 100vh; }
+main { flex: 1 0 auto; display: flex; flex-direction: column; }
 
 /* ─── Header ────────────────────────────────────────────────────────────────── */
-header { background: var(--hdr-bg); color: white; padding: 6px 20px; display: flex; flex-direction: column; position: sticky; top: 0; z-index: 100; }
+/* Above #picker-backdrop (50), like #wordlist-bar, so the tool drawer's scrim
+   leaves the chrome undimmed. */
+header { position: relative; z-index: 100; background: var(--hdr-bg); color: white; padding: 6px 20px; display: flex; flex-direction: column; }
 .header-row-main { display: flex; align-items: center; justify-content: space-between; gap: 24px; min-height: 44px; }
 header h1 { font-size: 19px; font-weight: 600; letter-spacing: -0.01em; line-height: 1.1; flex-shrink: 1; min-width: 0; }
 .header-logo-link { color: inherit; text-decoration: none; }
@@ -40,11 +43,10 @@ header h1 { font-size: 19px; font-weight: 600; letter-spacing: -0.01em; line-hei
 #add-fab:hover { background: var(--accent-hover); transform: translateY(-1px); box-shadow: 0 7px 20px rgba(0,0,0,0.38); }
 #add-fab:active { transform: translateY(0); box-shadow: 0 3px 10px rgba(0,0,0,0.3); }
 
+/* ─── Wordlist bar ──────────────────────────────────────────────────────────── */
 /* z-index above #featured-row (60): the open menu drops over the tool gallery,
    which establishes its own stacking context. */
-
-/* ─── Wordlist bar ──────────────────────────────────────────────────────────── */
-#wordlist-bar { position: sticky; top: var(--header-h); z-index: 61; display: flex; flex-direction: column; padding: 8px 16px; background: var(--surface); border-bottom: 1px solid var(--border2); }
+#wordlist-bar { position: relative; z-index: 61; display: flex; flex-direction: column; padding: 8px 16px; background: var(--surface); border-bottom: 1px solid var(--border2); }
 .wls-bar-top { display: flex; align-items: center; gap: 12px; }
 .wls { position: relative; min-width: 0; display: flex; }
 .wls-trigger { display: flex; align-items: center; gap: 8px; min-width: 0; max-width: 360px; padding: 0; font: inherit; line-height: 1.2; color: var(--text); background: none; border: none; cursor: pointer; }
@@ -94,11 +96,6 @@ header h1 { font-size: 19px; font-weight: 600; letter-spacing: -0.01em; line-hei
 
 /* ─── Splash screen ─────────────────────────────────────────────────────────── */
 #splash-screen { position: fixed; inset: 0; z-index: 200; background: var(--bg); color: var(--accent); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 48px; transition: opacity 0.3s; will-change: opacity; }
-/* Set only by a boot that deep-linked an entry, and latched for the rest of that load: the
-   panel's top edge is --header-h, so the header has to be visible for it to abut. Raising
-   the header rather than offsetting the splash, because --header-h holds a placeholder
-   until boot() measures the real one. */
-html.entry-boot:has(#splash-screen) header { z-index: 201; }
 #splash-screen.done { opacity: 0; pointer-events: none; }
 .splash-logo { font-size: 56px; font-weight: 600; letter-spacing: -0.01em; line-height: 1.1; display: inline-flex; align-items: center; opacity: 0; animation: splash-logo-reveal 0.4s ease-out forwards; will-change: opacity; }
 .splash-logo .bubble { background: var(--accent); color: var(--bg); font-size: 44px; padding: 3px 20px 6px; border-radius: 16px; margin-left: 27px; }
@@ -212,12 +209,11 @@ input.copy-field { overflow-x: auto; }
 .stats-bar.stats-no-hist { padding-left: 10px; padding-right: 10px; gap: 8px; }
 .stats-bar.stats-no-entries .stat-entries { display: none; }
 
-.sticky-stack { position: sticky; top: var(--header-h); z-index: 50; background: var(--surface); }
-#app .sticky-stack { top: calc(var(--header-h) + var(--wordlist-bar-h)); }
-#app .sticky-stack > #tool-stack { position: sticky; top: calc(var(--header-h) + var(--wordlist-bar-h)); z-index: 53; background: var(--surface); border-bottom: 1px solid var(--border2); }
-#app .sticky-stack > #stats { position: sticky; top: calc(var(--header-h) + var(--wordlist-bar-h) + var(--tool-stack-h)); z-index: 52; background: var(--surface); }
-#app .sticky-stack > .entry-headers,
-#app .sticky-stack > .group-headers { position: sticky; top: calc(var(--header-h) + var(--wordlist-bar-h) + var(--tool-stack-h) + var(--stats-bar-h)); z-index: 51; background: var(--bg); border-bottom: 1px solid var(--border2); }
+.sticky-stack { position: sticky; top: 0; z-index: 50; background: var(--surface); }
+.sticky-stack > #tool-stack { position: sticky; top: 0; z-index: 53; background: var(--surface); border-bottom: 1px solid var(--border2); }
+.sticky-stack > #stats { position: sticky; top: var(--tool-stack-h); z-index: 52; background: var(--surface); }
+.sticky-stack > .entry-headers,
+.sticky-stack > .group-headers { position: sticky; top: calc(var(--tool-stack-h) + var(--stats-bar-h)); z-index: 51; background: var(--bg); border-bottom: 1px solid var(--border2); }
 .sticky-stack .search-bar { border-bottom: none; }
 .stat { display: flex; flex-direction: column; gap: 2px; }
 .stat-label { font-size: 10px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
@@ -312,7 +308,7 @@ mark.find-hit:last-child,
 }
 .pipeline-spinner {
   position: sticky;
-  top: calc(var(--header-h) + var(--sticky-stack-h) + 40px);
+  top: calc(var(--sticky-stack-h) + 40px);
   margin: 40px auto -76px;
   width: 36px; height: 36px;
   border: 3px solid var(--border);
@@ -346,7 +342,7 @@ mark.find-hit:last-child,
 #entries-table-panel.pipeline-running.pipeline-streaming .pipeline-spinner { animation: none; opacity: 0; }
 .progress-ring {
   position: sticky;
-  top: calc(var(--header-h) + var(--sticky-stack-h) + 40px);
+  top: calc(var(--sticky-stack-h) + 40px);
   display: block;   /* an inline <svg> ignores margin:auto — block centers it like the spinner */
   margin: 40px auto -76px;
   width: 36px; height: 36px;
@@ -393,7 +389,7 @@ mark.find-hit:last-child,
 .entry-row {
   position: absolute; left: 0; right: 0;
   box-shadow: inset 0 -1px 0 var(--border3);
-  scroll-margin-top: calc(var(--header-h) + var(--wordlist-bar-h) + var(--sticky-stack-h));
+  scroll-margin-top: var(--sticky-stack-h);
   scroll-margin-bottom: 8px;
 }
 /* Plain, unclickable column labels above the rows. Sit at the bottom of the
@@ -621,14 +617,9 @@ mark.find-hit:last-child,
 .entries-footer-btn:hover { color: var(--accent-hover); }
 
 /* ─── Entry panel ───────────────────────────────────────────────────────────── */
-/* Full-bleed for hit-testing (a click anywhere outside the panel still closes it), but
-   the dim is painted by the pseudo-element from --header-h down. The panel's own top
-   edge is --header-h, so the header is the one strip the panel never covers, and
-   dimming chrome the modal doesn't occlude just reads as the page graying out wrong. */
-#entry-panel-backdrop { position: fixed; inset: 0; z-index: 599; opacity: 0; pointer-events: none; transition: opacity 0.28s ease; }
-#entry-panel-backdrop::before { content: ''; position: absolute; top: var(--header-h); right: 0; bottom: 0; left: 0; background: var(--backdrop); }
+#entry-panel-backdrop { position: fixed; inset: 0; z-index: 599; background: var(--backdrop); opacity: 0; pointer-events: none; transition: opacity 0.28s ease; }
 #entry-panel-backdrop.open { opacity: 1; pointer-events: auto; }
-#entry-panel { position: fixed; z-index: 600; top: var(--header-h); right: 0; bottom: 0; width: var(--entry-panel-w); display: none; flex-direction: column; background: var(--surface); border-left: 1px solid var(--border); box-shadow: -6px 0 24px rgba(0,0,0,0.32); color: var(--text); transform: translateX(100%); transition: transform 0.28s ease, display 0.28s allow-discrete; }
+#entry-panel { position: fixed; z-index: 600; top: 0; right: 0; bottom: 0; width: var(--entry-panel-w); display: none; flex-direction: column; background: var(--surface); border-left: 1px solid var(--border); box-shadow: -6px 0 24px rgba(0,0,0,0.32); color: var(--text); transform: translateX(100%); transition: transform 0.28s ease, display 0.28s allow-discrete; }
 #entry-panel.open { display: flex; transform: translateX(0); }
 @starting-style { #entry-panel.open { transform: translateX(100%); } }
 /* The scrim is created and opened in one task, so without a starting value it has no
