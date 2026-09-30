@@ -26,6 +26,7 @@ import joeys from './tools/joeys.js';
 import weave, { configureWeave } from './tools/weave.js';
 import palindromes from './tools/palindromes.js';
 import semordnilap from './tools/semordnilap.js';
+import phone_search from './tools/phone_search.js';
 import rhymes from './tools/rhymes.js';
 import space_out from './tools/space_out.js';
 import search from './tools/search.js';
@@ -83,6 +84,7 @@ export const TOOLS = {
   weave,
   palindromes,
   semordnilap,
+  phone_search,
   rhymes,
   space_out,
   search,

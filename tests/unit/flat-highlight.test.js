@@ -4,6 +4,7 @@ import { makeToolRow } from '../../site/src/engine/tools.js';
 import { executePipeline } from '../../site/src/engine/executor.js';
 import { compileFlatHighlighters, materializeFlatRow } from '../../site/src/engine/flat-highlight.js';
 import { setUnigramCorpus } from '../../site/src/engine/segmenter.js';
+import { setCmuDict } from '../../site/src/engine/phonetics.js';
 
 // Oracle for the relocated materializeFlatRow: it must reproduce the executor's
 // flat-chain output exactly. The equivalence is non-obvious — a highlighting
@@ -69,6 +70,10 @@ const fixtures = {
     setUnigramCorpus({ tea: -3, cup: -3, united: -3, untied: -3, cat: -2, untether: -4, reunited: -4 });
     return [makeToolRow('search', { pattern: 'ACU', mode: 'span' })];
   },
+  'phone search marks the letters that make the sounds': () => {
+    setCmuDict({ TEA: ['T IY1'], TEACUP: ['T IY1 K AH2 P'], CUP: ['K AH1 P'], UNITED: ['Y UW0 N AY1 T IH0 D'] });
+    return [makeToolRow('phone_search', { entry: 'tea' })];
+  },
 };
 
 for (const [name, build] of Object.entries(fixtures)) {
@@ -83,8 +88,8 @@ for (const [name, build] of Object.entries(fixtures)) {
     const survivingMat = matRows.filter((_, i) => {
       const e = CORPUS_ENTRIES[i];
       return highlighters.every(({ def, prepared }) => {
-        const input = def.matchOn === 'both' ? e : def.matchOn === 'display' ? e.display : e.norm;
-        return def.run(input, prepared, null) !== null;
+        const input = def.matchOn === 'both' ? e : def.matchOn === 'display' ? (e.display ?? e.norm) : e.norm;
+        return !!def.run(input, prepared, null);
       });
     });
 

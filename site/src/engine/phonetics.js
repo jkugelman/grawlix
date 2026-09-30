@@ -1,5 +1,7 @@
 'use strict';
 
+import { spellsOut } from './phone-align.js';
+
 export const CMU_DICT_URL = 'https://raw.githubusercontent.com/cmusphinx/cmudict/master/cmudict.dict';
 export const CMU_DICT_IDB_KEY = 'cmu_dict_decoded';
 export const CMU_DICT_SIZE_KEY = 'cmu_dict_size';
@@ -197,6 +199,77 @@ function wholeEntryParts(text) {
     if (sylls.length) for (const key of syllableKeys(sylls)) keys.add(key);
   }
   return [...keys];
+}
+
+// ─── Sound strings ───────────────────────────────────────────────────────────
+
+// Exactly one code unit per phone: with wider codes, indexOf could land mid-phone
+// and match sounds that aren't there.
+const phoneCodes = new Map();
+const phoneCode = phone => {
+  let code = phoneCodes.get(phone);
+  if (code === undefined) phoneCodes.set(phone, code = String.fromCharCode(0x41 + phoneCodes.size));
+  return code;
+};
+
+let soundCache = new Map();
+let soundCacheDict = null;
+const SOUND_CACHE_MAX = 200_000;
+
+// CMU's weak forms of common words, stress stripped. Each is a sound or two found
+// all over the wordlist, so searching the word would flood: ARE as "er" finds every
+// BUTCHER, TO as "tuh" every SELECTED. Weak forms missing here are kept on purpose:
+// A as "uh" and THE as "thee" are how the words are ordinarily said, and a phrase
+// searched with them has to meet A LOT and THE APPLE.
+const WEAK_FORMS = {
+  ARE: ['ER'], OR: ['ER'], FOR: ['F ER', 'F R ER'], TO: ['T IH', 'T AH'], INTO: ['IH N T AH'],
+  AND: ['AH N D'], HIM: ['IH M'], THAT: ['DH AH T'], THAN: ['DH AH N'], THEM: ['DH AH M'],
+  WAS: ['W AH Z'], CAN: ['K AH N'], WILL: ['W AH L'], HAS: ['HH AH Z'], BEEN: ['B AH N'],
+  JUST: ['JH IH S T'], DOES: ['D IH Z'], GOOD: ['G IH D'], YEARS: ['Y ER Z'], YOURS: ['Y ER Z'],
+};
+
+// Only the pronunciations a reader would say for the word: its weak forms and any
+// abbreviation expansion (CO. as "company", which would hear KNEE in AND CO) go,
+// as long as something is left.
+function citationProns(key, prons) {
+  if (prons.length < 2) return prons;
+  const weak = WEAK_FORMS[key];
+  let kept = weak ? prons.filter(pron => !weak.includes(pron.replace(/\d/g, ''))) : prons;
+  if (!kept.length) kept = prons;
+  if (kept.length > 1) {
+    const word = key.toLowerCase();
+    const spelled = kept.filter(pron => spellsOut(word, pron.replace(/\d/g, '').split(' ')));
+    if (spelled.length) kept = spelled;
+  }
+  return kept;
+}
+
+// Stress stripped: `arbiter`'s unstressed -biter has to meet `bitter`.
+export function soundsOf(word) {
+  if (!cmuDict) return null;
+  if (soundCacheDict !== cmuDict || soundCache.size > SOUND_CACHE_MAX) {
+    soundCache = new Map();
+    soundCacheDict = cmuDict;
+  }
+  const key = cmuKey(word);
+  let sounds = soundCache.get(key);
+  if (sounds !== undefined) return sounds;
+  const prons = key ? cmuDict.get(key) : null;
+  sounds = null;
+  if (prons) {
+    const seen = new Set();
+    sounds = [];
+    for (const pron of citationProns(key, prons)) {
+      const bare = pron.replace(/\d/g, '').split(' ');
+      const phones = bare.map((ph, i) => foldVowel(ph, bare[i + 1]));
+      const code = phones.map(phoneCode).join('');
+      if (seen.has(code)) continue;
+      seen.add(code);
+      sounds.push({ phones, code });
+    }
+  }
+  soundCache.set(key, sounds);
+  return sounds;
 }
 
 export function lastWordKey(text) {
