@@ -139,8 +139,8 @@ function rangesForHit(units, reading, a, b) {
     const len = sound.phones.length;
     const lo = Math.max(a, off) - off, hi = Math.min(b, off + len) - off;
     if (lo < hi) {
-      const span = lettersForPhones(alignmentOf(unit.letters, sound), lo, hi, unit.letters.length);
-      if (span) out.push({ start: unit.at[span[0]], end: unit.at[span[1] - 1] + 1 });
+      const [s, e] = lettersForPhones(alignmentOf(unit.letters, sound), lo, hi, unit.letters.length);
+      out.push({ start: unit.at[s], end: unit.at[e - 1] + 1 });
     }
     off += len;
   }
@@ -209,19 +209,16 @@ export default {
   run(display, prepared) {
     if (!hasCmuDict() || !prepared.targets.length) return false;
     const ranges = [];
-    let matched = false;
     for (const units of segmentsOf(display, prepared.spacing)) {
       for (const reading of readingsOf(units)) {
         for (const target of prepared.targets) {
           for (let at = reading.code.indexOf(target); at !== -1; at = reading.code.indexOf(target, at + 1)) {
             if (prepared.hideSearch && isSearchWord(units, reading, at, at + target.length, prepared.words)) continue;
-            matched = true;
             ranges.push(...rangesForHit(units, reading, at, at + target.length));
           }
         }
       }
     }
-    if (!matched) return false;
-    return ranges.length ? mergeRanges(ranges) : true;
+    return ranges.length ? mergeRanges(ranges) : false;
   },
 };

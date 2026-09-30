@@ -178,17 +178,20 @@ export function alignWord(word, phones) {
   return { steps, cost: cost[n * W + m] };
 }
 
-// The letters spelling sounds [a, b) of the word, or null when those sounds have
-// no letters of their own (an inserted schwa). Silent letters at the word's start
-// (KNIGHT) or end (PHONE) ride along with the neighbor they sit against.
+// The letters spelling sounds [a, b) of the word. Silent letters at the word's
+// start (KNIGHT) or end (PHONE) ride along with the neighbor they sit against.
+//
+// A sound with no letters of its own takes the whole word: DR read as "drive" has
+// no letters for the -ive, and marking only the `r` that RYE also covers would
+// pass off a guess as a letter-for-sound match.
 export function lettersForPhones(steps, a, b, wordLength) {
   let start = Infinity, end = -Infinity;
   for (const s of steps) {
-    if (s.phoneTo <= a || s.phoneFrom >= b || s.phoneFrom === s.phoneTo || s.from === s.to) continue;
+    if (s.phoneTo <= a || s.phoneFrom >= b || s.phoneFrom === s.phoneTo) continue;
+    if (s.from === s.to) return [0, wordLength];
     start = Math.min(start, s.from);
     end = Math.max(end, s.to);
   }
-  if (start === Infinity) return null;
   const silent = s => s.phoneFrom === s.phoneTo;
   const first = steps.findIndex(s => s.from === start);
   let k = first - 1;

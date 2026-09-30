@@ -62,4 +62,9 @@ export const CASES = [
 
   // Initialisms
   ['ewe', 'BMW', ['W']],
+
+  // Abbreviations: sounds with no letters of their own mark the whole word
+  ['I\'ve', 'Rodeo Dr', ['Dr']],
+  ['rye', 'Rodeo Dr', ['Dr']],   // not just the `r`: AY has no letter
+  ['och', 'Dr Jekyll', ['Dr']],
 ];
