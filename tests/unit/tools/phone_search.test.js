@@ -89,3 +89,21 @@ test('a lone letter from a split is not read as its letter name', async () => {
   seed({ tee: -3, r: -6 });
   sameVisible(await visible(['teertee', 'tee', 'r'], [{ tool: 'phone_search', params: { entry: 'are' } }]), ['r']);
 });
+
+const FIGURE_CMU = {
+  FIGURE: ['F IH1 G Y ER0'], FIGURES: ['F IH1 G Y ER0 Z'], FIGURED: ['F IH1 G Y ER0 D'],
+  CONFIGURE: ['K AH0 N F IH1 G Y ER0'], FIGURINE: ['F IH2 G Y ER0 IY1 N'], SKATING: ['S K EY1 T IH0 NG'],
+  OUT: ['AW1 T'],
+};
+
+test('hide search words drops the query word and its inflections, not words containing it', async () => {
+  invalidateUnigramCorpus();
+  setUnigramCorpus({ figure: -3, skating: -3 });
+  setCmuDict(FIGURE_CMU);
+  const specs = ['figure', 'figures', { entry: 'figured out' }, { entry: 'figure skating' }, 'figureskating',
+    'configure', 'figurine', 'skating'];
+  sameVisible(await visible(specs, [{ tool: 'phone_search', params: { entry: 'figure', hide: true } }]),
+    ['configure', 'figurine']);
+  sameVisible(await visible(specs, [{ tool: 'phone_search', params: { entry: 'figure' } }]),
+    ['figure', 'figures', 'figured out', 'figure skating', 'figureskating', 'configure', 'figurine']);
+});

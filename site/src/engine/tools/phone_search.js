@@ -6,6 +6,7 @@ import { hasUnigramCorpus, rankedSplits, SPACE_OUT_WINDOWS } from '../segmenter.
 import { buildSpacingTable, loadSpacingCorpus, spacingReader } from '../space-out.js';
 import { stripAccents } from '../norm.js';
 import { SEARCH_KINDS } from '../search.js';
+import { candidates } from '../morphology.js';
 
 async function ensureDict() {
   try {
@@ -159,20 +160,43 @@ function mergeRanges(ranges) {
 
 // ─── Tool ────────────────────────────────────────────────────────────────────
 
-function targetsOf(text, spacing) {
+function queryOf(text, spacing) {
   const segments = segmentsOf(text, spacing, true);
-  if (segments.length !== 1) return [];
-  return [...new Set(readingsOf(segments[0]).map(r => r.code))];
+  if (segments.length !== 1) return { targets: [], words: [] };
+  return {
+    targets: [...new Set(readingsOf(segments[0]).map(r => r.code))],
+    words: segments[0].map(unit => unit.letters),
+  };
 }
 
-const build = (params, spacing) => ({ targets: targetsOf((params.entry || '').trim(), spacing), spacing });
+// The hit is the query's own words: it starts on a word, runs through whole words
+// spelled as the query's, and ends inside one that is the last query word or an
+// inflection of it (FIGURES, FIGURED). A split-out part counts as a word, so
+// FIGURESKATING hides like FIGURE SKATING; CONFIGURE's match starts mid-word.
+function isSearchWord(units, reading, a, b, words) {
+  const len = k => units[k].sounds[reading.picks[k]].phones.length;
+  let off = 0, k = 0;
+  while (k < units.length && off < a) off += len(k++);
+  if (off !== a || k + words.length > units.length) return false;
+  for (let i = 0; i < words.length - 1; i++, k++) {
+    if (units[k].letters !== words[i]) return false;
+    off += len(k);
+  }
+  return b > off && b <= off + len(k) && candidates(units[k].letters).has(words[words.length - 1]);
+}
+
+const build = (params, spacing) => ({ ...queryOf((params.entry || '').trim(), spacing), hideSearch: !!params.hide, spacing });
 
 export default {
   name: 'Phone search', icon: '📱', category: 'phonetic',
   desc: 'Entries that contain the sounds of the input',
   example: 'knee → honey, neon',
   assets: ['cmudict', 'unigrams'],
-  params: [{ placeholder: 'entry' }],
+  params: [
+    { placeholder: 'entry' },
+    { key: 'hide', type: 'checkbox', label: 'Hide search words',
+      title: "Don't show matches with the search term" },
+  ],
   kind: 'filter', input: 'highlight', output: 'plain',
   matchOn: 'display',
   isInert: params => !(params.entry || '').trim(),
@@ -190,6 +214,7 @@ export default {
       for (const reading of readingsOf(units)) {
         for (const target of prepared.targets) {
           for (let at = reading.code.indexOf(target); at !== -1; at = reading.code.indexOf(target, at + 1)) {
+            if (prepared.hideSearch && isSearchWord(units, reading, at, at + target.length, prepared.words)) continue;
             matched = true;
             ranges.push(...rangesForHit(units, reading, at, at + target.length));
           }
