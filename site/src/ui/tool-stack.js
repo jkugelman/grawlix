@@ -114,9 +114,11 @@ export async function runPipeline(stack, sort) {
   try {
     return await runOnWorker(stack, sort);
   } finally {
-    panel?.classList.remove('pipeline-running');
     _pipelineRunning--;
+    // A superseded run settles while its successor is still in flight; clearing
+    // the class then hides the spinner for the whole of a slow successor.
     if (_pipelineRunning === 0) {
+      panel?.classList.remove('pipeline-running');
       const waiters = _pipelineIdleWaiters.splice(0);
       queueMicrotask(() => waiters.forEach(fn => fn()));
     }
