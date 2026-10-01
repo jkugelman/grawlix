@@ -4,11 +4,11 @@ import { loadCmuDict, hasCmuDict, soundsOf } from '../phonetics.js';
 import { alignWord, lettersForPhones } from '../phone-align.js';
 import { hasUnigramCorpus, rankedSplits, SPACE_OUT_WINDOWS } from '../segmenter.js';
 import { buildSpacingTable, loadSpacingCorpus, spacingReader } from '../space-out.js';
-import { stripAccents } from '../norm.js';
+import { stripAccents, toNorm, displayOf, buildNormToDisplay } from '../norm.js';
 import { SEARCH_KINDS } from '../search.js';
 import { candidates } from '../morphology.js';
 import { buildHelpHTML } from '../../core/util.js';
-import { MATCH_PARAM, matchModeOf } from './shared.js';
+import { MATCH_PARAM, matchModeOf, isReplacing } from './shared.js';
 
 async function ensureDict() {
   try {
@@ -205,15 +205,36 @@ function isSearchWord(items, reading, a, b, words) {
     && candidates(items[k].letters).has(words[words.length - 1]);
 }
 
-function occurrencesOf(piece, items, reading) {
+// Replacing keeps the search words: rewriting KNIGHT in KNIGHT SHIFT isn't noise.
+function occurrencesOf(piece, items, reading, replacing) {
   const out = [];
   for (const target of piece.codes) {
     for (let at = reading.code.indexOf(target); at !== -1; at = reading.code.indexOf(target, at + 1)) {
       const end = at + target.length;
-      if (!isSearchWord(items, reading, at, end, piece.words)) out.push({ start: at, end });
+      if (replacing || !isSearchWord(items, reading, at, end, piece.words)) out.push({ start: at, end });
     }
   }
   return out;
+}
+
+function anchorsOf(items, reading, mode) {
+  const len = reading.code.length;
+  const breaks = mode === 'word' || mode === 'span' ? breaksOf(items, reading) : null;
+  return {
+    startsOK: x => (mode === 'full' ? x === 0 : mode === 'word' ? breaks.includes(x) : true),
+    endsOK: x => (mode === 'full' ? x === len : mode === 'word' ? breaks.includes(x) : true),
+    spansOK: (s, e) => mode !== 'span' || breaks.some(b => s < b && b < e),
+  };
+}
+
+function occurrencesPerPiece(items, reading, query, replacing = false) {
+  const occs = [];
+  for (const piece of query.pieces) {
+    const found = occurrencesOf(piece, items, reading, replacing);
+    if (!found.length) return null;
+    occs.push(found);
+  }
+  return occs;
 }
 
 // Every piece occurrence that lies on some complete match. A forward pass finds
@@ -221,16 +242,10 @@ function occurrencesOf(piece, items, reading) {
 // backward pass the latest end it can go on to. Spans words needs a break
 // between the two, and the widest start and end give it the most room.
 function hitsIn(items, reading, query, mode) {
-  const occs = [];
-  for (const piece of query.pieces) {
-    const found = occurrencesOf(piece, items, reading);
-    if (!found.length) return [];
-    occs.push(found);
-  }
+  const occs = occurrencesPerPiece(items, reading, query);
+  if (!occs) return [];
   const len = reading.code.length;
-  const breaks = mode === 'word' || mode === 'span' ? breaksOf(items, reading) : null;
-  const startsOK = x => (mode === 'full' ? x === 0 : mode === 'word' ? breaks.includes(x) : true);
-  const endsOK = x => (mode === 'full' ? x === len : mode === 'word' ? breaks.includes(x) : true);
+  const { startsOK, endsOK, spansOK } = anchorsOf(items, reading, mode);
   const last = occs.length - 1;
 
   const from = occs.map(o => o.map(() => Infinity));
@@ -258,11 +273,128 @@ function hitsIn(items, reading, query, mode) {
   const hits = [];
   occs.forEach((o, i) => o.forEach((occ, j) => {
     const s = from[i][j], e = to[i][j];
-    if (s === Infinity || e === -Infinity) return;
-    if (mode === 'span' && !breaks.some(b => s < b && b < e)) return;
+    if (s === Infinity || e === -Infinity || !spansOK(s, e)) return;
     hits.push(occ);
   }));
   return hits;
+}
+
+// ─── Replacing ───────────────────────────────────────────────────────────────
+
+const MAX_MATCHES = 64;
+
+function matchesIn(items, reading, query, mode) {
+  const occs = occurrencesPerPiece(items, reading, query, true);
+  if (!occs) return [];
+  const len = reading.code.length;
+  const { startsOK, endsOK, spansOK } = anchorsOf(items, reading, mode);
+  const matches = [];
+  const extend = chain => {
+    if (matches.length >= MAX_MATCHES) return;
+    if (chain.length === occs.length) {
+      const start = query.leading ? 0 : chain[0].start;
+      const end = query.trailing ? len : chain[chain.length - 1].end;
+      if (startsOK(start) && endsOK(end) && spansOK(start, end)) matches.push({ start, end, occs: chain });
+      return;
+    }
+    const prev = chain[chain.length - 1];
+    for (const o of occs[chain.length]) if (!prev || o.start >= prev.end) extend([...chain, o]);
+  };
+  extend([]);
+  return matches;
+}
+
+// Search's replace-all semantics, or the two tools rewrite the same entry differently:
+// leftmost first, longest at each start (a greedy `*`), none overlapping.
+function pickMatches(matches) {
+  matches.sort((x, y) => x.start - y.start || y.end - x.end);
+  const picks = [];
+  for (const m of matches) if (!picks.length || m.start >= picks[picks.length - 1].end) picks.push(m);
+  return picks;
+}
+
+function splice(code, picks, rep) {
+  let out = '', at = 0;
+  const spans = [];
+  for (const m of picks) {
+    out += code.slice(at, m.start);
+    spans.push([out.length, out.length + rep.length]);
+    out += rep;
+    at = m.end;
+  }
+  return { code: out + code.slice(at), spans };
+}
+
+function replacementsOf(text, spacing) {
+  const items = itemsOf(text, spacing, true);
+  if (!items.length) return [''];
+  if (items.includes(null)) return null;
+  return [...new Set(readingsOf(items).map(r => r.code))];
+}
+
+const INDEX_KEY = 'phone-search/index';
+const BYTES_PER_INDEX_SLOT = 64;
+
+async function soundIndex(ctx, spacing) {
+  const cached = ctx.cache.get(INDEX_KEY);
+  if (cached) return cached;
+  const index = new Map();
+  let bytes = 0;
+  await ctx.forEach(ctx.wordlist.entries, wlEntry => {
+    const display = displayOf(wlEntry);
+    const items = itemsOf(display, spacing);
+    if (!items.length || items.includes(null)) return;
+    for (const { code } of readingsOf(items)) {
+      const list = index.get(code);
+      if (!list) index.set(code, [display]);
+      else if (list[list.length - 1] !== display) list.push(display);
+      else continue;
+      bytes += BYTES_PER_INDEX_SLOT + 2 * code.length;
+    }
+  });
+  ctx.cache.put(INDEX_KEY, index, bytes);
+  return index;
+}
+
+// Norm coordinates: the executor emits every spelling of the norm, and display
+// marks would land misplaced on a differently spaced one (THEIRS / THE IRS).
+function toNormRanges(display, ranges) {
+  const map = buildNormToDisplay(display);
+  const at = x => { let i = 0; while (i < map.length && map[i] < x) i++; return i; };
+  return ranges
+    .map(r => ({ ...r, start: at(r.start), end: at(r.end), coord: 'norm' }))
+    .filter(r => r.start < r.end);
+}
+
+function outputMarks(display, code, spans, spacing) {
+  const items = itemsOf(display, spacing);
+  const reading = readingsOf(items).find(r => r.code === code);
+  if (!reading) return [];
+  return toNormRanges(display, mergeRanges(spans.flatMap(([a, b]) => rangesForHit(items, reading, a, b))));
+}
+
+function runReplace(display, prepared) {
+  const { query, mode, spacing, reps, index } = prepared;
+  if (!reps) return [];
+  const items = itemsOf(display, spacing);
+  if (!items.some(Boolean)) return [];
+  const self = toNorm(display);
+  const outs = new Map();
+  for (const reading of readingsOf(items)) {
+    const picks = pickMatches(matchesIn(items, reading, query, mode));
+    if (!picks.length) continue;
+    let inputHighlights = null;
+    for (const rep of reps) {
+      const { code, spans } = splice(reading.code, picks, rep);
+      for (const target of index.get(code) ?? []) {
+        const norm = toNorm(target);
+        if (norm === self || outs.has(norm)) continue;
+        inputHighlights ??= mergeRanges(picks.flatMap(m => m.occs.flatMap(o => rangesForHit(items, reading, o.start, o.end))));
+        outs.set(norm, { entry: target, inputHighlights, outputHighlights: rep ? outputMarks(target, code, spans, spacing) : [] });
+      }
+    }
+  }
+  return [...outs.values()];
 }
 
 // ─── Tool ────────────────────────────────────────────────────────────────────
@@ -271,24 +403,33 @@ const build = (params, spacing) => ({ query: queryOf(params.entry || '', spacing
 
 export default {
   name: 'Phone search', icon: '📱', category: 'phonetic',
-  desc: 'Entries that contain the sounds of the input',
+  desc: 'Search (and replace) by sound',
   example: 'knee → honey, neon',
   assets: ['cmudict', 'unigrams'],
+  findReplace: true, replaceName: 'Phone replace',
   params: [
     { placeholder: 'entry', help: buildHelpHTML([['*', 'any sounds']]) },
+    { key: 'replace', placeholder: 'replace', encodeEmpty: true },
     MATCH_PARAM,
   ],
-  kind: 'filter', input: 'highlight', output: 'plain',
+  kind: params => (isReplacing(params) ? 'transform' : 'filter'),
+  input: 'highlight',
+  output: params => (tokensOf(params.replace || '').length ? 'highlight' : 'plain'),
+  glyph: params => (isReplacing(params) ? '→' : null),
   matchOn: 'display',
   isInert: params => !/[^\s*]/.test(params.entry || ''),
   async prepare(params, ctx) {
     await ensureDict();
     await loadSpacingCorpus();
-    return build(params, await buildSpacingTable(ctx));
+    const spacing = await buildSpacingTable(ctx);
+    const prepared = build(params, spacing);
+    if (!isReplacing(params) || !prepared.query) return prepared;
+    return { ...prepared, reps: replacementsOf(params.replace, spacing), index: await soundIndex(ctx, spacing) };
   },
   replay: (params, ctx) => build(params, spacingReader(ctx)),
   run(display, prepared) {
     if (!hasCmuDict() || !prepared.query) return false;
+    if (prepared.index) return runReplace(display, prepared);
     const items = itemsOf(display, prepared.spacing);
     if (!items.some(Boolean)) return false;
     const ranges = [];

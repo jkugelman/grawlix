@@ -245,12 +245,12 @@ Its param shares the `mode` key (a value-carrying checkbox, `mode=span` in the U
 A full re-render (`mountPanel`) does rebuild the bar.
 
 **The find/replace widget.**
-A tool flagged `findReplace: true` — Search and Regex — splits its `pattern` and `replace` inputs across the tool row's two grid rows.
+A tool flagged `findReplace: true` — Search, Regex, and Phone search — splits its `pattern` and `replace` inputs across the tool row's two grid rows.
 Row 1 carries the pattern input with a caret button to its left (both inside `.tool-row-main`, the row's center cell), vertically centered alongside the drag handle, label, match-mode control, and remove X. Row 2 carries the replace input as a `.tool-row-replace` cell in the same grid column as `.tool-row-main`, hidden until the caret expands — so the replace input lines up directly under the pattern while the row-1 controls stay pinned to row 1 instead of centering between the two lines.
 Same layout at every width — no side-by-side, no breakpoint.
 Expansion is the presence of the `replace` param (`isReplacing`, `tools/shared.js`): the caret adds the key when it opens — seeded from whatever the hidden input holds, empty included — and deletes it when it closes, so a shared link carrying a replacement opens already expanded.
-Both Search and Regex are filter/transform hybrids keyed on that presence — `kind: params => isReplacing(params) ? 'transform' : 'filter'` — so an open, empty replace field is **delete mode**: the match is cut out of the entry.
-The row's label reads **Replace** while the field is open — `row.name()` picks the catalog record's `replaceName` the way a reversible tool's picks `reverseName`, and the caret handler rewrites the name span in place rather than re-rendering the row, which would rebuild the hidden replace input and lose its kept text.
+All three are filter/transform hybrids keyed on that presence — `kind: params => isReplacing(params) ? 'transform' : 'filter'` — so an open, empty replace field is **delete mode**: the match is cut out of the entry.
+The row's label reads **Replace** (**Phone replace** for Phone search) while the field is open — `row.name()` picks the catalog record's `replaceName` the way a reversible tool's picks `reverseName`, and the caret handler rewrites the name span in place rather than re-rendering the row, which would rebuild the hidden replace input and lose its kept text.
 Presence is the test because a blank field's text can't say whether it was ever opened; the caret is what tells a deletion from a plain filter.
 The URL carries the empty form as a bare `replace=` (the param's `encodeEmpty` flag — the encoder drops every other empty value), so delete mode survives a reload or a share.
 Every caret toggle flips the row's kind, so every toggle re-runs the pipeline and rewrites the URL.
@@ -461,6 +461,15 @@ A weak form is only a sound or two, found all over the wordlist, so searching th
 The list is explicit rather than a rule like "drop every unstressed alternate": such a rule also drops readings that are real, like `A` as "uh" and `THE` as "thee", which a phrase such as `A LOT` needs, and multi-syllable alternates like `COMPARABLE` as "COMP-ruh-ble".
 It also drops a pronunciation the spelling can't produce (`spellsOut`, below) when some other pronunciation of the word can.
 For the same reason, a split into parts drops any one-letter part other than `a` and `i`, because CMU reads a stray `r` as its letter name and would hear ARE in `DEFOGGERS`.
+
+**Replacing works on sounds, so its output is any entry that sounds like the result.**
+With the replace field open (§ *The find/replace widget*), the row becomes **Phone replace**, a transform.
+Within each reading of an entry it takes the complete matches the match mode allows, leftmost first and longest at each start with none overlapping, as Search's replace does, and puts the replacement's sounds in their place; a blank replacement deletes them, so ARE → blank turns ARBITER into BITTER.
+The resulting sound string is looked up in an index of every corpus entry's whole-entry readings, built in `prepare` and kept in the prepare-artifact cache, so the output is whatever entries are pronounced that way, spelled however they are.
+Since there's no way to spell a sound string, there is no **Allow unlisted**.
+An output that is the input itself is dropped.
+Unlike the filter, replace keeps occurrences of the typed word itself: KNIGHT → DAY turns KNIGHT SHIFT into DAY SHIFT.
+The output is marked on the letters spelling the inserted sounds, in norm coordinates, because the executor emits every spelling of the output's norm and display marks would land wrong on a differently spaced one.
 
 **Highlighting uses a letter–sound alignment.**
 [`engine/phone-align.js`](../site/src/engine/phone-align.js) pairs each word's letters with its sounds using a cheapest-path search over (letters used, sounds used).
@@ -937,7 +946,7 @@ A tool's parameters spread across one or more adjacent query keys:
   A text param is `paramname=value`; a boolean (checkbox) param is a bare `paramname` when true.
   Both are omitted at their default (empty / false), so the common case stays short — Search with the match mode off is `search=cat`, with whole-entry on `search=cat&mode=full`.
   A param flagged `alwaysEncode` opts out and is written even at its default: a control with two equal readings and no "off" state — Remove string's `mode=all|one` — would otherwise make a shared link's behaviour depend on knowing which value absence stood for.
-  A param flagged `encodeEmpty` is written even when empty: Search and Regex's `replace`, whose bare `replace=` is delete mode (§ *The find/replace widget*) and must not collapse into "no replacement".
+  A param flagged `encodeEmpty` is written even when empty: the `replace` of Search, Regex, and Phone search, whose bare `replace=` is delete mode (§ *The find/replace widget*) and must not collapse into "no replacement".
   This readable per-key form is preferred over folding params into one delimited value.
   (The retired `whole-word` bare key still decodes, as an alias for `mode=full`.)
 - **Repeatable params → repeated keys.**

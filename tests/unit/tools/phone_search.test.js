@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import { setCmuDict } from '../../../site/src/engine/phonetics.js';
 import { setUnigramCorpus, invalidateUnigramCorpus } from '../../../site/src/engine/segmenter.js';
 import { rowAtoms } from '../../../site/src/engine/executor.js';
-import { run, sameVisible, visible, highlightTexts } from './harness.js';
+import { makeToolRow } from '../../../site/src/engine/tools.js';
+import { run, sameVisible, visible, highlightTexts, atomWord } from './harness.js';
 
 const CMU = {
   ARE: ['AA1 R', 'ER0'], ARBITER: ['AA1 R B IH0 T ER0'], ARTY: ['AA1 R T IY0'],
@@ -143,4 +144,47 @@ test('* steps over a word that can’t be read, but the sounds can’t', async (
   assert.deepEqual(await hits([{ entry: 'honey 52 tee' }], 'knee*tea'), { 'honey 52 tee': ['ney', 'tee'] });
   assert.deepEqual(await hits(['night', { entry: 'night 52' }], 'knight', 'full'), { night: ['night'] });
   assert.deepEqual(await hits([{ entry: 'night 52' }], 'knight*', 'full'), { 'night 52': ['night'] });
+});
+
+// ─── Replace ─────────────────────────────────────────────────────────────────
+
+const replace = (entry, rep, mode) => [{ tool: 'phone_search', params: mode ? { entry, replace: rep, mode } : { entry, replace: rep } }];
+
+test('a blank replacement deletes the sounds and finds entries that sound like what’s left', async () => {
+  seed();
+  sameVisible(await visible(['arbiter', 'arty', 'bitter', 'tee'], replace('are', '')),
+    [['arbiter', 'bitter'], ['arty', 'tee']]);
+  const { rows } = await run(['arbiter', 'bitter'], replace('are', ''));
+  assert.deepEqual(rows[0].atoms.map(highlightTexts), [['ar'], []]);
+});
+
+test('a filled replacement swaps in its sounds, marked on the output', async () => {
+  seed();
+  const { rows } = await run(['tee', 'knee'], replace('tea', 'knee'));
+  assert.equal(rows.length, 1);
+  assert.deepEqual(rows[0].atoms.map(atomWord), ['tee', 'knee']);
+  assert.deepEqual(rows[0].atoms.map(highlightTexts), [['tee'], ['knee']]);
+});
+
+test('replacing rewrites the typed word itself', async () => {
+  invalidateUnigramCorpus();
+  setCmuDict({ ...CMU, DAY: ['D EY1'], SHIFT: ['SH IH1 F T'] });
+  const { rows } = await run([{ entry: 'Knight Shift' }, { entry: 'Day Shift' }], replace('knight', 'day'));
+  assert.equal(rows.length, 1);
+  assert.deepEqual(rows[0].atoms.map(highlightTexts), [['Knight'], ['day']]);
+});
+
+test('the match mode constrains which sounds are replaced', async () => {
+  seed();
+  sameVisible(await visible(['arty', 'tee', 'knee'], replace('tea', 'knee', 'full')), [['tee', 'knee']]);
+  sameVisible(await visible(['arbiter', 'bitter'], replace('are', '', 'full')), []);
+});
+
+test('a replacing row is a transform named Phone replace', () => {
+  const row = makeToolRow('phone_search', { entry: 'are', replace: '' });
+  assert.equal(row.kind(), 'transform');
+  assert.equal(row.name(), 'Phone replace');
+  assert.equal(row.outputSide(), 'plain');
+  assert.equal(makeToolRow('phone_search', { entry: 'are', replace: 'tea' }).outputSide(), 'highlight');
+  assert.equal(makeToolRow('phone_search', { entry: 'are' }).name(), 'Phone search');
 });

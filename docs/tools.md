@@ -40,7 +40,7 @@ Tool lists in those two categories are provisional.
 |   | Pairs | 🪺 Nested | One word inside another | mari(juan)a |
 | ✓ | Palindrome | 🪞 Palindromes | Read the same when mirrored | racecar · civic |
 | ✓ | Palindrome | ⬅️ Semordnilap | Reverse to get a different word | stressed ↔ desserts |
-| ✓ | Phonetic | 📱 Phone search | Entries that contain the sounds of the input | knee → honey, neon |
+| ✓ | Phonetic | 📱 Phone search | Search (and replace) by sound | knee → honey, neon |
 | ✓ | Phonetic | 🎵 Rhymes | Rhyming words and phrases | rhyme → climb, key lime |
 |   | Phonetic | 🔊 Phonetic substitution | Swap one phoneme for another across the wordlist | TBD |
 |   | Phonetic | 🎶 Sound shift | Move a phoneme between word positions (e.g. front → end) | TBD |
