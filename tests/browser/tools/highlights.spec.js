@@ -1,7 +1,7 @@
 // The tool tier's render residue: the one DOM shape nothing else covers — a
 // find/replace transform painting its *output* atom's marks. Don't add per-tool
 // tests here; tool logic and highlight ranges live in the unit tier. See
-// docs/testing.md § Tool specs.
+// docs/testing.md § Per-tool specs.
 
 import { test, expect } from '@playwright/test';
 import { stubPublisherFetches, gotoApp, expectVisible } from '../helpers.js';

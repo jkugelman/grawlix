@@ -1143,7 +1143,7 @@ function transformJoinRows(join) {
   return join instanceof Map ? [...join.values()] : join;
 }
 
-// ─── Pipeline caches ── see docs/worker-protocol.md § result, prefix & partial caches ─
+// ─── Pipeline caches ── see docs/pipeline.md § Streaming results ──────────────
 const RESULT_CACHE_MIN_MS = 1000;                     // below this, regenerating beats retaining
 const RESULT_CACHE_MAX_BYTES = 64 * 1024 * 1024;      // shared pool byte budget; also the per-entry ceiling
 const BYTES_PER_FLAT_INDEX = 8;                     // a flat join row is one index into the shared corpus

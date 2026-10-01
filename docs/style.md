@@ -88,6 +88,7 @@ No line length limit.
 ## Markdown documentation
 
 - **Lines are unwrapped.** No soft wrap at 80/100 columns; let editors wrap visually. Hard line breaks are paragraph breaks, not flow control.
+- **Cross-references name the section and, outside the current file, the file.** Write ``[`pipeline.md`](pipeline.md) § *Streaming results*``, or a bare `§ *Heading*` for a section of the same doc. A chain like ``[`design.md`](design.md) § *Rhymes*, § *Pronunciations*`` shares the first file. The target is a heading or a bold or italic paragraph lead, and a reference may shorten it to its opening words. Code comments point the same way, as `docs/pipeline.md § Streaming results`. `tests/unit/doc-refs.test.js` fails on any reference whose section isn't in the named file, which is what catches a reference left behind when a section moves.
 
 ## Terminology
 
