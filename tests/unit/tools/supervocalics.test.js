@@ -14,3 +14,9 @@ test('a doubled vowel disqualifies an entry — each vowel must appear exactly o
 test('Y is not counted as a vowel', async () => {
   sameVisible(await visible(['layout'], [{ tool: 'supervocalics' }]), []);
 });
+
+test('And Y also requires exactly one Y', async () => {
+  sameVisible(await visible(['facetiously', 'abstemiously', 'education', 'yeasty quoi'],
+    [{ tool: 'supervocalics', params: { y: true } }]),
+    ['abstemiously', 'facetiously']);
+});

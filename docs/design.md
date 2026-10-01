@@ -932,7 +932,7 @@ A tool's parameters spread across one or more adjacent query keys:
   This key always anchors the row, so it's emitted even when empty (`anagram=`) — an added-but-unfilled row survives reload.
   A param-less tool is a bare key (`palindrome`).
   All values pass through `encodeURIComponent` — Grawlix's pattern syntax (`?`, `#`, `@`, `*`, `[`, `]`, `&`) overlaps with URL reserved characters.
-  Because the first param anchors the row, it must be a value (text) param, not a checkbox.
+  A checkbox has no text to ride the slug, so a tool whose first param is a checkbox keeps the slug bare and writes the checkbox as its own key (`supervocalics&y`).
 - **Successive params → their own adjacent keys.**
   A text param is `paramname=value`; a boolean (checkbox) param is a bare `paramname` when true.
   Both are omitted at their default (empty / false), so the common case stays short — Search with the match mode off is `search=cat`, with whole-entry on `search=cat&mode=full`.
