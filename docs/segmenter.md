@@ -1,6 +1,7 @@
 # Segmenter
 
-The segmenter ([`engine/segmenter.js`](../site/src/engine/segmenter.js)) takes a run-together entry like `ABARRELOFLAUGHS` and ranks the ways to put its spaces back, best first: `A BARREL OF LAUGHS`. It runs offline, in the pipeline worker, on a word-frequency table downloaded once and cached.
+The segmenter ([`engine/segmenter.js`](../site/src/engine/segmenter.js)) takes a run-together entry like `ABARRELOFLAUGHS` and ranks the ways to put its spaces back, best first: `A BARREL OF LAUGHS`.
+It runs offline, in the pipeline worker, on a word-frequency table downloaded once and cached.
 
 These features read entries through it:
 
@@ -11,15 +12,23 @@ These features read entries through it:
 - **Optional letters**, which needs word ends to find plurals.
 - The entry panel's **Rename to …** hint and its **Related entries**, which looks for inflections buried in a run-together entry.
 
-This file is the single source of truth for how the segmenter works. [`design.md`](design.md) covers how each of those tools is wired; [`manual.md`](manual.md) covers what users see.
+This file is the single source of truth for how the segmenter works.
+[`design.md`](design.md) covers how each of those tools is wired; [`manual.md`](manual.md) covers what users see.
 
 ## Overview
 
-Wordlists strip spaces. A serious crossword wordlist is plausibly more than half multi-word phrases (`ABARRELOFLAUGHS`, `BATOUTOFHELL`, `MIKHAILGORBACHEV`, `FBIAGENT`) stored as run-together letters, because the grid has no spaces.
+Wordlists strip spaces.
+A serious crossword wordlist is plausibly more than half multi-word phrases (`ABARRELOFLAUGHS`, `BATOUTOFHELL`, `MIKHAILGORBACHEV`, `FBIAGENT`) stored as run-together letters, because the grid has no spaces.
 
-Listing every legal split produces mostly garbage. `ABARRELOFLAUGHS` yields `A BARREL OF LAUGHS` alongside `A BARR ELO FLA UGHS` and four other nonsense parses. The wordlist's own scores can't filter the noise, because BARR (Roseanne), ELO (the band), and FLA (Florida) are all legitimate entries with real scores. What tells the readings apart is how often the words occur in real English: the joint probability of "BARR ELO FLA UGHS" is many orders of magnitude below "BARREL OF LAUGHS."
+Listing every legal split produces mostly garbage.
+`ABARRELOFLAUGHS` yields `A BARREL OF LAUGHS` alongside `A BARR ELO FLA UGHS` and four other nonsense parses.
+The wordlist's own scores can't filter the noise, because BARR (Roseanne), ELO (the band), and FLA (Florida) are all legitimate entries with real scores.
+What tells the readings apart is how often the words occur in real English: the joint probability of "BARR ELO FLA UGHS" is many orders of magnitude below "BARREL OF LAUGHS."
 
-The core is **Norvig's word segmenter** (Peter Norvig, "Natural Language Corpus Data," in *Beautiful Data*, 2009). Given a table of English word frequencies, the most likely segmentation is the one that maximizes the product of its words' probabilities. It is a short memoized recursion: for each prefix, score = log P(prefix) + best score of the rest; take the max. At wordlist entry lengths it costs microseconds per entry.
+The core is **Norvig's word segmenter** (Peter Norvig, "Natural Language Corpus Data," in *Beautiful Data*, 2009).
+Given a table of English word frequencies, the most likely segmentation is the one that maximizes the product of its words' probabilities.
+It is a short memoized recursion: for each prefix, score = log P(prefix) + best score of the rest; take the max.
+At wordlist entry lengths it costs microseconds per entry.
 
 On top of that core sit refinements, each found by grading the segmenter against real wordlists:
 
@@ -36,73 +45,186 @@ The rest of this file is the detail behind each, for contributors.
 
 ## How changes are measured
 
-Segmenter changes are graded against real data, not by eye. Most counts below come from three sets:
+Segmenter changes are graded against real data, not by eye.
+Most counts below come from three sets:
 
-- **The merge**: a real ~738k-entry merged wordlist. Used to count how many readings a change touches.
-- **The spaced entries**: the ~54k entries a real wordlist stores with their spaces. Their own spacing is the answer key, so they count phrases a change breaks.
-- **The bare lists**: ~290k entries of the run-together lists, graded against the spacing JK and Nediger give the same entries. Used for net fixed-vs-broken counts.
+- **The merge**: a real ~738k-entry merged wordlist.
+  Used to count how many readings a change touches.
+- **The spaced entries**: the ~54k entries a real wordlist stores with their spaces.
+  Their own spacing is the answer key, so they count phrases a change breaks.
+- **The bare lists**: ~290k entries of the run-together lists, graded against the spacing JK and Nediger give the same entries.
+  Used for net fixed-vs-broken counts.
 
 The override table was mined from a single real ~750k-entry wordlist, and the bigram table is checked **leave-one-list-out**: trained on one default list, it ranks an unseen one.
 
-A change ships when it fixes far more than it breaks and what it breaks is tolerable to read. Each refinement below records its tradeoff for that reason: the next tuning pass needs to know what was already tried and what it cost.
+A change ships when it fixes far more than it breaks and what it breaks is tolerable to read.
+Each refinement below records its tradeoff for that reason: the next tuning pass needs to know what was already tried and what it cost.
 
 ## The corpus
 
-The frequency table is wordfreq's `large` English list (MIT-licensed, blended from Wikipedia, OpenSubtitles, Twitter, Google Books, news, and Reddit): ~320K words, fetched from the upstream `rspeer/wordfreq` GitHub repo as `large_en.msgpack.gz` (~1.5 MB). The file is wordfreq's native centibel-bucketed msgpack: array index N is the bucket whose words have `log10(freq) = -N/100`. A small msgpack decoder and a `DecompressionStream('gzip')` pass build the in-memory lookup. The blended sources cover proper nouns and contemporary abbreviations (FBI, NASA, MIKHAIL, GORBACHEV) that a literary-only corpus would miss.
+The frequency table is wordfreq's `large` English list (MIT-licensed, blended from Wikipedia, OpenSubtitles, Twitter, Google Books, news, and Reddit): ~320K words, fetched from the upstream `rspeer/wordfreq` GitHub repo as `large_en.msgpack.gz` (~1.5 MB).
+The file is wordfreq's native centibel-bucketed msgpack: array index N is the bucket whose words have `log10(freq) = -N/100`.
+A small msgpack decoder and a `DecompressionStream('gzip')` pass build the in-memory lookup.
+The blended sources cover proper nouns and contemporary abbreviations (FBI, NASA, MIKHAIL, GORBACHEV) that a literary-only corpus would miss.
 
-The corpus is a worker-owned data asset in the `DATA_ASSETS` registry ([`engine/assets.js`](../site/src/engine/assets.js), [`worker-protocol.md`](worker-protocol.md)). `loadUnigramCorpus()` reads the decoded table from IndexedDB and fetches only on a miss. It is a static dataset: shipping a newer copy means bumping its IDB key. It loads lazily: adding a tool that declares it preloads it, and otherwise the tool's `prepare()` awaits it on first run. The worker **evicts it when the last row needing it leaves the stack**, so the ~100 MB+ decoded table doesn't stay resident for the whole session, a real reload risk on iOS, where the worker shares the page's memory budget. If the fetch fails, Space out shows an **error on its row**, since an empty result would look like the tool working and finding nothing. The other consumers degrade instead: an unspaced entry stays unread, so Rhymes and Phone search lose it and the match modes treat it as one word.
+The corpus is a worker-owned data asset in the `DATA_ASSETS` registry ([`engine/assets.js`](../site/src/engine/assets.js), [`worker-protocol.md`](worker-protocol.md)).
+`loadUnigramCorpus()` reads the decoded table from IndexedDB and fetches only on a miss.
+It is a static dataset: shipping a newer copy means bumping its IDB key.
+It loads lazily: adding a tool that declares it preloads it, and otherwise the tool's `prepare()` awaits it on first run.
+The worker **evicts it when the last row needing it leaves the stack**, so the ~100 MB+ decoded table doesn't stay resident for the whole session, a real reload risk on iOS, where the worker shares the page's memory budget.
+If the fetch fails, Space out shows an **error on its row**, since an empty result would look like the tool working and finding nothing.
+The other consumers degrade instead: an unspaced entry stays unread, so Rhymes and Phone search lose it and the match modes treat it as one word.
 
 **Other signals considered:**
-- *A hardcoded list of short words (A, I, OF, IS, …)*: the corpus subsumes it, since those words are among the most frequent in any English corpus. One signal, not two.
-- *An in-browser language model (transformers.js, WebLLM)*: deferred. Higher ceiling, but 10–100 ms per query is four orders of magnitude over a wordlist pass. Plausible later as a re-ranker over the top few unigram readings.
+- *A hardcoded list of short words (A, I, OF, IS, …)*: the corpus subsumes it, since those words are among the most frequent in any English corpus.
+  One signal, not two.
+- *An in-browser language model (transformers.js, WebLLM)*: deferred.
+  Higher ceiling, but 10–100 ms per query is four orders of magnitude over a wordlist pass.
+  Plausible later as a re-ranker over the top few unigram readings.
 - *Browser-native AI (Chrome's built-in Gemini Nano)*: deferred; Chrome-only.
 
 ## Scoring a split
 
-**The splitting vocabulary is the full merge, never the active scope.** `rankedSplits` admits a part longer than two letters only if the wordlist carries it, so the vocabulary decides which splits exist at all. That vocabulary stays the merged corpus under every scope: the executor threads it separately from the run corpus (`vocab` vs `wordlist`), the run corpus supplying the entries to process and `vocab` answering *is this a word*. Collapsing the two is invisible in testing because they are the same object in the `All Wordlists` scope; it shows up only when a user scopes to one list, where a scope-wide vocabulary silently thins every split.
+**The splitting vocabulary is the full merge, never the active scope.**
+`rankedSplits` admits a part longer than two letters only if the wordlist carries it, so the vocabulary decides which splits exist at all.
+That vocabulary stays the merged corpus under every scope: the executor threads it separately from the run corpus (`vocab` vs `wordlist`), the run corpus supplying the entries to process and `vocab` answering *is this a word*.
+Collapsing the two is invisible in testing because they are the same object in the `All Wordlists` scope; it shows up only when a user scopes to one list, where a scope-wide vocabulary silently thins every split.
 
-**Unknown words are priced against the corpus floor.** Norvig's `P(OOV) = 1/(N×10^len)` was tuned for raw word counts. Under wordfreq's normalized probabilities it leaves out-of-vocabulary chunks *more* probable than rare known words: a long unknown chunk at `−len × log(10)` lands above the `−18` floor of the rarest real entries. The failure is silent: `ABARREL OF LAUGHS` (`ABARREL` unknown) scores nearly as high as `A BARREL OF LAUGHS`, and the score window can't separate them. So the unknown-word log-probability is `unigramMinLogFreq − len × ln 10`, the corpus's actual floor with Norvig's per-letter decay on top. BARR/ELO/FLA-style splits then sit ~40 log-units below the real one.
+**Unknown words are priced against the corpus floor.**
+Norvig's `P(OOV) = 1/(N×10^len)` was tuned for raw word counts.
+Under wordfreq's normalized probabilities it leaves out-of-vocabulary chunks *more* probable than rare known words: a long unknown chunk at `−len × log(10)` lands above the `−18` floor of the rarest real entries.
+The failure is silent: `ABARREL OF LAUGHS` (`ABARREL` unknown) scores nearly as high as `A BARREL OF LAUGHS`, and the score window can't separate them.
+So the unknown-word log-probability is `unigramMinLogFreq − len × ln 10`, the corpus's actual floor with Norvig's per-letter decay on top.
+BARR/ELO/FLA-style splits then sit ~40 log-units below the real one.
 
-**Inflected forms get their stem's credit.** The floor leaves one failure: an inflected form missing from the corpus is crushed by the per-letter decay (~20 log-units for six letters), which the per-part penalty (`SPACE_OUT_PART_PENALTY = 7`) can't outpace, so `ball ed` beat `balled`. So before falling back to the floor, `unigramLogFreq` tries `stem + suffix` against a whitelist of inflectional suffixes (`s, es, ed, ied, ing, er, est, ly, ies`), with E-elision (`raced → race + ed`) and Y→I (`tried → try + ied`). If the stem is in the corpus, the form scores `stemLogFreq − SPACE_OUT_MORPHEME_PENALTY` (1.0, ≈ 37% of the stem's frequency), and the per-part penalty breaks the tie toward the joined form. Derivational suffixes (`-tion`, `-ment`, `-able`) are left out, since the corpus covers them directly and recursive decomposition invites `singing → sin + ging`.
+**Inflected forms get their stem's credit.**
+The floor leaves one failure: an inflected form missing from the corpus is crushed by the per-letter decay (~20 log-units for six letters), which the per-part penalty (`SPACE_OUT_PART_PENALTY = 7`) can't outpace, so `ball ed` beat `balled`.
+So before falling back to the floor, `unigramLogFreq` tries `stem + suffix` against a whitelist of inflectional suffixes (`s, es, ed, ied, ing, er, est, ly, ies`), with E-elision (`raced → race + ed`) and Y→I (`tried → try + ied`).
+If the stem is in the corpus, the form scores `stemLogFreq − SPACE_OUT_MORPHEME_PENALTY` (1.0, ≈ 37% of the stem's frequency), and the per-part penalty breaks the tie toward the joined form.
+Derivational suffixes (`-tion`, `-ment`, `-able`) are left out, since the corpus covers them directly and recursive decomposition invites `singing → sin + ging`.
 
-A few derivational endings are the exception, because wordfreq lists few of their rarer forms. `-ness` read 2,265 merge entries as `agile ness` or, through Y→I, `savor i ness`; comparatives, superlatives, and `-ful` read `sl inkiest`, `weepies t`, `roo tier`, `jug fuls`. `SPACE_OUT_DERIVED_SUFFIXES` (`ness`, `nesses`, `iness`, `inesses`, `ier`, `iest`, `ily`, `ful`, `fuls`) gives them the same stem credit, the `i`-initial ones restoring a `y` (`slinkiest → slinky`). It is a separate list because the compound reading peels and gates on `SPACE_OUT_SUFFIXES` as inflections. The credit is safe only because none of these endings is a word in a phrase: `-ness` costs one spaced entry (`Eliot Ness`); the comparatives and `-ful` read 346 more of the bare lists correctly and cost two (`sea lily` and `easter lily`, read through `seal` and `easterly`). `-less` is left out because it is a word (`far less`, `settle for less`). `-ize` would read 850 more entries correctly but glues `class size` and `win a prize`. A penalty on lone letters other than `a` and `i` was measured and rejected: it breaks `capital b` and `j edgar hoover` faster than it removes junk, which mostly re-forms from two-letter fragments.
+A few derivational endings are the exception, because wordfreq lists few of their rarer forms.
+`-ness` read 2,265 merge entries as `agile ness` or, through Y→I, `savor i ness`; comparatives, superlatives, and `-ful` read `sl inkiest`, `weepies t`, `roo tier`, `jug fuls`.
+`SPACE_OUT_DERIVED_SUFFIXES` (`ness`, `nesses`, `iness`, `inesses`, `ier`, `iest`, `ily`, `ful`, `fuls`) gives them the same stem credit, the `i`-initial ones restoring a `y` (`slinkiest → slinky`).
+It is a separate list because the compound reading peels and gates on `SPACE_OUT_SUFFIXES` as inflections.
+The credit is safe only because none of these endings is a word in a phrase: `-ness` costs one spaced entry (`Eliot Ness`); the comparatives and `-ful` read 346 more of the bare lists correctly and cost two (`sea lily` and `easter lily`, read through `seal` and `easterly`).
+`-less` is left out because it is a word (`far less`, `settle for less`).
+`-ize` would read 850 more entries correctly but glues `class size` and `win a prize`.
+A penalty on lone letters other than `a` and `i` was measured and rejected: it breaks `capital b` and `j edgar hoover` faster than it removes junk, which mostly re-forms from two-letter fragments.
 
-**Hashtag run-togethers are discounted.** wordfreq includes social media, so it carries hashtag-style tokens (`highroad`, `redlight`, `hotwater`, `newleaf`) that the scorer would keep glued inside a phrase: `took the highroad`, `runs a redlight`. `rankedSplits` discounts a token by `SPACE_OUT_GLUED_PENALTY` (6 log-units) when it is rare (below `SPACE_OUT_GLUED_MAX_LOG_FREQ`, −12) and splits into two pieces of 3+ letters, each at least `SPACE_OUT_GLUED_PIECE_MARGIN` (4) commoner than the token. The discount affects ranking only; the compound reading uses plain frequencies. A stem-credited word inherits its stem's discount, or the credit becomes a way around it: the next word's `s` moves over to claim the undiscounted plural, and `dutyfree shop` reads `dutyfrees hop`. On the bare lists it spaces 2,003 more entries correctly and 718 fewer. The 2,003 matter most to Initialisms, Rhymes, and the word-relative match modes, where a phrase read as one word loses a result outright. Of the 718, 586 are closed compounds split open (`mountaintop` → `mountain top`), which read fine either way; the rest are 70 over-splits at a short word (`assisters` → `as sisters`) and 62 boundary shifts (`skimps on` → `skimp son`). The 3-letter piece minimum keeps that tail small: 2-letter pieces fix 414 more entries but add 486 odd resplits, splitting `ingrown`, `beheld`, and `inexperience` at `in` and `be`.
+**Hashtag run-togethers are discounted.** wordfreq includes social media, so it carries hashtag-style tokens (`highroad`, `redlight`, `hotwater`, `newleaf`) that the scorer would keep glued inside a phrase: `took the highroad`, `runs a redlight`.
+`rankedSplits` discounts a token by `SPACE_OUT_GLUED_PENALTY` (6 log-units) when it is rare (below `SPACE_OUT_GLUED_MAX_LOG_FREQ`, −12) and splits into two pieces of 3+ letters, each at least `SPACE_OUT_GLUED_PIECE_MARGIN` (4) commoner than the token.
+The discount affects ranking only; the compound reading uses plain frequencies.
+A stem-credited word inherits its stem's discount, or the credit becomes a way around it: the next word's `s` moves over to claim the undiscounted plural, and `dutyfree shop` reads `dutyfrees hop`.
+On the bare lists it spaces 2,003 more entries correctly and 718 fewer.
+The 2,003 matter most to Initialisms, Rhymes, and the word-relative match modes, where a phrase read as one word loses a result outright.
+Of the 718, 586 are closed compounds split open (`mountaintop` → `mountain top`), which read fine either way; the rest are 70 over-splits at a short word (`assisters` → `as sisters`) and 62 boundary shifts (`skimps on` → `skimp son`).
+The 3-letter piece minimum keeps that tail small: 2-letter pieces fix 414 more entries but add 486 odd resplits, splitting `ingrown`, `beheld`, and `inexperience` at `in` and `be`.
 
 ## Choosing among readings
 
-**A score window, not top-K.** Some entries admit one obvious split (`INCANDESCENT` → `INCAN DESCENT`, the only valid two-part parse). Others admit near-ties (`MANSLAUGHTER` → `MAN SLAUGHTER` vs `MANS LAUGHTER`). The segmenter returns the top split plus every split within N log-units of it. Norvig scores are log likelihood ratios within one entry (a 5-unit gap means ~150× less likely), so a fixed window separates real alternatives from garbage however many candidates an entry has; top-K would drag in junk when only one good split exists. `SPACE_OUT_WINDOWS = { few: 5, many: 10 }` backs Space out's **Splits** slider (§ *Space out* in [`design.md`](design.md)).
+**A score window, not top-K.** Some entries admit one obvious split (`INCANDESCENT` → `INCAN DESCENT`, the only valid two-part parse).
+Others admit near-ties (`MANSLAUGHTER` → `MAN SLAUGHTER` vs `MANS LAUGHTER`).
+The segmenter returns the top split plus every split within N log-units of it.
+Norvig scores are log likelihood ratios within one entry (a 5-unit gap means ~150× less likely), so a fixed window separates real alternatives from garbage however many candidates an entry has; top-K would drag in junk when only one good split exists.
+`SPACE_OUT_WINDOWS = { few: 5, many: 10 }` backs Space out's **Splits** slider (§ *Space out* in [`design.md`](design.md)).
 
-**A bigram table re-ranks toward attested word pairs.** The unigram scorer weighs each part alone, so for `THESEA` it prefers `these a` (two commoner words) over `the sea`. `rankedSplits` adds `SPACE_OUT_BIGRAM_WEIGHT · Σ log(1 + count)` over each split's adjacent pairs and re-sorts. The term is a heuristic bonus, not a probability, so the weight is a tuned exchange rate with nothing to derive it from. It is 3, set by grading the top reading against half the bare lists with the table mined from the other half: 3 beats 2 by 130 entries fixed to 19 broken, and 4 gains nothing. What it breaks is its standing weakness: a pair of common words has a large count because both are everywhere, so `in on` (208 entries) outvotes `in one` (30) and reads `all in one go` as `all in on ego`. Scoring by association (PMI) repairs those and breaks more, `do a duet` and `on a dare` among them.
+**A bigram table re-ranks toward attested word pairs.**
+The unigram scorer weighs each part alone, so for `THESEA` it prefers `these a` (two commoner words) over `the sea`.
+`rankedSplits` adds `SPACE_OUT_BIGRAM_WEIGHT · Σ log(1 + count)` over each split's adjacent pairs and re-sorts.
+The term is a heuristic bonus, not a probability, so the weight is a tuned exchange rate with nothing to derive it from.
+It is 3, set by grading the top reading against half the bare lists with the table mined from the other half: 3 beats 2 by 130 entries fixed to 19 broken, and 4 gains nothing.
+What it breaks is its standing weakness: a pair of common words has a large count because both are everywhere, so `in on` (208 entries) outvotes `in one` (30) and reads `all in one go` as `all in on ego`.
+Scoring by association (PMI) repairs those and breaks more, `do a duet` and `on a dare` among them.
 
-It **re-ranks, never re-enumerates**: the pure-unigram pass decides window membership, so bigrams can only reorder splits already in the window, and with no table injected the order is the unigram score untouched, which is what keeps importing the segmenter free of side effects. Because of that, the shared spacing layer floors every caller's window at `few` (`MIN_WINDOW`, [`engine/space-out.js`](../site/src/engine/space-out.js)) and caps the result count *after* enumerating. A correct split with one more part than its rival scores lower on unigrams alone, so a narrower window leaves it unreachable and silently mutes the table. That is why Space out's **One** enumerates at `few` and keeps one result, and why `SPACE_OUT_WINDOWS` has no `one` entry: matching the window to the keep-count is not expressible. The rename hint, the most visible single suggestion, depends on this most.
+It **re-ranks, never re-enumerates**: the pure-unigram pass decides window membership, so bigrams can only reorder splits already in the window, and with no table injected the order is the unigram score untouched, which is what keeps importing the segmenter free of side effects.
+Because of that, the shared spacing layer floors every caller's window at `few` (`MIN_WINDOW`, [`engine/space-out.js`](../site/src/engine/space-out.js)) and caps the result count *after* enumerating.
+A correct split with one more part than its rival scores lower on unigrams alone, so a narrower window leaves it unreachable and silently mutes the table.
+That is why Space out's **One** enumerates at `few` and keeps one result, and why `SPACE_OUT_WINDOWS` has no `one` entry: matching the window to the keep-count is not expressible.
+The rename hint, the most visible single suggestion, depends on this most.
 
-The table ships **bundled** ([`engine/space-out-bigrams-data.js`](../site/src/engine/space-out-bigrams-data.js), injected into the worker), so every user gets the same table whatever wordlists they load. That is the reason to ship it rather than mine the live corpus: STWL and Broda carry no spaced entries at all, yet get the full benefit. [`scripts/gen-space-out-bigrams.js`](../scripts/gen-space-out-bigrams.js) generates it from the spaced entries of the JK and Nediger lists (both MIT), keeping pairs seen in 5+ entries: ~8k pairs, ~35 KB gzipped, values precomputed as `log(1 + count)`, re-run by hand when those lists move. Leave-one-list-out, it lifts top-guess accuracy 1–2.5 points, more for lists the unigrams cover thinly, at a fixed:broke ratio around 15–20:1. It complements the override table: overrides respace one glued part that is itself a legal entry (`ofthe`) and carry curated orthography; bigrams fix boundary shifts between two legitimate parts (`these a` → `the sea`).
+The table ships **bundled** ([`engine/space-out-bigrams-data.js`](../site/src/engine/space-out-bigrams-data.js), injected into the worker), so every user gets the same table whatever wordlists they load.
+That is the reason to ship it rather than mine the live corpus: STWL and Broda carry no spaced entries at all, yet get the full benefit.
+[`scripts/gen-space-out-bigrams.js`](../scripts/gen-space-out-bigrams.js) generates it from the spaced entries of the JK and Nediger lists (both MIT), keeping pairs seen in 5+ entries: ~8k pairs, ~35 KB gzipped, values precomputed as `log(1 + count)`, re-run by hand when those lists move.
+Leave-one-list-out, it lifts top-guess accuracy 1–2.5 points, more for lists the unigrams cover thinly, at a fixed:broke ratio around 15–20:1.
+It complements the override table: overrides respace one glued part that is itself a legal entry (`ofthe`) and carry curated orthography; bigrams fix boundary shifts between two legitimate parts (`these a` → `the sea`).
 
 ## Fixed rules
 
-**A Roman numeral is never words.** `DCCCLXXVIII` read as `dccc lxxvii i`, because every piece is a cheap entry and the whole is unknown; 2,357 merge entries sat in that state, polluting Initialisms clusters. `rankedSplits` returns a numeral unsplit, and the compound reading declines it. The test is *well-formed*, not merely Roman letters: `did I?`, `MI III`, and `Mmm Mmm Mmm Mmm` are all-Roman and must still split, and none is a valid numeral. Ill-formed leftovers (`ccccc`) still split, which costs nothing; they are junk either way.
+**A Roman numeral is never words.**
+`DCCCLXXVIII` read as `dccc lxxvii i`, because every piece is a cheap entry and the whole is unknown; 2,357 merge entries sat in that state, polluting Initialisms clusters.
+`rankedSplits` returns a numeral unsplit, and the compound reading declines it.
+The test is *well-formed*, not merely Roman letters: `did I?`, `MI III`, and `Mmm Mmm Mmm Mmm` are all-Roman and must still split, and none is a valid numeral.
+Ill-formed leftovers (`ccccc`) still split, which costs nothing; they are junk either way.
 
-**Digit runs never split mid-run.** A digit-to-digit transition is essentially never a word boundary ("25", not "2 5"). The corpus can't enforce it, since single digits are very frequent, so ranking alone picks `2 5 or 6 to 4` over `25 or 6 to 4`. The prefix loop skips any split point between two digits. It is the one character-class rule in an otherwise probabilistic algorithm.
+**Digit runs never split mid-run.**
+A digit-to-digit transition is essentially never a word boundary ("25", not "2 5").
+The corpus can't enforce it, since single digits are very frequent, so ranking alone picks `2 5 or 6 to 4` over `25 or 6 to 4`.
+The prefix loop skips any split point between two digits.
+It is the one character-class rule in an otherwise probabilistic algorithm.
 
-**An override table respaces glued function-word pairs.** Some pairs mis-segment however the frequencies fall: a wordlist carrying `OFTHE` as an entry makes it a legal, cheap, one-part split, so `ageofthepyramids` comes out `age ofthe pyramids`. `SPACE_OUT_OVERRIDES` maps a glued part's norm to its forced spacing, and `rankedSplits` expands any matching **part** of every ranked split after scoring, so the fix fires mid-entry as readily as on a whole entry; splits that coincide once expanded are de-duped. Each row is stored as the spacing alone with its key derived by `toNorm`, so the two can't drift, and a unit test pins that every value norms back to its key, so an override can only respace its own letters. Rows carry real orthography (`I don't`, `on one's`, `New York`) because the table ships to every user and a rendering must not depend on how that user's wordlist cases `I`; this works because the dedup key folds case and punctuation while keeping spaces significant, so a rich row collapses into the identical bare spacing the scorer found on its own. The table is a `Map` because `constructor` is a real entry, and a plain object resolves it to an inherited function and throws mid-split.
+**An override table respaces glued function-word pairs.**
+Some pairs mis-segment however the frequencies fall: a wordlist carrying `OFTHE` as an entry makes it a legal, cheap, one-part split, so `ageofthepyramids` comes out `age ofthe pyramids`.
+`SPACE_OUT_OVERRIDES` maps a glued part's norm to its forced spacing, and `rankedSplits` expands any matching **part** of every ranked split after scoring, so the fix fires mid-entry as readily as on a whole entry; splits that coincide once expanded are de-duped.
+Each row is stored as the spacing alone with its key derived by `toNorm`, so the two can't drift, and a unit test pins that every value norms back to its key, so an override can only respace its own letters.
+Rows carry real orthography (`I don't`, `on one's`, `New York`) because the table ships to every user and a rendering must not depend on how that user's wordlist cases `I`; this works because the dedup key folds case and punctuation while keeping spaces significant, so a rich row collapses into the identical bare spacing the scorer found on its own.
+The table is a `Map` because `constructor` is a real entry, and a plain object resolves it to an inherited function and throws mid-split.
 
-The table's contents are **mined, not guessed**. Picking by eye misses most of them: of seven pairs picked that way, one was the most frequent mis-glue in a real 750k-entry wordlist and the rest ranked #13 and below, missing everything from `inthe` (973 entries) to `ona` (246). So the list is derived: segment every multi-word entry of a real wordlist, diff against the entry's own spacing, and collect parts that swallow a real word boundary. A fragment qualifies outright when it is never a legitimate word in the corpus; otherwise it needs a 10:1 ratio of wrong-glued to legitimate occurrences, at most five legitimate uses, and a unigram frequency under a floor, which keeps `upon → up on` and `along → a long` out. It must mis-glue in at least 25 entries. The main benefit is fewer wrong rows rather than new right ones: across the entries it touches, the table cuts Space out result rows by ~45%, mostly by collapsing a glued variant into the correct split already listed beside it.
+The table's contents are **mined, not guessed**.
+Picking by eye misses most of them: of seven pairs picked that way, one was the most frequent mis-glue in a real 750k-entry wordlist and the rest ranked #13 and below, missing everything from `inthe` (973 entries) to `ona` (246).
+So the list is derived: segment every multi-word entry of a real wordlist, diff against the entry's own spacing, and collect parts that swallow a real word boundary.
+A fragment qualifies outright when it is never a legitimate word in the corpus; otherwise it needs a 10:1 ratio of wrong-glued to legitimate occurrences, at most five legitimate uses, and a unigram frequency under a floor, which keeps `upon → up on` and `along → a long` out.
+It must mis-glue in at least 25 entries.
+The main benefit is fewer wrong rows rather than new right ones: across the entries it touches, the table cuts Space out result rows by ~45%, mostly by collapsing a glued variant into the correct split already listed beside it.
 
-**Stranded affixes rejoin their word.** Some wordlist carries `IZE`, `ISM`, `MENT`, and `RE`, and parts of one or two letters need no entry at all, so the scorer can strand a bound affix: `abater s`, `un abating`, `sulfur ize`. `joinAffixes` runs on every ranked split, after override expansion and before the bigram re-rank and dedup. A part in `SPACE_OUT_BOUND_SUFFIXES` joins the part before it, which must run 2+ letters so `H M S Pinafore` keeps its `S`; a part in `SPACE_OUT_BOUND_PREFIXES` joins the part after it, which must run 3+ letters so a prefix never swallows `to` or `of`. Joins chain (`channel is ation` → `channelisation`). A lone `s` is the largest case and covers mid-entry possessives (`bowser s castle` → `bowsers castle`). A **lone `i` merges forward** when it and the next part spell a listed ending (`acronym i zing` → `acronymizing`): an `i`-initial ending reaches the scorer split because `i` is a cheap word. The merge is gated on the pair, so `all i do` is untouched, and an override's capital `I`, always the pronoun, never merges.
+**Stranded affixes rejoin their word.**
+Some wordlist carries `IZE`, `ISM`, `MENT`, and `RE`, and parts of one or two letters need no entry at all, so the scorer can strand a bound affix: `abater s`, `un abating`, `sulfur ize`.
+`joinAffixes` runs on every ranked split, after override expansion and before the bigram re-rank and dedup.
+A part in `SPACE_OUT_BOUND_SUFFIXES` joins the part before it, which must run 2+ letters so `H M S Pinafore` keeps its `S`; a part in `SPACE_OUT_BOUND_PREFIXES` joins the part after it, which must run 3+ letters so a prefix never swallows `to` or `of`.
+Joins chain (`channel is ation` → `channelisation`).
+A lone `s` is the largest case and covers mid-entry possessives (`bowser s castle` → `bowsers castle`).
+A **lone `i` merges forward** when it and the next part spell a listed ending (`acronym i zing` → `acronymizing`): an `i`-initial ending reaches the scorer split because `i` is a cheap word.
+The merge is gated on the pair, so `all i do` is untouched, and an override's capital `I`, always the pronoun, never merges.
 
-Joining repairs what blocking can't: refusing a trailing `s` re-forms the junk from two-letter fragments (`aggrandize rs`) and turns `harley davidson s` into `harley david sons`. The lists are mined like the overrides: a fragment qualifies when the merge strands it 100+ times and the spaced entries break on at most two. That gate keeps out free words that look like affixes: `de` (`clair de lune`), `fore` (`fore and aft`), a lone `y`/`e`/`n`/`l`/`d` (`letter y`, `guns n roses`), and `able`, `ally`, `ion`, `ian`. Across the merge the lists change 12,190 readings, 10,401 of them to a single word, for six spaced phrases lost (`un momento`, `un poco`, `4 non blondes`, `non compos mentis`, `micro bangs`, `aint i a stinker`).
+Joining repairs what blocking can't: refusing a trailing `s` re-forms the junk from two-letter fragments (`aggrandize rs`) and turns `harley davidson s` into `harley david sons`.
+The lists are mined like the overrides: a fragment qualifies when the merge strands it 100+ times and the spaced entries break on at most two.
+That gate keeps out free words that look like affixes: `de` (`clair de lune`), `fore` (`fore and aft`), a lone `y`/`e`/`n`/`l`/`d` (`letter y`, `guns n roses`), and `able`, `ally`, `ion`, `ian`.
+Across the merge the lists change 12,190 readings, 10,401 of them to a single word, for six spaced phrases lost (`un momento`, `un poco`, `4 non blondes`, `non compos mentis`, `micro bangs`, `aint i a stinker`).
 
 ## The compound reading
 
-When the corpus carries a glued form as a word of its own, that word can outscore every split, and the top reading is the entry unsplit. `RICKROLL` is a wordfreq token and beats `RICK ROLL` by 4.04 log-units even after the hashtag discount. For Space out that answer is fine: `RICKROLL` is a word. For Rhymes it is fatal, because CMU has no pronunciation for it, so the entry rhymes with nothing; 114k entries of the merge sit in that state.
+When the corpus carries a glued form as a word of its own, that word can outscore every split, and the top reading is the entry unsplit.
+`RICKROLL` is a wordfreq token and beats `RICK ROLL` by 4.04 log-units even after the hashtag discount.
+For Space out that answer is fine: `RICKROLL` is a word.
+For Rhymes it is fatal, because CMU has no pronunciation for it, so the entry rhymes with nothing; 114k entries of the merge sit in that state.
 
-`bestCompoundSplit` is the second answer for such callers: the same scoring over the best split into 2+ parts, with the unsplit form excluded. It is a guess, so it is gated: every part a wordlist entry of 2+ letters, none a bare inflectional suffix, each at or above `SPACE_OUT_COMPOUND_FLOOR` (−11, roughly the commonest ~25k English words), and a final part of 3+ letters. Ungated it reads `APPELLEE` as `APPEL LEE` and `DIAMETRIC` as `DIA METRIC`. Inflections are peeled first and the split decided on the stem, so `RICKROLLING` reads `RICK ROLLING` while `CALLUSING` stays whole because `CALLUS` doesn't split; splitting the inflected form directly gives `CALL USING`, which passes every other gate. Over the merge it gives 9,677 entries a whole-mode rhyme reading they had none of before, takes none away, and adds ~4% keying time. Rhymes and Phone search use it, through the spacing table's `guess`; Space out never does.
+`bestCompoundSplit` is the second answer for such callers: the same scoring over the best split into 2+ parts, with the unsplit form excluded.
+It is a guess, so it is gated: every part a wordlist entry of 2+ letters, none a bare inflectional suffix, each at or above `SPACE_OUT_COMPOUND_FLOOR` (−11, roughly the commonest ~25k English words), and a final part of 3+ letters.
+Ungated it reads `APPELLEE` as `APPEL LEE` and `DIAMETRIC` as `DIA METRIC`.
+Inflections are peeled first and the split decided on the stem, so `RICKROLLING` reads `RICK ROLLING` while `CALLUSING` stays whole because `CALLUS` doesn't split; splitting the inflected form directly gives `CALL USING`, which passes every other gate.
+Over the merge it gives 9,677 entries a whole-mode rhyme reading they had none of before, takes none away, and adds ~4% keying time.
+Rhymes and Phone search use it, through the spacing table's `guess`; Space out never does.
 
 ## The spacing table
 
-Rhymes, Phone search, Initialisms, and the word-relative match modes all need every unspaced entry read as words, and reading a full merge takes about five seconds. So the readings live in one per-wordlist table ([`engine/space-out.js`](../site/src/engine/space-out.js)) in the worker's prepare-artifact cache, shared by every tool. It has two tiers per norm. `best` is the top-ranked split, exactly what Space out's **One** shows, stored as the norm itself when the entry reads as one word, so a norm *absent* from `best` means unread, never one word. `compound` holds the compound reading for norms whose `best` has no usable reading, stored only where one was found. A `SpacingReader` answers from the table and reads a missing norm on the spot, writing it back: `best(norm)` for Initialisms and the match modes, `guess(norm)` for Rhymes and Phone search (the best split unless it ends in a lone letter, else the compound). Readings are stored joined and uncased, because part casing follows whichever spellings the wordlist carries today and no consumer reads it.
+Rhymes, Phone search, Initialisms, and the word-relative match modes all need every unspaced entry read as words, and reading a full merge takes about five seconds.
+So the readings live in one per-wordlist table ([`engine/space-out.js`](../site/src/engine/space-out.js)) in the worker's prepare-artifact cache, shared by every tool.
+It has two tiers per norm.
+`best` is the top-ranked split, exactly what Space out's **One** shows, stored as the norm itself when the entry reads as one word, so a norm *absent* from `best` means unread, never one word.
+`compound` holds the compound reading for norms whose `best` has no usable reading, stored only where one was found.
+A `SpacingReader` answers from the table and reads a missing norm on the spot, writing it back: `best(norm)` for Initialisms and the match modes, `guess(norm)` for Rhymes and Phone search (the best split unless it ends in a lone letter, else the compound).
+Readings are stored joined and uncased, because part casing follows whichever spellings the wordlist carries today and no consumer reads it.
 
-`buildSpacingTable(ctx)` sweeps the run corpus once under `ctx.forEach` and caches the result. A build cut short by a newer run (every keystroke of a whole-word search on a cold cache) caches what it read so far, marked incomplete, and the next build takes that table out of the cache, finishes it, and puts it back, so keystrokes add to one table instead of restarting the sweep. The table carries its accumulated build time for the cache's pricing, since the finishing run never missed. It is taken out rather than finished in place because an edit mid-build would patch the cached table and then refuse the re-put that prices it whole. Rhymes, Phone search, Initialisms all-mode, and Search and Regex in a word-relative mode build the table, since they touch every entry anyway. The Initialisms filter, Hidden anagram, and Optional letters only read through it, because they rule out most entries first and building would make the first keystroke the slowest.
+`buildSpacingTable(ctx)` sweeps the run corpus once under `ctx.forEach` and caches the result.
+A build cut short by a newer run (every keystroke of a whole-word search on a cold cache) caches what it read so far, marked incomplete, and the next build takes that table out of the cache, finishes it, and puts it back, so keystrokes add to one table instead of restarting the sweep.
+The table carries its accumulated build time for the cache's pricing, since the finishing run never missed.
+It is taken out rather than finished in place because an edit mid-build would patch the cached table and then refuse the re-put that prices it whole.
+Rhymes, Phone search, Initialisms all-mode, and Search and Regex in a word-relative mode build the table, since they touch every entry anyway.
+The Initialisms filter, Hidden anagram, and Optional letters only read through it, because they rule out most entries first and building would make the first keystroke the slowest.
 
-**The table survives edits, patched rather than purged.** A reading depends on the wordlist only through word existence: a part of three or more letters is admitted only when the vocab carries it. So the table registers a `patch` with the cache, exempting it from the purge a row-swapping edit otherwise triggers, and on each edit hears which norms entered or left the merge. It drops readings whose norm contains one of them: two letters and up, since the compound tier vets two-letter parts, and also minus a trailing `e`/`y`, since that tier splits a stem whose dropped letter it restores (`BAKESALING` reads through `SALE`). Respelling an entry flips no norm and costs nothing, which matters because Initialisms all-mode invites respelling run-together entries. Without the patch every such edit would cost the five-second rebuild; with a table that ignored edits, the tools would drift from the entry panel's hint, which always reads fresh.
+**The table survives edits, patched rather than purged.**
+A reading depends on the wordlist only through word existence: a part of three or more letters is admitted only when the vocab carries it.
+So the table registers a `patch` with the cache, exempting it from the purge a row-swapping edit otherwise triggers, and on each edit hears which norms entered or left the merge.
+It drops readings whose norm contains one of them: two letters and up, since the compound tier vets two-letter parts, and also minus a trailing `e`/`y`, since that tier splits a stem whose dropped letter it restores (`BAKESALING` reads through `SALE`).
+Respelling an entry flips no norm and costs nothing, which matters because Initialisms all-mode invites respelling run-together entries.
+Without the patch every such edit would cost the five-second rebuild; with a table that ignored edits, the tools would drift from the entry panel's hint, which always reads fresh.

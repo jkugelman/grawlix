@@ -1,81 +1,161 @@
 # Testing
 
-Two tiers. A **Playwright browser suite** ([`tests/browser/`](../tests/browser/)) covers user-visible behaviors whose breakage would survive a manual play-through — silent data corruption, cross-feature regressions, browser-specific quirks; visual and layout regressions stay manual. A **`node:test` unit tier** ([`tests/unit/`](../tests/unit/)) covers pure logic — parsing, rescoring, the 3-way merge, schema migrations, every tool's run/group output — by importing the `engine/` and `data/` modules directly and running them with no browser, so branchy arithmetic and ordering that's awkward to reach through the DOM gets pinned directly.
+Two tiers.
+A **Playwright browser suite** ([`tests/browser/`](../tests/browser/)) covers user-visible behaviors whose breakage would survive a manual play-through — silent data corruption, cross-feature regressions, browser-specific quirks; visual and layout regressions stay manual.
+A **`node:test` unit tier** ([`tests/unit/`](../tests/unit/)) covers pure logic — parsing, rescoring, the 3-way merge, schema migrations, every tool's run/group output — by importing the `engine/` and `data/` modules directly and running them with no browser, so branchy arithmetic and ordering that's awkward to reach through the DOM gets pinned directly.
 
-End-to-end smoke is the right shape for this vanilla-JS app: subtle cross-feature breakage like "editing a score in My Edits patches the merged cache wrong" is exactly what it catches. Targeted tests at the seams beat comprehensive coverage. CI is a passive monitor, not a gate.
+End-to-end smoke is the right shape for this vanilla-JS app: subtle cross-feature breakage like "editing a score in My Edits patches the merged cache wrong" is exactly what it catches.
+Targeted tests at the seams beat comprehensive coverage.
+CI is a passive monitor, not a gate.
 
 ## What earns a test
 
-The suite covers what manual testing structurally misses. Manual already catches visual layout, copy, feel, mobile, and anything obvious within the feature you're actively using — so those don't need automation. Automation pays off for:
+The suite covers what manual testing structurally misses.
+Manual already catches visual layout, copy, feel, mobile, and anything obvious within the feature you're actively using — so those don't need automation.
+Automation pays off for:
 
-- **Silent data corruption.** UI looks fine, underlying state is wrong (the merged-cache patch diverging from a full rebuild is the archetype).
-- **Cross-feature regressions.** Touching A breaks B; you'd only notice next time you used B.
-- **Cross-browser quirks.** You only run one browser locally; the suite runs three.
-- **Async/timing races.** Flakes that surface intermittently under parallelism.
+- **Silent data corruption.**
+  UI looks fine, underlying state is wrong (the merged-cache patch diverging from a full rebuild is the archetype).
+- **Cross-feature regressions.**
+  Touching A breaks B; you'd only notice next time you used B.
+- **Cross-browser quirks.**
+  You only run one browser locally; the suite runs three.
+- **Async/timing races.**
+  Flakes that surface intermittently under parallelism.
 
 **Add a test when** the behavior has cross-cutting reach (the merged-cache patch, cache invalidation, persistence boundaries), the bug would survive a five-minute manual play-through, or the behavior sits at a seam where plausible future refactors could re-break it.
 
 **Skip when** the change is purely visual, localized to code with no neighbors that affect it, or experimental code about to be rewritten.
 
-**Regression budget — not automatic.** When a bug is fixed, ask: seam, or typo in bounded code? Seam earns a test; typo doesn't. A refactor-heavy codebase makes "every bug gets a test" the wrong default — it locks the codebase against changes that need to happen.
+**Regression budget — not automatic.**
+When a bug is fixed, ask: seam, or typo in bounded code?
+Seam earns a test; typo doesn't.
+A refactor-heavy codebase makes "every bug gets a test" the wrong default — it locks the codebase against changes that need to happen.
 
-**The one always-test exception: schema migrations.** Every `MIGRATIONS` step ships a permanent before→after fixture test, no judgment call. A migration must keep transforming *historical* data correctly forever, and only a frozen old-version fixture catches a step that later code churn silently breaks. See [`migration.md` § Testing migrations](migration.md#testing-migrations).
+**The one always-test exception: schema migrations.**
+Every `MIGRATIONS` step ships a permanent before→after fixture test, no judgment call.
+A migration must keep transforming *historical* data correctly forever, and only a frozen old-version fixture catches a step that later code churn silently breaks.
+See [`migration.md` § Testing migrations](migration.md#testing-migrations).
 
-**AI-coded caveat.** AI writes and updates tests cheaply, so the suite can grow without much keystroke tax. The subtler cost: AI biases toward "make the test pass," which means a broken assertion gets adjusted instead of investigated. Write assertions where adjusting them is obviously suspicious — see *Strategy* below.
+**AI-coded caveat.**
+AI writes and updates tests cheaply, so the suite can grow without much keystroke tax.
+The subtler cost: AI biases toward "make the test pass," which means a broken assertion gets adjusted instead of investigated.
+Write assertions where adjusting them is obviously suspicious — see *Strategy* below.
 
 ## Strategy
 
-**Hybrid setup-via-API, assert-via-DOM.** Constructing the data shapes the tests want (a custom wordlist with three specific scores, an existing wordlist with rules removed, a wordlist with an update available) through pure UI clicks would be slow, brittle, and tied to copy. Pure backend assertions miss what the user actually sees. So tests:
+**Hybrid setup-via-API, assert-via-DOM.**
+Constructing the data shapes the tests want (a custom wordlist with three specific scores, an existing wordlist with rules removed, a wordlist with an update available) through pure UI clicks would be slow, brittle, and tied to copy.
+Pure backend assertions miss what the user actually sees.
+So tests:
 
-1. Build preconditions via `window.__grawlixTest` — a tiny API (assembled in [`site/src/test-api.js`](../site/src/test-api.js)) that wraps real internal helpers (`addNewWordlist`, `applyWordlistText`, `setWordlistRescoreRules`). It's a fixture builder, not a backdoor — the data flows through the same plumbing the UI uses.
+1. Build preconditions via `window.__grawlixTest` — a tiny API (assembled in [`site/src/test-api.js`](../site/src/test-api.js)) that wraps real internal helpers (`addNewWordlist`, `applyWordlistText`, `setWordlistRescoreRules`).
+   It's a fixture builder, not a backdoor — the data flows through the same plumbing the UI uses.
 2. Drive user actions through the real DOM (click cards, type into rule inputs, click reset buttons).
-3. Assert against the DOM by default — the rendered bubbles, banners, badges, and badges-on-badges that the user sees. Fall back to state snapshots via `__grawlixTest.getWordlist()` when the DOM doesn't reasonably expose the thing being asserted (e.g. "which wordlist sourced this entry" lives in `rawEntries`, not visible markup). Never assert something the user can't observe — no private `_isBuggy` hooks.
+3. Assert against the DOM by default — the rendered bubbles, banners, badges, and badges-on-badges that the user sees.
+   Fall back to state snapshots via `__grawlixTest.getWordlist()` when the DOM doesn't reasonably expose the thing being asserted (e.g. "which wordlist sourced this entry" lives in `rawEntries`, not visible markup).
+   Never assert something the user can't observe — no private `_isBuggy` hooks.
 
-**Assertions describe user-meaningful outcomes** ("BAGEL has score 50"), not implementation details ("rule[3].output equals 50"). Implementation-level assertions break on harmless refactors, produce noise instead of signal, and are easy to "fix" by adjusting them to match the new code — silently watering down what the suite guarantees.
+**Assertions describe user-meaningful outcomes** ("BAGEL has score 50"), not implementation details ("rule[3].output equals 50").
+Implementation-level assertions break on harmless refactors, produce noise instead of signal, and are easy to "fix" by adjusting them to match the new code — silently watering down what the suite guarantees.
 
-**Don't assert element counts or static UI copy.** How many buttons a dialog renders, or a label's exact words, is markup and copy — not behavior. It churns constantly, so a test pinned to it breaks on every wording or layout tweak without catching a real regression (it tests the copy). Assert the outcome the controls produce — a sync attaches, an entry is written, a badge appears — not that there are two buttons reading X and Y. When a design change makes such a test fail, delete it rather than rewrite it, unless it guards genuine behavior.
+**Don't assert element counts or static UI copy.**
+How many buttons a dialog renders, or a label's exact words, is markup and copy — not behavior.
+It churns constantly, so a test pinned to it breaks on every wording or layout tweak without catching a real regression (it tests the copy).
+Assert the outcome the controls produce — a sync attaches, an entry is written, a badge appears — not that there are two buttons reading X and Y. When a design change makes such a test fail, delete it rather than rewrite it, unless it guards genuine behavior.
 
-**Publisher fetches are stubbed.** The four auto-fetching publisher wordlists hit `raw.githubusercontent.com` (JK, STWL, Broda) and `raw.codeberg.page` (Nediger) on boot. Tests intercept via `page.route()` and return empty bodies by default; tests that need a publisher populated pass their own body. See [`tests/browser/helpers.js`](../tests/browser/helpers.js).
+**Publisher fetches are stubbed.**
+The four auto-fetching publisher wordlists hit `raw.githubusercontent.com` (JK, STWL, Broda) and `raw.codeberg.page` (Nediger) on boot.
+Tests intercept via `page.route()` and return empty bodies by default; tests that need a publisher populated pass their own body.
+See [`tests/browser/helpers.js`](../tests/browser/helpers.js).
 
-**Fresh browser context per test.** Playwright's default. Each test gets clean localStorage + IndexedDB, so test order doesn't matter and no teardown is needed.
+**Fresh browser context per test.**
+Playwright's default.
+Each test gets clean localStorage + IndexedDB, so test order doesn't matter and no teardown is needed.
 
-**Three browsers.** Chromium, Firefox, and WebKit. Cross-browser catches the rare Chrome-only API leak; on a smoke suite the maintenance is cheap because tests target user-visible behavior, not browser-specific quirks.
+**Three browsers.**
+Chromium, Firefox, and WebKit.
+Cross-browser catches the rare Chrome-only API leak; on a smoke suite the maintenance is cheap because tests target user-visible behavior, not browser-specific quirks.
 
-**CI runs all three; `npm test` runs chromium.** The engines cost wildly different amounts — measured locally at 6 workers against `dist`: chromium 123s, firefox 209s, webkit 332s. They compose additively, so the full local matrix is ~707s (11.8 min) versus ~124s for chromium alone. That 5.7x is paid on every run to re-prove what CI proves anyway: the matrix job runs all three engines sharded 16 ways, and `deploy` declares `needs: test`, so an engine-specific break blocks the release rather than shipping. Locally the full matrix is also *less* trustworthy than CI's — it runs fully parallel with no retries, so a saturated box produces contention timeouts that read as failures. Hence the split: `npm test` for the everyday gate, `npm run test:all` before a push you want extra confidence in. Reach for `test:all` when you have touched anything engine-shaped — storage, the File System Access API, workers, or rendering geometry.
+**CI runs all three; `npm test` runs chromium.**
+The engines cost wildly different amounts — measured locally at 6 workers against `dist`: chromium 123s, firefox 209s, webkit 332s.
+They compose additively, so the full local matrix is ~707s (11.8 min) versus ~124s for chromium alone.
+That 5.7x is paid on every run to re-prove what CI proves anyway: the matrix job runs all three engines sharded 16 ways, and `deploy` declares `needs: test`, so an engine-specific break blocks the release rather than shipping.
+Locally the full matrix is also *less* trustworthy than CI's — it runs fully parallel with no retries, so a saturated box produces contention timeouts that read as failures.
+Hence the split: `npm test` for the everyday gate, `npm run test:all` before a push you want extra confidence in.
+Reach for `test:all` when you have touched anything engine-shaped — storage, the File System Access API, workers, or rendering geometry.
 
 ## What stays manual
 
-**Visual / layout bugs.** Screenshot diffing (compare each test's rendered PNG against a saved baseline) catches "the icon moved 5px" bugs but is brittle: antialiasing noise, constant baseline updates on every UI tweak, cross-browser font rendering differences. Not worth the maintenance burden for a solo project. Substitute: open the site on Safari, Firefox, and a phone before any release.
+**Visual / layout bugs.**
+Screenshot diffing (compare each test's rendered PNG against a saved baseline) catches "the icon moved 5px" bugs but is brittle: antialiasing noise, constant baseline updates on every UI tweak, cross-browser font rendering differences.
+Not worth the maintenance burden for a solo project.
+Substitute: open the site on Safari, Firefox, and a phone before any release.
 
-**One sanctioned exception: [`tests/browser/search-bar-layout.spec.js`](../tests/browser/search-bar-layout.spec.js).** The search bar earned dedicated pixel-geometry tests (input widths, control gaps, vertical centering, all via `getBoundingClientRect`) after a run of fiddly layout regressions that manual play-throughs kept missing — the user explicitly authorized them. They are a deliberate carve-out from the rule above, not drift; don't delete them on a philosophy pass. If the search-bar layout is intentionally reworked, update the measurements rather than removing the file. (`tests/browser/stats-bar-layout.spec.js` mixes geometry with genuine responsive show/hide behavior — keep the show/hide assertions regardless.) [`tests/browser/entry-panel-shell.spec.js`](../tests/browser/entry-panel-shell.spec.js) is the same kind of carve-out: it measures the entry panel's docked column (floating over the table without narrowing it) versus its full-screen overlay shell via `boundingBox` — geometry that the two responsive shells turn on and that play-throughs miss.
+**One sanctioned exception: [`tests/browser/search-bar-layout.spec.js`](../tests/browser/search-bar-layout.spec.js).**
+The search bar earned dedicated pixel-geometry tests (input widths, control gaps, vertical centering, all via `getBoundingClientRect`) after a run of fiddly layout regressions that manual play-throughs kept missing — the user explicitly authorized them.
+They are a deliberate carve-out from the rule above, not drift; don't delete them on a philosophy pass.
+If the search-bar layout is intentionally reworked, update the measurements rather than removing the file.
+(`tests/browser/stats-bar-layout.spec.js` mixes geometry with genuine responsive show/hide behavior — keep the show/hide assertions regardless.)
+[`tests/browser/entry-panel-shell.spec.js`](../tests/browser/entry-panel-shell.spec.js) is the same kind of carve-out: it measures the entry panel's docked column (floating over the table without narrowing it) versus its full-screen overlay shell via `boundingBox` — geometry that the two responsive shells turn on and that play-throughs miss.
 
-**Real mobile Safari.** Playwright's WebKit is a Linux build that approximates Safari but isn't it. iOS-specific bugs only surface on actual devices.
+**Real mobile Safari.**
+Playwright's WebKit is a Linux build that approximates Safari but isn't it. iOS-specific bugs only surface on actual devices.
 
-**Real File System Access.** The native file pickers and permission prompts can't be driven headless. `tests/browser/disk-sync.spec.js` installs an in-memory fake for `showOpenFilePicker` / `showSaveFilePicker` / the handle, so the app's own attach/reconcile/write code is exercised, but the picker UI, permission grant, and boot reconnect-splash flow stay manual. The 3-way merge — the deletion-resurrection risk — is also covered directly via `sync.merge3`, which needs no fake at all. The action-row **sync pill** is asserted at the DOM level against the same fake — that it reflects sync state (the synced filename) once a list is attached. The sync **dialog's** button layout and copy aren't pinned by tests — that's brittle markup/copy (see *Strategy*); the doors' behavior is exercised through the attach paths (`sync.attachMirror` with and without `{ existing }`, `attachEditsExisting`/`attachEditsNew`), including that a mirror's "use existing" overwrites the target file with rescored output. The one dialog element that *is* asserted is its link out to the Ingrid walkthrough ([`tests/browser/help-deep-link.spec.js`](../tests/browser/help-deep-link.spec.js)) — that the link exists, closes the sync dialog, and lands on the expanded answer. That's navigation behavior rather than copy, and it only needs the two pickers to exist, not the full fake.
+**Real File System Access.**
+The native file pickers and permission prompts can't be driven headless.
+`tests/browser/disk-sync.spec.js` installs an in-memory fake for `showOpenFilePicker` / `showSaveFilePicker` / the handle, so the app's own attach/reconcile/write code is exercised, but the picker UI, permission grant, and boot reconnect-splash flow stay manual.
+The 3-way merge — the deletion-resurrection risk — is also covered directly via `sync.merge3`, which needs no fake at all.
+The action-row **sync pill** is asserted at the DOM level against the same fake — that it reflects sync state (the synced filename) once a list is attached.
+The sync **dialog's** button layout and copy aren't pinned by tests — that's brittle markup/copy (see *Strategy*); the doors' behavior is exercised through the attach paths (`sync.attachMirror` with and without `{ existing }`, `attachEditsExisting`/`attachEditsNew`), including that a mirror's "use existing" overwrites the target file with rescored output.
+The one dialog element that *is* asserted is its link out to the Ingrid walkthrough ([`tests/browser/help-deep-link.spec.js`](../tests/browser/help-deep-link.spec.js)) — that the link exists, closes the sync dialog, and lands on the expanded answer.
+That's navigation behavior rather than copy, and it only needs the two pickers to exist, not the full fake.
 
-**Help deep links.** [`tests/browser/help-deep-link.spec.js`](../tests/browser/help-deep-link.spec.js) covers the `#/help/<slug>` scheme: a slug opens Help with exactly that answer expanded, a bare `#/help` expands nothing, an unknown slug still opens Help, closing clears the hash, and an in-dialog link expands its target without collapsing what the reader already had open. It also asserts every answer carries a unique, well-formed slug — a duplicate or typo'd slug silently shadows a public URL, and nothing else in the suite would catch it. The answers' *copy* stays unpinned, per *Strategy*.
+**Help deep links.**
+[`tests/browser/help-deep-link.spec.js`](../tests/browser/help-deep-link.spec.js) covers the `#/help/<slug>` scheme: a slug opens Help with exactly that answer expanded, a bare `#/help` expands nothing, an unknown slug still opens Help, closing clears the hash, and an in-dialog link expands its target without collapsing what the reader already had open.
+It also asserts every answer carries a unique, well-formed slug — a duplicate or typo'd slug silently shadows a public URL, and nothing else in the suite would catch it.
+The answers' *copy* stays unpinned, per *Strategy*.
 
 ## Unit tier (`tests/unit/`)
 
 Pure logic — parsing, rescoring, the My Edits 3-way merge, schema migrations — lives in real `engine/` and `data/` modules, so the unit tier just **imports it directly**:
 
-- **Direct imports.** A spec imports the functions under test straight from their module — `import { toNorm } from '../../site/src/engine/norm.js'`, `import { threeWayMergeEdits } from '../../site/src/engine/edits-merge.js'`. No extraction harness, no source-text slicing; the `engine/` layer is DOM-free by construction (see [`design.md` § Code structure](design.md#code-structure)), so it loads in plain Node with nothing to stub. [`tests/unit/engine-dom-free.test.js`](../tests/unit/engine-dom-free.test.js) *enforces* that property rather than trusting it: it imports every `engine/` module under throwing getters on `document`/`window`/`localStorage`, so a stray DOM reach fails CI. The few `data/` functions the unit tier reaches are pure, param-driven entry points (the migration blob-transformers); anything `state`- or DOM-coupled stays in the browser tier.
-- **The runner.** `node:test` + `node:assert/strict`, no new dependencies. Specs are `tests/unit/*.test.js`; run `npm run test:unit` (or `node --test 'tests/unit/**/*.js'`). CI runs it in the build job, gating the browser matrix.
+- **Direct imports.**
+  A spec imports the functions under test straight from their module — `import { toNorm } from '../../site/src/engine/norm.js'`, `import { threeWayMergeEdits } from '../../site/src/engine/edits-merge.js'`.
+  No extraction harness, no source-text slicing; the `engine/` layer is DOM-free by construction (see [`design.md` § Code structure](design.md#code-structure)), so it loads in plain Node with nothing to stub.
+  [`tests/unit/engine-dom-free.test.js`](../tests/unit/engine-dom-free.test.js) *enforces* that property rather than trusting it: it imports every `engine/` module under throwing getters on `document`/`window`/`localStorage`, so a stray DOM reach fails CI.
+  The few `data/` functions the unit tier reaches are pure, param-driven entry points (the migration blob-transformers); anything `state`- or DOM-coupled stays in the browser tier.
+- **The runner.**
+  `node:test` + `node:assert/strict`, no new dependencies.
+  Specs are `tests/unit/*.test.js`; run `npm run test:unit` (or `node --test 'tests/unit/**/*.js'`).
+  CI runs it in the build job, gating the browser matrix.
 
-**What belongs here:** deterministic transforms with no browser-specific behavior — string→string, score mapping, dedup, sort/priority ordering, serialization, the 3-way merge, migration blob-transformers. Especially the branchy paths that are awkward to reach through Playwright: rescore range-output scaling and N+ shift, the rule-priority tie-break with *overlapping* rules, malformed-line parsing, `detectCase`'s ratio threshold.
+**What belongs here:** deterministic transforms with no browser-specific behavior — string→string, score mapping, dedup, sort/priority ordering, serialization, the 3-way merge, migration blob-transformers.
+Especially the branchy paths that are awkward to reach through Playwright: rescore range-output scaling and N+ shift, the rule-priority tie-break with *overlapping* rules, malformed-line parsing, `detectCase`'s ratio threshold.
 
-**What stays in the browser tier:** anything touching `state`, the DOM, persistence, or rendering — the `state`-reading wrappers (`editsLegend`, `getRescoredEntries`'s cache), the whole `ui/`/`app/` surface, and the rendered scroller. The executor itself is `engine/`, so the *pipeline's* pure core (tool runs, `bucketize`, `unify`) is unit-tested; only its rendering and the surrounding wiring stay here. The layering is the guide: if a function lives in `engine/` or is a pure `data/` transform, it's unit-testable; if importing it would drag in `state` or DOM, it belongs in the browser tier. Schema migrations keep their mandated frozen before→after fixture in [`tests/unit/migrations.test.js`](../tests/unit/migrations.test.js).
+**What stays in the browser tier:** anything touching `state`, the DOM, persistence, or rendering — the `state`-reading wrappers (`editsLegend`, `getRescoredEntries`'s cache), the whole `ui/`/`app/` surface, and the rendered scroller.
+The executor itself is `engine/`, so the *pipeline's* pure core (tool runs, `bucketize`, `unify`) is unit-tested; only its rendering and the surrounding wiring stay here.
+The layering is the guide: if a function lives in `engine/` or is a pure `data/` transform, it's unit-testable; if importing it would drag in `state` or DOM, it belongs in the browser tier.
+Schema migrations keep their mandated frozen before→after fixture in [`tests/unit/migrations.test.js`](../tests/unit/migrations.test.js).
 
-Each tool's full contract lives in the unit tier. Every tool is its own `engine/tools/<slug>.js`, and the executor (`executePipeline`/`bucketize`/`unify`) is a DOM-free export, so a spec drives a tool the way the app does — params + a fixture in, rows/atoms/highlights out — against the real pipeline with no browser. See *Per-tool specs* below.
+Each tool's full contract lives in the unit tier.
+Every tool is its own `engine/tools/<slug>.js`, and the executor (`executePipeline`/`bucketize`/`unify`) is a DOM-free export, so a spec drives a tool the way the app does — params + a fixture in, rows/atoms/highlights out — against the real pipeline with no browser.
+See *Per-tool specs* below.
 
 ## Out of scope
 
-- **PR gating / branch protection.** CI runs on push to `main` only. For a solo project, automation is a regression *signal*, not a release gate.
-- **Coverage metrics.** Smoke is the target, not comprehensive coverage. A coverage number would invite chasing it rather than chasing the bugs.
+- **PR gating / branch protection.**
+  CI runs on push to `main` only.
+  For a solo project, automation is a regression *signal*, not a release gate.
+- **Coverage metrics.**
+  Smoke is the target, not comprehensive coverage.
+  A coverage number would invite chasing it rather than chasing the bugs.
 
 ## First-time setup
 
-Requires **Node 21+** (the unit runner discovers specs via a glob, added in Node 21). CI and local dev pin the version in [`.nvmrc`](../.nvmrc) — currently Node 24, the active LTS — which `actions/setup-node` reads in CI. On Ubuntu's older system Node, install a matching version via nvm:
+Requires **Node 21+** (the unit runner discovers specs via a glob, added in Node 21).
+CI and local dev pin the version in [`.nvmrc`](../.nvmrc) — currently Node 24, the active LTS — which `actions/setup-node` reads in CI.
+On Ubuntu's older system Node, install a matching version via nvm:
 
 ```sh
 nvm install   # reads .nvmrc
@@ -111,25 +191,41 @@ npm run test:browser -- -g "auto-seed"               # one test by name (grep)
 CI=1 npm run test:browser                            # reproduce CI (1 worker, 2 retries)
 ```
 
-`CI=1` is worth knowing: local runs default to parallel workers, but CI uses one worker, which surfaces timing races (e.g. a click handler that hands off async work that the next assertion reads too early). If a test passes locally but fails in CI, run with `CI=1` first.
+`CI=1` is worth knowing: local runs default to parallel workers, but CI uses one worker, which surfaces timing races (e.g. a click handler that hands off async work that the next assertion reads too early).
+If a test passes locally but fails in CI, run with `CI=1` first.
 
-**Concurrent runs don't collide on a port.** The static server's port is derived from the directory being served, so every worktree gets its own — and `site/` and `dist/` differ within one worktree, letting `test:browser` and `test:dist` run side by side. Two agents can test at once without either seeing the other's bundle. Set `GRAWLIX_PORT` to pin a port by hand. The server is never reused: if anything already holds the port, the run stops with `… is already used` instead of quietly testing whatever that server was serving, which is the honest failure — a reused server from another checkout produces phantom test failures that look real.
+**Concurrent runs don't collide on a port.**
+The static server's port is derived from the directory being served, so every worktree gets its own — and `site/` and `dist/` differ within one worktree, letting `test:browser` and `test:dist` run side by side.
+Two agents can test at once without either seeing the other's bundle.
+Set `GRAWLIX_PORT` to pin a port by hand.
+The server is never reused: if anything already holds the port, the run stops with `… is already used` instead of quietly testing whatever that server was serving, which is the honest failure — a reused server from another checkout produces phantom test failures that look real.
 
-**They do collide on CPU, so browser runs take a repo-wide lock.** Playwright claims about half the cores as workers, so two worktrees running the suite at once oversubscribe the machine — measured at five concurrent agents on a 20-core box: load average 96, the suite stretched from 2.2 min to 11.6 min, and the heaviest spec blew its 180s timeout. That last part is the real cost: a contention timeout is indistinguishable from a genuine failure, so it buys a diagnosis and a re-run before you learn it was noise. [`scripts/with-test-lock.sh`](../scripts/with-test-lock.sh) wraps the Playwright invocation in `package.json` and serializes against `.git/grawlix-test.lock` — one path shared by every linked worktree, while a separate clone gets its own. It locks with `flock` where there is one and through [`lock-exec.py`](../scripts/lock-exec.py) where there isn't (macOS ships no `flock`); it never falls back to running unserialized, because that is the outcome the lock exists to prevent — enough concurrent suites take the machine down rather than merely stretching the run. Waiting is strictly cheaper than contending: serialized runs each go at full speed, so N of them finish in roughly the time a single contended run takes.
+**They do collide on CPU, so browser runs take a repo-wide lock.**
+Playwright claims about half the cores as workers, so two worktrees running the suite at once oversubscribe the machine — measured at five concurrent agents on a 20-core box: load average 96, the suite stretched from 2.2 min to 11.6 min, and the heaviest spec blew its 180s timeout.
+That last part is the real cost: a contention timeout is indistinguishable from a genuine failure, so it buys a diagnosis and a re-run before you learn it was noise.
+[`scripts/with-test-lock.sh`](../scripts/with-test-lock.sh) wraps the Playwright invocation in `package.json` and serializes against `.git/grawlix-test.lock` — one path shared by every linked worktree, while a separate clone gets its own.
+It locks with `flock` where there is one and through [`lock-exec.py`](../scripts/lock-exec.py) where there isn't (macOS ships no `flock`); it never falls back to running unserialized, because that is the outcome the lock exists to prevent — enough concurrent suites take the machine down rather than merely stretching the run.
+Waiting is strictly cheaper than contending: serialized runs each go at full speed, so N of them finish in roughly the time a single contended run takes.
 
-A blocked run prints `another worktree is running tests, waiting for the lock...` and then `lock acquired, starting.` **That wait is expected, not a hang** — it can be minutes if the holder is running `test:all`. It gives up after an hour (`GRAWLIX_TEST_LOCK_WAIT` overrides, in seconds) and fails loudly rather than running unserialized, since a wait that long means a wedged run worth looking at. The lock is an open file descriptor, so the kernel releases it when the run exits by any route — crash and ctrl-C included — and nothing has to clean up after it.
+A blocked run prints `another worktree is running tests, waiting for the lock...` and then `lock acquired, starting.` **That wait is expected, not a hang** — it can be minutes if the holder is running `test:all`.
+It gives up after an hour (`GRAWLIX_TEST_LOCK_WAIT` overrides, in seconds) and fails loudly rather than running unserialized, since a wait that long means a wedged run worth looking at.
+The lock is an open file descriptor, so the kernel releases it when the run exits by any route — crash and ctrl-C included — and nothing has to clean up after it.
 
-Three things deliberately skip the lock: the unit tier and `npm run build` (short, and holding a lock across them would only lower throughput), `test:headed` / `test:ui` (interactive, so they'd hold it for as long as you're looking at the window), and anything with `CI` set — real CI runs one job per runner, and the local `CI=1` idiom above forces a single worker, a long run that uses almost no CPU. **A bare `npx playwright test` also bypasses it**, so prefer the `npm run test:browser -- …` forms above when another agent might be working.
+Three things deliberately skip the lock: the unit tier and `npm run build` (short, and holding a lock across them would only lower throughput), `test:headed` / `test:ui` (interactive, so they'd hold it for as long as you're looking at the window), and anything with `CI` set — real CI runs one job per runner, and the local `CI=1` idiom above forces a single worker, a long run that uses almost no CPU.
+**A bare `npx playwright test` also bypasses it**, so prefer the `npm run test:browser -- …` forms above when another agent might be working.
 
-`npm run test:report` serves on `localhost:9323`; open it in your browser to inspect failures with screenshots, traces, and step-by-step playback. **This is the easiest way to debug from WSL** — failed-test artifacts are recorded automatically (`trace: retain-on-failure`).
+`npm run test:report` serves on `localhost:9323`; open it in your browser to inspect failures with screenshots, traces, and step-by-step playback.
+**This is the easiest way to debug from WSL** — failed-test artifacts are recorded automatically (`trace: retain-on-failure`).
 
 ## Running headed under WSL
 
-WSL2 on Windows 11 ships with WSLg (X11/Wayland for free), so `npm run test:headed` opens a Linux Chrome window on your Windows desktop. On older WSL builds without WSLg, stick with headless + the HTML report.
+WSL2 on Windows 11 ships with WSLg (X11/Wayland for free), so `npm run test:headed` opens a Linux Chrome window on your Windows desktop.
+On older WSL builds without WSLg, stick with headless + the HTML report.
 
 ## `window.__grawlixTest` API
 
-Assembled in [`site/src/test-api.js`](../site/src/test-api.js) — the one module that imports from every layer, loaded last by `main.js`, which assigns `window.__grawlixTest` unconditionally (the assignment survives bundling). Small and stable; routes through real internal codepaths.
+Assembled in [`site/src/test-api.js`](../site/src/test-api.js) — the one module that imports from every layer, loaded last by `main.js`, which assigns `window.__grawlixTest` unconditionally (the assignment survives bundling).
+Small and stable; routes through real internal codepaths.
 
 | Function | What it does |
 |---|---|
@@ -151,7 +247,8 @@ Adding a function is fine; renaming or repurposing an existing one means updatin
 
 ### Holding the corpus build open (`__grawlixStallBuild`)
 
-A `?entry=` deep link opens its panel **before** the worker's corpus build (see `design.md` § *Stable links*), so the pre-build window — lookups live, fields inert, placeholders shown — is real user-facing surface. At the suite's fixture sizes that window is microseconds wide, so asserting into it by racing the build would be a coin flip that passes for the wrong reason.
+A `?entry=` deep link opens its panel **before** the worker's corpus build (see `design.md` § *Stable links*), so the pre-build window — lookups live, fields inert, placeholders shown — is real user-facing surface.
+At the suite's fixture sizes that window is microseconds wide, so asserting into it by racing the build would be a coin flip that passes for the wrong reason.
 
 Instead [`entry-deep-link-boot.spec.js`](../tests/browser/entry-deep-link-boot.spec.js) holds the build open and releases it on purpose:
 
@@ -164,7 +261,10 @@ await page.evaluate(() => window.__grawlixTest.releaseWorkerBuildForTest());
 // …assert the settled state…
 ```
 
-Three things about it are load-bearing. It must be an **init script**, because the boot build starts inside `init()` before a test can call into the page — that is also why the flag rides the `configTools` message (the only one guaranteed FIFO-ahead of the boot `syncConfig`) instead of getting its own like the other `__test*` hooks. It must **not** use `gotoApp`/`reloadApp`, both of which wait on `init()` completing, which a held build never does. And a stalled boot leaves `init()` parked at its `Promise.all([firstPaint, workerReady])`, so everything downstream of that — splash retirement, sync reconnect — is *also* suspended, which is what lets the same spec assert "splash still up" and then "splash retired" off one release.
+Three things about it are load-bearing.
+It must be an **init script**, because the boot build starts inside `init()` before a test can call into the page — that is also why the flag rides the `configTools` message (the only one guaranteed FIFO-ahead of the boot `syncConfig`) instead of getting its own like the other `__test*` hooks.
+It must **not** use `gotoApp`/`reloadApp`, both of which wait on `init()` completing, which a held build never does.
+And a stalled boot leaves `init()` parked at its `Promise.all([firstPaint, workerReady])`, so everything downstream of that — splash retirement, sync reconnect — is *also* suspended, which is what lets the same spec assert "splash still up" and then "splash retired" off one release.
 
 Reach for this whenever a test needs the app in its corpus-less state; racing a large fixture instead is the thing it exists to replace.
 
@@ -197,28 +297,43 @@ test('feature does the right thing', async ({ page }) => {
 });
 ```
 
-**Don't use `waitForTimeout`.** Use `expect.poll` or auto-retrying assertions (`expect(locator).toBeVisible()`). The smoke suite has zero hardcoded sleeps; keep it that way.
+**Don't use `waitForTimeout`.**
+Use `expect.poll` or auto-retrying assertions (`expect(locator).toBeVisible()`).
+The smoke suite has zero hardcoded sleeps; keep it that way.
 
-**Reach for `ControlOrMeta`, not `Control`, when you mean "the platform's primary modifier"** — multi-select, select-all, find. Playwright resolves it to Control on Windows/Linux and Meta (⌘) on macOS, matching the `e.ctrlKey || e.metaKey` the handlers test for. A hardcoded `'Control'` **click** passes on Linux CI and fails on a Mac: macOS delivers Ctrl+click to the OS as a secondary click, so the page receives `mousedown` + `contextmenu` and no `click` at all, and the assertion sees an empty selection. Keep a literal `'Control'` only where a test deliberately enumerates one modifier at a time — [`sort-headers.spec.js`](../tests/browser/sort-headers.spec.js) does, and skips that one combination on darwin.
+**Reach for `ControlOrMeta`, not `Control`, when you mean "the platform's primary modifier"** — multi-select, select-all, find.
+Playwright resolves it to Control on Windows/Linux and Meta (⌘) on macOS, matching the `e.ctrlKey || e.metaKey` the handlers test for.
+A hardcoded `'Control'` **click** passes on Linux CI and fails on a Mac: macOS delivers Ctrl+click to the OS as a secondary click, so the page receives `mousedown` + `contextmenu` and no `click` at all, and the assertion sees an empty selection.
+Keep a literal `'Control'` only where a test deliberately enumerates one modifier at a time — [`sort-headers.spec.js`](../tests/browser/sort-headers.spec.js) does, and skips that one combination on darwin.
 
 ### Per-tool specs live in the unit tier
 
-Every gallery tool gets its own spec under `tests/unit/tools/`, named for the tool's key in `TOOLS` — `tests/unit/tools/<tool>.test.js`. The shared [`harness.js`](../tests/unit/tools/harness.js) builds a merged wordlist from a compact fixture (a string is the entry; an object carries `score`/`comment`/`display`) and runs the tool through the real exported `executePipeline`, so the spec asserts that tool's *own* contract — params, filter / transform / group behavior, the inert cases, and highlight ranges — exactly as the app produces them, no browser. `visible(fixture, stack)` returns the words per row (mirroring `getVisibleEntries` — a lone word is a string, a chain an array), `groups(...)` the grouped projection (seeds, count, anchor), and `highlightTexts(atom)` the marked substrings. The existing files (`anagrams.test.js`, `head_off.test.js`, `search.test.js`) are the template. **When you add a tool to `TOOLS`, add its unit spec.**
+Every gallery tool gets its own spec under `tests/unit/tools/`, named for the tool's key in `TOOLS` — `tests/unit/tools/<tool>.test.js`.
+The shared [`harness.js`](../tests/unit/tools/harness.js) builds a merged wordlist from a compact fixture (a string is the entry; an object carries `score`/`comment`/`display`) and runs the tool through the real exported `executePipeline`, so the spec asserts that tool's *own* contract — params, filter / transform / group behavior, the inert cases, and highlight ranges — exactly as the app produces them, no browser.
+`visible(fixture, stack)` returns the words per row (mirroring `getVisibleEntries` — a lone word is a string, a chain an array), `groups(...)` the grouped projection (seeds, count, anchor), and `highlightTexts(atom)` the marked substrings.
+The existing files (`anagrams.test.js`, `head_off.test.js`, `search.test.js`) are the template.
+**When you add a tool to `TOOLS`, add its unit spec.**
 
-Keep each file to the tool's own contract. Cross-tool *pipeline* mechanics — unification across tools, sort tiers, URL round-trips, the permanent search bar, atom truncation, popovers — stay in the browser-tier [`tests/browser/tools.spec.js`](../tests/browser/tools.spec.js), which drives the rendered DOM. The browser `tests/browser/tools/` directory keeps a single file, [`highlights.spec.js`](../tests/browser/tools/highlights.spec.js): the one render shape nothing else covers — a find/replace transform painting its output atom's marks with the match color echoed. Highlight-range *computation* is unit-tested ([`search-highlight.test.js`](../tests/unit/search-highlight.test.js), [`regex-tool.test.js`](../tests/unit/regex-tool.test.js)), and the range→`<mark>`/`<span>` mapping is pinned by `renderHighlightedText` there, so per-tool highlight rendering needs no browser.
+Keep each file to the tool's own contract.
+Cross-tool *pipeline* mechanics — unification across tools, sort tiers, URL round-trips, the permanent search bar, atom truncation, popovers — stay in the browser-tier [`tests/browser/tools.spec.js`](../tests/browser/tools.spec.js), which drives the rendered DOM.
+The browser `tests/browser/tools/` directory keeps a single file, [`highlights.spec.js`](../tests/browser/tools/highlights.spec.js): the one render shape nothing else covers — a find/replace transform painting its output atom's marks with the match color echoed.
+Highlight-range *computation* is unit-tested ([`search-highlight.test.js`](../tests/unit/search-highlight.test.js), [`regex-tool.test.js`](../tests/unit/regex-tool.test.js)), and the range→`<mark>`/`<span>` mapping is pinned by `renderHighlightedText` there, so per-tool highlight rendering needs no browser.
 
 ### Reading async pipeline output
 
-The results pipeline is **asynchronous**: `setStack`, a search keystroke, or an entry edit kicks off a fire-and-forget run that repaints the entries scroller a frame or two later. A test that reads the rendered rows *once*, right after the interaction —
+The results pipeline is **asynchronous**: `setStack`, a search keystroke, or an entry edit kicks off a fire-and-forget run that repaints the entries scroller a frame or two later.
+A test that reads the rendered rows *once*, right after the interaction —
 
 ```js
 const visible = await page.evaluate(() => window.__grawlixTest.getVisibleEntries());
 expect(visible.sort()).toEqual(['kayak', 'noon', 'racecar']);   // ❌ races the repaint
 ```
 
-— passes on chromium/firefox (they settle fast) and flakes on webkit under load (it doesn't). The output isn't wrong; the read lands before the pipeline finishes painting.
+— passes on chromium/firefox (they settle fast) and flakes on webkit under load (it doesn't).
+The output isn't wrong; the read lands before the pipeline finishes painting.
 
-**Always poll the read.** [`tests/browser/helpers.js`](../tests/browser/helpers.js) provides the wrappers — use them instead of a bare `getVisibleEntries` / `getVisibleGroups` snapshot:
+**Always poll the read.**
+[`tests/browser/helpers.js`](../tests/browser/helpers.js) provides the wrappers — use them instead of a bare `getVisibleEntries` / `getVisibleGroups` snapshot:
 
 | Helper | Use for |
 |---|---|
@@ -230,171 +345,175 @@ expect(visible.sort()).toEqual(['kayak', 'noon', 'racecar']);   // ❌ races the
 await expectVisible(page, ['kayak', 'noon', 'racecar']);            // ✅ retries until settled
 ```
 
-Playwright's own locator assertions (`expect(locator).toHaveText(...)`, `.toHaveCount(...)`) already auto-retry, so they're fine as-is — the trap is specifically the frozen `page.evaluate(...)` snapshot, which doesn't. For an "assert empty / assert absent" check, poll a *positive* settle signal first (a count, a present member) so the absence can't pass before the pipeline has even run.
+Playwright's own locator assertions (`expect(locator).toHaveText(...)`, `.toHaveCount(...)`) already auto-retry, so they're fine as-is — the trap is specifically the frozen `page.evaluate(...)` snapshot, which doesn't.
+For an "assert empty / assert absent" check, poll a *positive* settle signal first (a count, a present member) so the absence can't pass before the pipeline has even run.
 
 ### Don't gate on an animation finishing
 
-Auto-retrying assertions are safe, but *what* you wait for still matters. Never gate a test on a state the app reaches only when a CSS transition completes — under load a transition may never run at all (style changes coalesced into one frame, a dropped frame), so its `transitionend` never fires and the wait hangs for the full timeout.
+Auto-retrying assertions are safe, but *what* you wait for still matters.
+Never gate a test on a state the app reaches only when a CSS transition completes — under load a transition may never run at all (style changes coalesced into one frame, a dropped frame), so its `transitionend` never fires and the wait hangs for the full timeout.
 
-The rescore editor is the worked example. `collapseEditor` removes the open class immediately, but `editor.hidden` lands from a `transitionend` handler. Gating `applyRescoreEditor` on `toBeHidden()` strands it under a suppressed transition *with the commit already done* — and the failure reports as whatever the caller was asserting about the commit (`dirty-flag.spec.js` "clicking reset restores defaults and clears the dirty flag", with `dirty` in fact already `false`). Reproduce it deterministically by injecting `#rescore-editor { transition: none !important; }` before the click.
+The rescore editor is the worked example.
+`collapseEditor` removes the open class immediately, but `editor.hidden` lands from a `transitionend` handler.
+Gating `applyRescoreEditor` on `toBeHidden()` strands it under a suppressed transition *with the commit already done* — and the failure reports as whatever the caller was asserting about the commit (`dirty-flag.spec.js` "clicking reset restores defaults and clears the dirty flag", with `dirty` in fact already `false`).
+Reproduce it deterministically by injecting `#rescore-editor { transition: none !important; }` before the click.
 
-Gate on the state the interaction sets **synchronously** instead — here the toggle's `aria-expanded="false"`, flipped in the same handler that commits. Presentational teardown deserves its own test rather than riding along as every caller's implicit gate; that one lives in `wordlist-selector.spec.js`. The app also bounds the wait so a dropped `transitionend` can't leave the collapsed editor mounted and tabbable.
+Gate on the state the interaction sets **synchronously** instead — here the toggle's `aria-expanded="false"`, flipped in the same handler that commits.
+Presentational teardown deserves its own test rather than riding along as every caller's implicit gate; that one lives in `wordlist-selector.spec.js`.
+The app also bounds the wait so a dropped `transitionend` can't leave the collapsed editor mounted and tabbable.
 
-And don't test the animation *itself*. Purely visual behavior stays manual (*What earns a test* above), and CI cannot see it anyway: headless WebKit never advances the transition clock — it holds the start value, then jumps to the end, firing `transitionstart` and `transitionend` at the same instant. No interpolated value is observable there at any sampling rate (a 16ms timer sees exactly what a rAF loop does), so an assertion like `samples.some(v => v > 0 && v < 1)` passes on chromium, firefox, and macOS WebKit and fails only on CI's webkit shard. The deep-linked entry panel's slide-in and backdrop fade were pinned that way in 2026-08; both tests were deleted rather than rewritten. If you need to reproduce a webkit-shard failure locally, run CI's own image — `mcr.microsoft.com/playwright:v1.60.0-noble`, `--ipc=host`, tests against `dist` — since a local `--project=webkit` run is macOS WebKit and behaves differently.
+And don't test the animation *itself*.
+Purely visual behavior stays manual (*What earns a test* above), and CI cannot see it anyway: headless WebKit never advances the transition clock — it holds the start value, then jumps to the end, firing `transitionstart` and `transitionend` at the same instant.
+No interpolated value is observable there at any sampling rate (a 16ms timer sees exactly what a rAF loop does), so an assertion like `samples.some(v => v > 0 && v < 1)` passes on chromium, firefox, and macOS WebKit and fails only on CI's webkit shard.
+The deep-linked entry panel's slide-in and backdrop fade were pinned that way in 2026-08; both tests were deleted rather than rewritten.
+If you need to reproduce a webkit-shard failure locally, run CI's own image — `mcr.microsoft.com/playwright:v1.60.0-noble`, `--ipc=host`, tests against `dist` — since a local `--project=webkit` run is macOS WebKit and behaves differently.
 
 ## Family anchoring
 
-The Entry sort collates a family at its first visible member's **anchor**, not at the
-family key (`docs/worker-protocol.md` § *Family anchoring*). Two levels cover it:
+The Entry sort collates a family at its first visible member's **anchor**, not at the family key (`docs/worker-protocol.md` § *Family anchoring*).
+Two levels cover it:
 
-- **Unit** (`tests/unit/sort.test.js`) — `foldAnchor`'s seed-vs-drop contract, the
-  anchor text (article-stripped, not raw display), a family collating at its own member
-  rather than its key, the composite `(anchor, family)` primary keeping two families
-  contiguous under a second sort pick, and the no-family fallback. A fixture here must
-  use a family key that is a spelling **no row has**, or the anchor equals the key and
-  the test proves nothing.
-- **Browser** (`tests/browser/worker-partials.spec.js`) — that a family collates at
-  its own member end-to-end (`AM band` under A, not at its `be band` key), and that
-  streamed order equals buffered order for a family spanning batches. The filler
-  prefix in each is load-bearing: it must span the gap between the two candidate
-  positions, or both orders agree and the test cannot fail.
+- **Unit** (`tests/unit/sort.test.js`) — `foldAnchor`'s seed-vs-drop contract, the anchor text (article-stripped, not raw display), a family collating at its own member rather than its key, the composite `(anchor, family)` primary keeping two families contiguous under a second sort pick, and the no-family fallback.
+  A fixture here must use a family key that is a spelling **no row has**, or the anchor equals the key and the test proves nothing.
+- **Browser** (`tests/browser/worker-partials.spec.js`) — that a family collates at its own member end-to-end (`AM band` under A, not at its `be band` key), and that streamed order equals buffered order for a family spanning batches.
+  The filler prefix in each is load-bearing: it must span the gap between the two candidate positions, or both orders agree and the test cannot fail.
 
 **The anchor repair is covered, and the fixture is fragile by nature.**
-`worker-partials.spec.js`' anchor-drop test asserts on the last *streamed snapshot*,
-not on rows fetched after the run settles — a post-completion read can be served by a
-wholesale rebuild that masks a torn stream entirely. Its fixture encodes three
-independent constraints (a family collating opposite to its norm order, a witness row
-falling between the old and new anchor, and a filler that splits the two across
-batches); get any one wrong and both orderings agree, leaving a test that cannot fail.
-Verify any change to it by disabling the repair and confirming it goes red. Note
-`tests/browser/streaming-render.spec.js` uses `streamSyntheticBatch` and bypasses the
-worker, so it cannot catch a comparator regression.
+`worker-partials.spec.js`' anchor-drop test asserts on the last *streamed snapshot*, not on rows fetched after the run settles — a post-completion read can be served by a wholesale rebuild that masks a torn stream entirely.
+Its fixture encodes three independent constraints (a family collating opposite to its norm order, a witness row falling between the old and new anchor, and a filler that splits the two across batches); get any one wrong and both orderings agree, leaving a test that cannot fail.
+Verify any change to it by disabling the repair and confirming it goes red.
+Note `tests/browser/streaming-render.spec.js` uses `streamSyntheticBatch` and bypasses the worker, so it cannot catch a comparator regression.
 
-**Cross-run inheritance needs two runs back to back, one of them streamed.** The
-retained slot outlives the run that filled it, so a single-run test cannot see the
-emitter read a *previous* run's anchors or rows (`worker-protocol.md` § *Family
-anchoring*). Both tiers are covered in `worker-partials.spec.js` by running a poison
-run first: the flat one types two patterns matching the same family and asserts the
-second result holds no duplicates, and the transform one anchors a family via `Head
-off` before running `Back off` and comparing the streamed order against the same run
-computed cold. The poison run must produce a *different* result from the run under
-test — repeat the same one and it re-inherits its own correct anchors, and the test
-cannot fail. Both were verified red against a build without the guard.
+**Cross-run inheritance needs two runs back to back, one of them streamed.**
+The retained slot outlives the run that filled it, so a single-run test cannot see the emitter read a *previous* run's anchors or rows (`worker-protocol.md` § *Family anchoring*).
+Both tiers are covered in `worker-partials.spec.js` by running a poison run first: the flat one types two patterns matching the same family and asserts the second result holds no duplicates, and the transform one anchors a family via `Head off` before running `Back off` and comparing the streamed order against the same run computed cold.
+The poison run must produce a *different* result from the run under test — repeat the same one and it re-inherits its own correct anchors, and the test cannot fail.
+Both were verified red against a build without the guard.
 
 ## The length filter's easy vacuous tests
 
-[`length-filter.spec.js`](../tests/browser/length-filter.spec.js) covers the stats-bar
-length filter one lane kind at a time, because its rule differs per tier ([`pipeline.md`](pipeline.md) §
-*Length filter*). Three cases — two there, one in `reproject.spec.js` — are worth
-knowing about, since the obvious way to write each passes without testing anything.
+[`length-filter.spec.js`](../tests/browser/length-filter.spec.js) covers the stats-bar length filter one lane kind at a time, because its rule differs per tier ([`pipeline.md`](pipeline.md) § *Length filter*).
+Three cases — two there, one in `reproject.spec.js` — are worth knowing about, since the obvious way to write each passes without testing anything.
 
-**The tuple case must prove *inert*, not *greyed*.** Asserting `toBeDisabled()` only
-shows the attribute landed; a control that greys but still reaches the worker would sail
-past it. So the test boots the same tuple stack twice, once with `?length=` and once
-without, and asserts the result counts match — plus `expect(without).toBeGreaterThan(0)`,
-or two zeroes would satisfy the comparison.
+**The tuple case must prove *inert*, not *greyed*.**
+Asserting `toBeDisabled()` only shows the attribute landed; a control that greys but still reaches the worker would sail past it.
+So the test boots the same tuple stack twice, once with `?length=` and once without, and asserts the result counts match — plus `expect(without).toBeGreaterThan(0)`, or two zeroes would satisfy the comparison.
 
-**Read the stats-bar count, not `getVisibleEntries()`.** It's `async`, so
-`getVisibleEntries().length` is `undefined` on the un-awaited promise — and `undefined
-=== undefined` makes the comparison above pass for free. A tuple also renders
-`.group-row`, not `.entry-row`, so even awaited the DOM-row read is 0 for every tuple
-regardless of the filter. Both mistakes were made and caught here; the helper reads
-`.stat-entries .stat-value` for that reason.
+**Read the stats-bar count, not `getVisibleEntries()`.**
+It's `async`, so `getVisibleEntries().length` is `undefined` on the un-awaited promise — and `undefined === undefined` makes the comparison above pass for free.
+A tuple also renders `.group-row`, not `.entry-row`, so even awaited the DOM-row read is 0 for every tuple regardless of the filter.
+Both mistakes were made and caught here; the helper reads `.stat-entries .stat-value` for that reason.
 
-**The histogram cannot tell a reproject from a re-run.** Length is the one view op that
-narrows the histogram, so it forces the recompute that sort and score-range skip — but a
-re-run recomputes the histogram too, so asserting the bars narrowed says nothing about
-which path ran. The runId is the only discriminator, which is why the length reproject
-case lives in [`reproject.spec.js`](../tests/browser/reproject.spec.js) beside its score
-sibling rather than with the rest of the length suite. Its runId assertion runs *before*
-the row fetch on purpose: a re-run retires the old runId, so fetching against it first
-buries the finding in a `TypeError` about a null reply. Both halves were verified red —
-against a build with the `lengthChanged` histogram branch dropped, and one with
-`setLengthRange` re-running instead of reprojecting.
+**The histogram cannot tell a reproject from a re-run.**
+Length is the one view op that narrows the histogram, so it forces the recompute that sort and score-range skip — but a re-run recomputes the histogram too, so asserting the bars narrowed says nothing about which path ran.
+The runId is the only discriminator, which is why the length reproject case lives in [`reproject.spec.js`](../tests/browser/reproject.spec.js) beside its score sibling rather than with the rest of the length suite.
+Its runId assertion runs *before* the row fetch on purpose: a re-run retires the old runId, so fetching against it first buries the finding in a `TypeError` about a null reply.
+Both halves were verified red — against a build with the `lengthChanged` histogram branch dropped, and one with `setLengthRange` re-running instead of reprojecting.
 
 ## Typed input is a run sequence (`human-typing.spec.js`)
 
-`setStack`, `runSearch`, and `fill()` each produce **one** run. A user produces one run
-per keystroke, and the worker deliberately retains state between runs — the anchor map,
-the retained join, a stashed partial — so a defect that only misleads a run *following
-another* is invisible to a suite built on single-run helpers. That is the structural
-hole the duplicate-rows bug came through: every run in isolation was correct.
+`setStack`, `runSearch`, and `fill()` each produce **one** run.
+A user produces one run per keystroke, and the worker deliberately retains state between runs — the anchor map, the retained join, a stashed partial — so a defect that only misleads a run *following another* is invisible to a suite built on single-run helpers.
+That is the structural hole the duplicate-rows bug came through: every run in isolation was correct.
 
-[`human-typing.spec.js`](../tests/browser/human-typing.spec.js) drives the three text
-inputs a user actually types into — the search box, the score box, a tool param — with
-`pressSequentially`, and asserts the same invariant each time: **typing a value one
-character at a time lands exactly where pasting that value lands.** Around that: no
-keystroke leaves a duplicated row, backspacing to a prefix matches that prefix typed
-fresh, typing faster than the pipeline settles (so most runs are superseded in flight
-rather than completing) still converges, and a two-step chain configured in either
-order lands in the same place. The four search-box tests were verified red against the
-pre-fix build.
+[`human-typing.spec.js`](../tests/browser/human-typing.spec.js) drives the three text inputs a user actually types into — the search box, the score box, a tool param — with `pressSequentially`, and asserts the same invariant each time: **typing a value one character at a time lands exactly where pasting that value lands.**
+Around that: no keystroke leaves a duplicated row, backspacing to a prefix matches that prefix typed fresh, typing faster than the pipeline settles (so most runs are superseded in flight rather than completing) still converges, and a two-step chain configured in either order lands in the same place.
+The four search-box tests were verified red against the pre-fix build.
 
 Three ways one of these silently stops testing anything, all designed against here:
 
-- **The sequence is degenerate.** If every keystroke yields the same rows, convergence
-  holds no matter what the code does. Pick a fixture where an intermediate keystroke
-  produces a *different* result and assert that it differs, as the tool-param test does.
-- **The run never streams.** These corpora are small enough to finish inside the
-  shipped 30 ms yield budget, which exercises the buffered path — not the streaming one
-  a real user's corpus takes. `setWorkerYieldIntervalForTest(1)` forces it, and the
-  duplicate-row test *asserts* a partial was actually emitted rather than trusting it,
-  since shrinking the fixture is what would quietly undo this.
-- **The read races the repaint.** Per-keystroke assertions are the worst case for the
-  raw-read flake in *Reading async pipeline output* above: mid-repaint the scroller can
-  hold one row from each of two snapshots, which reads as a duplicate that was never on
-  screen. Poll (a real duplicate never clears) instead of reading once.
+- **The sequence is degenerate.**
+  If every keystroke yields the same rows, convergence holds no matter what the code does.
+  Pick a fixture where an intermediate keystroke produces a *different* result and assert that it differs, as the tool-param test does.
+- **The run never streams.**
+  These corpora are small enough to finish inside the shipped 30 ms yield budget, which exercises the buffered path — not the streaming one a real user's corpus takes.
+  `setWorkerYieldIntervalForTest(1)` forces it, and the duplicate-row test *asserts* a partial was actually emitted rather than trusting it, since shrinking the fixture is what would quietly undo this.
+- **The read races the repaint.**
+  Per-keystroke assertions are the worst case for the raw-read flake in *Reading async pipeline output* above: mid-repaint the scroller can hold one row from each of two snapshots, which reads as a duplicate that was never on screen.
+  Poll (a real duplicate never clears) instead of reading once.
 
-[`interaction-sequences.spec.js`](../tests/browser/interaction-sequences.spec.js) is the
-sibling for interactions that aren't typing: a stack **built one tool at a time** landing
-where the same stack applied at once does (`tools.spec.js` asserts the picker's stack
-*order*, never the rows it produces), a **sort change arriving mid-stream** (the
-score-range analogue exists in `reproject.spec.js`; sort is the other view op and the one
-the anchor map backs), and **scrolling during a live stream** (`worker-partials.spec.js`
-covers a mid-stream `fetchRows` at the protocol level, but nothing scrolled the real
-scroller). Each asserts it genuinely caught the run mid-flight — `pipeline-streaming` on
-the panel, a row count still short of the final — rather than trusting the timing.
+[`interaction-sequences.spec.js`](../tests/browser/interaction-sequences.spec.js) is the sibling for interactions that aren't typing: a stack **built one tool at a time** landing where the same stack applied at once does (`tools.spec.js` asserts the picker's stack *order*, never the rows it produces), a **sort change arriving mid-stream** (the score-range analogue exists in `reproject.spec.js`; sort is the other view op and the one the anchor map backs), and **scrolling during a live stream** (`worker-partials.spec.js` covers a mid-stream `fetchRows` at the protocol level, but nothing scrolled the real scroller).
+Each asserts it genuinely caught the run mid-flight — `pipeline-streaming` on the panel, a row count still short of the final — rather than trusting the timing.
 
-One trap specific to reading mid-stream: **`getVisibleEntries` awaits `pipelineIdle`**,
-so calling it during a stream blocks until the run settles and returns the *settled*
-view. A mid-stream assertion must read the DOM directly, or it silently tests the
-opposite of what it claims.
+One trap specific to reading mid-stream: **`getVisibleEntries` awaits `pipelineIdle`**, so calling it during a stream blocks until the run settles and returns the *settled* view.
+A mid-stream assertion must read the DOM directly, or it silently tests the opposite of what it claims.
 
-When you add an interaction that accumulates state across runs, or one that lands during
-one, add it to these two specs rather than as another single-run spec.
+When you add an interaction that accumulates state across runs, or one that lands during one, add it to these two specs rather than as another single-run spec.
 
 ## CI
 
-GitHub Actions runs the suite on push to `main` only — no PR gating. CI first builds the bundled production artifact (`npm run build` → `dist/`, where esbuild bundles the module graph and minifies) and runs the suite against *that*, not the `site/` source — so a bundling- or minification-induced break fails the build before it can deploy. The deploy job ships the exact `dist/` artifact the tests ran against. Failed runs upload traces and screenshots as artifacts; download from the run page to inspect.
+GitHub Actions runs the suite on push to `main` only — no PR gating.
+CI first builds the bundled production artifact (`npm run build` → `dist/`, where esbuild bundles the module graph and minifies) and runs the suite against *that*, not the `site/` source — so a bundling- or minification-induced break fails the build before it can deploy.
+The deploy job ships the exact `dist/` artifact the tests ran against.
+Failed runs upload traces and screenshots as artifacts; download from the run page to inspect.
 
-To reproduce the bundled build locally: `npm run test:dist` (it runs `npm run build`, then the full browser matrix against `dist/`). `npm test` and `npm run test:all` both build first too, so everything they run sees the bundle — not the raw `site/`. `npm run test:browser` is the browser tier alone against the unbundled `site/` (what CI's matrix jobs invoke, with the unit tier gating them in the build job); reach for it only for single-browser chromium iteration, since the unbundled matrix flakes on webkit (below).
+To reproduce the bundled build locally: `npm run test:dist` (it runs `npm run build`, then the full browser matrix against `dist/`).
+`npm test` and `npm run test:all` both build first too, so everything they run sees the bundle — not the raw `site/`.
+`npm run test:browser` is the browser tier alone against the unbundled `site/` (what CI's matrix jobs invoke, with the unit tier gating them in the build job); reach for it only for single-browser chromium iteration, since the unbundled matrix flakes on webkit (below).
 
-**Run the full matrix against `dist`, not `site/`.** Dev serves the raw module graph (~75 small files), and the browser matrix against `site/` makes every page load waterfall through that graph — which flakes on **webkit** under parallel-worker load (`page.goto` "waiting until load" timeouts). The bundled `dist` is one request, no waterfall, and runs clean. So use `npm run test:dist` for the full three-browser matrix — it builds `dist/` and runs the suite against it (CI does the equivalent already); single-browser chromium iteration against `site/` is fine.
+**Run the full matrix against `dist`, not `site/`.**
+Dev serves the raw module graph (~75 small files), and the browser matrix against `site/` makes every page load waterfall through that graph — which flakes on **webkit** under parallel-worker load (`page.goto` "waiting until load" timeouts).
+The bundled `dist` is one request, no waterfall, and runs clean.
+So use `npm run test:dist` for the full three-browser matrix — it builds `dist/` and runs the suite against it (CI does the equivalent already); single-browser chromium iteration against `site/` is fine.
 
 ## When a test breaks
 
-- **Intentional behavior change**: update the test in the same commit. Don't leave a stale test sitting in `.skip()`.
-- **Assertion no longer matches but the contract didn't change**: rewrite the assertion at a user-visible level, don't just nudge numbers. Over-specified assertions break on harmless refactors and are at risk of being silently watered down to make the suite green.
-- **Flake**: don't paper over with `waitForTimeout` — fix the root cause (an assertion that races a render, a missing `await`, an unstubbed network call). See *Debugging a flake* below for how to find it.
-- **More trouble than it's worth**: delete it. A smoke suite is allowed to shrink.
+- **Intentional behavior change**: update the test in the same commit.
+  Don't leave a stale test sitting in `.skip()`.
+- **Assertion no longer matches but the contract didn't change**: rewrite the assertion at a user-visible level, don't just nudge numbers.
+  Over-specified assertions break on harmless refactors and are at risk of being silently watered down to make the suite green.
+- **Flake**: don't paper over with `waitForTimeout` — fix the root cause (an assertion that races a render, a missing `await`, an unstubbed network call).
+  See *Debugging a flake* below for how to find it.
+- **More trouble than it's worth**: delete it.
+  A smoke suite is allowed to shrink.
 
 ### Debugging a flake
 
-**The instant a flaky test is reported or noticed — before running Playwright *at all*, for any reason, including what feels like "the first investigative run" — check `test-results/` and copy out whatever's already there.** This is not about re-runs specifically; it's about the fact that Playwright clears a test's output dir and rewrites `.last-run.json` at the *start* of every single invocation, so the very first `npx playwright test` you run in a debugging session — even one scoped to a totally different test, even a `--list`-style sanity check that happens to touch the same config — can silently wipe out the one recording of the failure you were asked to investigate. "I haven't re-run anything yet, this is my first command" is not an exemption: if a prior run (yours from an earlier session, the user's, CI's downloaded artifacts) left evidence sitting in `test-results/`, your first command is the re-run that erases it. Treat opening a debugging task on a reported flake exactly like opening a debugging task on a crash with a core dump: copy the dump aside before you do anything else that could touch the process.
+**The instant a flaky test is reported or noticed — before running Playwright *at all*, for any reason, including what feels like "the first investigative run" — check `test-results/` and copy out whatever's already there.**
+This is not about re-runs specifically; it's about the fact that Playwright clears a test's output dir and rewrites `.last-run.json` at the *start* of every single invocation, so the very first `npx playwright test` you run in a debugging session — even one scoped to a totally different test, even a `--list`-style sanity check that happens to touch the same config — can silently wipe out the one recording of the failure you were asked to investigate.
+"I haven't re-run anything yet, this is my first command" is not an exemption: if a prior run (yours from an earlier session, the user's, CI's downloaded artifacts) left evidence sitting in `test-results/`, your first command is the re-run that erases it.
+Treat opening a debugging task on a reported flake exactly like opening a debugging task on a crash with a core dump: copy the dump aside before you do anything else that could touch the process.
 
-**Concretely, before your first test invocation:** `ls test-results/` and, if the failing test's directory is present, `cp -r test-results/<failed-test-dir> /tmp/flake-<name>/` — and check `test-results/.last-run.json` too, since it names the failed test IDs even when you're not sure which directory matches. Only after that copy is safely made should you run anything through Playwright.
+**Concretely, before your first test invocation:** `ls test-results/` and, if the failing test's directory is present, `cp -r test-results/<failed-test-dir> /tmp/flake-<name>/` — and check `test-results/.last-run.json` too, since it names the failed test IDs even when you're not sure which directory matches.
+Only after that copy is safely made should you run anything through Playwright.
 
-**`test-results/` is per-checkout, not shared.** It's gitignored and local to whichever working tree produced it — the primary checkout and every `git worktree` each have their own, entirely separate `test-results/`. This cuts both ways and both matter:
+**`test-results/` is per-checkout, not shared.**
+It's gitignored and local to whichever working tree produced it — the primary checkout and every `git worktree` each have their own, entirely separate `test-results/`.
+This cuts both ways and both matter:
 
-- If you're investigating from an isolated worktree (the normal case for an agent session — see the repo's worktree conventions) and the failing run actually happened in the *primary* checkout (or a different worktree), your own `npx playwright test` invocations inside your worktree physically cannot touch that evidence — it's a different directory on disk. Don't assume you've destroyed it just because you ran the test yourself; check whether the checkout you ran it in is even the one that holds the original trace.
-- The flip side is the real gotcha: an empty or missing `test-results/` in *your* worktree tells you nothing about whether evidence exists — it only tells you your own worktree hasn't produced any. Before concluding "no evidence survived," check every checkout that could plausibly be where the failing run happened: the primary checkout (`git worktree list` shows its path first) and any other worktrees. `find <checkout>/test-results -iname '*<test-name-fragment>*'` across each candidate is cheap and can turn up a fully intact `trace.zip` that a check of only your own directory would have missed entirely.
+- If you're investigating from an isolated worktree (the normal case for an agent session — see the repo's worktree conventions) and the failing run actually happened in the *primary* checkout (or a different worktree), your own `npx playwright test` invocations inside your worktree physically cannot touch that evidence — it's a different directory on disk.
+  Don't assume you've destroyed it just because you ran the test yourself; check whether the checkout you ran it in is even the one that holds the original trace.
+- The flip side is the real gotcha: an empty or missing `test-results/` in *your* worktree tells you nothing about whether evidence exists — it only tells you your own worktree hasn't produced any.
+  Before concluding "no evidence survived," check every checkout that could plausibly be where the failing run happened: the primary checkout (`git worktree list` shows its path first) and any other worktrees.
+  `find <checkout>/test-results -iname '*<test-name-fragment>*'` across each candidate is cheap and can turn up a fully intact `trace.zip` that a check of only your own directory would have missed entirely.
 
-A failing run records a `trace.zip`, screenshot, and `error-context.md` under `test-results/<test-dir>/`, plus the failed-test IDs in `test-results/.last-run.json`. Since a flake may not recur, that first trace is often the only recording you get, and the trace (step-by-step DOM/network playback) is the one artifact that actually locates the race. The captured stdout of the run that found the failure survives a re-run and carries the text error + failing line, but **not** the trace — if that log is all you have, the recording is already gone and you're working from the text alone. Open a preserved trace with `npx playwright show-trace <dir>/trace.zip` (or `npm run test:report` before re-running).
+A failing run records a `trace.zip`, screenshot, and `error-context.md` under `test-results/<test-dir>/`, plus the failed-test IDs in `test-results/.last-run.json`.
+Since a flake may not recur, that first trace is often the only recording you get, and the trace (step-by-step DOM/network playback) is the one artifact that actually locates the race.
+The captured stdout of the run that found the failure survives a re-run and carries the text error + failing line, but **not** the trace — if that log is all you have, the recording is already gone and you're working from the text alone.
+Open a preserved trace with `npx playwright show-trace <dir>/trace.zip` (or `npm run test:report` before re-running).
 
-Re-running to *induce* a flake rarely works. A load-dependent one often surfaces only under the full parallel matrix: a local `npm test` runs fully parallel with no retries, while CI runs serial with 2 retries — so a flake you hit locally is often load contention, not a logic bug, and won't reproduce in isolation no matter how many times you re-run.
+Re-running to *induce* a flake rarely works.
+A load-dependent one often surfaces only under the full parallel matrix: a local `npm test` runs fully parallel with no retries, while CI runs serial with 2 retries — so a flake you hit locally is often load contention, not a logic bug, and won't reproduce in isolation no matter how many times you re-run.
 
-Instead, **form a theory about the race, then surgically modify code to trigger it deterministically** — inject a delay, force the suspect state, add the missing `await`. Confirm the theory by reproducing the *exact* failure, confirm the fix by checking it passes with the artificial trigger still in place, then revert the trigger. Two worked examples:
+Instead, **form a theory about the race, then surgically modify code to trigger it deterministically** — inject a delay, force the suspect state, add the missing `await`.
+Confirm the theory by reproducing the *exact* failure, confirm the fix by checking it passes with the artificial trigger still in place, then revert the trigger.
+Two worked examples:
 
-- *A streamed snapshot mismatched the settled result on webkit.* Theory: a snapshot's `entries` is the viewport window, not the whole result, and a transient narrow viewport shrank it. Forcing the emitter's window to `[0,1]` reproduced the failure byte-for-byte; the fix compares the window as a sorted prefix plus the window-independent `total`. (`streaming-transform-exact`)
-- *`whenBootSettled` timed out on webkit ("browser has been closed").* Theory: a cold boot under contention exceeds the 30s default. Injecting a 33s delay before `_signalReady()` reproduced the timeout; re-running above 30s passed, proving the boot is slow-not-hung — so the fix is timeout headroom, not code. (`playwright.config.js` `timeout`)
-- *A rescore-editor click "landed" but did nothing.* Playwright logged the click as done, yet the draft never changed. Two causes, both app bugs a user could hit. First, the editor was `overflow: hidden`, so it was a scroll container: clicking mid-expand, Playwright scrolled it to reveal the button, then the growing editor scrolled back and slid the button out from under the pointer. The trace's click `point` sat 35px above the button's settled box. Second, any editor rebuild between press and release detaches the pressed button, and the browser never fires `click`; a rule field's blur-commit does exactly that on every first click after typing. A `page.mouse.down()` / refresh / `mouse.up()` sequence reproduced it deterministically. The fixes are `overflow: clip` and holding editor renders during a press. The tests' re-click retry loops had been masking the second bug, so they came out too. (`rescore-preview.spec.js` "a background refresh mid-click…")
+- *A streamed snapshot mismatched the settled result on webkit.*
+  Theory: a snapshot's `entries` is the viewport window, not the whole result, and a transient narrow viewport shrank it.
+  Forcing the emitter's window to `[0,1]` reproduced the failure byte-for-byte; the fix compares the window as a sorted prefix plus the window-independent `total`.
+  (`streaming-transform-exact`)
+- *`whenBootSettled` timed out on webkit ("browser has been closed").*
+  Theory: a cold boot under contention exceeds the 30s default.
+  Injecting a 33s delay before `_signalReady()` reproduced the timeout; re-running above 30s passed, proving the boot is slow-not-hung — so the fix is timeout headroom, not code.
+  (`playwright.config.js` `timeout`)
+- *A rescore-editor click "landed" but did nothing.*
+  Playwright logged the click as done, yet the draft never changed.
+  Two causes, both app bugs a user could hit.
+  First, the editor was `overflow: hidden`, so it was a scroll container: clicking mid-expand, Playwright scrolled it to reveal the button, then the growing editor scrolled back and slid the button out from under the pointer.
+  The trace's click `point` sat 35px above the button's settled box.
+  Second, any editor rebuild between press and release detaches the pressed button, and the browser never fires `click`; a rule field's blur-commit does exactly that on every first click after typing.
+  A `page.mouse.down()` / refresh / `mouse.up()` sequence reproduced it deterministically.
+  The fixes are `overflow: clip` and holding editor renders during a press.
+  The tests' re-click retry loops had been masking the second bug, so they came out too.
+  (`rescore-preview.spec.js` "a background refresh mid-click…")

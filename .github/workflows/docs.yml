@@ -1,0 +1,28 @@
+name: Docs
+
+# ci.yml skips docs-only pushes, so a broken cross-reference or a reflow miss
+# would otherwise surface only on the next site push, blocking its deploy.
+on:
+  push:
+    branches: [main]
+    paths:
+      - '**/*.md'
+      - 'scripts/md-sentences.js'
+      - 'tests/unit/doc-refs.test.js'
+      - 'tests/unit/md-sentences.test.js'
+      - '.github/workflows/docs.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  docs:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+      - run: node --test tests/unit/doc-refs.test.js tests/unit/md-sentences.test.js

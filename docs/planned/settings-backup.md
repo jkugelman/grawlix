@@ -1,21 +1,30 @@
 # Settings backup / restore
 
-Manual export and import of Grawlix's settings to and from a file, from the Settings menu. Deferred — captured here so it isn't lost; design it as its own piece later.
+Manual export and import of Grawlix's settings to and from a file, from the Settings menu.
+Deferred — captured here so it isn't lost; design it as its own piece later.
 
 ## Why
 
-Settings live in the browser, full stop: per-list file sync (see [`wordlists.md`](../wordlists.md) § *Disk sync*) covers wordlists, not settings. But one user wants Grawlix's settings as a file they can **version-control**, and that's a use case worth serving.
+Settings live in the browser, full stop: per-list file sync (see [`wordlists.md`](../wordlists.md) § *Disk sync*) covers wordlists, not settings.
+But one user wants Grawlix's settings as a file they can **version-control**, and that's a use case worth serving.
 
-The answer is a *manual* gesture, not live sync: export writes the settings to a file the user picks; import reads one back. Not a live directory-handle connection like disk sync — a deliberate save/load. Less magic, but enough: someone who wants their config in git can export, commit, and re-import when they want to roll back. "Export/import" and "backup/restore" are the same feature under two names.
+The answer is a *manual* gesture, not live sync: export writes the settings to a file the user picks; import reads one back.
+Not a live directory-handle connection like disk sync — a deliberate save/load.
+Less magic, but enough: someone who wants their config in git can export, commit, and re-import when they want to roll back.
+"Export/import" and "backup/restore" are the same feature under two names.
 
 ## Open question — scope
 
 The one thing to decide before building: **config only, or full backup?**
 
-- **Config only** — tier labels (`state.scoring`), output format, per-wordlist rescore rules, wordlist metadata. No wordlist *content*. Small, diff-friendly, the natural fit for version control (the stated use case).
-- **Full backup** — config *plus* wordlist content (My Edits, sources). Larger and not diff-friendly, but it doubles as the "move me to a new machine / undo a disaster" escape hatch, which Grawlix otherwise lacks.
+- **Config only** — tier labels (`state.scoring`), output format, per-wordlist rescore rules, wordlist metadata.
+  No wordlist *content*.
+  Small, diff-friendly, the natural fit for version control (the stated use case).
+- **Full backup** — config *plus* wordlist content (My Edits, sources).
+  Larger and not diff-friendly, but it doubles as the "move me to a new machine / undo a disaster" escape hatch, which Grawlix otherwise lacks.
 
-These aren't mutually exclusive — there could be two gestures (export settings vs. export everything). Decide when this feature gets picked up; don't force it now.
+These aren't mutually exclusive — there could be two gestures (export settings vs. export everything).
+Decide when this feature gets picked up; don't force it now.
 
 ## Notes
 
