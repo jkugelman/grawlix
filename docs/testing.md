@@ -216,7 +216,7 @@ const visible = await page.evaluate(() => window.__grawlixTest.getVisibleEntries
 expect(visible.sort()).toEqual(['kayak', 'noon', 'racecar']);   // ❌ races the repaint
 ```
 
-— passes on chromium/firefox (they settle fast) and flakes on webkit under load (it doesn't). The output isn't wrong; the read lands before the pipeline finishes painting. (The big 2026-06 webkit shard failure turned out to be a separate boot-vs-test race in `gotoApp`, not this — but the snapshot read is still a genuine flake class, so poll regardless.)
+— passes on chromium/firefox (they settle fast) and flakes on webkit under load (it doesn't). The output isn't wrong; the read lands before the pipeline finishes painting.
 
 **Always poll the read.** [`tests/browser/helpers.js`](../tests/browser/helpers.js) provides the wrappers — use them instead of a bare `getVisibleEntries` / `getVisibleGroups` snapshot:
 
@@ -236,7 +236,7 @@ Playwright's own locator assertions (`expect(locator).toHaveText(...)`, `.toHave
 
 Auto-retrying assertions are safe, but *what* you wait for still matters. Never gate a test on a state the app reaches only when a CSS transition completes — under load a transition may never run at all (style changes coalesced into one frame, a dropped frame), so its `transitionend` never fires and the wait hangs for the full timeout.
 
-The rescore editor is the worked example. `collapseEditor` removes the open class immediately, but `editor.hidden` lands from a `transitionend` handler. `applyRescoreEditor` used to gate on `toBeHidden()`, so a suppressed transition stranded it *with the commit already done* — and the failure reported as whatever the caller was asserting about the commit (`dirty-flag.spec.js` "clicking reset restores defaults and clears the dirty flag", with `dirty` in fact already `false`). Reproduce it deterministically by injecting `#rescore-editor { transition: none !important; }` before the click.
+The rescore editor is the worked example. `collapseEditor` removes the open class immediately, but `editor.hidden` lands from a `transitionend` handler. Gating `applyRescoreEditor` on `toBeHidden()` strands it under a suppressed transition *with the commit already done* — and the failure reports as whatever the caller was asserting about the commit (`dirty-flag.spec.js` "clicking reset restores defaults and clears the dirty flag", with `dirty` in fact already `false`). Reproduce it deterministically by injecting `#rescore-editor { transition: none !important; }` before the click.
 
 Gate on the state the interaction sets **synchronously** instead — here the toggle's `aria-expanded="false"`, flipped in the same handler that commits. Presentational teardown deserves its own test rather than riding along as every caller's implicit gate; that one lives in `wordlist-selector.spec.js`. The app also bounds the wait so a dropped `transitionend` can't leave the collapsed editor mounted and tabbable.
 

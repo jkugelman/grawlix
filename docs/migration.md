@@ -4,7 +4,7 @@
 
 Grawlix is live with real users, so **stored data is migrated forward on every schema change — never wiped.** When you change the shape of anything in localStorage (the `meta` blob or a standalone key) or an IndexedDB record, bump `SCHEMA_VERSION` (in `site/src/data/migrations.js`) *and* register a `MIGRATIONS[v]` entry — an `ls` step (localStorage) and/or an `idb` step (IDB records) — that upgrades existing data in place. A bump with no migration is a bug.
 
-This reverses the pre-beta policy, under which a bump just triggered a confirm dialog offering to wipe all local data. That was the right call when no user had data worth keeping and writing migration code cost more than a wipe. The trigger we always named for flipping it — *the first user with data they'd be upset to lose* (a custom-rescored wordlist, hand-edited entries, a personalized rule set) — has fired. Beta testers have that data now.
+Wiping on a bump — a confirm dialog offering to clear all local data — suits an app whose users have nothing worth keeping, where migration code costs more than a wipe. Grawlix's users have data they'd be upset to lose (a custom-rescored wordlist, hand-edited entries, a personalized rule set).
 
 The reset prompt stays, but only as a last-resort *floor* — see below.
 
@@ -84,7 +84,7 @@ Versions through 9 predate this policy and have no `MIGRATIONS` steps, so a pre-
 
 `SCHEMA_VERSION` answers exactly one question: *can old code read this stored data?* That's about **shape**. There's a second, unrelated way persisted data goes stale that the version counter does not address and should not: a value in `WORDLIST_PUBLISHERS` changes while the shape of `meta` stays identical. Two concrete cases:
 
-- **Updating a publisher setting** — e.g. giving a publisher a `url` it didn't have. This is real history: Will Nediger's list went from import-only to auto-fetched purely by setting `url`. Pre-beta we bumped `SCHEMA_VERSION` for it as a shortcut, since the wipe re-ran `defaultSources()` and re-seeded the new value for free. That shortcut is gone — a bump now migrates rather than wipes, so it no longer re-seeds config, and bumping to push a setting was always an abuse of the counter anyway.
+- **Updating a publisher setting** — e.g. giving a publisher a `url` it didn't have. Will Nediger's list went from import-only to auto-fetched purely by setting `url`. A `SCHEMA_VERSION` bump can't carry such a change: a bump migrates, and migration never re-seeds config.
 - **Adding a new publisher wordlist** to the catalog.
 
 Neither is a shape change. `url` is a field that already exists; a new publisher is purely additive. Old code reads the new data and new code reads the old data either way. So `SCHEMA_VERSION` is the wrong tool: a migration carries shape forward, it doesn't re-seed publisher config.
@@ -119,7 +119,7 @@ To relocate a file: move it, update the `url` on its publisher in `WORDLIST_PUBL
 
 One version-keyed table, `MIGRATIONS`, lives in `site/src/data/migrations.js` near `SCHEMA_VERSION`. `MIGRATIONS[v]` maps a *from* version to an `{ ls, idb }` entry: the optional `ls` step mutates the settings blob in place and/or touches standalone localStorage keys; the optional async `idb` step rewrites IndexedDB records. The two run in separate phases — an `idb` step must run post-`openDB` (folded into the `ls` phase it'd execute against a null `_db`), and the `ls` phase runs early enough to gate the reset prompt. `canMigrate(from)` checks every version from `from` up to current has an `ls` or `idb` step; `migrateLs(blob, from)` walks the `ls` phase and `migrateIdbRecords(from)` walks the `idb` phase. The drivers:
 
-- **`migrateLocalStorage(from)`** (`ls` phase), called from the `init()` mismatch branch before `openDB`, assembles the blob from the separate localStorage keys, runs `migrateLs`, and writes them back. On a thrown step it returns false untouched and the floor's reset confirm takes over. It no longer stamps the version — the stamp moved to `init()` so it can land after *both* phases.
+- **`migrateLocalStorage(from)`** (`ls` phase), called from the `init()` mismatch branch before `openDB`, assembles the blob from the separate localStorage keys, runs `migrateLs`, and writes them back. On a thrown step it returns false untouched and the floor's reset confirm takes over. It doesn't stamp the version — `init()` does, so the stamp lands after *both* phases.
 - **`migrateIdbRecords(from)`** (`idb` phase), called from `init()` after `openDB`, walks each entry's `idb` step. Each step is idempotent (re-runnable after a mid-migration crash) and deletes its old record *last*, so a crash before that leaves the old record intact to re-split next boot rather than a half-migrated list with no source of truth.
 
 The first IDB-only step is **v10→v11**: it splits each per-list disk-sync record `sync_<key> {handle, baseline}` into `sync_main_<key> {handle}` + `sync_worker_<key> {baseline}` (the baseline record written only when a baseline exists — mirror lists carry none; My Edits' `''` is a real baseline and gets one). `MIGRATIONS[10]` has no `ls` step (it's `idb`-only); `canMigrate(10)` is satisfied by the `idb` step alone.
