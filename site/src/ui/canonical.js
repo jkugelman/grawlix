@@ -71,7 +71,9 @@ async function computeCanonical(display) {
       // incompleteness taints ours — the plural rode on a possibly-degraded stem.
       const sub = await resolveCached(display.slice(0, -1));
       if (!sub.complete) return { value: fallback, complete: false, local: true };
-      if (toNorm(sub.value + 's') === norm) return { value: sub.value + 's', complete: caseReady };
+      // Re-inflect only a reference form: a local singular is the stem's own spacing,
+      // and on a non-plural it recurses into junk (mentalunsoundness → "unsound NEss").
+      if (!sub.local && toNorm(sub.value + 's') === norm) return { value: sub.value + 's', complete: caseReady };
     }
     return { value: fallback, complete: ready, local: true };
   } catch {

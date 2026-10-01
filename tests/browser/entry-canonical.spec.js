@@ -215,6 +215,23 @@ test('a plural whose singular lookup fails degrades, then upgrades once it recov
   await expect(link(page)).toHaveText('DNA sequencers');   // upgraded after recovery
 });
 
+// No reference knows the entry, so the plural long path strips its "s" twice, down to
+// a stem that spaces as `mental unsound NE`. Re-adding the letters to that spacing
+// built the reported "mental unsound NEss"; the entry's own spacing must stand.
+test('a non-plural ending in "s" keeps its own spacing, not a re-inflected stem', async ({ page }) => {
+  await gotoApp(page);
+  await page.evaluate(w => window.__grawlixTest.addCustomWordlist(w),
+    { name: 'Src', entries: ['mentalunsoundness', 'mental', 'unsound', 'unsoundness', 'NE'], scores: [50, 50, 50, 50, 50] });
+  await page.evaluate(() => window.__grawlixTest.pipelineIdle());
+  await page.evaluate(c => window.__grawlixTest.setWorkerUnigramCorpus(c),
+    { mental: -3, unsound: -4, unsoundness: -5, ne: -3 });
+
+  await openPanelFor(page, 'mentalunsoundness');
+  await expect(link(page)).toHaveText('mental unsoundness');
+  await page.waitForTimeout(1300);   // past RENAME_STANDIN_MS, so nothing rewrites it
+  await expect(link(page)).toHaveText('mental unsoundness');
+});
+
 // Wiktionary's search lists the caron "Gdaňsk" before the acute "Gdańsk" and both
 // tie on richness; Wikipedia's article is the acute. The resolver must corroborate
 // with Wikipedia and pick the acute, not the caron that merely sorted first.
