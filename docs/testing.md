@@ -284,7 +284,7 @@ cannot fail. Both were verified red against a build without the guard.
 ## The length filter's easy vacuous tests
 
 [`length-filter.spec.js`](../tests/browser/length-filter.spec.js) covers the stats-bar
-length filter one lane kind at a time, because its rule differs per tier (design.md §
+length filter one lane kind at a time, because its rule differs per tier ([`pipeline.md`](pipeline.md) §
 *Length filter*). Three cases — two there, one in `reproject.spec.js` — are worth
 knowing about, since the obvious way to write each passes without testing anything.
 

@@ -130,7 +130,7 @@ test('affix: a query with no incremental grounding falls back to the bucket path
 
 // B1b: a free variable reachable only as a suffix (`XB`, X leading, B ground) is grounded
 // by a suffix scan over the reversed-norm index. AB;CB is the design's documented hard
-// case (design.md § the tuple tier) — under-constrained, it exploded the bucket path.
+// case (umiaq.md § How the tool runs) — under-constrained, it exploded the bucket path.
 const SUFFIX_QUERIES = [
   'AB;CB',                   // shared-suffix pairs — the documented hard case
   'AandB;X;XB;AX',           // XB reordered before AX: X grounds via suffix B

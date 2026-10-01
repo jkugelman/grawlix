@@ -1,4 +1,4 @@
-// Wordlist updates — see docs/design.md § Fetching & updates.
+// Wordlist updates — see docs/wordlists.md § Fetching & updates.
 //
 // Re-fetching a URL-backed wordlist diffs old vs. new entries into
 // added / deleted / rescored. Manual updates report the diff in a dialog;

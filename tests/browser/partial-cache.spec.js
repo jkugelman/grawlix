@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 import { stubPublisherFetches, gotoApp } from './helpers.js';
 
 // The partial-run cache: a superseded streaming run stashes its incomplete join; re-entering
-// the same (stack, scope) resumes it. See docs/design.md § Streaming results.
+// the same (stack, scope) resumes it. See docs/pipeline.md § Streaming results.
 //
 // Every test ISOLATES the three caches so only the partial path is exercised: the finished and
 // prefix caches are floored off (1e9) so a re-entry can ONLY hit the partial cache, and the

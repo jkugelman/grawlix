@@ -10,7 +10,7 @@ import { candidates } from '../site/src/engine/morphology.js';
 import { fetchWordNetLemmas } from './wordnet.js';
 
 const OUT = new URL('../site/src/engine/common-words-data.js', import.meta.url);
-const N = 30000;   // top-N by frequency — see docs/design.md § family key
+const N = 30000;   // top-N by frequency — see docs/pipeline.md § family key
 
 const res = await fetch(UNIGRAM_CORPUS_URL);
 if (!res.ok) throw new Error(`fetch ${UNIGRAM_CORPUS_URL}: ${res.status}`);

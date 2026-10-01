@@ -27,7 +27,7 @@
 // upstream stage has finished; its return value is handed to `run` in place of
 // `params` (so a tool can compile a regex or pre-sort letters once instead of
 // per row, or build an index over `ctx.input`). It must yield cooperatively
-// for any non-trivial work — see docs/design.md § Pipeline execution.
+// for any non-trivial work — see docs/pipeline.md § Pipeline execution.
 // Tools without a `prepare` get the normalized params object.
 //
 // `run(entry, prepared, wordlist)` is a per-row pure function — the system

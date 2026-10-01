@@ -276,7 +276,7 @@ export async function reprojectMergedScroller(recomputeHistogram = false) {
 }
 
 // Refresh a FLAT result in place after a background structural auto-update, no chip
-// (§ Fetching & updates). Unlike reprojectMergedScroller it rebindEntry's afterward: a
+// (wordlists.md § Fetching & updates). Unlike reprojectMergedScroller it rebindEntry's afterward: a
 // repatch changes the SET, so an open panel bound to a now-deleted row must re-bind.
 export async function repatchMergedScroller() {
   const stack = ToolStack.getStack();

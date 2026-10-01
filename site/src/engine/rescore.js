@@ -40,7 +40,7 @@ export function scoringRulesEqual(a, b) {
 // blank output, so scores pass through unchanged. Lays the source's scale
 // out as concrete rows next to All Wordlists' tier scale; the user can fill in
 // output mappings if they want to translate into the unified scale.
-// See docs/design.md § Rescore rules.
+// See docs/wordlists.md § Rescore rules.
 const AUTO_SEED_SCORE_LIMIT = 10;
 
 export function makeRescoreRuleStub(input = '') { return { input, length: '', output: '', note: '' }; }

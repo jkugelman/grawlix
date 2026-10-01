@@ -1,4 +1,4 @@
-// Refresh-on-consent — see docs/design.md § Fetching & updates.
+// Refresh-on-consent — see docs/wordlists.md § Fetching & updates.
 //
 // A BACKGROUND auto-update never yanks the displayed result. How it applies forks by
 // tier: a FLAT result (base list / per-entry filter) re-derives in place — an add/delete

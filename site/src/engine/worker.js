@@ -305,7 +305,7 @@ async function runOne({ runId, stack: serialized, sort, scope, existsQuery, scor
   // sort/filter change re-derives the view without re-running the join.
   const viewSpec = { sort, scoreRange, lengthRange };
   const { tier } = streamPlan(stack);
-  // See docs/design.md § Streaming results. `noResume` re-enters cold after a divergence.
+  // See docs/pipeline.md § Streaming results. `noResume` re-enters cold after a divergence.
   const resumeCtx = noResume ? null : armPartialResume(runId, cacheKey, tier, viewSpec, scope, stack, streamState);
   try {
     const emit = tier === 'flat' ? makeStreamEmitter(runId, viewSpec, scope, stack, signal, streamState, resumeCtx)

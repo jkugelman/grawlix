@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 import { stubPublisherFetches, gotoApp, reloadApp, expectVisible, awaitSettle } from './helpers.js';
 
 // The stats-bar length filter. Its semantics are lane-kind dependent — see
-// executor.js chainPredicate and design.md § Length filter — so each tier gets its
+// executor.js chainPredicate and pipeline.md § Length filter — so each tier gets its
 // own case here; the tuple case is the one where the control goes inert.
 
 const SEED = {

@@ -4,7 +4,7 @@ import { stubPublisherFetches, gotoApp } from './helpers.js';
 // The cross-run result cache: a finished join retained across runs so re-entering an
 // identical (stack, scope) against an unchanged corpus serves instantly instead of
 // re-joining, and drops the moment the corpus changes under it. See
-// docs/design.md § Streaming results and docs/worker-protocol.md § resultCache. The real
+// docs/pipeline.md § Streaming results and docs/worker-protocol.md § resultCache. The real
 // RESULT_CACHE_MIN_MS floor keeps the cache inert under these sub-second queries, so every
 // test that wants a hit first drops the floor via configureResultCacheForTest({ minMs: 0 }).
 

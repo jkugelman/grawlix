@@ -1,4 +1,4 @@
-// My Edits' rescore-rule legend + import reconciliation — see docs/design.md § Rescore rules.
+// My Edits' rescore-rule legend + import reconciliation — see docs/wordlists.md § Rescore rules.
 
 import { test, expect } from '@playwright/test';
 import { stubPublisherFetches, gotoApp } from './helpers.js';

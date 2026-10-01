@@ -1,4 +1,4 @@
-// Dirty-flag behaviors — see docs/design.md § Rescore rules.
+// Dirty-flag behaviors — see docs/wordlists.md § Rescore rules.
 //
 // Covers the round-trip between pristine and customized rule sets, and the
 // confirm-protected "Reset to defaults" button that restores the pristine

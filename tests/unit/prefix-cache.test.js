@@ -9,7 +9,7 @@ import {
   configureExecutorYield,
 } from '../../site/src/engine/executor.js';
 
-// The prefix-state cache seam (see design.md § Streaming results):
+// The prefix-state cache seam (see pipeline.md § Streaming results):
 // executePipeline resumes from the longest cached prefix and runs only the suffix,
 // snapshotting each inter-stage state back as a tile. The executor is stateless — all
 // reuse rides the worker-supplied `resume` seam. These tests drive the seam two ways:

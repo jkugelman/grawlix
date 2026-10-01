@@ -5,7 +5,7 @@ import { stubPublisherFetches, gotoApp } from './helpers.js';
 // climbing, correctly-SORTED scroller that reshuffles as better matches arrive,
 // and the terminal `result` settles it seamlessly (the incremental merge over a
 // total comparator equals a from-scratch sort, so no end-of-stream reshuffle).
-// See docs/worker-protocol.md § partial + design.md.
+// See docs/worker-protocol.md § partial + pipeline.md § Streaming results.
 
 test.beforeEach(async ({ page }) => {
   await stubPublisherFetches(page);

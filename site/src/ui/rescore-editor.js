@@ -3,7 +3,7 @@
 // ─── Rescore editor ─────────────────────────────────────────────────────────
 // The editor edits a *draft* copy of the scope's rules; Apply runs the single
 // heavy commit. Deferred so authoring a rule doesn't re-rescore the whole
-// source per keystroke — see docs/design.md § Rescore and scoring.
+// source per keystroke — see docs/wordlists.md § Rescore and scoring.
 
 import { MERGED_ID, DEFAULT_SCORING } from '../core/constants.js';
 import { esc } from '../core/util.js';

@@ -1,6 +1,6 @@
 ---
 name: distill-design-doc
-description: Convert a design doc into a feature record once the feature has shipped — present-tense documentation of what exists, with the whys behind it captured deliberately (since code preserves the what but not the why). Drops planning scaffolding (phases, framing, exhausted mockups). For user-facing features the result lands in `docs/manual.md`; for architectural choices it lands in `docs/design.md`. Invoke after a doc's feature is implemented and merged.
+description: Convert a design doc into a feature record once the feature has shipped — present-tense documentation of what exists, with the whys behind it captured deliberately (since code preserves the what but not the why). Drops planning scaffolding (phases, framing, exhausted mockups). For user-facing features the result lands in `docs/manual.md`; for architectural choices it lands in `docs/design.md` or the subsystem doc that owns the area. Invoke after a doc's feature is implemented and merged.
 ---
 
 # Distill a design doc
@@ -14,7 +14,7 @@ The plan doc in `docs/planned/` gets folded into the project's two living docs a
 There are two destinations, and most plans contribute to both:
 
 - **[`docs/manual.md`](../../docs/manual.md)** — the user-facing surface. Approachable prose, written as the future in-app manual. Use the same names the UI uses; describe behavior the way a user experiences it. No rationale, no rejected alternatives — just the *what* from the user's vantage.
-- **[`docs/design.md`](../../docs/design.md)** — the design record for contributors. The *why* behind the UI shape, architectural decisions, data invariants, cross-component contracts, what alternatives were considered and rejected, what constraints or past incidents drove the choice. These are invisible in code and easy to lose; capture them deliberately.
+- **[`docs/design.md`](../../docs/design.md)** — the design record for contributors. The *why* behind the UI shape, architectural decisions, data invariants, cross-component contracts, what alternatives were considered and rejected, what constraints or past incidents drove the choice. These are invisible in code and easy to lose; capture them deliberately. Subsystems with their own design doc (listed at the top of `design.md`: `wordlists.md`, `entry-panel.md`, `segmenter.md`, and others) take the content for their area; `design.md` takes the rest.
 
 A single plan typically contributes to both. The user-visible behavior goes to `manual.md`; the rationale and architectural underpinnings go to `design.md`. Don't duplicate the description — `design.md` can reference `manual.md` for the *what* and focus on the *why*.
 

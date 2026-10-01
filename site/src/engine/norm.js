@@ -185,7 +185,7 @@ export function parseWordlistLine(line) {
 }
 
 // Thresholds pinned to real wordlists — of cased entries Broda is 100%
-// uppercase, XWI 0%, Nediger ~1% (1,277 acronyms); see docs/design.md.
+// uppercase, XWI 0%, Nediger ~1% (1,277 acronyms); see docs/wordlists.md § Rich wordlists.
 export const UPPER_ABSOLUTE_MAX = 10000;
 export const UPPER_RATIO_MAX = 0.80;
 export const UPPER_RATIO_THRESHOLD = 1000;

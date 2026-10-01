@@ -1,4 +1,4 @@
-// Fetch status (download-manager panel) — see docs/design.md § Fetch status.
+// Fetch status (download-manager panel) — see docs/wordlists.md § Fetch status.
 //
 // The panel is a read-only progress indicator: it shows a row per in-flight
 // fetch (name + byte counter + a stripe bar that moves with the download) and

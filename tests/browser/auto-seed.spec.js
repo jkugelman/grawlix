@@ -1,4 +1,4 @@
-// Auto-seeded inert rescore rules — see docs/design.md § Rescore rules.
+// Auto-seeded inert rescore rules — see docs/wordlists.md § Rescore rules.
 
 import { test, expect } from '@playwright/test';
 import { stubPublisherFetches, gotoApp } from './helpers.js';
