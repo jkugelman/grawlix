@@ -2,15 +2,14 @@
 
 The entry panel (`EntryPanel`, in [`ui/entries-table.js`](../site/src/ui/entries-table.js)) opens on one entry from the entries table.
 It edits the entry's text, score, and comment, shows every wordlist that carries the entry, proposes the entry's canonical spelling, lists related entries, and steps through a run of entries without closing.
-Edits always land in My Edits.
-The user-facing description is in [`manual.md`](manual.md) § *Editing entries*; this doc covers the design and the whys.
+Edits always land in My Edits, so they surface wherever My Edits participates — All Wordlists (where My Edits sits on top by default, so the edit wins) and the My Edits scope — but never in another list's scoped view, which always shows that list's own values.
 The worker messages it rides (`fetchProvenance`, `fetchFamily`, `fetchEditSeed`, `editEntry`) are specified in [`worker-protocol.md`](worker-protocol.md), and its URL form in [`design.md`](design.md) § *Entry panel encoding*.
 
 ## Opening and closing
 
 **Open an atom → EntryPanel.**
 A click on the **entry text** (desktop), a **tap** (touch), or a **double-click** anywhere but the score opens the panel for that atom; a single desktop click elsewhere on the row selects it instead ([`design.md`](design.md) § *Click targets*).
-A *score* click in the merged or My Edits view opens the tier quick-pick ([`design.md`](design.md) § *The score cell is a tier quick-pick*) rather than the panel.
+A *score* click in the merged or My Edits view opens the tier quick-pick ([`design.md`](design.md) § *The score cell is a tier quick-pick*) rather than the panel; in a foreign single-list scope a score click opens the read-only panel instead.
 Its content — Entry/Score/Comment inputs, the cross-wordlist provenance panel, the live edit preview, and the staged-delete trash — is covered in the sections below.
 Enter commits and closes; Escape reverts and closes; Tab moves between fields without committing (nothing lands until Enter or Save).
 The panel is **modal**: a backdrop scrim (`#entry-panel-backdrop`, `z-index` just under the panel) dims the page and intercepts every click outside the panel, so the rest of the app is inert until it closes.
@@ -34,7 +33,9 @@ A save itself closes the panel; since field edits don't commit until Enter/Save,
 
 **The entry panel is the cross-wordlist view.**
 With a scoped table showing one wordlist, the entry panel (`EntryPanel`) carries the cross-wordlist picture.
+The contributor table sits under an **Appears in** heading.
 In an editable scope (All Wordlists, My Edits) it is an editor whose fields seed the merge winner and whose edits route to My Edits; in a **foreign single-list scope it is a read-only inspector** — the Entry/Score/Comment fields show that list's *own* entry verbatim (no merged-winner inheritance), read-only, with a Close button in place of Save and every *other* row in the provenance table below dimmed (grayscale, reusing the disabled-row treatment, like an out-of-scope Source icon) so the list's own row reads as the focus.
+It is read-only because an edit there would land in My Edits, which the scoped view doesn't show, and vanish from under the user.
 Either way it lists every contributing wordlist, in priority order, with that wordlist's actual entry text, effective score, and comment, **including disabled and non-winning** contributors; a bare entry (no fixed spelling) unifies into every spelling, so it shows under each.
 This (a) serves the trust case (a constructor who doesn't auto-believe the top-priority list sees whether another list, even one they aren't merging, scored the entry differently); (b) *is* the comparison surface when scoped; and (c) fixes the "lying Source column" — the table attributes one source per row, but display, score, and comment can each come from a different contributor (comment fall-through is designed to do this — [`wordlists.md`](wordlists.md) § *Rich wordlists*).
 A **concrete** click's other spellings (`Boney M.` vs `Boney M`) are not collapsed into this table — they ride the panel's Related entries (§ *Related entries*), each its own click-through with its own provenance — while a **bare** click, being a wildcard, lists them all here (see below).
@@ -59,10 +60,12 @@ The editor seeds from the All Wordlists merge winner for the clicked `(norm, dis
 
 *Create vs. rename — two gestures, one job each.*
 Clicking a row opens the panel in **edit** mode and always *replaces* the clicked entry (a rename when the text changes); the **＋** button opens it in **create** mode and only ever adds.
-There is no ambiguous "did I mean to add or replace?" middle ground — the gesture *is* the intent — and the header and Save button announce it as a matched pair (*Edit entry* / Save, flipping to *Rename entry* / Rename the moment the text diverges; *Add entry* / Add for ＋).
+There is no ambiguous "did I mean to add or replace?" middle ground — the gesture *is* the intent — and the header and Save button announce it as a matched pair (`headerText`/`saveLabel`): a pristine edit panel is titled *View entry*, becoming *Edit entry* / Save once a field changes and *Rename entry* / Rename the moment the text diverges; a staged delete reads *Delete entry* / Delete; ＋ is *Add entry* / Add; a foreign scope's panel is *View entry (read-only)*.
 The one distinction absorbs a stack of merge edge cases the user would otherwise have to reason about (same-norm siblings, bare-vs-spelled collapse, foreign overrides), and the live preview shows the resulting writes before commit so the machinery never surprises.
 Add-vs-replace keys on the gesture rather than on the entry's content (whether the typed text is plain or spelled): content can't tell whether you mean to refine an entry or add a sibling, but the gesture you chose can.
-Typing into ＋ an entry My Edits already shows is refused rather than silently absorbed — Save stays disabled under an *already exists* note — but that note links to the existing entry, flipping the panel into edit mode on it, so the block redirects instead of dead-ending.
+The ＋ is a floating button (`#add-fab`) in the bottom-right corner, also bound to **Alt+A**.
+It opens prefilled with the current search text when that is a literal (non-wildcard) query matching nothing in the scope (`newEntrySeedQuery`); otherwise it opens blank.
+Typing into ＋ an entry My Edits already shows is refused rather than silently absorbed — Save stays disabled under an *already exists* note — but that note's **Edit it instead** link opens the existing entry, flipping the panel into edit mode on it, so the block redirects instead of dead-ending.
 A **second, advisory note** carries the same link when the typed norm is already carried by *some other* wordlist: there the add is perfectly legitimate (laying a My Edits row over a foreign one **is** how you rescore one), so nothing is blocked and Save stays live — but typing a name to *find* an entry is a real gesture, and the ＋ panel is where it lands.
 It **names the merged spelling** when that differs from what was typed (`King Tut already exists` for a typed `kingtut`), which is the case worth reading: it's the reason to jump rather than add a rival spelling of a norm you already have.
 The **same note serves both cases** — same wording, same styling — because it says the same helpful thing either way: *this is already here, go edit it*.
@@ -106,6 +109,7 @@ See [`worker-protocol.md`](worker-protocol.md) § `planEdit` / `editEntry`.
 
 *The panel previews the pending write.*
 While the user edits, the panel overlays the pending My Edits state onto the contributor list: a row synthesized at My Edits' top-priority slot when the norm isn't carried yet (an *added* row), or the existing My Edits row updated in place (a *changed* row) — both shown bold.
+A rename also strikes through the row it replaces, and the plan's side-writes — a downscore, a keep copy — appear as extra bold *added* rows, so the whole write-set is visible before Save.
 The effective score is computed client-side via the same `rescoreEntry` the table preview uses, so the overlay needs no worker round-trip; only an entry-text change (a new norm → different contributors) re-queries the worker, while score/comment edits just re-render the local overlay.
 The `raw → rescored` mapping rides the preview row's score cell, so the panel needs no standalone rescore note.
 **Delete is staged, not immediate.**
@@ -149,6 +153,8 @@ It's the precise path — any score, with the tier labels as scaffolding — to 
 The list cedes the keys it doesn't own: **Alt+↑/↓** still walk the panel to the neighbouring entry while it's open, since the combo claims only the plain vertical arrows.
 Escape always dismisses the open list first (`EntryPanel.onKeydown`), regardless of unsaved changes — so on a dirty panel the first Escape closes the list and the next closes the panel; since Escape is an explicit cancel it discards without a prompt (§ *Editing*), and the list-closing first Escape loses nothing.
 The list is suppressed while the scoped seed is in flight (the same gate that disables the inputs) and absent entirely when no tiers are defined.
+
+Beside the Score field sits a live **Length** count, `toNorm(entry).length` — the same letters-and-digits measure as the table's Length column — updating as the entry is typed; it is the only length readout in tiers whose table has no Length column.
 
 ## The canonical-form rename hint
 
@@ -218,6 +224,14 @@ Without this a transient Wiktionary miss would fall to Wikipedia's force-capped 
 
 ## Loading and clearing
 
+*A deep link opens before the wordlists load.*
+Opening `?entry=…` (URL form in [`design.md`](design.md) § *Entry panel encoding*) shows the panel at once with the entry text, its look-ups, and its Search links, none of which need a corpus.
+The worker-fed parts wait: the seed query loops on an un-ready reply (`refineScopedSeed`), keeping all three fields disabled with the Score and Comment boxes shimmering (`.seed-pending`), and **Appears in** shows skeleton bars until provenance answers.
+Both placeholders arm only once an un-ready reply is known, so a warm corpus never flashes them.
+The fields stay locked because a save writes *from* the seed: enabling them over a blank seed would let one save overwrite the entry's real score.
+A deep link matches case-insensitively — `resolveEditSeedWinner`'s `bareFallback`, deep links only, lets `?entry=BAGEL` resolve to a corpus's `bagel`, and the Entry field then shows the corpus spelling.
+An entry the filter or tools leave out of the view still opens; otherwise `revealRouteEntry` scrolls the table to center the entry's row behind the panel and, in the flat tier, selects it, so closing the panel leaves the user on that row.
+
 *The panel opens in tiers, and settles before it fetches.*
 A panel open paints its fields synchronously and then waits on five independent streams — the scoped seed, provenance, Related entries, the rename hint, and three inline lookups — and painting each the instant it lands would make the panel arrive in five separate lurches.
 Two rules tame that.
@@ -247,11 +261,17 @@ Clicking a relative **commits the current entry first**, then opens it fresh (a 
 It runs the **same leave gate as the scrim and the ✕**: a write it can't make refuses the click and shakes the footer rather than swallowing it, while an incomplete create — nothing savable typed yet — has nothing to commit, so the click goes through and drops it.
 Gating the click on the commit alone is what left an unscored Add panel unable to click through to the better-spelled entry it was showing.
 
+**Names link to their parts, and parts to the whole names.**
+Opening `Rigoberta` lists `Rigoberta Menchú`; opening the full name lists both halves; `Gabriel García Márquez` reaches `García Márquez` and `Medicine Hat, Alberta` reaches `Medicine Hat` (`nameAnchorRun`, `engine/morphology.js`).
+The shorter entry must occur as a contiguous run of whole words inside the longer, every word of it capitalized, and the run capitalized in the longer entry too — so `Job` reaches `Book of Job` but not `dream job`, and `Venus Williams` and `Serena Williams`, which merely share a word, stay apart.
+Single letters, `i`/`v`/`x` Roman numerals, and grammar-capitalized words (`I'm`, `Mr`, `TV`, …) never anchor, since each would otherwise link hundreds of entries.
+Contiguity is load-bearing: under plain word containment the band `The The` matches every title that says "the" twice.
+
 **What it lists.**
 The relatives are the entry's word-family siblings ([`pipeline.md`](pipeline.md) § *Sort axes per tier* — `cat`/`cats`, `eat`/`ate`/`eaten`) **and** the differently-spelled entries that share its norm (`Boney M.` / `Boney M`) — kept navigable here even when a concrete click scopes them out of the provenance table (a bare click lists them there too, but Related is still where you click through to one) (§ *The cross-wordlist view*).
 It also lists the entries an **inflection** of the query reaches that no single family key spans — a run-together spelling and its spaced form (`electricbills` ↔ `electric bill`), and a conjugation a space would otherwise hide (`hadagraspon` ↔ `hasagraspon`, found by segmenting the glued token, then inflecting a split word).
 They're inline and dot-separated like the thesaurus lookups, each with its tier-colored score badge so a scoring discrepancy reads off the colors.
-A **name anchor is capped** at its few best-scoring fuller names (`NAME_RELATIVE_CAP`, budgeted per anchor rather than per section) so one first name can't crowd out the inflections — but the rest are **held, not dropped**, behind a **+N more** at the end of the list that reveals them in place.
+A **name anchor is capped** at its few best-scoring fuller names (`NAME_RELATIVE_CAP`, 3, budgeted per anchor rather than per section) so one first name can't crowd out the inflections — but the rest are **held, not dropped**, behind a **+N more** at the end of the list that reveals them in place.
 The count is the section's only word that anything was trimmed, and it has to be: `Willis` listed `Bruce Willis` and `Connie Willis` while silently withholding `Lester Willis Young`, reading exactly like a complete family.
 The trim is also **one-directional by nature** — a short name sits inside many longer ones and is capped, while the longer name contains only its own two or three parts and never is — so the two ends of a link routinely disagreed about each other with nothing on screen to explain it.
 Revealing merges the held names into their sorted places rather than appending them, since the list is alphabetical throughout; the reveal is one-way and resets when the entry changes; and the bold anchor is exempt from the cap, so a rename that reaches its own row through a name run can't hide it.
@@ -275,7 +295,7 @@ A **lone open walks the whole table in result order**, and the table's **selecti
 A **multi-select (≥2) bounds the walk** to exactly those members — a captured, sort-proof set carried with an `N / M` position that grays out at its ends — **opening at the set's first member in result order**, not on the row that happened to be under the cursor (a downward Shift+↓ or drag leaves the cursor on the *last* member, which would open the walk at `N / N` with nowhere to step); and here stepping moves **only the cursor**, leaving the whole selection highlighted in the table behind the panel (the `'move'` cursor mode, not `'replace'`): you asked for those rows, so the walk doesn't quietly un-pick them as it visits each.
 The bounded set is the sort-proof answer for a family Grawlix can't cluster (unspaced) or an arbitrary hand-pick, where a plain table walk would scatter under a Score sort.
 The walk shows **no member list** — it is pure navigation; the panel's separate § *Related entries* is what shows context.
-**Moving auto-commits** the current entry's edit — the iTunes *Get Info* model, where Prev/Next commit like OK while Cancel/Esc/✕/Back discard — and a move runs the same validation gate as Save, so an invalid score blocks the step and focuses the bad field instead of silently dropping it.
+**Moving auto-commits** the current entry's edit — the iTunes *Get Info* model, where Prev/Next commit like OK while Cancel/Esc discard — and a move runs the same validation gate as Save, so an invalid score blocks the step and focuses the bad field instead of silently dropping it.
 **Focus persists in the same field across a step** (comment→comment, entry→entry), so editing one column straight down a run is a type-Next-type rhythm with no reach for the mouse.
 The walk **stops at the ends** (no wrap) and stays **one history entry** — each step `replaceState`s the URL, so Back closes the panel rather than rewinding it member-by-member.
 A bounded walk resolves its members through a `fetchWinners` worker command (an off-window selection isn't in main's row window) in result order, dropping any the current filter hides — and the panel **waits on that reply before it opens** (`EntryPanel.openSelectionWalk`), because the reply is also what names the first member: main can't order a hand-picked set itself (a Ctrl-clicked selection is in click order, and its rows may be off-window).

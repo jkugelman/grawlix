@@ -13,7 +13,7 @@ These features read entries through it:
 - The entry panel's **Rename to …** hint and its **Related entries**, which looks for inflections buried in a run-together entry.
 
 This file is the single source of truth for how the segmenter works.
-[`design.md`](design.md) covers how each of those tools is wired; [`manual.md`](manual.md) covers what users see.
+[`design.md`](design.md) covers how each of those tools is wired.
 
 ## Overview
 

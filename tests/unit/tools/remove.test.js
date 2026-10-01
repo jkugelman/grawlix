@@ -19,7 +19,7 @@ test('an empty pattern is inert — the merged view passes through', async () =>
   sameVisible(await visible(LIB, [{ tool: 'remove' }]), ['meditate', 'mediate', 'dogs', 'dogss']);
 });
 
-test('the card and manual example holds in both directions, on the default All', async () => {
+test('the card example holds in both directions, on the default All', async () => {
   const lib = [{ entry: 'Xbox One', score: 60 }, { entry: 'Boone', score: 50 }];
   sameVisible(await visible(lib, remove('x')), [['Xbox One', 'Boone']]);
   sameVisible(await visible(lib, add('x')), [['Boone', 'Xbox One']]);

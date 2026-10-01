@@ -28,6 +28,6 @@ Decide when this feature gets picked up; don't force it now.
 
 ## Notes
 
-- Lives in the Settings dialog (`docs/manual.md` § Settings), alongside the output-format controls.
+- Lives in the Settings dialog, alongside the output-format controls.
 - Reuses the existing serialization shapes where possible, minus anything sync-specific.
 - A schema-version stamp in the exported file lets import refuse or migrate an incompatible backup, the same floor the rest of storage uses.

@@ -1,10 +1,10 @@
 # Design
 
 The shape of Grawlix's UI and the architectural choices behind it.
-The *what* (user-visible behavior) lives in [`manual.md`](manual.md); this doc covers the *why* — what alternatives were rejected, what constraints shape things — plus architectural surfaces a contributor needs to orient.
+Each section describes both what the user sees (labels, defaults, keys, edge cases) and why it is built that way — what alternatives were rejected, what constraints shape things — plus the architectural surfaces a contributor needs to orient.
 
-Subsystems with enough design to stand alone have their own docs, and this one defers to them: [`wordlists.md`](wordlists.md) (wordlist data and management), [`entry-panel.md`](entry-panel.md), [`pipeline.md`](pipeline.md) (how a tool stack runs), [`segmenter.md`](segmenter.md), [`umiaq.md`](umiaq.md), [`tools.md`](tools.md) (the tool catalog), and [`worker-protocol.md`](worker-protocol.md).
-As plans ship, the `distill-design-doc` skill folds them into this file or the subsystem doc that owns the area (and `manual.md` for user-facing surface).
+Subsystems with enough design to stand alone have their own docs, which hold their user-visible behavior and their whys in the same way, and this one defers to them: [`wordlists.md`](wordlists.md) (wordlist data and management), [`entry-panel.md`](entry-panel.md), [`pipeline.md`](pipeline.md) (how a tool stack runs), [`segmenter.md`](segmenter.md), [`umiaq.md`](umiaq.md), [`tools.md`](tools.md) (the tool catalog), and [`worker-protocol.md`](worker-protocol.md).
+As plans ship, the `distill-design-doc` skill folds them into this file or the subsystem doc that owns the area.
 
 ## Workspace and sidekick
 
@@ -32,6 +32,9 @@ Both are positioned entirely in CSS — no cell anchoring, no inline coordinates
 
 ## The shell
 
+**Everything stays in the browser.**
+There is no account, no login, and no server-side storage: wordlists, edits, and settings live in the browser's localStorage and IndexedDB on that device.
+
 **The whole document scrolls.**
 The brand header, the screen, and everything in it share one document-level scroll — no nested scroll container.
 The header and the wordlist bar scroll away with the page; the screen fills the full content width below them.
@@ -48,6 +51,18 @@ So the app uses a plain document scroll with a full-bleed screen.
 Wordmark on the left, the personal text (the byline, whose name links to email, plus GitHub) in the center, settings/help on the right.
 Per-wordlist state, sync indicators, and wordlist pickers stay out — those would tie the header to ephemeral state, and they have their own home on the wordlist bar below.
 There is no top-level navigation, because there are no top-level views to navigate between: Grawlix is one screen, and the personal text sits in the brand row's center where nav would otherwise go.
+
+**Settings.**
+The header gear opens the **Settings** dialog (`ui/dialogs/settings.js`), one row per setting:
+
+- **Dark mode** — a segmented **Auto** / **☀ Light** / **☽ Dark** control, stored in the standalone `darkMode` localStorage key (default `auto`).
+  Auto follows `prefers-color-scheme` and re-applies live when the OS setting flips.
+  Alt-M cycles the three from anywhere and confirms with a toast (`Dark mode: Light`).
+- **Auto-update wordlists** — [`wordlists.md`](wordlists.md) § *Fetching & updates*.
+- **Trash score** — a non-negative number, default 0 (`DEFAULT_TRASH_SCORE`), sub-labelled *Score given to deleted and unlisted entries*.
+  It scores the downscore a norm-changing rename leaves behind ([`entry-panel.md`](entry-panel.md) § *Editing*), a coined Replace entry in a wordlist download ([`pipeline.md`](pipeline.md) § *The chain-row model*), and sets the default score filter one above it ([`wordlists.md`](wordlists.md) § *Scope: the selected wordlist is the corpus*).
+- **Output format** — [`wordlists.md`](wordlists.md) § *Output format*.
+- **Reset browser data** — a **Reset** button that, behind a confirm, wipes Grawlix's localStorage keys and IndexedDB and reloads (`resetAllDataAndReload`).
 
 **The wordmark is the start-over button.**
 It's a real `<a>` pointing at the bare URL — the affordance every site trains you to expect — but a plain click doesn't reload.
@@ -98,6 +113,9 @@ The stats bar carries the counts, the score-range control paired with its histog
 The count describes the score-range-filtered output; the histogram projects the unfiltered pipeline output with the bracket overlaid, so dragging the range narrower shows what's being trimmed instead of bars disappearing past the bracket.
 The histogram sits *between* the counts and the score box: it's stats about the entries on one side and the filter's visual twin on the other, so the middle is where it belongs, with the exact control (the box) and the visual one (the histogram) adjacent.
 Left → right: `Entries N   Groups N` · `histogram + Scores [range] + Lengths [range]` · `Share ▾`.
+**Entries** counts what reached the end of the pipeline: chain rows on a flat pipeline, surviving member chains across every visible group with a tool in all-mode, where **Groups** rides alongside.
+A tuple search (Umiaq with a `;`, Weave) reads **Results** instead, with a trailing `+` and a *Results incomplete* tooltip when the tool hit its result cap.
+Clicking a histogram bar sets the score range to that bar's bin, and dragging across bars sets the span they cover; clicking a bar already inside the current range clears the filter.
 The two filter boxes are load-bearing and always hold; when the bar would overflow the histogram collapses first, then the counts.
 Both share the `.range-filter` class, which is what the overflow guard measures — a filter box added without it silently overlaps the Share control instead of triggering the collapse.
 On a phone the histogram is the price of the second box — a second filter's width moves the collapse threshold up, so it sheds at a wider window than it would with one box.
@@ -121,6 +139,26 @@ No service worker: Grawlix is online-only by choice, which trades offline suppor
 - The virtual scroller listens for `scroll` events in **capture mode** on `window`, computes its visible slice from the host's `getBoundingClientRect()` against `window.innerHeight`, and slices a window of rows out of a full-height sizer.
   Capture is required because scroll events don't bubble.
   The math is viewport-relative and works directly against the document scroll.
+
+## Keyboard shortcuts
+
+The global shortcuts:
+
+- **Ctrl/Cmd+F** — find in the entries table (§ *Find in page*).
+- **Alt-T**, or **Ctrl/Cmd+K** — open the tool picker.
+- **Alt-S** — focus the permanent search bar's pattern.
+- **Alt-W** — toggle the match-mode checkbox of the focused Search, Regex, or Phone search row, else the permanent search bar's (§ *Match modes*).
+- **Alt-C** — focus the score-range box.
+- **Alt-L** — focus the length box, unless it's disabled for a tuple tool ([`pipeline.md`](pipeline.md) § *Length filter*).
+- **Alt-A** — add an entry, same as the floating **+** button: a blank entry panel that saves into My Edits; inert while the panel is already open.
+- **Alt-↑ / Alt-↓** — walk to the previous / next entry with the entry panel open, saving the current edit ([`entry-panel.md`](entry-panel.md) § *Walking a set*); with it closed, they move the table cursor like the plain arrows.
+- **Alt-M** — cycle dark mode (§ *Settings*).
+- **Alt-0 … Alt-9** — retier a score in All Wordlists or My Edits: the open tier picker's entry, else the selected rows; Alt-0 is the lowest tier.
+  In the entry panel it fills the Score field without saving (§ *The score cell is a tier quick-pick*).
+
+The Alt shortcuts live in one document `keydown` handler in `bindEvents` (`app/actions.js`), except Alt-T, which `ToolStack` owns.
+They match `e.code`, not `e.key`, because macOS Option turns `e.key` into a symbol (Option-S is `ß`).
+The entries table's own keys (arrows, Shift/Ctrl selection, Space, Enter, Esc, Delete) are in § *Keyboard navigation & multi-select*.
 
 ## Wordlists & setup
 
@@ -172,7 +210,17 @@ Search has no special-case input builder: every Search surface — the permanent
 Search carries a `replace` param like Regex (see *The find/replace widget*), so a Search row expands from a filter into a search-and-replace transform.
 Folding search into the pipeline — rather than running it as a scroller-side filter outside the stack — makes it compose like any tool and lets the unification pass see search highlights ([`pipeline.md`](pipeline.md) § *Symmetric unification*).
 
+**Search syntax.**
+A Search pattern is letters plus five wildcards: `?` any letter or digit, `#` a consonant, `@` a vowel, `*` any substring, and a class `[abc]` / `[^abc]` / `[a-m]` (`[0-9]` too).
+Every pattern runs against an entry both as written and as its letters alone, matching if either does, so `theirs` finds `the IRS` while a typed `co-op` finds only `co-op`; a `?` counts grid squares, never a separator ([`wordlists.md`](wordlists.md) § *Dual-arm search*).
+Focusing the pattern pops the wildcard cheat sheet (§ *Cheat-sheet popovers are a per-param opt-in*).
+
 **Match modes.**
+Unchecked, a pattern matches anywhere in an entry; checked, the mode picker offers **Whole entry**, **Whole word** (`cat` matches `cat` and `cat food`, not `copycat`), and **Spans words** (`heir` matches `the IRS`, not `theirs`).
+Clicking the mode name toggles the constraint, the arrow beside it opens the picker, and picking a mode turns the checkbox on.
+On a run-together list the first search in a word-relative mode pauses a few seconds while every unspaced entry is read; later searches reuse the readings.
+Offline, before the segmenter's corpus has been fetched, a run-together entry counts as one word.
+
 Search and Regex carry one `mode` param (`MATCH_PARAM`, `tools/shared.js`) that constrains where a match sits relative to the entry's words: absent (anywhere), `full` (whole entry — the anchored `^…$` wrap), `word` (whole words — the match's first letter starts a word and its last letter ends one, possibly covering *several* complete words so a norm-arm query can match an exact phrase), or `span` (spans words — the match's letters straddle a break, the hidden-theme hunt: `heir` finds `the IRS`).
 A **word break is whitespace or a hyphen; an apostrophe or period is not** (`isn't` is one word) — the policy lives in `WORD_BREAK_RE` (`engine/norm.js`) beside `wordBreaks`, which answers an entry's breaks as norm offsets, and the two predicates over them, `isWholeWords` and `spansWords`.
 A display-coordinate match is projected onto the norm first (`displayRangeToNorm`), so both gates run in one coordinate space; the projection counts letters, which drops a separator at either edge (a `\s` a regex extends onto a space) rather than letting a one-word match that touches a break count as spanning.
@@ -216,6 +264,7 @@ Rebus is the catalog's first **synthetic-emitting** transform — it produces sy
 Its `string` input is a **literal**, normalized through `toNorm` and matched case-insensitively on both norm and display, then projected back onto the display so the output keeps the entry's case and spacing; every active string→symbol pair is applied at once into a single output.
 Wildcards were supported and removed: they let the replaced letters vary per entry, which is only legible while the input atom is on screen, and the input carries nothing else — you typed the string being replaced.
 Hiding it (`input: 'hidden'`) is what made the flexibility a liability, and the general lesson is that capability nobody validated becomes a constraint that outlives its usefulness.
+The user-visible tool is in § *Rebus*.
 Its UI is the catalog's first use of **repeatable params** (`repeat: true`): `string` and `symbol` are parallel arrays rendered by `buildPairListHTML` as a vertical stack of `[string] → [symbol]` pair rows; once there are two, every row carries an inline `×`, and the last row carries the inline `+` (where the eye lands when the rows run out).
 The `symbol` box opens `SymbolSuggest` — a body-parented popover sharing `PopupHelp`'s on-screen `positionPopover` — on focus, inserting a circled letter, circled digit, or symbol on click.
 The pair-list branch short-circuits `buildToolRowPartsHTML` (`params.some(p => p.repeat)`), so the generic renderer is untouched.
@@ -259,11 +308,13 @@ Pattern is a literal initialism; matches displays whose word-initial letters spe
 Word boundaries: spaces always, hyphens optional (the matcher tries both interpretations, so `CO` matches `co-op` via the split and `C` matches via the join), apostrophes/periods/commas/slashes never (`don't` is one word; `DT` does not match it).
 A display with no space or hyphen is read through the spacing table's `best` reading ([`segmenter.md`](segmenter.md) § *The spacing table*), its initials taken from each part's norm because a guessed part can carry an override's apostrophe or capital.
 The filter rules an entry out on first letter and length before asking for its reading, which leaves a few percent of a merge to segment on a cold keystroke.
+So `HOT` also finds `HANGONTIGHT` and `HATSOFFTO`; an entry the reading leaves as one word stays one word, and offline, before the corpus has been fetched, run-together entries go unread.
 A match on a guessed reading **marks its initials**, in norm coordinates so the renderer projects them onto a display carrying punctuation.
 A spaced entry is never marked: its own spelling already shows where the words are, so a mark would only restate it.
 That is also why the marks are worth carrying — on a run-together entry nothing else on the row says where the tool read the boundaries.
 No wildcards, no minimum pattern length — a single-letter pattern matches every display whose first word starts with that letter.
 All-mode buckets every multi-word entry by its initialism — a spaced display as written (spaces only — the hyphen-optional branching would scatter an entry across clusters), an unspaced one as read — and builds the spacing table to do it.
+The first all-mode run on a large list takes a few seconds to read every run-together entry; the table then lasts until the wordlists change, and Rhymes shares it.
 A `keepGroup` demands two distinct norms, since a phrase the merge carries both spaced and unspaced is one member.
 Members are marked by the same rule, through `group.memberHighlights`, which re-derives the reading at render time and **checks it against the cluster key** — an edit since the run can change a reading, and a stale mark would point at the wrong letters.
 It keeps only clusters whose initialism is itself a wordlist entry — the value of the cluster is the bidirectional pair (`TIS` ⇄ `the IRS`/`Tom Is Right`/…), not every prefix coincidence.
@@ -378,6 +429,7 @@ If a word still can't be read, or it contains a digit, it reads as a **hole**: o
 A run of sounds can't be heard across a hole, but a `*` can step over one.
 A hole also keeps its place in the entry, so Whole entry can't match an entry with an unreadable word unless a `*` covers it.
 An entry's readings are the product of its words' pronunciations, capped at 16.
+The match-mode control sets where the sounds sit: **Whole entry** finds homophones (`KNIGHT` finds `NIGHT`), **Whole word** needs word breaks at both ends (`TEA` finds `TEE` but not `ARTY`), and **Spans words** needs a break inside (`TEA` finds `NOT EVEN`).
 
 **The query is pieces and gaps.**
 The input splits on `*`, and each piece must read as whole words.
@@ -423,6 +475,60 @@ The prices trade off against each other, so a tweak usually fixes some words and
 Highlights that have been checked by hand are rows in [`tests/unit/tools/phone_search.cases.js`](../tests/unit/tools/phone_search.cases.js), run offline against the real CMU lines in `tests/unit/fixtures/cmu-cases.dict`.
 After adding a row with new words, refresh that file with `node scripts/phone-cases-dict.js`.
 
+### Rebus
+
+Rebus ([`engine/tools/rebus.js`](../site/src/engine/tools/rebus.js)) builds a supplementary wordlist for *rebus* puzzles, where several letters share one grid square.
+Each row pairs a letter string with a symbol that replaces it — `TOOL` → `Ⓣ` turns `BARSTOOL` into `BARSⓉ` — and the downloaded results let construction software fill a grid holding a few `Ⓣ`s.
+The string box takes plain letters, matched as everywhere else in Grawlix (case, spaces, and accents ignored), so `A-B` and `AB` find each other.
+The symbol box pops up a grid of circled letters, circled digits, and ASCII symbols, or takes any typed text.
+The last pair row's `+` adds a pair and each row's `×` drops one; all pairs apply at once, so an entry matching several gets every substitution in one output.
+A row shows only the squeezed form, at the input entry's score, and needn't be a real entry.
+The pair-list widget and the synthetic-output wiring are in § *The Rebus pair list*.
+
+### Optional letters
+
+Optional letters ([`engine/tools/optional_letters.js`](../site/src/engine/tools/optional_letters.js)) finds entries with a letter that can be dropped to leave another entry, and circles it: `HART` becomes `HAⓡT`, since dropping the R leaves `HAT`.
+It serves puzzles where the grid holds `HART` while the clue is for `HAT`.
+It takes no text input; its one param is the **Include plurals** checkbox.
+
+- **Every position gets its own row**, a doubled letter included (`HOLLY` gives `HOⓛLY` and `HOLⓛY`), because the circled square crosses a different entry depending on where it sits.
+- **The score is the lower of the two entries'**, since a marked entry is only as good as its weaker half ([`pipeline.md`](pipeline.md) § *The chain-row model*).
+- **A plural's own S is skipped** unless **Include plurals** is ticked: an optional S on a plural is a thin theme with a great many candidates.
+  The rule applies to every word in an entry (`LANDS A BLOW` is skipped too) and only to the S itself, so `CARTS` still offers its R (leaving `CATS`).
+  A plural is whatever `looksPlural` accepts (ends in S, not SS), minus a short keep-list whose S is worth having: `HIS`, `AS`, `IS`, `HAS`, `YES`, `DOES`, `NEWS`.
+  Possessives like `ITS` and `YOURS` stay skipped, since a hidden possessive S is as dull as a plural one.
+- **Run-together entries are read into words** through the spacing table's `best` reading ([`segmenter.md`](segmenter.md) § *The spacing table*), so the S of `CATS` in `CATSANDDOGS` is skipped too.
+  It reads on demand rather than building the table, since only an S whose removal leaves an entry needs its word read.
+  Offline, an unspaced entry counts as one word and only its last S is skipped.
+- **One row per norm**: a norm with several spellings marks only its `bestRowForNorm` spelling, since the grid slot holds the same letters either way.
+
+The circled forms are symbols to the output format, so unchecking **Symbols** ([`wordlists.md`](wordlists.md) § *Output format*) leaves them out of the download.
+
+### Remove string
+
+Remove string ([`engine/tools/remove.js`](../site/src/engine/tools/remove.js)) cuts a string out of an entry wherever it appears, keeping the results that are themselves entries — `XBOX ONE` minus its Xs gives `BOONE`.
+The string is plain letters matched on the norm, so it can't remove a space or a hyphen.
+An **All | One** switch (`mode`, always encoded in the URL — § *Tool stack encoding*) sets how many copies go: **All**, the default, cuts every non-overlapping occurrence at once; **One** cuts them one at a time, a row per distinct result, overlapping occurrences included.
+`DERRIERES` minus all its ERs gives `DRIES`; minus one gives `DRIERES`.
+Reversed with ⇄ it becomes **Add string** ([`pipeline.md`](pipeline.md) § *Inverting a transform's direction*), finding the longer entries an entry grows into (`BOONE` finds `XBOX ONE`).
+Reversal indexes the forward cut over the whole wordlist, so reversed **All** asks which entries cut *down* to this one, and an entry still containing the string has no answer: `DRIERES` finds `DERRIERES` on **One** but nothing on **All**.
+
+### Weave
+
+Weave ([`engine/tools/weave.js`](../site/src/engine/tools/weave.js)) is a tuple tool that finds an entry whose letters split into two other entries, each keeping its letter order — `WALL SOCKETS` is `WALLET` and `SOCKS` woven together.
+An empty box scans the whole wordlist; a typed entry pins one side of every weave.
+Each side must be at least four letters.
+The **Runs** box (minimum 3) sets how many alternating pieces the split must break into.
+The default, 4, is the least that puts both entries in two or more pieces, which reads as woven rather than one entry stuck on another's end; 3 also admits one entry tucked whole inside the other (`BLANKETS` = `BETS` around `LANK`).
+A pair is judged by the *fewest* runs it can be read in, so raising Runs never surfaces a pair that also has a looser reading.
+Results stream as three-lane tuple rows and stop at a per-platform result cap ([`pipeline.md`](pipeline.md) § *Streaming results*).
+
+### Caesar shift
+
+Caesar shift ([`engine/tools/caesar.js`](../site/src/engine/tools/caesar.js)) takes an entry and an optional **Shift**.
+As a filter, a blank Shift keeps every Caesar shift of the entry (the entry itself excluded) and a set Shift keeps only that rotation.
+In all-mode a blank Shift groups entries into shift classes (STEEDS and TUFFET cluster), while a set Shift rotates every entry by that amount and keeps the results that are entries — a transform shown as chain rows, the one all-mode that isn't a grouping ([`pipeline.md`](pipeline.md) § *The group-row model*).
+
 ### Umiaq: variable & pattern search
 
 Umiaq, the variable-and-pattern search, has its own doc.
@@ -464,6 +570,14 @@ Each row is independently grid-laid-out (because rows are absolute-positioned fo
 **Score badges right-aligned within their column.**
 `justify-self: end` on the score atom pushes each badge to the right edge of the (uniform) score track; numbers' right digits line up across rows.
 The score column width is `calc(maxScoreDigits ch + 12px)` — the 12px covers the badge's 5px-each-side padding plus a small safety margin.
+
+**The Sources column is a presence matrix.**
+Every enabled wordlist, plus the scoped one even when disabled, gets a fixed 16px slot in priority order (`sourceMatrixSlots`), and each row shows that list's icon where it carries the entry and an empty gap where it doesn't, so the icons line up into columns that read both ways: across a row, an entry's coverage; down a slot, what one list contributes.
+A list is in full color when it supplies a value on screen — the displayed spelling, the winning score, or the comment — and muted to gray (`src-slot--muted`, tooltip *(overridden)*, full opacity on row hover) when it merely also carries the entry.
+Each shown value has a single source, so a duplicate holding the winner's spelling and score is muted; two lists light up when a high-priority bare entry wins the score and a lower list supplies the richer spelling (`the IRS`).
+The column shows in every scope; scoped to one list, only that list can be in color, so a row where it is the lone icon is unique to it.
+It hides below 960px ([`pipeline.md`](pipeline.md) § *Chain-row display*), and the slot universe must mirror the worker's contributor universe (`shipContributors`), or a row's source silently renders nowhere.
+Per-list spelling, score, and comment, disabled and losing lists included, are the entry panel's provenance view ([`entry-panel.md`](entry-panel.md) § *The cross-wordlist view*).
 
 **Click targets: the entry text opens, the rest of the row selects — except the score badge.**
 A plain click on a flat row's **entry text** opens its panel *and* selects the row, so the table selection and the open panel stay in sync (Esc-then-Enter reopens the same one, and a lone open's walk has a visible anchor to follow); a click anywhere **else** on the row selects it without opening.
@@ -584,7 +698,8 @@ Non-flat tiers aren't selectable, so there find stays navigate-only.
 
 The full result lives only in the worker, so find is a worker scan (`find` / `findResult`, § worker-protocol) rather than a DOM walk: `engine/find.js` holds the pure occurrence finder and the 999-match cap; `worker.js` scans the retained result of whichever tier the run produced and returns ordered match coordinates (capped, with a `capped` flag so the counter reads "N/999+").
 It matches **the text each tier displays** — entry + comment in the chain tiers (flat, transform), **entry only** in group/tuple, whose rows have no comment cell.
-Matching is case-insensitive over the display string (what the user reads, not the norm).
+An entry matches the way the Search bar does (§ *Search syntax*), through `buildSearchPattern` in literal mode: case-insensitive, against both the display and the letters-only norm, so `motherteresa` finds `Mother Teresa` and `theirs` finds `the IRS`, but `*`, `?`, and the other wildcards match themselves.
+A comment is a plain case-insensitive substring scan (`findOccurrences`).
 
 `EntriesScroller` owns the bar and the navigation: it builds a row→matches map for O(1) render-time lookup, scrolls a match's row into view — **centering it only when it's off-screen** (an already-visible match just moves the highlight, like the browser), generalizing the cursor scroll-to-index and fetching that window through the ordinary bridges — and composes find-hit ranges into `renderHighlightedText` — a distinct kind for the current match, given tie-break priority so it's never masked by a co-starting search highlight.
 A grouped hit can land in a member hidden behind **+N more**; navigating to it **auto-reveals** the group's popover and lights the member there (fetching its chain if it's past `firstChains`).
@@ -618,9 +733,9 @@ A repeat is the same `(norm, display)` pair as the atom before it, not merely th
 `currentContentAtomCount(stack)` derives the static count from the catalog records (`1 + non-inert transforms`); CSV's column count and JSON's `entries[]` length both align with it.
 
 **The global output format governs the entry text.**
-**Download as wordlist** and **Download as CSV** write entries through `formatEntryText` at the current [output format](#output-format), exactly as the downloads and disk mirrors do — a user who set "strip accents" because their software demands it means it for every file Grawlix writes, and having these exports quietly opt out of the setting would be a bug, not a policy.
+**Download as wordlist** and **Download as CSV** write entries through `formatEntryText` at the current output format ([`wordlists.md`](wordlists.md) § *Output format*), exactly as the downloads and disk mirrors do — a user who set "strip accents" because their software demands it means it for every file Grawlix writes, and having these exports quietly opt out of the setting would be a bug, not a policy.
 **Download as JSON is exempt**: it's the programmatic format, where a script wants the entry as Grawlix knows it and can strip for itself.
-In CSV the format touches *only* the entry cells (plus `digits`, which drops rows — see [output format](#output-format)) — `length` is the norm length (already accent- and space-free), `group_key` and the catalog group columns are derived metadata rather than entry text, and the `comment`/`source` columns stay put unconditionally, since dropping a declared column would change the schema out from under a spreadsheet.
+In CSV the format touches *only* the entry cells (plus unchecked `digits` or `symbols`, which drop a row when any entry in it has one — [`wordlists.md`](wordlists.md) § *Output format*) — `length` is the norm length (already accent- and space-free), `group_key` and the catalog group columns are derived metadata rather than entry text, and the `comment`/`source` columns stay put unconditionally, since dropping a declared column would change the schema out from under a spreadsheet.
 
 **No sticky export settings.**
 Defaults are baked into each menu item; "with source attribution" lands only if users surface the need — the column appears in the merged-view display but not in CSV/JSON exports today.
@@ -689,8 +804,8 @@ Wordlist files in the wild ship alphabetical-ish (XWI, Broda, JK, STWL all follo
 
 **Semicolon-in-entry handling: drop + toast notice.**
 Wordlist format has no escape mechanism.
-Toast: `Downloaded grawlix-search-ice.txt — 124 entries (2 skipped due to semicolons)`.
-Parenthetical omitted when zero.
+Toast: `Downloaded 124 entries (2 entries skipped due to semicolons)`.
+The parenthetical also counts entries left out by unchecked **digits** or **symbols** and entries stripped to nothing, and is omitted when every count is zero.
 Replacing the `;` with anything else would silently corrupt entries.
 The check runs on the *formatted* text, so stripping punctuation removes the `;` first and the entry exports instead of vanishing.
 

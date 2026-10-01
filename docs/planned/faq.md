@@ -100,7 +100,7 @@ Markers: **[★ advertise]** = shows off a feature / nook. **[deep]** = needs a 
 ## Maybe / lower priority
 
 44. **Does it work offline?** — *online-only by choice (no service worker); short honest answer.*
-45. **What file format do wordlists use?** — *ENTRY;SCORE per line; only if people actually ask — the manual covers it and a dedicated format page isn't worth it.*
+45. **What file format do wordlists use?** — *ENTRY;SCORE per line; only if people actually ask — a dedicated format page isn't worth it.*
 46. **What browsers work?** — *runs everywhere; disk sync needs Chromium desktop.
     Overlaps the sync answer — maybe fold in.*
 47. **Why do uppercase wordlists show up lowercase?** — *the per-file case convention; deliberate ALL-CAPS acronyms survive.

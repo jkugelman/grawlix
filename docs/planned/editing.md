@@ -3,7 +3,7 @@
 **Phase 1 and the entry-panel walk have shipped.**
 Phase 1 gave the flat tier full keyboard nav, multi-select, and batch rescore/delete; the walk then made the open panel steppable — **Prev/Next** (Alt+↑/↓ / PageUp/Down) reseeds it to a neighbouring entry without closing, auto-committing as you move, bounded to a multi-selection (kept highlighted as you step) or walking the table in order.
 The current entry's family rides a separate *Related entries* section, not the walk itself.
-Both are living documentation now: the architecture and whys are in [`design.md`](../design.md) § *Keyboard navigation & multi-select* and [`entry-panel.md`](../entry-panel.md) § *Walking a set*, the user-facing behavior in [`manual.md`](../manual.md) §§ *Selecting rows* / *Editing entries*.
+Both are living documentation now: the architecture and whys are in [`design.md`](../design.md) § *Keyboard navigation & multi-select* and [`entry-panel.md`](../entry-panel.md) § *Walking a set*.
 Selection is keyed on the atom's `(norm, display)` identity throughout, precisely so the items below are **additive** — an extension of the shipped state, not a rewrite.
 
 What remains here is forward-looking: the parked extensions (§1) and the bulk-editing stretch goal that motivates the whole effort (§2).
@@ -48,7 +48,7 @@ A twist that makes it awkward, and the reason **non-contiguous multi-select** sh
 ### Space out entries
 
 **The per-entry hint has shipped.**
-The entry panel now proposes a canonical spelling for a single concatenated entry — a "Rename to …" link under the entry field that fills the field and drops into the ordinary rename flow ([`entry-panel.md`](../entry-panel.md) § *The canonical-form rename hint*, [`manual.md`](../manual.md) *Suggesting an entry's real-world spelling*; the worker side is `fetchSpaceOut` in [`worker-protocol.md`](../worker-protocol.md)).
+The entry panel now proposes a canonical spelling for a single concatenated entry — a "Rename to …" link under the entry field that fills the field and drops into the ordinary rename flow ([`entry-panel.md`](../entry-panel.md) § *The canonical-form rename hint*; the worker side is `fetchSpaceOut` in [`worker-protocol.md`](../worker-protocol.md)).
 It reuses the Space out tool's unigram segmenter, so a real word wins its own reading and gets no hint.
 What remains here is the **bulk** case: spacing a whole (multi-selected) family in one gesture, where the shared transform lands different spaces per member.
 The panel walk already makes the serial version fast — select the family, accept each hint, step to the next — so a true bulk apply is the open piece, not the per-entry guess.

@@ -1,6 +1,6 @@
 ---
 name: distill-design-doc
-description: Convert a design doc into a feature record once the feature has shipped — present-tense documentation of what exists, with the whys behind it captured deliberately (since code preserves the what but not the why). Drops planning scaffolding (phases, framing, exhausted mockups). For user-facing features the result lands in `docs/manual.md`; for architectural choices it lands in `docs/design.md` or the subsystem doc that owns the area. Invoke after a doc's feature is implemented and merged.
+description: Convert a design doc into a feature record once the feature has shipped — present-tense documentation of what exists, with the whys behind it captured deliberately (since code preserves the what but not the why). Drops planning scaffolding (phases, framing, exhausted mockups). The result lands in `docs/design.md` or the subsystem doc that owns the area, user-visible behavior and whys together. Invoke after a doc's feature is implemented and merged.
 ---
 
 # Distill a design doc
@@ -8,42 +8,34 @@ description: Convert a design doc into a feature record once the feature has shi
 A forward-looking design doc says "we will build X because Y." Once X is built, that framing is misleading: a new reader doesn't know whether the doc describes plans or reality.
 Your job is to convert the doc into a *record* — present-tense documentation of what exists and why it's shaped that way.
 
-The plan doc in `docs/planned/` gets folded into the project's two living docs and then deleted.
+The plan doc in `docs/planned/` gets folded into the living doc that owns its area and then deleted.
 Its register shifts: speculative → descriptive, pitch → reference.
 
 ## Where the distilled content lands
 
-There are two destinations, and most plans contribute to both:
+The docs are written for Claude agents working on the repo, and each area has one owning doc that holds both what the feature does as the user sees it and why it is built that way:
 
-- **[`docs/manual.md`](../../docs/manual.md)** — the user-facing surface.
-  Approachable prose, written as the future in-app manual.
-  Use the same names the UI uses; describe behavior the way a user experiences it.
-  No rationale, no rejected alternatives — just the *what* from the user's vantage.
-- **[`docs/design.md`](../../docs/design.md)** — the design record for contributors.
-  The *why* behind the UI shape, architectural decisions, data invariants, cross-component contracts, what alternatives were considered and rejected, what constraints or past incidents drove the choice.
-  These are invisible in code and easy to lose; capture them deliberately.
-  Subsystems with their own design doc (listed at the top of `design.md`: `wordlists.md`, `entry-panel.md`, `segmenter.md`, and others) take the content for their area; `design.md` takes the rest.
+- **[`docs/design.md`](../../docs/design.md)** — the design record: the shell, the gallery and the per-tool designs, the entries table, URL state, code structure.
+- **The subsystem docs** listed at the top of `design.md` (`wordlists.md`, `entry-panel.md`, `pipeline.md`, `segmenter.md`, `umiaq.md`, and others) take the content for their area.
 
-A single plan typically contributes to both.
-The user-visible behavior goes to `manual.md`; the rationale and architectural underpinnings go to `design.md`.
-Don't duplicate the description — `design.md` can reference `manual.md` for the *what* and focus on the *why*.
+Write the user-visible behavior (exact UI labels, defaults, edge cases, examples that pin down semantics) next to the whys, in the same section, so the two can't drift apart.
+The user-facing documentation is the in-app Help dialog (`ui/dialogs/help.js`); if the feature changes something an FAQ answer explains, update that answer too, brief and non-technical.
 
 ## What to keep
 
 - **The feature itself, described.**
   Enough detail that someone who's never seen the code can understand the shape — what it does, how it presents, what its parts are.
   Don't aim for completeness; aim for orientation.
-  User-visible behavior goes to `manual.md`; architectural shape goes to `design.md`.
+  User-visible behavior and architectural shape both go in the owning doc.
 - **The whys.**
   Why this shape and not another, what alternatives were considered and rejected, what constraints or past incidents drove the choice.
-  These belong in `design.md`.
   Weave them alongside the architectural *what* — not in a separate decisions section, but as part of describing the shape.
 - **Architectural context that aids understanding.**
   Data invariants, cross-component contracts, the load-bearing pieces that explain *how things hang together*.
-  Keep what helps a reader form a mental model. → `design.md`.
+  Keep what helps a reader form a mental model.
 - **Deferred ideas, open questions, brainstorming.**
   These haven't shipped, so they remain forward-looking.
-  They can either stay in the plan doc (if it's a partial ship and the plan continues to live) or move to a clearly-labeled "Open questions" section in `design.md` (if the plan is fully retired).
+  They can either stay in the plan doc (if it's a partial ship and the plan continues to live) or move to a clearly-labeled "Open questions" section in the owning doc (if the plan is fully retired).
   Don't blur present-tense and future-tense content.
 
 ## What to drop
@@ -75,8 +67,7 @@ Shape outlives implementation; specifics rot fastest.
 - Whys phrased as part of the description, not as a separate "decision" framing.
   *"Two dialogs because they answer different questions and shouldn't blur"* reads more naturally than *"Decision: two dialogs.
   Why: …"*.
-- In `manual.md`, write to the user.
-  In `design.md`, write to a contributor.
+- Write to a contributor, not to an end user.
 
 ## Process
 
@@ -84,26 +75,25 @@ Shape outlives implementation; specifics rot fastest.
    If the user named one, read it.
    Otherwise ask which `docs/planned/*.md` doc they have in mind.
 2. **Verify what actually shipped.**
-   Read the relevant sections of `site/index.html` to confirm which parts of the doc describe live behavior, which parts didn't make it, and which parts shipped differently than planned.
+   Read the relevant modules under `site/src/` to confirm which parts of the doc describe live behavior, which parts didn't make it, and which parts shipped differently than planned.
    Don't trust the doc — it may be wrong about its own subject.
    Banner comments (`// ─── Section ───`) help locate the right region.
-3. **Sort the content** into four buckets:
-   - **User-facing surface** → fold into `docs/manual.md`.
-   - **Architectural shape + whys** → fold into `docs/design.md`.
-   - **Forward-looking** (deferred / open questions) → stays in the plan doc if it survives, or moves to a clearly-labeled "Open questions" section in `design.md` if the plan is fully retired.
+3. **Sort the content** into three buckets:
+   - **What shipped** (user-visible behavior, architectural shape, whys) → fold into the owning doc.
+   - **Forward-looking** (deferred / open questions) → stays in the plan doc if it survives, or moves to a clearly-labeled "Open questions" section in the owning doc if the plan is fully retired.
    - **Drops out** (phasing, pitch, exhausted mockups, redundant implementation detail).
 4. **Edit the destination files.**
-   Read `docs/manual.md` and `docs/design.md` first; identify where the new content fits (existing section to extend, or new section to add).
-   Match the existing tone and structure of each file rather than dropping in a self-contained block.
+   Read the owning doc first; identify where the new content fits (existing section to extend, or new section to add).
+   Match its existing tone and structure rather than dropping in a self-contained block.
 5. **Retire or trim the plan doc.**
    If the plan is fully shipped, `git rm docs/planned/X.md`.
    If partial, edit it down to just the unshipped pieces and label the split clearly.
 6. **Update cross-references.**
-   `grep -rn 'planned/X.md'` across `docs/`, `CLAUDE.md`, and `site/index.html`.
+   `grep -rn 'planned/X.md'` across `docs/`, `CLAUDE.md`, and `site/src/`.
    Fix:
    - **`CLAUDE.md`** — the doc index lives in the *Before non-trivial work* section.
      Remove the bullet if the plan is fully retired; update the one-liner if partial.
-   - **Sibling `docs/planned/*.md` files** — references to the retired plan should now point at `../design.md` (or the relevant section anchor) and/or `../manual.md`.
+   - **Sibling `docs/planned/*.md` files** — references to the retired plan should now point at the owning doc's section (``[`design.md`](../design.md) § *Heading*``).
    - **Other top-level docs** — usually unaffected, but check.
 
 ## When not to distill

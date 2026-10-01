@@ -16,7 +16,7 @@ It doubles as a word-finding playground: search the merged list and stack tools 
 No account, no install, nothing to sign into.
 Your wordlists, edits, and settings live entirely in your browser, on your device.
 Just visit the site and start.
-See [`docs/manual.md`](docs/manual.md) for the full user guide, or the in-app **?** for Help.
+The in-app **?** opens Help, the user guide.
 
 ## Contributing
 

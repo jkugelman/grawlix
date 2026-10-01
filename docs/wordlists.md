@@ -1,10 +1,9 @@
 # Wordlists
 
 Wordlists are the data Grawlix works on: each one a parsed file of entries with its own rescore rules, merged into All Wordlists or viewed alone.
-This doc covers how they are stored, displayed, managed, synced to disk, fetched, and rescored.
-The user-facing surface lives in [`manual.md`](manual.md) § *The wordlist selector and scope*, § *The wordlist bar*, and § *Rescoring and scoring rules*; this doc covers the architecture and the *why*.
+This doc covers how they are stored, displayed, managed, synced to disk, fetched, and rescored: what the user sees, and why it is built that way.
 
-- **The wordlist bar** — selector (left) + the adjustments-icon rescore trigger and per-source actions (right).
+- **The wordlist bar** — selector (left) + the **Rescoring** / **Scoring** editor trigger and per-scope actions (right).
   The selector scopes the screen; the manage panel (reached from inside the selector dropdown) owns cross-list operations.
 - **Disk sync** — which file each list keeps in sync, re-granted from a non-blocking boot splash when a handle's permission lapses.
   Configured from the scoped list's sync button on the wordlist bar; there's no global storage surface (see § *Disk sync*).
@@ -44,7 +43,7 @@ A scoped score cell shows that wordlist's effective score and nothing more.
 (Two distinct same-norm words within one source don't bare-collapse — § *Rich wordlists*, merge semantics.)
 
 **Scope persistence and the global score range — no schema bump.**
-`state.selected` persists in localStorage as a standalone `selectedScope` key (the `dbKey`, or `MERGED_ID`); on restore a vanished list falls back to All Wordlists and a now-disabled list still loads (rendered disabled in the selector).
+`state.selected` persists in localStorage as a standalone `selectedScope` key (the `dbKey`, or `MERGED_ID`), so Grawlix reopens to the last-viewed wordlist; first run lands on All Wordlists, a vanished list falls back to it, and a now-disabled list still loads (rendered disabled in the selector).
 The score-range filter is a **single global range** held in the standalone `scoreRange` key: one filter that applies to whichever scope is selected, so switching wordlists leaves it in place rather than blanking the input.
 The key is **three-state**: absent means the default `defaultScoreRange()` — one above the trash score, so `1+` out of the box (the trash tier is hidden for anyone arriving on a shared link); an explicit `''` means the user deliberately cleared the filter and is stored — not deleted — so it survives reload; any other value is their range.
 The default tracks the trash score rather than a fixed threshold: it hides exactly the tier the trash score defines as junk, so there's no arbitrary cutoff to justify and nothing that stops making sense when the user relabels their tiers.
@@ -91,7 +90,8 @@ The cost is a footgun — an edit can silently fail to surface — accepted for 
 Pinning it on top and always-enabled (the search bar's permanence pattern — [`design.md`](design.md) § *Search is a tool*) is a deliberate future option, not yet taken.
 
 **Per-source actions.**
-When a source is scoped the bar's right cluster is **Download + a `Rescoring` text button + a slim `⋮` kebab** (Fetch/Import · Configure; Configure is the existing dialog, already holding rename/icon/publisher/URL/import/rules — plus **Delete** as a quiet red link in its footer, a rare destructive action kept off the bar itself and demoted by weight so it doesn't compete with Save, so there are no standalone rename/icon/delete items).
+When a source is scoped the bar's right cluster is **Download + a `Rescoring` text button + a slim `⋮` kebab** (**Fetch** for a URL-backed list, **Import**, **Configure**; Configure is the existing dialog, already holding rename/icon/publisher/URL/import/rules — plus **Delete** as a quiet red link in its footer, a rare destructive action kept off the bar itself and demoted by weight so it doesn't compete with Save, so there are no standalone rename/icon/delete items).
+**My Edits** gets the same Download and `Rescoring` button, with **Import** and **Clear** (confirm-gated) in its kebab; it has no Configure.
 On **All Wordlists** it's just Download (the merged product) + a `Scoring` text button (the tier editor), no kebab.
 The **sync button** (§ *Disk sync*) sits in that right cluster, by Download, in every scope.
 Responsive behavior is **measure-and-fold**: the `⋮` kebab is an overflow bucket, and a ResizeObserver folds **Download** into the kebab (its split becomes explicit Download-rescored/original items) as soon as the scope name would otherwise ellipsize, then **Rescoring** — so buttons collapse *before* the name truncates, and the name only ellipsizes once everything's folded.
@@ -110,16 +110,17 @@ The rescore toggle is wired by delegation on `.wls-actions` so it survives being
 ## Rescore and scoring: one inline editor, polymorphic by scope
 
 Rescore-rule authoring is an **inline-expandable area** on the wordlist bar, default-collapsed; expanding it pushes the gallery and table down.
-Its trigger is an **adjustments (sliders) icon** in the bar's right cluster, styled like the other bar buttons with an accent fill when open.
-An icon, not a word, sidesteps the trigger's polymorphism — it carries a tooltip ("Rescoring rules" on a source, "Scoring tiers" on All Wordlists) instead of swapping its label.
+Its trigger is a text button with a chevron in the bar's right cluster — **Rescoring** on a source, **Scoring** on All Wordlists — titled "Rescoring rules" / "Scoring tiers", with an accent fill when open.
 The editor is polymorphic by scope, one slot whose content differs by panel:
 
 - On a **source** (and My Edits), it edits that source's **rescore rules**.
 - On **All Wordlists**, it edits the **tier labels** (`state.scoring`) — the unified scale's names.
   There is no separate home for the tier editor; it is the All Wordlists version of the rescore editor.
 
+A rescore rule maps an input score range, plus an optional entry-length filter, to an output score; focusing any of the three fields pops up a syntax cheat sheet (`data-help="rule/…"`).
+
 **Edits batch into a draft; Save commits.**
-Opening the editor snapshots the scope's rules into a draft the editor mutates in place; the footer's **Save** runs the single heavy commit (worker rebuild, persist, mirror write) and **Cancel** discards it.
+Opening the editor snapshots the scope's rules into a draft the editor mutates in place; the footer's **Save** runs the single heavy commit (worker rebuild, persist, mirror write) and **Cancel** discards it; both collapse the editor.
 Authoring a rule therefore doesn't pay a full re-rescore of the source per keystroke, as committing on every field blur would.
 Closing the editor any other way confirms first when the draft is dirty, and switching scope mid-edit does the same; a clean close just collapses.
 The All Wordlists tier editor batches identically — tier edits are cheap, so this buys no performance there, but it keeps one commit model (and one Cancel/Save footer) across both scopes rather than splitting the polymorphic editor.
@@ -139,7 +140,7 @@ The footer reacts to the draft live — rebuilt on each keystroke, not only on b
 (The footer holds no inputs, so rebuilding it never disturbs the rule field in focus.)
 
 **Order is the user's, not the app's.**
-Rules — and tier labels — evaluate **first-match-wins in their stored order**, which the user owns: each row carries a drag handle (the shared `makeReorderable`, the same primitive the manage panel and tool stack use) and rows are never auto-sorted.
+Rules — and tier labels — evaluate **first-match-wins in their stored order**, which the user owns: each row carries a `≡` drag handle (the shared `makeReorderable`, the same primitive the manage panel and tool stack use) and rows are never auto-sorted.
 An auto-sort that floated narrower rules above their supersets was rejected: it made rows jump while editing, and it can't reliably infer the *intended* priority when rules overlap.
 Manual, visible ordering is both calmer and more correct — a broad rule placed above a narrow one simply shadows it, exactly as the list reads top-to-bottom.
 Because order carries meaning, `rescoreRulesEqual` is **order-sensitive**: a reorder is a real change that flips `dirty`, persists, and survives default propagation, and a publisher shipping its `defaultRules` in a fixed order thereby defines that publisher's priority.
@@ -163,13 +164,23 @@ The internal name is still `neutralize*`; the user-facing label is "Disable resc
 
 Two self-targeting banners surface a couple of discoveries, each visible only to someone already in the relevant context — never a global nag.
 A **My Edits-import** banner shows when scoped to My Edits; an **XWI-subscriber import** banner shows when scoped to XWI while it is still present-but-unpopulated (the highest-value, naturally self-targeting discovery — Grawlix ships only XWI's default scores, not the paywalled list, so a subscriber importing their real copy is a real upgrade).
-Each is dismissable, and dismissal persists in localStorage per banner.
 Both are desktop-only — gated on `isMobile()`, the same detection that hides the disk-sync controls — since mobile users rarely import and the full-width text crowds a phone.
 The banner mounts directly under the wordlist bar, above the tool gallery, so the alert rides next to the scope it's about — a full-bleed strip attached to the bar rather than a detached card, so it reads as part of the bar's region.
-Its Import button drives the same import action as the bar.
+Each carries an **Import** button, which drives the same import action as the bar, and a ✕ that dismisses it for good (`banner_myedits_dismissed` / `banner_xwi_dismissed`).
 
 A self-targeting banner is the right shape because a wizard that pages everyone through setup, or a banner that nags the tool-gallery-only majority, is the wrong default — the value is showing a feature exactly where it matters.
 The same reasoning rules out a one-click "remove all defaults" affordance: clearing default wordlists is per-list deletion via the manage panel (few bother), and tier labels are decorative since the score-badge tooltip is the legend, so the only piece worth keeping is Disable rescoring (above), which is source-scoped.
+
+## Wordlist file format
+
+One entry per line, semicolon-separated, comment optional:
+
+```
+ENTRY;SCORE
+ENTRY;SCORE;COMMENT
+```
+
+Imports and fetches parse it; every generated file — downloads, mirrors, My Edits' stored text — writes it through `serializeEntries` (§ *Output format*).
 
 ## Rich wordlists
 
@@ -298,7 +309,6 @@ The crossword grid slot is letter-counted; display length never affects what fil
 
 Disk sync lets the user point an individual list at an individual file they already have — the file their construction software reads — and keep the two in sync.
 There is no Grawlix-owned folder, no global storage mode, no `grawlix.json`.
-User-facing behavior lives in [`manual.md` § Disk sync](manual.md#disk-sync); this section covers the architectural shape.
 
 **IDB is always canonical; sync is a per-list layer.**
 IndexedDB holds every wordlist's text and localStorage holds metadata/settings — that never changes, whether or not anything is synced.
@@ -318,7 +328,7 @@ Whether a list reads its file back is the whole distinction, so the two buckets 
   A mirror is a debounced write-on-change subscription (`MirrorSync`): no watcher, no baseline, no merge, no own-write race.
   Writes coalesce on `MIRROR_WRITE_DELAY` because `All Wordlists` at hundreds of thousands of entries is expensive to serialize.
 - **Bidirectional** (file ↔ IDB): My Edits only.
-  Sources have no bidirectional path — there's no on-disk original to watch — so My Edits is the one list the user's software both reads *and* writes.
+  Sources have no bidirectional path — there's no on-disk original to watch — so My Edits is the one list the user's software (Ingrid, Crossfire, Crossword Compiler) both reads *and* writes.
   IDB stays canonical (chosen over file-canonical so Grawlix keeps working when the file is unavailable); the file is a watched mirror reconciled by a 3-way merge.
 
 **My Edits reconciliation: 3-way merge against a baseline.**
@@ -329,6 +339,7 @@ One-sided changes apply silently; delete-vs-untouched deletes; only the same ent
 The merge runs **on the worker** — it owns both the My Edits corpus and the baseline, so `reconcile` ships the file text over a `mergeDisk` message and the worker merges, applies the result, and advances the baseline; main only reads the file, surfaces conflicts, and writes the merged text back through the handle.
 The worker advances the baseline in **both** directions — the inbound merge and the outbound push, which is the *same* reconcile against the file (corpus-wins when it's unchanged since the baseline, a merge when it diverged externally — never a blind write that clobbers a concurrent external edit).
 This is what keeps a locally-edited-then-flushed entry, later changed in the file, auto-merging instead of falsely conflicting (a stale ancestor would see both sides diverge and prompt).
+The conflict dialog (`ui/dialogs/confirm.js`) offers **Keep this device** or **Keep the file**.
 Because the conflict choice is a main-thread dialog, a conflict takes a two-phase round-trip: the worker reports it without applying, then re-merges with the user's choice once it's made.
 **Baseline bookkeeping is the heart of correctness** — `threeWayMergeEdits` defaults conflicting norms to the device (IDB) side, the dialog's "keep the file" choice swaps them, and the baseline advances after every own-write, every applied external change, and every resolved conflict.
 The dialog is rare: it fires only on a genuine conflict, so polling every 2s does not mean prompting every 2s.
@@ -361,7 +372,7 @@ On the desktop it always renders (even on Firefox/Safari, where it's a **Sync to
 **One sync control + an explain-first dialog.**
 All sync — status *and* control — lives in a single always-present element (`#sync-sign`) that hangs off the wordlist bar on the right.
 Unconnected, it's a primary **Sync to disk** button.
-Once connected it becomes a status **pill**: a small ring plus the bare **_filename_**.
+Once connected it becomes a status **pill**: a small ring (green, `--ok-fg`, when healthy) plus the bare **_filename_**.
 Each channel says one thing — the ring's colour is the state, the ring's motion is activity, the text is identity — so the healthy label carries no verb at all and the "Synced to …" phrasing moves to the `title`.
 Only the two error states spend words: **Sync conflict**, or **Can't find _filename_** when the file is gone, both escalating the ring and the text to an attention tint (`var(--warn-fg)`).
 A write is signalled by the ring alone, whose stroke drains and refills (`sync-ring-drain`) for the duration of the save.
@@ -373,9 +384,10 @@ Clicking the control **always opens `SyncDialog`, never a file picker directly**
 The dialog leads with a `<browser-logo> ⇄/→ 📄 ⇄/→ your software` diagram (the arrow reflects the list's direction) and branches by state.
 **Unsynced always offers the same two doors, whatever the list:** a *use/overwrite an existing file* door and a *create a new file* door.
 The labels shift by direction — My Edits *uses* the file (*Use an existing file*, reading it in via `showOpenFilePicker`), a mirror *overwrites* it (*Overwrite an existing file*, since it just writes) — but the two-door shape is universal, mirror and bidirectional alike.
-**Synced** is a manage view with **Turn off** alone (no mid-session Reconnect — repoint by turning off and starting again).
+**Synced** is a manage view with **Turn off** alone (no mid-session Reconnect — repoint by turning off and starting again); turning off detaches the handle and leaves the file on disk untouched.
 **Unsupported browser** is an explainer (data is saved in `<browser>`, sync needs a Chromium browser, Download gets files out).
 The dialog's buttons close and then dispatch the sync actions, so the FSA picker still fires inside the click's transient activation.
+The dialog also links the Help dialog's Ingrid walkthrough (`#/help/ingrid`, in `ui/dialogs/help.js`), the other half of the setup: sync All Wordlists and My Edits to two files, add both in Ingrid's **Word Lists** preferences with My Edits on top, tick **Use as Personal List** on My Edits so mid-fill scoring writes back, and choose **Remove diacritics** and **Skip punctuation** so rich entries fit a grid.
 
 **The ring is held to whole animation periods.**
 A mirror write can finish in single-digit milliseconds — far too fast to register — so releasing the ring rounds *up* to the next multiple of `SYNC_BUSY_PERIOD_MS` (one full drain→refill).
@@ -391,6 +403,7 @@ Status flips (writing → synced, → unavailable) patch it in place (`refreshSy
 No Grawlix-owned folder, no `grawlix.json`, no `original/` subfolder, no generated `README.md`.
 No reconciliation engine for mirrors (one-way by definition) and no watch-and-restore for clobbered mirror files.
 No per-provider cloud integration — cross-device is the user pointing two devices' lists at the same cloud-synced file (a per-list attach; first-attach merges content back), Grawlix ships zero cloud code.
+For My Edits that merges both devices' edits; for a mirror the latest writer wins.
 No folder→per-file migration: an old folder-mode user boots into IDB-mode with stale/default state (their real data is in their folder files) and re-attaches their files manually — deliberately not built, since folder mode reached almost no one (see [`migration.md`](migration.md)).
 
 ## One path to "give me a file"
@@ -411,6 +424,7 @@ My Edits has no "Download original" affordance — it has no imported file, only
 
 Construction software disagrees on what entries it can read — Ingrid takes essentially any codepoint, Crossword Compiler takes rich entries (spaces, diacritics, punctuation), Crosserville forbids special characters, and a `.PUZ` pipeline is effectively ASCII-only.
 A single global **output format** (`mergedSettings.outputFormat`) decides how Grawlix *writes* entries, governing the downloads, the synced mirror files, and the results exports (wordlist and CSV) at once.
+The Share popover's **Download as JSON** ignores it: JSON is a format for scripts, so it carries entries as Grawlix holds them.
 It's expressed as independent keep-or-strip axes rather than named modes — booleans for `spaces`, `digits`, `diacritics`, `punctuation`, `symbols`, and `comments` — so it mirrors the orthogonal knobs real software exposes without Grawlix hardcoding any one program's quirks.
 The default is fully rich (everything kept), so existing files are untouched until the user opts to strip something.
 (Named presets like "Crosserville-ready" were rejected — they'd need verified per-program facts; the raw axes stand on their own.
@@ -490,11 +504,11 @@ A size change is the update signal — cheap, no body transfer.
 "Isn't yet populated" is decided by the actual `data_<dbKey>` IndexedDB record, not the `populated`/`lastUpdated` fields in the surviving localStorage metadata: the two stores evict independently — a browser reclaiming best-effort storage can drop the IDB wordlist text while the metadata lingers — so a list whose text was evicted reads as unpopulated and the boot gate silently re-fetches it, self-healing what would otherwise be a permanent "No data" desync (every wordlist empty, no reload recovering, since the surviving timestamp keeps vouching for data that's gone).
 To make eviction unlikely in the first place, boot also requests durable storage once via `requestPersistentStorage()` (`navigator.storage.persist()`, guarded and idempotent, re-requested each boot so a grant the browser's engagement heuristics only warrant later can still land) — the sole protection for My Edits, which has no URL to re-fetch from.
 
-What happens on a detected change depends on the **Auto-update wordlists** setting (`grawlix_autoUpdate`, default on — a standalone localStorage key like `darkMode`, read-time default via `!== 'off'`, so no `SCHEMA_VERSION` bump):
+What happens on a detected change depends on the **Auto-update wordlists** setting ("Update wordlists without asking"; `grawlix_autoUpdate`, default on — a standalone localStorage key like `darkMode`, read-time default via `!== 'off'`, so no `SCHEMA_VERSION` bump):
 
 - **On** — `checkForUpdates` immediately re-fetches the changed wordlist (`fetchWordlist(…, { silent: true, viaToast: true })`) and applies it.
-- **Off** — the wordlist gets a transient `_updateAvailable` flag, surfaced as an `info`-severity (green) bubble on its card.
-  The user fetches manually via the card's Update action.
+- **Off** — the wordlist gets a transient `_updateAvailable` flag, surfaced as the green update dot on its selector row (§ *Rescore rules*, **Update badge**).
+  The user fetches manually via **Fetch** in the list's `⋮` kebab.
 
 The **worker** diffs old vs. new entries into added / deleted / rescored — it holds the source's previous entries, which main doesn't — and ships the result on the `fetchApplied` ack: exact counts plus an inline first window of each section, while retaining the **full** diff so the dialog can virtual-scroll all of it (`fetchDiffRows`, keyed by a `diffId` main frees when the toast/dialog ends; see [`worker-protocol.md`](worker-protocol.md)).
 Shipping the whole diff inline would re-materialize a full-replace re-import's ~600k rows on main, so only the visible window ever lands there.
@@ -529,7 +543,7 @@ Both `ui/toasts.js` and the panel append into this shared parent rather than eac
 
 **The reveal is threshold-gated for background loads, immediate for user-initiated ones.**
 A still-loading *background* fetch — boot population and auto-update, the `silent` callers — appears only after it has run past `_fetchRevealDelay` (5s), so the common case (publishers that fetch in a couple of seconds on boot) stays completely silent; the panel is for fetches that *aren't* behaving normally.
-A fetch the user kicked off by hand (`immediate`, which defaults to `!silent`) shows at once — they asked for it and expect feedback, so there's nothing to suppress.
+A fetch the user kicked off by hand (`immediate`, which defaults to `!silent` — **Fetch** in a URL-backed list's `⋮` kebab, or a toast's **Retry**) shows at once — they asked for it and expect feedback, so there's nothing to suppress.
 The gate is timer-driven, **not** progress-driven: a fully stalled fetch produces zero body chunks, so only a wall-clock `setTimeout` surfaces it — wiring the reveal to progress bumps would silently fail to show the exact stall the feature exists to expose.
 The gate governs only the *loading* rows; a **failure goes straight to a toast** regardless of how fast it failed, so the suppression never hides an error.
 
@@ -580,6 +594,8 @@ The collapsed selector trigger carries an **aggregate** dot when any source has 
 `info` is the only severity in play today, but `maxSeverity(...)` / `SEVERITY_PRIORITY` still resolve a winner when badges aggregate, leaving room for a second cause without reworking the plumbing.
 
 **Tier labels live on `state.scoring`, not on any wordlist.**
+The default tiers (`DEFAULT_SCORING`) are JK's default rules, derived rather than duplicated: 60 Good, 50 Average, 40 Okay in moderation, 30 Not good, 20 Junk, 10 Offensive, 0 Gibberish.
+Every score badge (`buildScoreBadgeHTML` — the entries table and the update-summary dialog) carries its tier label as a hover tooltip and in its `aria-label`; a score no tier covers gets no tier name.
 The unified scale belongs to the merged output (All Wordlists) — what every wordlist gets translated *into* — not to any single wordlist.
 A top-level `state.scoring` lets a user customize the unified scale without it living on a "wordlist" data field; the editor that edits it sits on All Wordlists' panel alone.
 

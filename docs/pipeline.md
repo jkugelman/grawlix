@@ -74,6 +74,7 @@ A **synthetic** atom — built from a tool's `[string]` output for an entry in n
 One parent gives that parent's score, live (Space out, Rebus); two give the lower (Optional letters) — the weakest-link rule downloads apply to a whole chain.
 Those three *re-render* a scored entry — respaced, a symbol standing in, a letter circled — so the score is still about the thing on screen and its badge shows.
 A **coined** synthetic is a different string the source's score says nothing about: Search/Regex replace with **Allow unlisted** emits `coined: true` on every off-list output, the executor stamps it on the synthetic `wlEntry`, and the entries table draws a faint em dash in place of that atom's score badge (`buildScoreCellHTML`) — a dash rather than a blank, because Score is the one column a real entry never leaves empty, so a blank there reads as a rendering glitch.
+Without **Allow unlisted**, a replace output survives only when its norm is a *different* real entry (`s` → empty turns `CATS` into `CAT`, kept because `CAT` is listed).
 A coined atom is *judged* as the atom directly above it and *written* at the trash score.
 Judged: the `wlEntry` still carries its parent's score, live, so the score range passes it exactly when it passes the parent, whose badge is showing, and it never moves the chain's min or max — nothing invisible acts on its own.
 It can't carry the trash score instead, because the score range judges every atom and the default range is trash + 1 (`defaultScoreRange`): ticking Allow unlisted would then show a new user nothing.
@@ -129,7 +130,7 @@ A labeled "Grouped" button on the gallery card itself, deciding flat-vs-grouped 
 Instead there are two `✱` affordances pointing at the same concept: a small button in each groupable card's top-right corner (one-click "add this tool already in all-mode") and a toggle anchored at the right edge of the tool row's input (flip an existing flat row into all-mode, or back).
 Both wear the same `✱` symbol, both use the same tooltip vocabulary (*Show all values* / *Show one value* / *Already showing all values* / *Only one ✱ tool at a time*), and both gate on the one-at-a-time rule.
 The corner button gives the gallery that one-shot affordance without the alignment problem of a labeled button, while the in-row toggle handles the "I added this flat, now I want all values" path and serves as the live state indicator.
-When the row is in all-mode the input clears, takes a `var(--surface)` disabled-style background, shows an accent-colored `all` placeholder, and `pointer-events` go to none — the field still reads as a text box but is clearly inert until toggled off.
+When the row is in all-mode the `✱` toggle turns accent-colored, and the input clears, takes a `var(--surface)` disabled-style background, shows an accent-colored `all` placeholder, and `pointer-events` go to none — the field still reads as a text box but is clearly inert until toggled off.
 The user's typed value is preserved in `row.params` across the toggle and restored on exit.
 
 `bucketize(chains, def, ctx)` takes the inbound chain list and returns the K groups.
@@ -186,7 +187,8 @@ A second has nothing well-defined to cluster — the first already replaced the 
 ## Length filter
 
 A second stats-bar filter beside the score box, sharing its `parseRange` syntax (`7`, `5+`, `5-7`) and its post-pipeline, worker-side, reproject-on-change plumbing — it rides the same `viewSpec`, so changing it re-derives the view over the retained join rather than re-running.
-Length is `norm.length`, the grid-square count the entries table's Length column and the `length` sort axis already show, so the filter agrees with what's on screen.
+Length is `norm.length`, the grid-square count the entries table's Length column and the `length` sort axis already show (`the IRS` is 6), so the filter agrees with what's on screen.
+Unlike the score range it rides the URL (`length=`), since a length means the same on anyone's wordlists.
 
 **It judges the bottom line, where the score range judges every atom.**
 This asymmetry is the design, not an oversight.
@@ -230,6 +232,8 @@ Because Search, Regex, and Caesar derive `kind` from their params, a row can *le
 **Grouped filters negate the stage, not the member.**
 `runGroupFilterStage`'s plain contract is *keep the cluster if **any** member matches*; inverted, it drops any cluster the tool touched — De Morgan on the stage.
 Negating per-member instead reads `any(!match)`, which is true of nearly every cluster and would filter nothing while the row looked active.
+**Anagrams** in all-mode followed by an inverted Search for `s*` leaves the anagram families with no member starting with `s`.
+The all-mode row itself can't invert: its kind resolves to `'group'`, so its button greys (`canInvert` in `ui/tool-stack.js`), and inverting the filter chained after it is the cluster-level "not".
 Every survivor is then a non-matcher, so the members carry `matched: true` to opt out of the score-range orphan gate (there is no match left for the range to hide).
 
 Nothing else moves: an inverted filter is still `kind: 'filter'`, so `streamPlan` picks the same flat tier and the worker protocol is untouched.
@@ -240,7 +244,7 @@ Invert is a standalone icon button — a `⊘` ban glyph (`#icon-ban`) — in th
 A visible control is the whole point: the mode reads at a glance instead of hiding behind a gesture on the label.
 It stays unobtrusive — faint at rest, red (`#e53935`) when active, hover only shifting the icon color, no border or fill — and that red echoes a **second, redundant cue** on the tool's own icon, where a row-level `.inverted` class draws the same red slash and desaturates the glyph.
 (The slash is the icon's `::after` and the grayscale sits on an inner `.tool-row-icon-glyph` span, so the desaturating filter doesn't grey the slash — put both on one element and the red goes grey.)
-The button renders on every filter-*capable* tool and greys when params currently make the row a transform; `syncInvertState` flips its `active`/`disabled` state and the row's `.inverted` class in place per keystroke rather than re-rendering, so the search bar keeps focus.
+The button renders on every filter-*capable* tool, the permanent Search bar included (`c?t` inverted there hides every three-letter c-t word), and greys when params currently make the row a transform; `syncInvertState` flips its `active`/`disabled` state and the row's `.inverted` class in place per keystroke rather than re-rendering, so the search bar keeps focus.
 The permanent Search bar has no remove, so it reserves that column with an invisible `.tool-row-remove-placeholder`, landing every row's invert button on one vertical line — and since a user-added Search/Regex row already carries both an invert button and a real `✕`, that reserved column is no new worst-case width.
 On a tight phone the bar's input floors to `minmax(64px, auto)` so the button stays on-screen, and the invisible placeholder is the first thing to clip.
 
@@ -271,9 +275,9 @@ There is no default pattern — an empty Head off is inert, like Search.
 
 **The affordance is a dedicated ⇄ button.**
 A reversible tool's row shows a swap button in the same row slot a filter's invert 🚫 button takes — they never collide, since every reversible tool is a transform and invert is a filter affordance — styled like it and accent-colored when active.
-Clicking toggles direction: the row's name swaps to the reversed pair (Head off ⇄ Head on, Back off ⇄ Back on) while its icon (🍈, 🍑) stays put — the icon marks the tool, the name its direction — and the tooltip names the direction the click would switch to.
+Clicking toggles direction: the row's name swaps to the reversed pair (Head off ⇄ Head on, Back off ⇄ Back on, Remove string ⇄ Add string) while its icon (🍈, 🍑, ✂️) stays put — the icon marks the tool, the name its direction — and the tooltip names the direction the click would switch to.
 **URL: two tool names, not a flag.**
-A reversed row encodes under its reverse slug — `?head_on=can`, `?back_on=s` — so the link reads as the direction on screen, and decode maps that slug back to (tool, reverse); a forward row keeps the base slug (`?head_off=can`).
+A reversed row encodes under its reverse slug — `?head_on=can`, `?back_on=s`, `?add=x` — so the link reads as the direction on screen, and decode maps that slug back to (tool, reverse); a forward row keeps the base slug (`?head_off=can`).
 The retired pre-rename slugs live on as decode aliases — the count keys `behead`/`curtail`, plus `add_prefix`/`remove_prefix` → `head_off` and `add_suffix`/`remove_suffix` → `back_off`, each with its direction — so links shared before the rename still resolve; the count keys digit-migrate (`?behead=3` → `???`) while the affix values ride through literal (bare integers are literal patterns).
 
 ## Cooperative runtime — supersession and yielding
@@ -497,6 +501,8 @@ Comment and Source columns appear on every chain shape — a one-atom row and a 
 They render per-atom: each atom line carries its own comment and source, so a chain row reads top-to-bottom as where every word in the journey comes from.
 A synthetic atom — built from a tool's `[string]` output, sourced from no wordlist — gets blank cells, and a coined one a dash in its score cell.
 Column visibility is pure CSS media-query gating; the renderer emits len / score / comment / source on every atom line, including same-word repeats — a Kangaroos + Search row shows the metadata on both highlight lines rather than leaving the second line's cells empty.
+Each atom line is its own edit target.
+In the transform and group tiers a click resolves to the atom under it (`_resolveAtomTarget`): the score badge opens `ScorePicker` on that atom's word, anything else opens EntryPanel on it, so `SWING` over `→ WING` edits either word.
 Headers stay constant: the Entry / Length / Score labels describe what each *line* contains, not the row, so one header set serves every chain shape.
 
 ## Group-row display
@@ -570,6 +576,7 @@ Per-view, not per-corpus, is deliberate: anchoring at a member the active filter
 The consequence is that a family's position depends on which of its members are on screen, so a cluster can shift as a result streams in — accepted, because a position the user can't see the reason for is worse than one that moves.
 It supplants plain alphabetical outright — there is no A–Z Entry option — and reads as a smarter alphabetical, since relatives that already sat near each other in alphabetical order now cluster exactly.
 The grouping is inflection only (plurals, verb conjugations, articles); derivation (`red`/`redness`/`redden`) is deliberately out of scope.
+Only the Entry axis reads the family key; every other axis sorts plainly, and the table brackets family runs only under Entry ([`design.md`](design.md) § *Family-grouping bracket*).
 Each axis carries `{label, primary, tiebreakers}`.
 Flipping the user direction reverses the primary **and** any tiebreaker that omits its own `dir` — Entry's alphabetical-within-family order is such a tiebreaker (it continues the primary's ordering, not a ranking of ties), so descending reads as a full mirror, members included, rather than reversed clusters with their interiors left ascending.
 A tiebreaker that *declares* a direction keeps it regardless of the toggle, so short low-scoring junk doesn't float to the top of a tied bucket (longer > shorter, higher > lower, alphabetical asc as the final stable fallback).

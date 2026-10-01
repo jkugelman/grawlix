@@ -35,13 +35,11 @@ If you're having difficulty reasoning through a complicated bug or feature, writ
 For any feature work, redesign, brainstorming, or structural change — **not** targeted bug fixes or small tweaks — open the docs that touch the area before proposing or implementing.
 Adjacent docs may share screen real estate or constrain the answer; treat the topical index below as a checklist, not a suggestion.
 
-Design and manual:
+Design (each doc holds both the user-visible behavior of its area and the whys behind it; when shipping a user-facing change, update the doc that owns the area):
 - [`docs/design.md`](docs/design.md) — present-tense design + whys: shell, the single-screen app view, the tool gallery and the per-tool designs (including the phonetic tools and their CMU core), entries table, URL state, code structure (the ES-module layering + dev/prod build), caches & reactivity, non-features.
 - [`docs/pipeline.md`](docs/pipeline.md) — how a tool stack runs: the executor and per-row tool API, the chain-row and group-row models, the length filter, inversion, the cooperative runtime (supersession, yielding), streaming results and the prefix/result caches, symmetric unification, row display, sort axes per tier (including the family key), and the highlights pipeline.
   Read before touching the executor or a tool's `run`/`prepare`.
 - [`docs/wordlists.md`](docs/wordlists.md) — wordlist data and its management: scope (the selected wordlist is the corpus), the wordlist bar and manage panel, the inline rescore/scoring editor, rich entries (`norm`/`display`) and merge semantics, disk sync, output format, fetching & updates, fetch status, rescore rules.
-- [`docs/manual.md`](docs/manual.md) — user-facing manual.
-  Update when shipping user-facing changes.
 - [`docs/style.md`](docs/style.md) — coding-style conventions: CSS, JS, Markdown, terminology, commit messages.
   Read before formatting changes.
 - [`docs/components.md`](docs/components.md) — **single source of truth for the shared UI vocabulary**: every export of `ui/components.js`, the cross-cutting helpers (dialogs, icons, toasts, score badges, text), and the CSS classes they emit.
@@ -53,10 +51,9 @@ Design and manual:
   The streaming invariant it enforces has its own section, *Streaming is authoritative*, below.
 - [`docs/migration.md`](docs/migration.md) — storage migration policy: every `SCHEMA_VERSION` bump registers a `MIGRATIONS` step that carries data forward; the reset prompt is the last-resort floor.
 - [`docs/tools.md`](docs/tools.md) — **single source of truth for the tool catalog**: every shipped and planned tool, with its card's icon, name, description, example, and implementation status.
-  `design.md`, `manual.md`, and `planned/tools.md` all defer to it.
+  `design.md` and `planned/tools.md` defer to it.
   Read before adding, renaming, or recategorizing any tool.
 - [`docs/umiaq.md`](docs/umiaq.md) — **single source of truth for the Umiaq dialect**: elements, variables, the *term* concept, constraints, the deliberate divergences from Qat/Umiaq, the Umiaq roadmap (implemented + planned, kept together on purpose), and how the tool runs (the tuple tier, its three search strategies, the memory ceiling).
-  `manual.md` (short version) defers to it.
   Read before touching the Umiaq language.
 - [`docs/segmenter.md`](docs/segmenter.md) — **single source of truth for the segmenter**, which guesses where the spaces go in run-together entries: Norvig's algorithm, the wordfreq corpus, every scoring refinement with its measured tradeoff, and the spacing table that Rhymes, Phone search, Initialisms, Optional letters, and the word-relative match modes share.
   Opens with a human-readable overview worth linking to outsiders.
@@ -70,7 +67,7 @@ Plans (forward-looking, not yet shipped).
 - [`docs/planned/tools.md`](docs/planned/tools.md) — runtime support sequencing, gallery polish (category picker, search), result download, tool API extensions (indexed lookups, annotations, escape hatches), open questions.
   The chain-row pipeline (executor, per-row tool API, symmetric unification, search-as-tool, per-atom-count sort, highlights) and the group-row model (group tools, group rows, the +N-more reveal) are shipped — see `pipeline.md`.
   The tool catalog itself lives in `docs/tools.md`.
-- [`docs/planned/editing.md`](docs/planned/editing.md) — entries-table editing, **forward-looking remainder only** (Phase 1 shipped → `design.md` § *Keyboard navigation & multi-select*, `manual.md` § *Selecting rows*).
+- [`docs/planned/editing.md`](docs/planned/editing.md) — entries-table editing, **forward-looking remainder only** (Phase 1 shipped → `design.md` § *Keyboard navigation & multi-select*).
   What's left: the parked extensions (multi-atom transform/group tiers, multi-entry panel editor, family-as-selection, panel prev/next, type-ahead — all *additive* to the shipped atom-keyed selection) and the undesigned **bulk-editing stretch goal** with the motivating real-world cases captured verbatim (spacing out unspaced families, adding punctuation, conjugation-matched comments, name-variant comments).
 - [`docs/planned/phonetics.md`](docs/planned/phonetics.md) — planned sound-based tools: the CMU-vs-eSpeak NG engine question (eSpeak evaluated, not adopted), its runtime and GPLv3 licensing costs, spoonerisms, a slant-rhyme tier, homophone groups.
   What shipped (Rhymes, Phone search, the CMU core) is in `design.md`.
@@ -80,7 +77,7 @@ Plans (forward-looking, not yet shipped).
 Future (longer-horizon ideas, not actively planned):
 - [`docs/future/puz-to-pdf.md`](docs/future/puz-to-pdf.md) — feasibility sketch for in-browser .PUZ → printable PDF rendering.
 
-When a plan ships, run the `distill-design-doc` skill to fold it into `design.md` and/or `manual.md`.
+When a plan ships, run the `distill-design-doc` skill to fold it into the doc that owns its area.
 (The header `?` button opens the in-app Help dialog (`HelpDialog`) — an FAQ with a folded-in Acknowledgements section, deep-linkable at `#/help`, that renders its diagrams and credits from the live catalog.)
 
 ## Architecture
@@ -313,4 +310,4 @@ For dialogs whose primary button has a computed result (Download), do the harves
 ## Understanding Grawlix
 
 Grawlix today serves two activities: building a unified wordlist (curation, rescoring, merging, downloading) and using it as a construction aid (search/filter while filling a grid).
-For a description of all user-facing features, read [`docs/manual.md`](docs/manual.md).
+Each feature's user-visible behavior is described in the doc that owns its area (index above); what users themselves read is the in-app Help dialog (`ui/dialogs/help.js`).
