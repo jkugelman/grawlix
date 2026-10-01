@@ -1,4 +1,4 @@
-// Tool pipeline seam — see docs/design.md § Tool gallery & stack and
+// Tool pipeline seam — see docs/pipeline.md § Pipeline execution and
 // docs/planned/tools.md.
 //
 // These tests cover the chain-row pipeline: the per-row tool API

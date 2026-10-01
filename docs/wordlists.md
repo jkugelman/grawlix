@@ -2,6 +2,7 @@
 
 Wordlists are the data Grawlix works on: each one a parsed file of entries with its own rescore rules, merged into All Wordlists or viewed alone.
 This doc covers how they are stored, displayed, managed, synced to disk, fetched, and rescored: what the user sees, and why it is built that way.
+Two surfaces share the one screen:
 
 - **The wordlist bar** — selector (left) + the **Rescoring** / **Scoring** editor trigger and per-scope actions (right).
   The selector scopes the screen; the manage panel (reached from inside the selector dropdown) owns cross-list operations.
@@ -13,7 +14,7 @@ This doc covers how they are stored, displayed, managed, synced to disk, fetched
 The unifying idea is one notion of *what you're looking at*.
 `state.selected` — `MERGED_ID` or a source — is the corpus for both the entries table and the tool pipeline.
 Select `All Wordlists` and it's the merged view, exactly as before; select a source and the table shows that source's own rescored entries in the same rich editable style, with tools running against it.
-The source column, meaningless when one source fills every row, hides under scope.
+The Sources column stays in every scope; scoped, only the scoped list can light up (see [`design.md`](design.md) § *The Sources column is a presence matrix.*).
 
 Three things users kept asking for fall out of this one idea rather than needing bolted-on features: *filter the tools by wordlist* (scope to it), *sort and filter a single wordlist* (it's the same sortable, filterable table), and *edit the wordlist* (edits route to My Edits, made from the All Wordlists or My Edits view).
 There is one canonical way to view wordlist data — the same rich table in every scope — rather than a separate inspection view; a foreign single-list scope simply shows that list read-only, since its data isn't yours to edit in place.
@@ -279,6 +280,14 @@ The rule governs rendered-display questions, not a blanket "always go through th
 The worker's merged corpus exposes `norms` (a membership `Set`, the existence test tools use) and `byKey` (mergeKey → row, for full disambiguation when needed).
 A My Edits edit splices just the affected norms' rows into that corpus in place rather than rebuilding it — the `editEntry`/`deleteEntry` command does this worker-side; see [`design.md`](design.md) § *Caches*, *Hot path: editing My Edits*.
 
+**Non-Edits sources are stored columnar in the worker** (`cols`, [`engine/sources.js`](../site/src/engine/sources.js)): parallel typed arrays and packed string buffers sorted by norm, read through `sourceAccessor` ([`worker-protocol.md`](worker-protocol.md) § *Building the corpus*).
+Two of its invariants fail silently when broken:
+
+- The norm sort is **stable on file index**.
+  Within-norm variant order decides the merge winner and commenter, so a reorder mis-picks them with no error.
+- `norm` stays **strictly `[a-z0-9]`**.
+  The column packs it one byte per char, and byte comparison equals the code-unit order the merge sorts by only for that alphabet; widening `toNorm` silently mis-orders the merge.
+
 **Dual-arm search.**
 Search compiles its friendly wildcard query to one regex (`buildSearchPattern`) and runs it against **both** representations of each entry — `norm` (letters and digits only: lowercased, accents and separators stripped) and `display` (verbatim, or `norm` when null) — matching if *either* does.
 The norm arm, its separators already gone, lets a gap-free query span them: `theirs` finds "the IRS", and a bare `resume` finds both "resume" and "résumé".
@@ -418,7 +427,7 @@ There's no separate "backup" gesture — per-list disk sync keeps a live file cu
 
 **"Download original"** still serves the raw IndexedDB blob (`idbGet('data_' + dbKey)`) byte-for-byte, even though `display` preserves much of each entry's written form.
 The blob is what's most loyal to the imported file's whitespace and comment formatting, and reparsing-then-serializing would add round-trip noise.
-My Edits has no "Download original" affordance — it has no imported file, only accumulated edits.
+For My Edits that blob is its stored editable file, accumulated edits included.
 
 ## Output format
 

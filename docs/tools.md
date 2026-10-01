@@ -65,3 +65,7 @@ Tool lists in those two categories are provisional.
 |   | Transform | 🃏 Replace anything | Insert *with* in place of any deleted substring | TBD |
 |   | Transform | 🔀 Letter changes | Differs from input by exactly *n* single-letter substitutions | TBD |
 |   | Transform | 🔁 Letter swap | Swap two letters throughout | TBD |
+
+**Adding or renaming a tool.**
+A new tool is revealed to every existing visitor on their next boot; never add its slug to `RETURNING_BASELINE`, which would hide it from visitors who predate the reveal ([`design.md`](design.md) § *The new-tools reveal*).
+Renaming a slug reveals the tool again to everyone and breaks shared links that use it ([`design.md`](design.md) § *Stable links*).

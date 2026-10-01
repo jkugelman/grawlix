@@ -96,10 +96,10 @@ function maybeRemoveSplashEarly() {
 // Module evaluation only *defines*; the side effects run here, and their order
 // is a load-bearing contract — each step below assumes the prior ones already
 // ran (configureX injections before the components that call them, dialogs
-// before init opens them, app-shell before init's first renderAll), so a wrong
-// order surfaces as a runtime error, not the hoisting non-issue it was when
-// these were stray top-level statements. The per-step notes spell out each
-// dependency; init() must come last.
+// before init opens them, app-shell before init's first renderAll). Most
+// configureX seams default to no-ops, so a wrong order usually fails silently
+// rather than throwing. The per-step notes spell out each dependency; init()
+// must come last.
 function boot() {
   // Window exposure first: components below render HTML with inline on*= handlers
   // that resolve through `window`.

@@ -15,7 +15,7 @@ Its register shifts: speculative → descriptive, pitch → reference.
 
 The docs are written for Claude agents working on the repo, and each area has one owning doc that holds both what the feature does as the user sees it and why it is built that way:
 
-- **[`docs/design.md`](../../docs/design.md)** — the design record: the shell, the gallery and the per-tool designs, the entries table, URL state, code structure.
+- **[`docs/design.md`](../../../docs/design.md)** — the design record: the shell, the gallery and the per-tool designs, the entries table, URL state, code structure.
 - **The subsystem docs** listed at the top of `design.md` (`wordlists.md`, `entry-panel.md`, `pipeline.md`, `segmenter.md`, `umiaq.md`, and others) take the content for their area.
 
 Write the user-visible behavior (exact UI labels, defaults, edge cases, examples that pin down semantics) next to the whys, in the same section, so the two can't drift apart.

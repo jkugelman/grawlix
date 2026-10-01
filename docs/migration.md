@@ -124,6 +124,7 @@ Two concrete cases:
 - **Updating a publisher setting** — e.g. giving a publisher a `url` it didn't have.
   Will Nediger's list went from import-only to auto-fetched purely by setting `url`.
   A `SCHEMA_VERSION` bump can't carry such a change: a bump migrates, and migration never re-seeds config.
+  Bumping only to push a setting is an abuse of the counter, which tracks shape alone.
 - **Adding a new publisher wordlist** to the catalog.
 
 Neither is a shape change.
@@ -189,6 +190,10 @@ The drivers:
 
 The first IDB-only step is **v10→v11**: it splits each per-list disk-sync record `sync_<key> {handle, baseline}` into `sync_main_<key> {handle}` + `sync_worker_<key> {baseline}` (the baseline record written only when a baseline exists — mirror lists carry none; My Edits' `''` is a real baseline and gets one).
 `MIGRATIONS[10]` has no `ls` step (it's `idb`-only); `canMigrate(10)` is satisfied by the `idb` step alone.
+
+The pipeline worker opens the same IndexedDB itself (`dataDb`, [`engine/worker.js`](../site/src/engine/worker.js)), since the engine layer can't import `data/storage.js`.
+Its database name, version, and store must match `openDB` in `storage.js`; a drift silently opens a different or wrong-version database, and the shared wordlist and segmenter cache stops being shared.
+An IDB-layout change that bumps the database version or renames the store updates both openers together.
 
 **Folder→per-file is deliberately not migrated**: a former folder-mode user boots into IDB-mode Grawlix with stale/default state (their real data lives in their folder files, since IDB dropped out under the old model) and manually re-attaches each file; first-attach merges the content back.
 The orphaned folder handle left in IDB is harmless and isn't garbage-collected.

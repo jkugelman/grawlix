@@ -158,10 +158,10 @@ export function setupRenderEffect() {
     ToolStack.refreshRowMarks();
   });
 
-  // Cosmetic effect: re-renders the wordlist list and the merged scroller's
-  // per-row source column when any wordlist's name/icon/url/publisher
-  // changes. Cache-affecting fields (enabled, rescoreRules) route through
-  // `cacheVersion$` instead since changing them invalidates derived state.
+  // Cosmetic effect: re-renders the wordlist list and the scroller's Sources
+  // column when any wordlist's name/icon/url/publisher changes. Cache-affecting
+  // fields (enabled, rescoreRules) route through `cacheVersion$` instead since
+  // changing them invalidates derived state.
   effect(() => {
     const sources = sources$.get();
     for (const wl of sources) {

@@ -51,10 +51,11 @@ It lets a `prepare` index the surviving working set, not only the wordlist.
 It's a separate argument rather than a `ctx` field on purpose: a `prepare` that reads the input declares it in its signature, and `streamPlan` reads that arity (≥ 3) to keep an input-dependent `prepare` out of a tuple producer's streaming emit path (§ *Streaming results*), where the input isn't available yet — its pre-run value would diverge from the terminal pass.
 Caesar's `prepare` reads only `ctx.grouped` (a stable row property), so it streams after a tuple producer; a future input-reading `prepare` would not.
 
-Param strings get lowercased at the executor boundary (raw flag opts out for regex patterns), so tools see canonical input on both sides without per-call ceremony.
+Param strings get lowercased at the executor boundary (`normalizeParams`), so tools see canonical input on both sides without per-call ceremony.
+A param flagged `raw` in the tool's schema passes through untouched: Regex's pattern, whose `\D` classes and group names lowercasing would corrupt; Umiaq's query, which is case-sensitive because its capitals are variables; Search's and Regex's replacements; and Rebus's symbol.
 
 **Runtime input routing.**
-`matchOn` on a tool definition selects what `runToolStage` feeds the tool's `run` (and, via `bucketize`, its `group.key`): the default gives `wlEntry.norm` (letter tools); `'display'` gives `displayOf(wlEntry)` (Initialisms, whose grouped mode needs word boundaries); `'both'` hands over the whole `wlEntry` so the tool can test norm and display itself (Search, Regex — see *Dual-arm search*).
+`matchOn` on a tool definition selects what `runToolStage` feeds the tool's `run` (and, via `bucketize`, its `group.key`): the default gives `wlEntry.norm` (letter tools); `'display'` gives `displayOf(wlEntry)` (Initialisms, whose grouped mode needs word boundaries); `'both'` hands over the whole `wlEntry` so the tool can test norm and display itself (Search, Regex — see [`wordlists.md`](wordlists.md) § *Dual-arm search*).
 The flag also sets the default coordinate space (`norm` or `display`) tagged onto any ranges the tool emits, so the renderer can project at paint time without each tool having to think about coordinates — and a `'both'` tool tags each range itself, since its hits straddle both spaces.
 
 ## The chain-row model
@@ -282,37 +283,43 @@ The retired pre-rename slugs live on as decode aliases — the count keys `behea
 
 ## Cooperative runtime — supersession and yielding
 
-`runPipeline(mergedWordlist, stack)` wraps `executePipeline` with supersession and a slow-run indicator.
-Refresh sites (keystroke in a tool input or the search bar, view entry, gallery click) call it fire-and-forget; the promise resolves to `{rows, atomCount, aborted}` and a caller that sees `aborted: true` drops the result silently.
+`runPipeline(stack, sort)` ([`ui/tool-stack.js`](../site/src/ui/tool-stack.js)) hands the stack to the worker client (`runOnWorker`, [`ui/pipeline-worker.js`](../site/src/ui/pipeline-worker.js)), which posts a `run` message, and drives the slow-run indicator around it.
+Refresh sites (keystroke in a tool input or the search bar, view entry, gallery click) call it fire-and-forget.
+The promise resolves to the materialized result, to `{ aborted: true }` when a newer run superseded it, or to `{ errored: true, rows: [] }` on a tool error; a caller that sees `aborted` drops the result silently.
 
 **Supersession.**
-A module-level `AbortController` tracks the in-flight run.
-Each new call aborts the previous controller before starting its own, so a fast typist's stale runs unwind at their next yield point and only the latest reaches the scroller.
+Each run carries a monotonic `runId`, and the worker records the latest one it has received (`latestRunId`).
+A run whose `runId` is no longer the latest unwinds at its next yield point, so a fast typist's stale runs stop early and only the latest reaches the scroller.
+A superseded run posts nothing; the client settles its promise `{ aborted: true }` when it dispatches the newer run.
+The full rules are in [`worker-protocol.md`](worker-protocol.md) § *Cancellation / supersession*.
 
 **One yield gate per run.**
 `makeYielder` builds a cooperative-yield gate at the start of each run, shared by every O(N) pass it covers — the per-row loop, the `unify` pass, and a tool's `prepare` (through `ctx`).
-`due()` is a cheap synchronous check; once it reports the run has held the thread past ~6ms — about half a 60Hz frame — the caller `await`s `yield()`, which returns control to input and paint via `scheduler.yield()` (with a `setTimeout(0)` fallback) and abort-throws if the run was superseded, so a stale run unwinds without per-call bail-out code.
+`due()` is a cheap synchronous check; once it reports the run has held the thread past the yield interval, the caller `await`s `yield()`, which abort-throws if the run was superseded, so a stale run unwinds without per-call bail-out code.
+The worker sets the interval to ~30ms and the yield to a `setTimeout(0)` macrotask (`configureExecutorYield`), the one yield that lets a queued `run` or `cancel` message land mid-run.
+The interval is a cancellation-latency dial, not a responsiveness one: the worker has no UI to keep at 60fps.
+The executor's own defaults (~6ms, `scheduler.yield()`) apply only where it runs outside the worker, in the unit tests; inside it `scheduler.yield()` starves the `message` task (see [`worker-protocol.md`](worker-protocol.md) § *Cancellation / supersession*).
 
 `due()` can't afford to read `performance.now()` every iteration, so it samples the clock once per `stride` calls and retunes `stride` after each sample to keep the sampling interval near 1ms — a hot loop of cheap iterations samples rarely, an expensive one every iteration, with nothing for a caller to tune.
 Time-based rather than iteration-count: a heavy predicate and a trivial one take wildly different time per row, and pinning yields to wall-clock keeps the yield rate sane across both — a fixed iteration count would yield every ~1ms on a cheap 500K filter, burning hundreds of ms of pure overhead.
 `run` sees none of this — it's synchronous and per-row — but a `prepare` doing heavy work drives the same gate itself, via `ctx.forEach`/`ctx.times` or `ctx.due()`/`ctx.yield()`.
 
 **Slow-run indicator.**
-One global signal: the entries panel gains `.pipeline-running` at the start of every run and loses it on completion or abort.
+One global signal: the entries panel gains `.pipeline-running` when `runPipeline` starts and loses it once no run is in flight.
 The visible effects — fading the result list (`#vs-host`) to 0.55 opacity, revealing a spinner over the panel, and reserving 96px of vertical room for it — each carry a 100ms CSS `animation-delay`, so a run that adds and removes the class inside that window cancels the animations before they start and nothing flashes on fast keystrokes.
-CSS-driven rather than a JS `setTimeout` because `scheduler.yield()`'s continuations outrank lower-priority tasks and starve a JS-driven slow-indicator timer on CPU-bound runs; the browser's render pipeline ticks between yields regardless of task priority, so an animation-delay reveal triggers on wall-clock time even when the executor is hot.
 The threshold is the *whole run total*, not per-step — a long pipeline of individually-fast tools that sum past 100ms still trips it.
 One signal for the whole run rather than a per-tool spinner badge: the user cares that *results* are stale, not which row is slow.
 The dim lands on `#vs-host` rather than the panel itself so the spinner overlay stays at full opacity while the rows behind it fade.
 
 **Tool errors.**
 Two channels feed one `⚠` affordance.
-An **execution error** — a thrown `def.prepare` / `def.run` / group key — is caught at the per-stage boundary in `executePipeline`, wrapped in a `ToolStageError` carrying the offending stack row, and re-thrown; `runPipeline` translates it into `{ errored: true, rows: [] }` so the caller clears the stale results rather than continuing to show them, and the failing row's `_error` field holds the message.
+An **execution error** — a thrown `def.prepare` / `def.run` / group key — is caught at the per-stage boundary in `executePipeline` and wrapped in a `ToolStageError` carrying the offending stack row.
+The worker posts it as an `error` message naming that row's index; the client writes the message to main's copy of the row as `_error` and resolves the run `{ errored: true, rows: [] }`, so the caller clears the stale results rather than continuing to show them.
 A **parse error** — an invalid query the tool can't run, like a stray `.` in Umiaq or an unterminated group in Regex — is reported synchronously from params by an optional `def.error(params)` accessor (Umiaq hands back its parser message; Regex its `SyntaxError` reason, stripped of V8's `Invalid regular expression: /…/:` echo, which only repeats the pattern the user can already see), known *before* the row runs — which it won't, since the same invalidity also reports `isInert`.
 `ToolStack.refreshRowMarks()` runs after every pipeline run and shows the row's effective message (`_error || error()`) on the `⚠` icon — always rendered, hidden by default, anchored at the input's right edge (the input is pinned to its grid column so a caret-less tool doesn't strand the icon off to the right).
 On a hover device the message rides the button's `title`; on touch a click opens `ErrorPopover` (positioned on click, dismissed on outside-click or Escape).
 No debounce gates the reveal: the parser's deliberate `empty`-vs-`error` split already keeps a half-typed query (`AB;` → `empty`) quiet, so the icon tracks each keystroke without flashing while composing.
-A successful run clears `_error` at the top of `executePipeline`, and a fixed query drops `error()` to null, so the icon clears on the next run either way.
+`runOnWorker` clears every row's `_error` before it dispatches, and a fixed query drops `error()` to null, so the icon clears on the next run either way.
 
 **First-paint covers the corpus build, not the tool pipeline.**
 The splash exists to cover the one thing main can't render around: the worker reading IndexedDB, parsing, rescoring, and merging the corpus.
@@ -328,50 +335,42 @@ The one cost is a brief empty-table-with-spinner window between corpus-ready and
 `__grawlixTest.pipelineIdle()` resolves when no run is in flight; `getVisibleEntries` awaits it before reading the DOM so test assertions after a keystroke don't race a not-yet-finished refresh.
 
 **The pipeline runs in a web worker.**
-Cooperative yielding keeps the main thread *responsive* between chunks, but the compute still costs: a per-keystroke search or filter over a merged corpus of hundreds of thousands of entries is genuine work, and on real hardware it lagged typing — yielding hid the freeze but not the felt latency between keystrokes.
-Moving that work off-thread is what removes it.
-The whole executor (`executePipeline` and every tool's `run`/`prepare`/`group`) lives behind the worker boundary, importing the same DOM-free `engine/` the main thread would; in the steady state the main thread runs no pipeline code at all.
+Cooperative yielding alone would keep the main thread *responsive* between chunks without removing the compute: a per-keystroke search or filter over a merged corpus of hundreds of thousands of entries is genuine work, felt as latency between keystrokes even when nothing freezes.
+Running it off-thread removes that latency.
+The whole executor (`executePipeline` and every tool's `run`/`prepare`/`group`) lives behind the worker boundary, importing the DOM-free `engine/`; the main thread runs no pipeline code.
 
 **The worker owns the corpus; main is a thin, asynchronous view.**
 The worker is the *sole* owner of the wordlist data — it reads each source's text from IndexedDB, parses, rescores, and merges it, builds every scoped view, runs the pipeline, and computes the stats/histograms.
 Main holds **no** merged or scoped corpus: only `state` (the small per-wordlist config — metadata, rescore rules, scoring tiers, enabled/order), the DOM, and the per-config summaries the worker ships.
 It syncs the config the worker needs (`syncConfig`) and **requests the rows it needs to render**.
-Because there is exactly one owner, there's no two-copy synchronization problem — the silent-divergence danger a "both sides keep a full copy" model carries simply doesn't exist; a mutation is a *command* to the one owner (`editEntry`/`deleteEntry`), not a reconciliation between two authorities.
-This avoids the three freezes a main-resident corpus causes: cold boot doesn't read/parse/merge every wordlist on main (the splash covers the worker doing it), a scope switch doesn't re-ship a corpus across the boundary (the worker rebuilds the scope from its resident sources synchronously), and a fetch/import doesn't freeze the tab rebuilding on main (the worker absorbs the change off-thread — splicing just the changed norms in place for a typical update, see *A re-fetch costs the diff* below).
+Because there is exactly one owner, there's no two-copy synchronization problem — the silent-divergence danger a "both sides keep a full copy" model carries simply doesn't exist; a mutation is a *command* to the one owner (`editEntry`/`deleteEntry`/`applyFetched`), not a reconciliation between two authorities.
+This avoids the three freezes a main-resident corpus causes: cold boot doesn't read/parse/merge every wordlist on main (the splash covers the worker doing it), a scope switch doesn't re-ship a corpus across the boundary (the worker rebuilds the scope from its resident sources synchronously), and a fetch/import doesn't freeze the tab rebuilding on main (the worker absorbs the change off-thread — splicing just the changed norms in place for a typical update, see [`worker-protocol.md`](worker-protocol.md) § *`applyFetched`*).
 It also empties main's heap of the bulk data, relieving the stale-tab GC jank — a *main-thread* problem, since GC pauses freeze the UI — at the cost of roughly **1×** peak corpus memory living in the worker, where GC doesn't jank the UI.
 (Total cross-thread footprint is about what a main-resident corpus costs; main's is what matters.)
+Worker memory still counts on iOS, where the worker and page share one jetsam budget: that is why each entry's index into the corpus is stamped on the entry itself as `_i`, once per corpus rebuild, instead of kept in a side `Map`, which cost ~40 MB of pure overhead at ~750K rows.
 The standing risk this design takes on is that rendering is **asynchronous** — the scroller can't read a local array, it fetches windows — so getting the prefetch-and-placeholder behavior smooth is the central engineering task, addressed by the windowing below.
 
-The design sidesteps the costs that sank the naïve "ship the whole corpus" version, and never ships the corpus as bulk data at all.
-No result crosses as bulk either — **every tier is windowed, in one uniform shape**: the worker owns the full sorted result and ships only a count plus an inline first window of rich rows, serving later windows on demand, so even a one-letter query matching the whole corpus returns ~60 rows and a number, not a million.
+The corpus never crosses the boundary as bulk data, and neither does a result — **every tier is windowed, in one uniform shape**: the worker owns the full sorted result and ships only a count plus an inline first window of rich rows, serving later windows on demand, so even a one-letter query matching the whole corpus returns ~60 rows and a number, not a million.
 There is no special binary transport for any tier.
-A worker **crash respawns + rebuilds from IDB + re-dispatches** — there is no main-thread engine fallback, because main holds no corpus to run against.
+After a worker crash the client respawns it, the fresh worker rebuilds its corpus from IDB, and the client re-dispatches the in-flight run — there is no main-thread engine fallback, because main holds no corpus to run against.
 The interface contract — data ownership, every message, the cancellation/supersession rules — lives in [`worker-protocol.md`](worker-protocol.md).
 
 **All three result tiers are windowed off the worker.**
 The flat scroller renders only its visible window of rows, fetched from the worker (`fetchRows`) into a bounded local cache seeded from an inline first window the result ships, with shimmer skeletons on the rare miss; export and the entry panel read the owned corpus the same way.
 The grouped tier windows the same way, but at **two levels**, because a grouped result is a list of group rows and each group holds a list of chains — and either dimension can be the size that freezes main.
-The freeze the grouped tier had to solve was main decoding *every* group up front: a letter-bank-`*` result over a 300K-entry corpus is ~53k groups (most of them small — only a handful exceed a few dozen chains), so capping the chains *per group* did nothing — the structured-clone and decode of the whole group-row list was the cost.
-The fix windows the group-ROW list (the worker ships the first window of group rows plus the total group count; main fetches more group rows on scroll, sizing the scroller from the count) *and*, within each group, windows the chains (each shipped group carries a `firstChains` window; the "+N more" popover fetches a group's later chains on demand).
+Decoding *every* group up front is what would freeze it: a letter-bank-`*` result over a 300K-entry corpus is ~53k groups (most of them small — only a handful exceed a few dozen chains), so capping the chains *per group* does nothing — the structured-clone and decode of the whole group-row list is the cost.
+So the worker windows the group-ROW list (it ships the first window of group rows plus the total group count; main fetches more group rows on scroll, sizing the scroller from the count) *and*, within each group, the chains (each shipped group carries a `firstChains` window; the "+N more" popover fetches a group's later chains on demand).
 The worker owns, sorts, and filters the grouped corpus and retains the full sorted+filtered list to serve those fetches — for the common single-key group **index-packed** (a member kept as a corpus index, rebuilt into a display object only for the fetched window, so the ~53k-group result is tens of bytes per member rather than the eager atom object graph; the "+N more" reveal then defers a group's member *retention*, not just its shipping), see § *Streaming results* — and ships the result-level stats/histogram/width-hints computed over all groups, since main never holds the full list.
 Within-group chain order is the designed seed order (alphabetical-by-seed under Entry, seed-score-descending otherwise) on every render, filtered or not — the worker sorts groups and chains into final order before windowing.
 The **transform tier windows like the flat tier** (a one-level chain list): the worker sorts and filters the chains, retains the full list, and ships a `firstChains` window plus a `chainCount` and the result-level summaries, serving later windows via `fetchTransformRows`.
-Transform results are usually small — they self-filter hard (anagram/head-off emit only on merged-corpus hits) — but the old fully-materialized path rested on that staying true; windowing it removes the latent main-thread freeze a future less-selective transform would otherwise reintroduce, and makes all three tiers uniform (the worker sorts every tier; main sorts none).
+Transform results are usually small — they self-filter hard (anagram/head-off emit only on merged-corpus hits) — but windowing doesn't depend on that: a less-selective transform can't freeze main, and all three tiers stay uniform (the worker sorts every tier; main sorts none).
 
 Because the worker owns the sort and the filter, a **sort-axis or score-range change is a view reprojection, not a re-run** — the worker re-derives the view over its retained join and re-windows, uniformly across all three tiers, rather than re-sorting a local array on main (main sorts none).
 See § *Streaming results*, "Sort and score-range are view refinements".
 
 **A re-fetch costs the diff, not the wordlist.**
-A mutation to the corpus is a *command* to the one owner, not a reconciliation between two copies — and the worker applies it **in place**, splicing only the affected norms rather than rebuilding.
-A My Edits edit, add, or delete (`editEntry`/`deleteEntry`) re-merges just its one or two norms; a re-fetch or re-import (`applyFetched`) is the same splice batched.
-The periodic publisher update is the case that pays off: a maintainer adds some entries and retunes some scores, the bulk untouched, and reprocessing the whole list end to end — parse, rescore, re-merge every entry, re-run the pipeline, repaint — would pay list-sized cost for a diff-sized change.
-Instead main ships the new text to the worker, which diffs it against its resident copy in one O(n) pass keyed by entry (added / removed / score-or-comment-changed) and patches only those norms through the splice path.
-The payoff is as much *not interrupting the page* as raw speed: patching the changed norms in place leaves the current search, scroll, and on-screen rows undisturbed, where a full reprocess re-runs and repaints.
-A **structural-change cap** keeps it from ever costing more than a full rebuild.
-Only *adds and deletes* count toward it: a rescore splices in place (an equal-length array overwrite, no shift, O(1)), so any number of retuned scores stays on the cheap path, but an add or delete shifts the merged array (O(n) each) — so the cost is O(structural × n), and past an *absolute* cap (256 adds/deletes; a *fraction* of the list would permit O(n²) work and freeze on a large one) it falls back to rebuilding the merge wholesale off the *resident* sources, still cheaper than re-reading and re-merging every source from IDB.
-The diff measures cheaply and bails the instant it crosses the cap — past that point the rebuild ignores the per-norm detail, so finishing the scan would be wasted work.
-A fresh import has no previous version, so it degenerates to that rebuild behind a near-free check; a config change riding the same import — a first population, an enable flip, an auto-seeded rule — falls back to the full resync that re-sends the changed config.
-So the common "mostly the same" update gets dramatically cheaper and non-interrupting, while the worst cases cost no more than a full rebuild.
+The worker applies a corpus mutation **in place**, splicing only the affected norms: a My Edits edit, add, or delete (`editEntry`/`deleteEntry`) re-merges its one or two norms, and a re-fetch or re-import (`applyFetched`) diffs the new text against the resident copy and splices the changed norms as one batch, so a publisher's periodic update leaves the current search, scroll, and on-screen rows undisturbed.
+The diff, the 256-add/delete cap past which it rebuilds the merge wholesale, and the refresh-on-consent fork are specified in [`worker-protocol.md`](worker-protocol.md) § *`applyFetched`*; how updates are detected and reported is [`wordlists.md`](wordlists.md) § *Fetching & updates*.
 
 ## Streaming results
 
@@ -468,6 +467,8 @@ The **transform** tier can't cursor-validate — its join is the post-fold survi
 The survivor *sequence* is deterministic (the corpus emits in norm order), so the swap reshuffles nothing, and a mirror straddling the abort point promotes its glyph live past the crossover rather than flickering on the frozen partial.
 It saves **perceived** latency, not compute — the re-run pays the full scan; the catch-up is redundant work hidden behind the frozen paint — so it is narrower than the finished cache, which saves the whole recompute.
 Admission is the **same recompute-time floor** the finished cache uses, which doubles as the gate: a per-keystroke transient aborts in milliseconds, below the floor, so `admit()` refuses the flood and no separate heuristic is needed.
+A run must also have streamed something: one superseded before its first batch (a tuple search still scanning the corpus before its first tuple) has no partial to keep.
+A resume consumes its stash — the resumed run re-stashes on its own abort or is admitted to the finished cache on completion — so no cache entry aliases a live, growing join.
 The one guard the finished cache doesn't need: because the stash fires *at the abort* — exactly where a reshaping My Edits edit that supersedes the run lands — a run whose corpus generation changed under it **refuses to stash**, since its join would span two corpus states that the object-identity test (same in-place-spliced object) can't tell apart.
 
 ## Symmetric unification
@@ -534,7 +535,7 @@ A transform that hides a side (§ *A row can hide the side it came from*) leaves
   Length stays a first-atom axis (below); Min/Max length are its across-the-row twins, the shortest and longest atom of the chain, paralleling Min/Max score.
 
 Comment owns its own column (single-axis, like Entry and Length), sorting on the first atom's comment text (`localeCompare`).
-The Sources column (merged `All Wordlists` view only) shows each entry's contributing wordlists as a row of icons rather than a single name, so it carries no sort axis — there's no one value to order by.
+The Sources column shows each entry's contributing wordlists as a row of icons rather than a single name, so it carries no sort axis — there's no one value to order by.
 Because the worker keys every source by `dbKey` and nothing sorts by name, it never carries the human label at all.
 - **Grouped pipelines** (a group tool in the stack): Entry, Count, Min score, Max score, Min length, Max length.
   Default Entry asc.

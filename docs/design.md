@@ -120,7 +120,7 @@ The two filter boxes are load-bearing and always hold; when the bar would overfl
 Both share the `.range-filter` class, which is what the overflow guard measures — a filter box added without it silently overlaps the Share control instead of triggering the collapse.
 On a phone the histogram is the price of the second box — a second filter's width moves the collapse threshold up, so it sheds at a wider window than it would with one box.
 No exact figure is recorded here on purpose: it shifts with any padding or box-width tweak, and `stats-bar-layout.spec.js` pins the ordering (histogram sheds, then the counts; the filter boxes never do) rather than a number, for the same reason.
-Sorting lives on the column headers below, not in this bar — see *Sort axes per tier*.
+Sorting lives on the column headers below, not in this bar — see [`pipeline.md`](pipeline.md) § *Sort axes per tier*.
 
 **No side panel.**
 The tool gallery sits as a top section of the screen, and disk sync's signals live where the scoped list lives — the sync button in the wordlist bar (see [`wordlists.md`](wordlists.md) § *Disk sync* below) — rather than in the global chrome.
@@ -297,6 +297,13 @@ The popover is interactive — a `mousedown`-preventDefault keeps the anchored i
 A `.tool-stack-cursor` — an accent caret-and-line — appears at the seam where the click will drop the new tool: between the last user tool row and the permanent Search bar, or at the top of the stack when there are no user tools yet.
 It's parented in the Search bar, absolutely positioned so it adds no height, and removed on mouseleave.
 A freshly added row gets a one-shot `.flash` accent pulse; `rerenderRows` rebuilds the user rows on every mutation, so the new row's element is always fresh.
+
+**The new-tools reveal.**
+When a boot finds tools the visitor hasn't seen, a full-screen overlay (`NewToolsReveal`, [`ui/new-tools-reveal.js`](../site/src/ui/new-tools-reveal.js)) opens a treasure chest and flies their gallery cards out, then into the featured strip on dismiss.
+The seen set is the `seenTools` localStorage key, a list of tool slugs ([`data/new-tools.js`](../site/src/data/new-tools.js)); `pendingNewTools` returns the catalog slugs missing from it and the reveal marks them seen.
+A first boot seeds the key: a brand-new visitor with the whole catalog, so nothing is revealed, and a returning visitor from before the reveal shipped (one with the `returningVisitor` key) with `RETURNING_BASELINE`.
+That baseline is a frozen, hand-written slug list — the catalog as of the release before the reveal — not `Object.keys(TOOLS)`, which would fold every tool added since into the baseline and never reveal it.
+So adding a slug to `RETURNING_BASELINE` hides that tool from those visitors, and renaming a tool's slug reveals it again to everyone, since the old slug in each seen list no longer matches.
 
 **How a stack runs** — the executor, the chain-row and group-row models, the length filter, inversion, the cooperative runtime and streaming, sort axes, and highlights — has its own doc, [`pipeline.md`](pipeline.md).
 The sections below cover the individual tools whose design needs more than their catalog entry in [`tools.md`](tools.md).
@@ -523,6 +530,20 @@ The default, 4, is the least that puts both entries in two or more pieces, which
 A pair is judged by the *fewest* runs it can be read in, so raising Runs never surfaces a pair that also has a looser reading.
 Results stream as three-lane tuple rows and stop at a per-platform result cap ([`pipeline.md`](pipeline.md) § *Streaming results*).
 
+**The corpus index is a sorted norm array used as a trie.**
+Every prefix owns a contiguous range of the sorted array, so descending one letter is a binary search within the current range and costs no memory beyond the array; an explicit trie over a full merge runs to ~3M nodes and ~500 MB, which a worker can't hold.
+Ranges for prefixes up to three letters are memoized; deeper ones are narrow and number in the millions.
+`rangeFor` skips an entry that *is* the prefix (`wall` beside `wallet`): it sorts first in its range and has no letter at that depth, which breaks the binary searches' monotone predicate, and without the skip a descent silently lands on an unrelated norm.
+
+**A pair scores by its fewest runs.**
+Repeated letters let a plain concatenation also be read as a four-run weave, so judging a pair by its best-looking assignment would admit exactly the splits the Runs floor rejects.
+`findWeaves` therefore records every complete assignment in `best`, keeping the lowest run count per pair, and filters on Runs only afterward.
+Filtering before `best` would take the minimum over the surviving assignments only, which admits the concatenation just as judging by the most runs would (the "max-runs bug").
+The input's first letter is pinned to pile A, so each split isn't also emitted as its mirror.
+
+**Retention drops whole.**
+Past `weaveRetainLimit` (50,000) tuples a streamed run's batches are the only copy and the run retains nothing, rather than a truncated set the executor would take as complete and cache as a prefix tile that answers later runs with tuples silently missing.
+
 ### Caesar shift
 
 Caesar shift ([`engine/tools/caesar.js`](../site/src/engine/tools/caesar.js)) takes an entry and an optional **Shift**.
@@ -599,16 +620,16 @@ Ellipsis truncation respects the markup.
 
 **Sorting is on the column headers, not the stats bar.**
 The bar's right region holds the score-range input and the Share control; there's no Sort-by control here.
-Sorting moved onto the entry/group column headers ([`pipeline.md`](pipeline.md) § *Sort axes per tier*) — clicking a header sorts by it, and a header with several axes opens a menu of them.
-Vacating the bar is what frees the room for Share to read as a labeled button rather than a bare icon.
+Sorting is on the entry/group column headers ([`pipeline.md`](pipeline.md) § *Sort axes per tier*) — clicking a header sorts by it, and a header with several axes opens a menu of them.
+Keeping sort out of the bar is what leaves room for Share to read as a labeled button rather than a bare icon.
 
 **Stats bar refresh is surgical.**
 A score-range keystroke triggers a re-render of the bar's counts and stats numbers, but `.stats-bar-controls` (containing the input the user is typing into) is left untouched — `swapStatsBarReadouts` replaces only `.stats-bar-counts` and `.stats-bar-distribution`.
 Rebuilding the whole bar on every keystroke would destroy the input element under the cursor and drop focus mid-edit.
 
 **Open an atom → the entry panel.**
-A click on the **entry text** (desktop), a **tap** (touch), or a **double-click** anywhere but the score opens the entry panel for that atom; a single desktop click elsewhere on the row selects it instead (§ *Click targets*), and a *score* click in the merged or My Edits view opens the tier quick-pick below.
-The panel — editing, the cross-wordlist provenance view, the rename hint, Related entries, and the Prev/Next walk — has its own doc, [`entry-panel.md`](entry-panel.md).
+Which clicks open it is § *Click targets*.
+The panel — opening and closing, editing, the cross-wordlist provenance view, the rename hint, Related entries, and the Prev/Next walk — has its own doc, [`entry-panel.md`](entry-panel.md).
 
 **The score cell is a tier quick-pick in the merged and My Edits views.**
 Clicking a score in All Wordlists or My Edits opens `ScorePicker`, a listbox of the tier labels (`state.scoring`) rendered as score badges, highest to lowest, with the entry's current tier marked (a score that falls between tiers marks nothing but starts the cursor on the next tier down).
@@ -718,7 +739,7 @@ The split button keeps the two intents visibly distinct: Copy is the button, the
 **A download menu, not an Export dialog.**
 For the *file* exports, an "Export…" dialog with a format chooser and live preview was considered and rejected as overcomplex for the common case; the per-format defaults are sensible enough that plain menu items keep the surface quiet.
 The downloads sit in the Results split menu because that's where the user already is when deciding how to get results out — the popover shows how far the result runs, and one caret puts "write a file" beside "copy the text".
-**Share** itself is a labeled trigger, not a bare icon: an icon button was considered and rejected (icon mystery vs a self-documenting name), and with sorting moved onto the column headers the bar has the room to label it.
+**Share** itself is a labeled trigger, not a bare icon: an icon button was considered and rejected (icon mystery vs a self-documenting name), and with sorting on the column headers the bar has the room to label it.
 
 **Scope is the visible view.**
 Every format reflects the current filter, sort, and pipeline output.
@@ -832,7 +853,7 @@ CSV is the "analyze elsewhere" format; the user's current sort signals intent, a
 **Computed columns kept** (`min_score`, `max_score` before the entry columns; `count` on grouped rows; catalog group columns).
 Asymmetric with JSON — the spreadsheet audience would hand-type `=MIN(...)` formulas otherwise.
 
-**Comments + source mimic the display table** — present on flat pipelines, omitted on grouped (per `design.md`'s "no Length, Comment, or Source column on group chains" rule).
+**Comments + source mimic the display table** — present on flat pipelines, omitted on grouped, which show no Length, Comment, or Source column ([`pipeline.md`](pipeline.md) § *Group-row display*).
 
 ### Download as JSON
 
@@ -988,15 +1009,13 @@ A route open is also **view-first** — it never auto-focuses a field (which wou
 
 A deep link or reload opens the panel **as soon as the app shell renders — ahead of `firstPaint`/`workerReady`** (`Router.openPendingEntry`, called right after `renderAll`): the panel synthesizes a bare target and seeds its fields from the worker (no clicked row to read).
 It waits on none of the corpus build, which on a four-wordlist setup is a second-plus of worker CPU while a shared link's whole payload is the panel — so the entry text, the seven Search link-outs, and the Wikipedia/Wiktionary/thesaurus cards (plain fetches, no wordlist involved) land in tens of milliseconds instead of after the merge.
-The wordlist-derived blocks arrive on the build: provenance, Related entries, and the seed each hold their un-ready reply and re-ask on `whenWorkerCommitted()` ([`entry-panel.md`](entry-panel.md) § *Loading and clearing*, and `ready` in [`worker-protocol.md`](worker-protocol.md)).
-The seed is the one that *must* stay disabled meanwhile rather than fall back to the clicked placeholder — a route open has no clicked row, so an enabled blank invites a save that overwrites a real score with nothing.
+What shows at once and what waits on the corpus, with the shimmer placeholders and why the fields stay locked, is [`entry-panel.md`](entry-panel.md) § *Loading and clearing*; each worker-fed block holds its un-ready reply and re-asks on `whenWorkerCommitted()` (`ready` in [`worker-protocol.md`](worker-protocol.md)).
 The splash deliberately stays up **behind** the panel (z-200 under its z-600) for that stretch: the table underneath is still empty, and a visible "0 entries" behind a panel about a real entry reads as a wrong answer rather than a pending one.
 The splash keeps its logo centered in the full viewport and lets the panel sit over it.
 
 **What's still loading has to say so.**
-Everything the corpus feeds arrives seconds after the panel does, and an empty field is not self-evidently a pending one — a blank Score reads as "this entry is unscored," which is a claim Grawlix hasn't earned yet.
-So the un-ready state is drawn, not merely left blank: Score and Comment shimmer (`#entry-panel.seed-pending`, the shared `.skeleton-bar` treatment) and stay disabled, the score combo's toggle disables alongside the field it opens (left live, it offers a tier pick the arriving seed would silently overwrite), and provenance renders its **"Appears in" heading over three shimmer bars** rather than collapsing — the gap it would otherwise leave is both an unexplained hole and a shove when the real table lands in it.
-Each placeholder is armed only once the worker has *answered* un-ready, never up front, so a warm corpus (the ordinary click, which replies in a few milliseconds) never flashes a placeholder it is about to replace in the same frame.
+An empty field is not self-evidently a pending one — a blank Score reads as "this entry is unscored," which is a claim Grawlix hasn't earned yet — so the un-ready state is drawn, not left blank.
+Beyond the placeholders [`entry-panel.md`](entry-panel.md) § *Loading and clearing* lists, the score combo's toggle disables alongside its field (left live, it offers a tier pick the arriving seed would silently overwrite), and "Appears in" keeps its heading over the shimmer bars rather than collapsing, since the gap would be both an unexplained hole and a shove when the real table lands.
 Related entries is left to collapse: it is legitimately empty for many entries, so a placeholder there would promise content that may never come.
 The retry that clears each placeholder also clears it when the retry *fails*, or a wedged worker would shimmer forever.
 A value equal to its own norm is treated as a **bare** entry (display null) so the worker's bare fallback resolves the winner — otherwise a deep-linked lowercase entry wouldn't seed.
@@ -1025,7 +1044,7 @@ Breakage is a per-change judgment call, made by the user, not a blanket rule:
 - **The user picks the outcome** — keep the old form working or let it rot — case by case, weighing how likely that link is to be out there against the cost of carrying the alias.
 - **To keep an old form working**, register its key in an alias table that maps to the new key (or to a sensible fallback) and `replaceState` to the canonical form on load.
 
-No aliases exist today; the alias table is the mechanism for when the user judges a particular break worth absorbing.
+Three aliases exist: the retired `whole-word` bare key (decodes as `mode=full`), the retired tool slugs in `LEGACY_SLUGS` (`behead`/`curtail` and the affix keys, § *Tool stack encoding*), both in [`app/url-codec.js`](../site/src/app/url-codec.js), and the legacy `sort-dir` key (§ *Sort encoding*).
 
 ### Router policies
 
@@ -1117,9 +1136,7 @@ Bundling is behavior-preserving (concatenation, renaming, dead-code removal — 
 The build was rejected from being a *dev-server* bundler (Vite et al.): in dev those transform files on request, so the workflow becomes "run the bundler" rather than "serve static files," colliding with the static-serve requirement.
 Native modules in dev cost nothing because Grawlix is always behind an HTTP server anyway (ES modules are blocked over `file://`, fine over `http://`).
 
-**The dev-waterfall gotcha:** the browser matrix against the unbundled `site/` flakes on webkit under parallel-worker load — the cold-load module waterfall times out `page.goto`.
-The bundled `dist/` has no waterfall (one request) and runs clean.
-So the full matrix / stage gates use `npm run test:dist`; per-file chromium iteration against `site/` is fine.
+Which test runs need the bundled `dist/` is in [`testing.md`](testing.md) § *CI*.
 
 ### Importing defines; `boot()` does
 
@@ -1131,7 +1148,8 @@ This matters because every top-level statement of a module runs *at import*, in 
 With imports side-effect-free, import order stops being a correctness concern, and the worker can import the tool catalog without a `document` to throw on.
 
 The flip side: **the mount/boot order in `boot()` is an explicit, load-bearing contract.**
-Each step assumes the prior ones ran — `configureX` injections before the components that call them, dialogs before `init()` opens them, app-shell components before `init()`'s first `renderAll` — so a wrong order surfaces as a runtime error.
+Each step assumes the prior ones ran — `configureX` injections before the components that call them, dialogs before `init()` opens them, app-shell components before `init()`'s first `renderAll`.
+A wrong order mostly fails silently: nearly every `configureX` seam defaults to a no-op (table below), so a call that runs before its injection does nothing — a sync conflict prompt raised before `configureSyncDialogs` simply never appears.
 The order is derived from the layer graph and commented at the one place it's wired (`boot()`).
 
 ### Cycle-breaking and the injection seams
@@ -1154,9 +1172,39 @@ The seams that break them:
   Wherever a lower module would otherwise need to call upward (a ui view reaching an `app/` action, or any module reaching a not-yet-carved dependency), the lower module exposes `configureFoo({...})` and `boot()` wires the real functions in.
   This is how ui views invoke `app/` actions without importing `app/`, and it's the same shape as the segmenter's I/O injection below.
 - **The invalidation graph.**
-  Cache invalidation is composed downward: each owning module exports its own narrow invalidator (`engine/stats` → `invalidateStatsCache`, `engine/histogram` → `invalidateHistogramLayout`, and `data/rescoring` / `data/merge` their own), and `data/invalidate.js` imports them all downward to compose `invalidateWordlistCaches`.
+  Cache invalidation is composed downward: each owning module exports its own narrow invalidator (`engine/histogram` → `invalidateHistogramLayout`, `data/rescoring` → `invalidateRescoredCache`, `data/merge` → `invalidateSourceCounts`), and `data/invalidate.js` imports them downward to compose `invalidateWordlistCaches`.
   (The pipeline's own prefix cache lives worker-side and invalidates by corpus-object identity, so it needs no main-thread invalidator here.
   The caches themselves and their contracts are § *Caches*.)
+
+Every `configureX` seam, with what injects it and what it does before then.
+The worker-side seams are wired at the top of `engine/worker.js` or on its `configTools` message, since the worker never runs `boot()`.
+
+| Seam | Module | Injected | Default before injection |
+|---|---|---|---|
+| `configurePipelineWorker` | `ui/pipeline-worker.js` | `baseURL: import.meta.url` (main.js's) | `null`: spawning the worker throws |
+| `configureSyncDialog` | `ui/dialogs/sync.js` | `WordlistActions` | no-op |
+| `configureConfigureWordlist` | `ui/dialogs/configure-wordlist.js` | `addNewWordlist`, `fetchWordlist`, `ingestFile`, `deleteWordlist` | no-op (`deleteWordlist` resolves false) |
+| `configureImportGuide` | `ui/dialogs/import-guide.js` | `ingestFile` | no-op |
+| `configureRendering` | `ui/rendering.js` | `refreshDerivedDisplays`, `deleteFromEdits`, `attachExternalEditHandlers`, the score-range, length-range, and Share HTML builders | no-op; builders return `''` |
+| `configureAppView` | `ui/app-view.js` | `navigate` (`Router.navigate`) | no-op |
+| `configureEntriesTable` | `ui/entries-table.js` | `navigate` (`Router.navigate`) | no-op |
+| `configureToolStack` | `ui/tool-stack.js` | `navigate`, `showRowError` (`ErrorPopover`), `attachHelpPopups` | no-op |
+| `configureRescoreEditor` | `ui/rescore-editor.js` | `bakeMenuOpts`, `bake` | no-op |
+| `configureManagePanel` | `ui/manage-panel.js` | `openAddWordlist` | no-op |
+| `configureDiscoveryBanner` | `ui/discovery-banner.js` | `runImport` | no-op |
+| `configureSettings` | `ui/dialogs/settings.js` | `checkForUpdates`, `regenerateFillOutputs`, `getAutoUpdate` | no-op (`getAutoUpdate` → true) |
+| `configureSyncDialogs` | `data/disk-sync.js` | `alert` (`showAlert`), `resolveConflict` (`showEditsConflict`) | no-op; a conflict resolves to `'device'` unasked |
+| `configureMirrorSerializer` | `data/disk-sync.js` | `fetchWorkerSerialize` | `null`: a mirror write serializes on main, and All Wordlists retries |
+| `configureEditsMerger` | `data/disk-sync.js` | `mergeDisk` (`fetchWorkerMergeDisk`) | `mergeDisk` resolves `null` |
+| `configureIO` (imported as `configureSegmenterIO`) | `engine/segmenter.js` | the worker's own `idbGet`/`idbPut` | `null`: loading the unigram corpus throws |
+| `configureIO` | `engine/phonetics.js` | the worker's own `idbGet`/`idbPut` | `null`: loading CMU throws |
+| `configureSpaceOutBigrams` | `engine/segmenter.js` | `SPACE_OUT_BIGRAMS` | `null`: unigram-only ranking |
+| `configureCommonWords` | `engine/morphology.js` | `COMMON_WORDS`, `LEMMA_BASES` | empty sets |
+| `configureExecutorYield` | `engine/executor.js` | a `setTimeout(0)` yield every 30 ms | `scheduler.yield()`, which starves the cancel message |
+| `configureUmiaq` | `engine/tools/umiaq.js` | `maxResults` from `configTools` | the mobile cap |
+| `configureWeave` | `engine/tools/weave.js` | `maxResults` from `configTools` | the mobile cap |
+
+The `configure*ForTest` exports in `ui/pipeline-worker.js` are test hooks, not seams.
 
 **Intra-`ui/` circular imports are permitted.**
 The strict rule is *cross-layer* acyclicity (ui ↛ app, data ↛ ui, engine stays pure), not intra-`ui` acyclicity.
@@ -1168,9 +1216,11 @@ Carving those together with circular imports is a deliberate choice over force-i
 The `engine/` layer being DOM-free is what lets the pipeline executor run in the worker: the worker `import`s `engine/` directly and runs the identical module text the main thread would, so a tool can't drift between threads.
 The concrete main↔worker interface — data ownership, the message protocol, and the cancellation policy — is specified in [`worker-protocol.md`](worker-protocol.md).
 The one function that straddles the DOM line is the unigram-corpus loader: it mixes pure decode with I/O, and `localStorage` isn't worker-safe.
-Rather than let the engine reach into `data/storage` (an engine→data upward edge), `engine/segmenter.js` takes its I/O **injected** — `configureSegmenterIO({ idbGet, idbPut, onSize })`, a one-time boot call that stashes the deps in module state for the loader to close over.
-The phrase tool's `prepare` then calls the segmenter's own loader (an engine-internal call), never `data/`.
-The corpus *mutators* — `setUnigramCorpus` / `invalidateUnigramCorpus` / `getUnigramFetchedSize` — are a named seam shared by the production `checkForUpdates` path (which forces a corpus re-fetch) and the Test API (which stubs the corpus); ES modules forbid reassigning another module's `let` from outside, so the implicit cross-binding poke becomes an explicit exported setter.
+Rather than let the engine reach into `data/storage` (an engine→data upward edge), `engine/segmenter.js` takes its I/O **injected** — `configureIO({ idbGet, idbPut })`, which `engine/worker.js` imports as `configureSegmenterIO` and calls once at startup with its own handle on the same IndexedDB store; the loader closes over the stashed deps and records the fetched size itself (`UNIGRAM_CORPUS_SIZE_KEY`).
+`engine/phonetics.js` takes the CMU dictionary's I/O the same way.
+A tool's `prepare` then calls the segmenter's own loader (an engine-internal call), never `data/`.
+The corpus *mutators* — `setUnigramCorpus` / `invalidateUnigramCorpus` — are exported setters because ES modules forbid reassigning another module's `let` from outside.
+`invalidateUnigramCorpus` is the corpus's `invalidate` hook in the data-asset registry (`engine/assets.js`), which the worker calls to reap an asset its stack no longer needs or to drop one its remote-freshness check finds changed; `setUnigramCorpus` is the Test API's stub (the worker's `__testSetUnigramCorpus` message).
 
 ### Per-tool files
 
@@ -1190,7 +1240,7 @@ Existing users notice nothing.
 - **esbuild multi-entry for `engine/worker.js`.**
   The worker can't share the main bundle's scope, so `build.js` emits it as a second entry point, its outfile mirroring the source path so the literal `new Worker(new URL(...))` spawn URL resolves the same against `site/` and `dist/`.
 - **The corpus loader fetches its own data.**
-  The unigram-corpus seam landed as injected-I/O rather than ship-the-map: the worker opens the same per-origin IndexedDB store directly and decodes the corpus itself (`configureSegmenterIO`, above), instead of the main thread building the frequency map and shipping it.
+  The unigram-corpus seam landed as injected-I/O rather than ship-the-map: the worker opens the same per-origin IndexedDB store directly and decodes the corpus itself (the segmenter's `configureIO`, above), instead of the main thread building the frequency map and shipping it.
 - **Source maps ship.** esbuild emits them cheaply (`sourcemap: true`), so a production stack trace points back into source rather than minified bundle code.
 
 ## Caches
@@ -1203,12 +1253,11 @@ Each exists to protect a specific invariant against a specific freeze.
 **Worker-side: the owned corpus and its build caches.**
 The worker holds `ownedBuilt` (every configured source's rich rescored wordlist), `ownedMerged` (the enabled-only deduped merge — feeds the config summaries regardless of active scope), and `ownedCorpus` (the active-scope corpus the pipeline executes against).
 Each entry's index into `ownedCorpus.entries` is stamped onto the entry itself as an `_i` slot — the flat result encodes survivor positions from it — **once per corpus rebuild**, never per run (a per-keystroke 1M-entry restamp is exactly the lag this design removes), kept strictly paired with `ownedCorpus`.
-It lives on the entry rather than in a side `Map` because at ~750K rows the Map cost ~40 MB of pure overhead, fatal on iOS's shared worker/page jetsam budget.
+Why it lives on the entry rather than in a side `Map` is in [`pipeline.md`](pipeline.md) § *The worker owns the corpus*.
 `ownedCorpusFresh` gates whether a run/fetch may serve from `ownedCorpus`: a `syncConfig` clears it synchronously, so a run dispatched in the rebuild gap defers (the deferred-run queue, [`worker-protocol.md`](worker-protocol.md)) rather than enriching from stale data.
-Within a corpus build the worker reuses the same compiled-interval and per-norm caches main once did.
-The pipeline **seeds straight off `ownedCorpus.entries`** — an undecorated row stays the bare entry ([`pipeline.md`](pipeline.md) § *Pipeline execution*), so a filter-only run materializes no per-entry seed chain at all — and the **prefix cache** ([`pipeline.md`](pipeline.md) § *Streaming results*) retains each inter-stage state as a tile so a keystroke reuses the whole user stack (its longest tile, rerunning only the search row) and a tool-row edit reuses the untouched prefix.
-The tiles hold `ownedCorpus.entries` objects by reference, so they invalidate by corpus-object identity: a rebuild swaps the object (identity test misses), and a variant-reshaping edit splice swaps row objects (a `replaced`-hook purge drops that corpus's tiles); a My Edits edit that only reconciles fields in place — a score/comment change, no variant reshape — keeps them, so the edit reuses the cached prefixes.
-These are described as state in [`worker-protocol.md`](worker-protocol.md); the *why* — they keep the worker's rebuild and per-keystroke work bounded — is the same rationale that justified caching pipeline state on main.
+Within a corpus build the worker caches compiled rescore intervals and per-norm lookups.
+The pipeline **seeds straight off `ownedCorpus.entries`** — an undecorated row stays the bare entry ([`pipeline.md`](pipeline.md) § *Pipeline execution*), so a filter-only run materializes no per-entry seed chain at all.
+The worker's result caches (finished results, prefix tiles, partial runs) and their corpus-identity invalidation are in [`pipeline.md`](pipeline.md) § *Streaming results*; the worker state itself is in [`worker-protocol.md`](worker-protocol.md).
 
 **Main-side caches.**
 Small, and none is a corpus:
@@ -1216,11 +1265,10 @@ Small, and none is a corpus:
 | Cache | Where | Derived from | Cleared by |
 |---|---|---|---|
 | `wordlist._rescored` | per-wordlist (`engine/rescore.js`) | own `rawEntries` + `rescoreRules` | `invalidateRescoredCache(wordlist)` |
-| `wordlist._rescoredMap` / `_rescoredByNorm` | per-wordlist | `_rescored` (`norm` → wlEntry / → every variant) | `invalidateRescoredCache(wordlist)` |
+| `wordlist._rescoredByNorm` | per-wordlist | `_rescored` (`norm` → every variant) | `invalidateRescoredCache(wordlist)` |
 | shipped all-sources badge axis (`_shippedAxis`) | module (`data/derived.js`) | the worker's `selfReady`/`editAck` axis, version-guarded | replaced by a newer-version `setShippedAllSourcesAxis` |
 | shipped scoped histogram layout (`_shippedScopedLayout`) | module (`data/derived.js`) | the worker's per-run scoped layout, scope-keyed | replaced by the next run's layout; scope-key guard rejects a stale scope's |
 | shipped config counts (`_shippedSourceCounts` / `_shippedMergedCount`) | module (`data/merge.js`) | the worker's `selfReady`/`editAck` summaries, version-guarded | replaced by a newer-version `setShippedConfigCounts` |
-| `_statsCache` (WeakMap) | module (`engine/stats.js`) | a wordlist's `rawEntries` (or merged-stats key) | `invalidateStatsCache(key)` |
 | `_layoutCache` | module (`engine/histogram.js`), keyed `scoped:<key>` / `all` | a scope's score distribution | `invalidateHistogramLayout()` (called from `invalidateRescoredCache`) |
 | scroller `_winCache` / `_groupWinCache` | per-`EntriesScroller` instance | the worker's shipped rows / group rows, by index | runId change (a new result re-orders everything); bounded + evicted |
 
@@ -1232,7 +1280,7 @@ The shipped-value holders are the inverse: small results the worker computes onc
 
 Two composite invalidation helpers remain:
 
-- **`invalidateWordlistCaches(wordlist)`** — a wordlist's `rawEntries` changed: clear its `_rescored*`, its stats cache, merged stats, and (via `invalidateSourceCounts`) the pre-search and histogram-layout caches.
+- **`invalidateWordlistCaches(wordlist)`** — a wordlist's `rawEntries` changed: clear its `_rescored*` and (via `invalidateSourceCounts`) the histogram-layout cache.
 - **`invalidateSourceCounts()`** — narrower (order/enabled/name changes that don't touch `rawEntries`): just `invalidateHistogramLayout`.
   It touches no merged cache, because main holds none; the worker rebuilds its corpus (and drops its prefix tiles by corpus identity) on the `resyncWorkerConfig` the same change fires.
 
@@ -1246,7 +1294,7 @@ A rendered row holds a `wordlist` reference (resolved from the shipped `sourceId
 The virtual scroller follows the same convention — `currentWordlist` is a ref, not a name string.
 
 **Canonical keys throughout.**
-`_rescoredMap`/`_rescoredByNorm` and the worker's `norms` are keyed by `wlEntry.norm`, the canonical letter form computed once at parse, so construction allocates no extra strings and lookups never re-normalize; the worker's `byKey` keys by `mergeKey(norm, display)` for full (norm, display) disambiguation.
+`_rescoredByNorm` and the worker's `norms` are keyed by `wlEntry.norm`, the canonical letter form computed once at parse, so construction allocates no extra strings and lookups never re-normalize; the worker's `byKey` keys by `mergeKey(norm, display)` for full (norm, display) disambiguation.
 
 **Hot path: switching wordlists.**
 A scope switch posts `setScope`; the worker rebuilds `ownedCorpus` from its resident `ownedBuilt` **synchronously** (no IDB read, no corpus crossing the boundary), and the scope's run then renders the new windows.
@@ -1257,7 +1305,7 @@ A rule commit clears the source's `_rescored*` and fires `resyncWorkerConfig`, s
 While scoped to the edited source with the rescore editor open, the table itself is the live preview — rule-changed rows render the `raw → rescored` arrow ([`wordlists.md`](wordlists.md) § *Rescore and scoring*) — so there's no separate preview scroller to feed.
 
 **Hot path: editing My Edits.**
-A score/comment edit, a new-entry add, or a delete routes through `applyEditsChange(edits, mutate)`: it applies the mutation to My Edits' resident `rawEntries`, drops My Edits' own derived caches (`invalidateRescoredCache`, stats), and refreshes the count/legend displays — main holds no merged corpus to patch (the worker's prefix cache is invalidated worker-side by the splice's corpus-identity purge, not from here).
+A score/comment edit, a new-entry add, or a delete routes through `applyEditsChange(edits, mutate)`: it applies the mutation to My Edits' resident `rawEntries`, drops My Edits' own derived caches (`invalidateRescoredCache`), and refreshes the count/legend displays — main holds no merged corpus to patch (the worker's prefix cache is invalidated worker-side by the splice's corpus-identity purge, not from here).
 The corpus update is the **worker's**: the caller fires an `editEntry`/`deleteEntry` command alongside, and the worker splices the affected norms into `ownedMerged` (and the scoped `ownedCorpus` when scoped to My Edits) in O(affected norms), writes the My Edits IDB itself, and ships back the refreshed per-config summaries on the ack ([`worker-protocol.md`](worker-protocol.md)).
 When the edit leaves each norm's variant set intact (a score/comment change), the splice reconciles fields onto the existing row objects in place and keeps the worker's prefix tiles, so the re-run reuses the cached tool output instead of re-running the stack.
 A **respelling** — spacing, case, or punctuation, same norm — patches in place too when the displayed result is a Search-only flat list and the worker proves (by re-testing the respelled row against the search, and reading the old verdict off the retained join) that no row joins or leaves the result: the worker swaps the new rows into the norm's existing slots, so positions hold, and main reprojects exactly as for a score edit.
@@ -1318,7 +1366,7 @@ Per-wordlist field categories beyond the cosmetic four:
 - **Config-affecting** (`enabled`, `rescoreRules`, `rawEntries`) — plain properties.
   Mutate via the helper (`setWordlistEnabled`, etc.) so it invalidates the right caches and bumps `cacheVersion$` (which re-syncs the worker).
   Never assign directly — there's no signal to fire, no re-sync, and the worker's corpus silently goes stale.
-- **Transient** (`_loading`, `_updateAvailable`, `lastUpdated`, `fetchedSize`, `_rescored`, `_rescoredMap`, `_rescoredByNorm`, `originalFilename`) — plain properties.
+- **Transient** (`_loading`, `_updateAvailable`, `lastUpdated`, `fetchedSize`, `_rescored`, `_rescoredByNorm`, `originalFilename`) — plain properties.
   Set directly.
   Anything that displays them updates as a side effect of the surrounding flow (e.g. `applyWordlistText` ends with the render effect dispatching panel updates because it batched a `repaintAfterCacheChange`).
 
@@ -1326,12 +1374,12 @@ Per-wordlist field categories beyond the cosmetic four:
 
 - **Render effect** reads `cacheVersion$`.
   First run does the initial paint at the restored scope.
-  Subsequent bumps refresh derived state in place: `refreshSourceCounts` re-warms the count/stats caches, **`resyncWorkerConfig` re-syncs the worker** (every `cacheVersion$` bump is a config change, so the owned corpus can't go stale-but-fresh), the selector and discovery banner repaint, `refreshDerivedDisplays` updates the scoring legend and stats bar, then the scroller re-runs via `refreshMergedScroller`.
+  Subsequent bumps refresh derived state in place: `refreshSourceCounts` drops the histogram layout and re-reads the shipped counts, **`resyncWorkerConfig` re-syncs the worker** (every `cacheVersion$` bump is a config change, so the owned corpus can't go stale-but-fresh), the selector and discovery banner repaint, `refreshDerivedDisplays` updates the scoring legend and stats bar, then the scroller re-runs via `refreshMergedScroller`.
 - **Pipeline effect** reads `pipelineVersion$`, re-runs the pipeline, and refreshes the scroller (whose `onFilterChange` repaints the stats bar).
   It deliberately omits `refreshSourceCounts` *and* the re-sync: a tool-stack/search change leaves the sources untouched, so re-syncing the worker's corpus would be pure waste.
   That separation is the whole reason the two signals exist; folding them into one would re-sync the corpus on every keystroke.
 - **Cosmetic effect** reads `sources$` and every wordlist's `name$`/`icon$`/`url$`/`publisherId$`.
-  Any cosmetic change re-renders the selector and (on the All Wordlists view, where the scroller has a per-atom source column) the visible scroller rows.
+  Any cosmetic change re-renders the selector and the visible scroller rows, whose Sources column draws each list's icon.
   No cache or corpus touched — rendered rows resolve their source by `sourceId` and read the name live.
 - **Config-summary effect** reads `configSummary$`.
   The worker's per-config summaries arrive *after* the `cacheVersion$` bump that re-synced (the cache branch already painted with the previous shipped values), so this repaints the count displays, scoring legend, and stats bar once the fresh values land.
@@ -1395,8 +1443,9 @@ Things explicitly *not* built, so the design doesn't drift back to them:
   "Words in JK but not XWI" set-difference views are not a real workflow.
 - **No scratchpad / working set.**
   My Edits is the only persistence concept.
-- **No multi-pattern search.**
+- **No batch of independent searches.**
   Serial single queries are fine.
+  Umiaq's `;` tuple search is one query whose patterns bind together ([`umiaq.md`](umiaq.md) § *Systems and tuples*), not a batch.
 - **No *negated* transforms or groups.**
   The `not` flag is filters-only ([`pipeline.md`](pipeline.md) § *Inverting a filter*); reversing a transform's *direction* is a separate shipped feature ([`pipeline.md`](pipeline.md) § *Inverting a transform's direction*).
   A transform's negation is coherent — "keep the inputs it produced nothing for", so `¬ Space out` is *entries that can't be spaced out* — but it flips the row's kind mid-pipeline and stops the chain growing, which the atom model would have to absorb for a payoff nobody has asked for.

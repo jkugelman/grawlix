@@ -98,9 +98,10 @@ export function pipelineIdle() {
 // superseded this one. Callers drop their result on `aborted` rather than
 // touching the scroller — the superseding caller will produce the next update.
 //
-// The slow-pipeline indicator is one global signal: a timer dims the results
-// table when the whole run total crosses the threshold (not per-step — a long
-// pipeline of individually-fast tools still trips it).
+// The slow-pipeline indicator is one global signal: a CSS animation-delay on
+// .pipeline-running dims the results table when the whole run total crosses
+// the threshold (not per-step — a long pipeline of individually-fast tools
+// still trips it).
 export async function runPipeline(stack, sort) {
   // A full re-run adopts the fresh corpus, so it flushes any refresh-on-consent pin
   // (a reproject deliberately does NOT — it re-derives the pinned result in place).

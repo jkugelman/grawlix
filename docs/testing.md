@@ -6,7 +6,7 @@ A **`node:test` unit tier** ([`tests/unit/`](../tests/unit/)) covers pure logic 
 
 End-to-end smoke is the right shape for this vanilla-JS app: subtle cross-feature breakage like "editing a score in My Edits patches the merged cache wrong" is exactly what it catches.
 Targeted tests at the seams beat comprehensive coverage.
-CI is a passive monitor, not a gate.
+CI gates the deploy, not the merge: it runs on push to `main` (when `site/`, `tests/`, `scripts/`, or the package/Playwright/workflow config changes), and `deploy` needs `test`.
 
 ## What earns a test
 
@@ -145,8 +145,7 @@ See *Per-tool specs* below.
 ## Out of scope
 
 - **PR gating / branch protection.**
-  CI runs on push to `main` only.
-  For a solo project, automation is a regression *signal*, not a release gate.
+  CI runs on push to `main` only, so a failure blocks the Pages deploy but never a merge.
 - **Coverage metrics.**
   Smoke is the target, not comprehensive coverage.
   A coverage number would invite chasing it rather than chasing the bugs.
@@ -247,7 +246,7 @@ Adding a function is fine; renaming or repurposing an existing one means updatin
 
 ### Holding the corpus build open (`__grawlixStallBuild`)
 
-A `?entry=` deep link opens its panel **before** the worker's corpus build (see `design.md` § *Stable links*), so the pre-build window — lookups live, fields inert, placeholders shown — is real user-facing surface.
+A `?entry=` deep link opens its panel **before** the worker's corpus build (see [`design.md`](design.md) § *Entry panel encoding*), so the pre-build window — lookups live, fields inert, placeholders shown — is real user-facing surface.
 At the suite's fixture sizes that window is microseconds wide, so asserting into it by racing the build would be a coin flip that passes for the wrong reason.
 
 Instead [`entry-deep-link-boot.spec.js`](../tests/browser/entry-deep-link-boot.spec.js) holds the build open and releases it on purpose:
@@ -331,6 +330,8 @@ expect(visible.sort()).toEqual(['kayak', 'noon', 'racecar']);   // ❌ races the
 
 — passes on chromium/firefox (they settle fast) and flakes on webkit under load (it doesn't).
 The output isn't wrong; the read lands before the pipeline finishes painting.
+A webkit failure that takes out a whole shard is a different class: the boot-vs-test race that `gotoApp` closes by waiting for full `init()`, so check `gotoApp` first and don't blame the snapshot read.
+The snapshot read is a flake class of its own either way, so poll it regardless.
 
 **Always poll the read.**
 [`tests/browser/helpers.js`](../tests/browser/helpers.js) provides the wrappers — use them instead of a bare `getVisibleEntries` / `getVisibleGroups` snapshot:

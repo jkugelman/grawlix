@@ -19,7 +19,7 @@ For real verification, syntax-check changed JS modules with `node --check <file>
 Two test tiers: the Playwright browser suite ([`tests/browser/`](tests/browser/), `npm run test:browser`) covers user-visible behavior; a `node:test` unit tier ([`tests/unit/`](tests/unit/), `npm run test:unit`) covers pure logic by importing the engine/data modules directly.
 `npm test` is the everyday gate: unit tier, then **chromium only** against the bundled `dist` (~2 min).
 `npm run test:all` adds firefox and webkit (~12 min); run it before a push that touches storage, the File System Access API, workers, or rendering geometry.
-CI runs all three engines on every push and `deploy` needs `test`, so an engine-specific break blocks the release.
+CI runs all three engines on every push to `main` touching site, tests, or config, and `deploy` needs `test`, so an engine-specific break blocks the release.
 See [`docs/testing.md`](docs/testing.md) for what's covered and what isn't.
 **The full browser matrix must run against the bundled `dist`, not the raw `site/`** — `npm test`, `npm run test:all`, and `npm run test:dist` all build first; `npm run test:browser` runs against the unbundled `site/`, which flakes on webkit under the cold-load module waterfall, so use it only for single-browser chromium iteration.
 **Don't re-run the suite just to recover results you already have** — the last run is saved under `test-results/` (`.last-run.json` for status + failed-test IDs, one folder per failed test).
@@ -67,8 +67,8 @@ Plans (forward-looking, not yet shipped).
 - [`docs/planned/tools.md`](docs/planned/tools.md) — runtime support sequencing, gallery polish (category picker, search), result download, tool API extensions (indexed lookups, annotations, escape hatches), open questions.
   The chain-row pipeline (executor, per-row tool API, symmetric unification, search-as-tool, per-atom-count sort, highlights) and the group-row model (group tools, group rows, the +N-more reveal) are shipped — see `pipeline.md`.
   The tool catalog itself lives in `docs/tools.md`.
-- [`docs/planned/editing.md`](docs/planned/editing.md) — entries-table editing, **forward-looking remainder only** (Phase 1 shipped → `design.md` § *Keyboard navigation & multi-select*).
-  What's left: the parked extensions (multi-atom transform/group tiers, multi-entry panel editor, family-as-selection, panel prev/next, type-ahead — all *additive* to the shipped atom-keyed selection) and the undesigned **bulk-editing stretch goal** with the motivating real-world cases captured verbatim (spacing out unspaced families, adding punctuation, conjugation-matched comments, name-variant comments).
+- [`docs/planned/editing.md`](docs/planned/editing.md) — entries-table editing, **forward-looking remainder only** (Phase 1 and the panel walk shipped → `design.md` § *Keyboard navigation & multi-select*).
+  What's left: the parked extensions (multi-atom transform/group tiers, multi-entry panel editor, family-as-selection, type-ahead — all *additive* to the shipped atom-keyed selection) and the undesigned **bulk-editing stretch goal** with the motivating real-world cases captured verbatim (spacing out unspaced families, adding punctuation, conjugation-matched comments, name-variant comments).
 - [`docs/planned/phonetics.md`](docs/planned/phonetics.md) — planned sound-based tools: the CMU-vs-eSpeak NG engine question (eSpeak evaluated, not adopted), its runtime and GPLv3 licensing costs, spoonerisms, a slant-rhyme tier, homophone groups.
   What shipped (Rhymes, Phone search, the CMU core) is in `design.md`.
 - [`docs/planned/settings-backup.md`](docs/planned/settings-backup.md) — deferred manual export/import of settings to a file (for users who version-control their config), the successor to the dropped `grawlix.json` mirror.
@@ -124,11 +124,11 @@ Details in [`docs/worker-protocol.md`](docs/worker-protocol.md).
 
 ## Data model
 
-`state` holds `sources` (the per-wordlist data), `scoring` (tier labels for the unified score scale, used everywhere scores are displayed — the merged All Wordlists view shows them as a legend), `scoringDirty` (true when tier labels diverge from `DEFAULT_SCORING`), and search state.
-Each wordlist has metadata, `rawEntries` (parsed wordlist-entry records, shape `{ entry, score, comment }`), `rescoreRules` (My Edits seeds `editsLegend()`, the blank-output legend mirroring the live `state.scoring` tiers; custom lists start `[]`), and a `dirty` flag against `getWordlistDefaultRules` (the legend for My Edits, the publisher's `defaultRules` for publisher-bound lists, null for custom lists — propagation skips null).
+`state` holds `sources` (the per-wordlist data), `scoring` (tier labels for the unified score scale, used everywhere scores are displayed — each score badge names its tier in a hover tooltip), `scoringDirty` (true when tier labels diverge from `DEFAULT_SCORING`), and search state.
+Each wordlist has metadata, `rawEntries` (parsed wordlist-entry records, shape `{ norm, display, score, comment }`), `rescoreRules` (My Edits seeds `editsLegend()`, the blank-output legend mirroring the live `state.scoring` tiers; custom lists start `[]`), and a `dirty` flag against `getWordlistDefaultRules` (the legend for My Edits, the publisher's `defaultRules` for publisher-bound lists, null for custom lists — propagation skips null).
 Scores that no rule maps and no tier labels cover pass through silently — Grawlix does not flag misalignment; see *Rescore rules* in `docs/wordlists.md`.
 
-**Terminology** — *wordlist* (data source), *wordlist entry* (`wlEntry`, the `{ entry, score, comment }` record), *entry* (the string field — `wlEntry.entry`), *word* (reserved for literal English, e.g. "Whole word" search).
+**Terminology** — *wordlist* (data source), *wordlist entry* (`wlEntry`, the `{ norm, display, score, comment }` record), *entry* (the string — its `norm`/`display` slots), *word* (reserved for literal English, e.g. "Whole word" search).
 Full glossary in [`docs/style.md`](docs/style.md#terminology).
 
 **Wordlist fields** — every source carries:
@@ -176,7 +176,7 @@ Labeling is optional too — merged scores with no tier label still display, jus
 
 - **localStorage** (prefix `grawlix_`): wordlist metadata and settings.
   `persistMeta()` saves all wordlist metadata.
-- **IndexedDB**: raw wordlist text per wordlist (keyed `data_<dbKey>`) plus per-list disk-sync targets (keyed `sync_<dbKey | __merged__>`: a `FileSystemFileHandle` + My Edits' baseline).
+- **IndexedDB**: raw wordlist text per wordlist (keyed `data_<dbKey>`) plus per-list disk-sync targets (keyed `sync_main_<dbKey | __merged__>`: a `FileSystemFileHandle`; `sync_worker_<editsKey>`: My Edits' baseline).
   Wordlists can be hundreds of thousands of entries, too large for localStorage.
   `Storage.writeWordlist(wordlist, text)` saves one wordlist's text.
 
@@ -189,7 +189,7 @@ See [`wordlists.md`](docs/wordlists.md) § *Disk sync*.
 Otherwise users with stale data continue to render with the old code shape after you change the renderer.
 
 **Bump `SCHEMA_VERSION` and ship a migration when you change the shape of stored data.**
-Any change to `meta`'s field formats, the descriptor objects it contains, default values set only on first boot, or the IDB record shape requires a bump.
+Any change to `meta`'s field formats, the descriptor objects it contains, or the IDB record shape requires a bump; a changed first-boot default or publisher setting is config, which a bump can't push (`migration.md` § *When the config diverges but the shape doesn't (unsolved)*).
 Grawlix is live with real users, so register a `MIGRATIONS` step (keyed by the *from* version) — plus a frozen before→after fixture test, always — that upgrades existing data in place rather than letting the version-mismatch dialog wipe it.
 The reset prompt is a last-resort floor only (data newer than this code, older than the squash horizon, or corrupt) — see [`docs/migration.md`](docs/migration.md).
 Without the bump, old and new code silently disagree about the stored shape and the app misbehaves.
@@ -212,7 +212,7 @@ It carries rescore rules like any source (no special-casing in `compileRescoreRu
 It ships seeded with `editsLegend()` (the blank-output tier legend, mirroring the live `state.scoring` tiers); `getWordlistDefaultRules` returns it so reset/dirty/propagation apply, and `reconcileEditsRulesAfterImport` swaps it for an auto-seed when an imported file's scores don't fit the tiers.
 For My Edits (as for any non-`All Wordlists` scope) the inline editor slot on the wordlist bar shows the ordinary rescore editor; the scoring (tier-label) editor appears in that same slot only when the `All Wordlists` scope is selected.
 It gets the same split Download / Download original as other sources.
-Clicking a score or comment cell in the entries table opens an inline editor — `ScorePicker` for a score when quick-pick options are configured, otherwise `EntryPanel` focused on that field; saving routes the edit into My Edits regardless of which wordlist sourced the row.
+Clicking a score cell in the entries table opens an inline editor — `ScorePicker` when quick-pick options are configured, otherwise `EntryPanel` focused on the score (a comment click selects the row); saving routes the edit into My Edits regardless of which wordlist sourced the row.
 From the My Edits scope the user can also add new entries and delete entries (with undo).
 It is reorderable and can be disabled like any other wordlist (position sets merge priority on ties); it's created on top and enabled, but neither is pinned — edits still route into it from any scope regardless of where it sits or whether it's enabled.
 The only special rule the UI enforces is that it's not deletable.

@@ -3,7 +3,7 @@
 The entry panel (`EntryPanel`, in [`ui/entries-table.js`](../site/src/ui/entries-table.js)) opens on one entry from the entries table.
 It edits the entry's text, score, and comment, shows every wordlist that carries the entry, proposes the entry's canonical spelling, lists related entries, and steps through a run of entries without closing.
 Edits always land in My Edits, so they surface wherever My Edits participates — All Wordlists (where My Edits sits on top by default, so the edit wins) and the My Edits scope — but never in another list's scoped view, which always shows that list's own values.
-The worker messages it rides (`fetchProvenance`, `fetchFamily`, `fetchEditSeed`, `editEntry`) are specified in [`worker-protocol.md`](worker-protocol.md), and its URL form in [`design.md`](design.md) § *Entry panel encoding*.
+The worker messages it rides (`fetchEditSeed`, `fetchProvenance`, `fetchFamily`, `fetchSpaceOut`, `fetchWordCase`, `fetchWinners` for the walk, `planEdit`, `editEntry`, `deleteEntry`) are specified in [`worker-protocol.md`](worker-protocol.md), and its URL form in [`design.md`](design.md) § *Entry panel encoding*.
 
 ## Opening and closing
 

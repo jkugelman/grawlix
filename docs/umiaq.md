@@ -302,6 +302,10 @@ A query with no `;` is a per-word filter; a query with one or more `;` is a mult
 The tool reads its own kind off the query's *structure* — `;` presence and pattern count — not a flag or toggle param, so one box escalates from filter to tuple search on its own rather than splitting the language across two gallery cards the user has to choose between.
 A single-binding query lands in the ordinary flat tier, indistinguishable from a search (for free); only the tuples need a new tier.
 
+**The query reaches the tool with its capitals.**
+The executor lowercases every tool param (`normalizeParams`, `engine/tools.js`) unless the schema flags it `raw`, and Umiaq's `query` param carries that flag (`engine/tools/umiaq.js`), because capitals are its variables.
+Regex's pattern and the Search and Regex replace fields are flagged `raw` too.
+
 **Two arms, one per query.**
 The tool declares `matchOn: 'both'` and the parser picks the arm: a query carrying a space, an escape, or a non-ASCII character runs against the entry's *spelling*, otherwise against norm (§ *Spelling* has the semantics and the argument for why neither arm can add a match the other finds).
 The spelling arm matches a length-preserving case fold of `displayOf(entry)` (`foldedDisplayOf`, `engine/norm.js`), so match positions are display coordinates and the tool's highlights ship tagged `coord: 'display'`, which the packed record join stores as one bit per range.
