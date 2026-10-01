@@ -42,7 +42,7 @@ const SPACE_OUT_STEM_SUFFIXES = [...SPACE_OUT_SUFFIXES, ...SPACE_OUT_DERIVED_SUF
 // real uses (capped at 5) and below a unigram-frequency floor. Those gates are what
 // reject `up on` (100 glued against 258 real `upon`s) and `a long`, both of which read
 // as plausibly as any row here — which is why rows belong to a re-run of the analysis
-// rather than to eyeballing. Method and measured effect: docs/design.md § Space out.
+// rather than to eyeballing. Method and measured effect: docs/segmenter.md § Fixed rules.
 const SPACE_OUT_SPACINGS = [
   'of the', 'in the', 'on the', 'out of', 'to the', 'like a', 'in a', 'for the', 'on a',
   'up to', 'and the', 'at the', 'as a', 'the world', 'to a', 'of a', 'up the', 'off the',
