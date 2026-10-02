@@ -101,14 +101,13 @@ export const WORDLIST_PUBLISHERS = [
     author: 'Brooke Husic & Enrique Henestroza Anguiano',
     url: 'https://raw.githubusercontent.com/jkugelman/wordlist/refs/heads/main/spreadthewordlist.txt',
     homepage: 'https://www.spreadthewordlist.com',
-    icon: { type: 'img', url: 'https://www.spreadthewordlist.com/favicon.ico' },
+    icon: { type: 'img', url: 'https://www.spreadthewordlist.com/assets/favicon.png' },
     defaultRules: [
-      { input:'50', length:'', output:'50', note:'Clean' },
-      { input:'40', length:'', output:'30', note:'Dubious'},
-      { input:'30', length:'', output:'20', note:'Dubious'},
-      { input:'20', length:'', output:'0',  note:'Dubious'},
-      { input:'10', length:'', output:'0',  note:'Dubious'},
-      { input:'0',  length:'', output:'10', note:'Offensive'},
+      { input:'50+',   length:'', output:'50', note:'Clean' },
+      { input:'40-49', length:'', output:'30', note:'Decent' },
+      { input:'30-39', length:'', output:'20', note:'Dubious' },
+      { input:'1-29',  length:'', output:'0',  note:'Dubious' },
+      { input:'0',     length:'', output:'10', note:'Offensive' },
     ],
   },
   {
@@ -125,8 +124,9 @@ export const WORDLIST_PUBLISHERS = [
   },
 ];
 
-// Not a SCHEMA_VERSION bump: that counter tracks stored *shape*, and a relocated
-// file is the same shape with a drifted value. See docs/migration.md § Remapping moved URLs.
+// Covers both wordlist urls and image-icon urls. Not a SCHEMA_VERSION bump: that
+// counter tracks stored *shape*, and a relocated file is the same shape with a
+// drifted value. See docs/migration.md § Remapping moved URLs.
 export const URL_REMAPS = [
   {
     to: 'https://raw.codeberg.page/bewilderingly/Nediger-list/@main/nediger list.txt',
@@ -152,6 +152,10 @@ export const URL_REMAPS = [
   {
     to: 'https://raw.githubusercontent.com/jkugelman/wordlist/refs/heads/main/jkugelman-wordlist.txt',
     from: ['https://raw.githubusercontent.com/jkugelman/crossword/refs/heads/main/wordlists/jkugelman-wordlist.txt'],
+  },
+  {
+    to: 'https://www.spreadthewordlist.com/assets/favicon.png',
+    from: ['https://www.spreadthewordlist.com/favicon.ico'],
   },
 ];
 

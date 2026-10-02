@@ -75,6 +75,29 @@ test('remapStoredUrls sends every historical url for a destination straight to i
   assert.equal(metas[1].url, 'https://grawlix.wtf/c.txt');
 });
 
+test('remapStoredUrls rewrites a relocated image icon and leaves other icons alone', () => {
+  const remaps = [{ to: 'https://example.com/new.png', from: ['https://example.com/old.ico'] }];
+  const metas = [
+    { name: 'moved',   url: null, icon: { type: 'img', url: 'https://example.com/old.ico' } },
+    { name: 'custom',  url: null, icon: { type: 'img', url: 'https://example.com/mine.png' } },
+    { name: 'emoji',   url: null, icon: { type: 'emoji', value: '✏️' } },
+    { name: 'initials', url: null, icon: null },
+  ];
+  assert.equal(remapStoredUrls(metas, remaps), true);
+  assert.deepEqual(metas[0].icon, { type: 'img', url: 'https://example.com/new.png' });
+  assert.equal(metas[1].icon.url, 'https://example.com/mine.png');
+  assert.deepEqual(metas[2].icon, { type: 'emoji', value: '✏️' });
+  assert.equal(metas[3].icon, null);
+  assert.equal(remapStoredUrls(metas, remaps), false);
+});
+
+test('the live URL_REMAPS move the STWL icon off its dead favicon.ico', () => {
+  const icon = WORDLIST_PUBLISHERS.find(p => p.id === 'stwl').icon;
+  const metas = [{ name: 'stwl', icon: { type: 'img', url: 'https://www.spreadthewordlist.com/favicon.ico' } }];
+  remapStoredUrls(metas);
+  assert.deepEqual(metas[0].icon, icon);
+});
+
 test('the live URL_REMAPS resolve the original Nediger url to its current home', () => {
   const nedigerUrl = WORDLIST_PUBLISHERS.find(p => p.id === 'nediger').url;
   const metas = [{ name: 'nediger', url: 'https://grawlix.wtf/Nediger list.txt' }];

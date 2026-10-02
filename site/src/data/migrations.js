@@ -158,16 +158,18 @@ export async function migrateIdbRecords(from) {
 
 // ─── URL remaps ─────────────────────────────────────────────────────────────
 //
-// Rewrites a source meta's `url` when a hosted wordlist relocates. Runs every
-// boot rather than through MIGRATIONS: a relocated file leaves the stored shape
-// unchanged, so the version check never fires and a version-gated fixup would
-// silently never reach users already on the current schema.
+// Rewrites a source meta's `url`, and its image icon's url, when a hosted file
+// relocates. Runs every boot rather than through MIGRATIONS: a relocated file
+// leaves the stored shape unchanged, so the version check never fires and a
+// version-gated fixup would silently never reach users already on the current schema.
 export function remapStoredUrls(sourceMetas, remaps = URL_REMAPS) {
   let changed = false;
+  const remap = url => url && remaps.find(r => r.from.includes(url))?.to;
   for (const m of sourceMetas || []) {
-    if (!m.url) continue;
-    const home = remaps.find(r => r.from.includes(m.url));
-    if (home) { m.url = home.to; changed = true; }
+    const url = remap(m.url);
+    if (url) { m.url = url; changed = true; }
+    const iconUrl = m.icon?.type === 'img' && remap(m.icon.url);
+    if (iconUrl) { m.icon = { ...m.icon, url: iconUrl }; changed = true; }
   }
   return changed;
 }
