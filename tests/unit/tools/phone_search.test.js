@@ -115,6 +115,13 @@ test('whole entry finds homophones', async () => {
   assert.deepEqual(await hits(['knight', 'night', { entry: 'Bob Knight' }], 'knight', 'full'), { night: ['night'] });
 });
 
+test('at start and at end anchor only that end of the sounds', async () => {
+  seed();
+  const specs = ['neon', 'honey', 'tee'];
+  assert.deepEqual(await hits(specs, 'knee', 'start'), { neon: ['ne'] });
+  assert.deepEqual(await hits(specs, 'knee', 'end'), { honey: ['ney'] });
+});
+
 test('whole word needs the sounds to start and end on word breaks', async () => {
   seed();
   assert.deepEqual(await hits(['tee', 'arty', { entry: 'not even' }], 'tea', 'word'), { tee: ['tee'] });

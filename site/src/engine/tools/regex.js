@@ -5,7 +5,7 @@ import {
   regexExecAll, runReplace, replacementMarksOutput,
 } from '../regex.js';
 import { buildHelpHTML } from '../../core/util.js';
-import { matchModeOk } from '../search.js';
+import { matchModeOk, anchorPattern } from '../search.js';
 import {
   MATCH_PARAM, matchModeOf, ALLOW_UNLISTED_PARAM, isReplacing,
   matchModeAssets, matchModeSpacing, matchModeSpacingLazy,
@@ -30,10 +30,9 @@ function build(params, spacing) {
   // pattern match case-insensitively; `d` exposes match indices for
   // highlighting. The pattern runs against both norm and display (see run),
   // so `\s`, `-`, or an accent can match the punctuation display carries but
-  // norm strips. The whole-entry wrap is non-capturing so `$N` backrefs keep
-  // their group numbers.
+  // norm strips.
   const matchMode = matchModeOf(params);
-  const wrap = src => matchMode === 'full' ? '^(?:' + src + ')$' : src;
+  const wrap = src => anchorPattern(matchMode, src);
   const { capturing, runs } = analyzeRegexPattern(body);
   if (isReplacing(params)) {
     // The functional `re` can't be wrapped for highlighting — synthetic

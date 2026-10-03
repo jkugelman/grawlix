@@ -12,6 +12,8 @@ export const MATCH_PARAM = {
   menuDefault: 'full',
   choices: [
     { value: 'full', label: 'Whole entry' },
+    { value: 'start', label: 'Starts entry' },
+    { value: 'end', label: 'Ends entry' },
     { value: 'word', label: 'Whole word' },
     { value: 'span', label: 'Spans words' },
   ],
@@ -19,7 +21,7 @@ export const MATCH_PARAM = {
 
 export function matchModeOf(params) {
   const v = params && params.mode;
-  return v === 'full' || v === 'word' || v === 'span' ? v : '';
+  return MATCH_PARAM.choices.some(c => c.value === v) ? v : '';
 }
 
 export function matchModeReadsWords(params) {

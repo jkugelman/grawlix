@@ -32,6 +32,12 @@ test('mode=full anchors the pattern to the entry boundaries', async () => {
   sameVisible(await visible(LIB, regex('cat', { mode: 'full' })), ['cat']);
 });
 
+test('mode=start and mode=end anchor only that end of the entry', async () => {
+  sameVisible(await visible(LIB, regex('cat', { mode: 'start' })), ['cat', 'cats']);
+  sameVisible(await visible(LIB, regex('cat', { mode: 'end' })), ['cat', 'scat']);
+  sameVisible(await visible(LIB, regex('c|t', { mode: 'end' })), ['cat', 'cot', 'scat']);
+});
+
 test('mode=word keeps matches aligned to word boundaries', async () => {
   const lib = ['cat', 'cat food', 'copycat food', 'scat'];
   sameVisible(await visible(lib, regex('c.t', { mode: 'word' })), ['cat', 'cat food']);

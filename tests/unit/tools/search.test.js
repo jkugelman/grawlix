@@ -37,6 +37,12 @@ test('mode=full anchors the query to the entry boundaries', async () => {
   sameVisible(await visible(LIB, search('cat', { mode: 'full' })), ['cat']);
 });
 
+test('mode=start and mode=end anchor only that end of the entry', async () => {
+  sameVisible(await visible(LIB, search('cat', { mode: 'start' })), ['cat', 'cats']);
+  sameVisible(await visible(LIB, search('cat', { mode: 'end' })), ['cat', 'scat']);
+  sameVisible(await visible(['the IRS', 'Theirs', 'heir'], search('heir', { mode: 'start' })), ['heir']);
+});
+
 test('`*` spans separators, so a prefix matches a multi-word entry even when mode=full', async () => {
   const lib = ['A Book from the Sky', 'abacus'];
   sameVisible(await visible(lib, search('abook*')), ['A Book from the Sky']);

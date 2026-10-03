@@ -216,12 +216,12 @@ Every pattern runs against an entry both as written and as its letters alone, ma
 Focusing the pattern pops the wildcard cheat sheet (§ *Cheat-sheet popovers are a per-param opt-in*).
 
 **Match modes.**
-Unchecked, a pattern matches anywhere in an entry; checked, the mode picker offers **Whole entry**, **Whole word** (`cat` matches `cat` and `cat food`, not `copycat`), and **Spans words** (`heir` matches `the IRS`, not `theirs`).
+Unchecked, a pattern matches anywhere in an entry; checked, the mode picker offers **Whole entry**, **Starts entry** (`cat` matches `cats`, not `scat`), **Ends entry** (the reverse), **Whole word** (`cat` matches `cat` and `cat food`, not `copycat`), and **Spans words** (`heir` matches `the IRS`, not `theirs`).
 Clicking the mode name toggles the constraint, the arrow beside it opens the picker, and picking a mode turns the checkbox on.
 On a run-together list the first search in a word-relative mode pauses a few seconds while every unspaced entry is read; later searches reuse the readings.
 Offline, before the segmenter's corpus has been fetched, a run-together entry counts as one word.
 
-Search and Regex carry one `mode` param (`MATCH_PARAM`, `tools/shared.js`) that constrains where a match sits relative to the entry's words: absent (anywhere), `full` (whole entry — the anchored `^…$` wrap), `word` (whole words — the match's first letter starts a word and its last letter ends one, possibly covering *several* complete words so a norm-arm query can match an exact phrase), or `span` (spans words — the match's letters straddle a break, the hidden-theme hunt: `heir` finds `the IRS`).
+Search and Regex carry one `mode` param (`MATCH_PARAM`, `tools/shared.js`) that constrains where a match sits relative to the entry's words: absent (anywhere), `full` (whole entry — the anchored `^…$` wrap), `start`/`end` (anchored at one end — `^…` or `…$`), `word` (whole words — the match's first letter starts a word and its last letter ends one, possibly covering *several* complete words so a norm-arm query can match an exact phrase), or `span` (spans words — the match's letters straddle a break, the hidden-theme hunt: `heir` finds `the IRS`).
 A **word break is whitespace or a hyphen; an apostrophe or period is not** (`isn't` is one word) — the policy lives in `WORD_BREAK_RE` (`engine/norm.js`) beside `wordBreaks`, which answers an entry's breaks as norm offsets, and the two predicates over them, `isWholeWords` and `spansWords`.
 A display-coordinate match is projected onto the norm first (`displayRangeToNorm`), so both gates run in one coordinate space; the projection counts letters, which drops a separator at either edge (a `\s` a regex extends onto a space) rather than letting a one-word match that touches a break count as spanning.
 **A run-together entry reads its breaks from the spacing table** ([`segmenter.md`](segmenter.md) § *The spacing table*): `wordBreaks` takes a `SpacingReader` and, for a display with no break of its own, uses the reader's `best` reading — the reading Space out's One shows and Initialisms keys on — so `at` spans `DATATABLE` and `cat` is a whole word in `catfood` on a bare list exactly as they would be on a spaced one.
@@ -231,13 +231,13 @@ Search and Regex build the table in `prepare` whenever a word-relative mode is o
 All three declare the unigram asset only while such a mode is on (`assets` is a function of params, read through `toolAssets`), because the Search bar never leaves the stack and a flat declaration would pin the corpus for the session; the worker reaps assets whenever the *set* its stack needs changes, so the bar's mode toggling frees and reloads the corpus like any other row.
 Each declares a sync `replay` ([`pipeline.md`](pipeline.md) § *A highlight re-derived at render time gets a `ctx`*), since its `prepare` is async.
 `matchModeOk` reads an entry's breaks on its first match rather than up front, so an entry the pattern rejects never costs a table lookup, and a spanning candidate shorter than two letters is rejected before the lookup.
-`full` stays an anchor on the compiled regex; `word`/`span` are **per-match gates** (`matchModeOk`, `engine/search.js`) applied wherever matches are iterated — the Search matcher's dual arms, `regexExecAll`, and `execMatches` for replace mode, where only gate-passing matches are rewritten (an entry whose every match fails the gate drops).
+`full`, `start`, and `end` are anchors on the compiled regex (`anchorPattern`, `engine/search.js`, non-capturing so Regex's `$N` backrefs keep their numbers); `word`/`span` are **per-match gates** (`matchModeOk`, `engine/search.js`) applied wherever matches are iterated — the Search matcher's dual arms, `regexExecAll`, and `execMatches` for replace mode, where only gate-passing matches are rewritten (an entry whose every match fails the gate drops).
 One subtlety is load-bearing: when a gate rejects a match the scan resumes from **one past the match's start**, not its end, because an accepted match can overlap the rejected one (`at.` on `data table`: the rejected `ata` at 1–4 hides the spanning `ata` at 3–6).
 Highlights show only gate-passing matches.
-In the UI the param renders as a split control (`.tool-row-match`): a checkbox-plus-label toggle (`.match-mode-toggle`, reading Whole entry / Whole word / Spans words) sits beside a caret button (`.match-mode-arrow`) that opens the mode menu — the overflow-menu convention where the body performs the primary action and only the caret reveals the options.
+In the UI the param renders as a split control (`.tool-row-match`): a checkbox-plus-label toggle (`.match-mode-toggle`, reading Whole entry / Starts entry / Ends entry / Whole word / Spans words) sits beside a caret button (`.match-mode-arrow`) that opens the mode menu — the overflow-menu convention where the body performs the primary action and only the caret reveals the options.
 Clicking the label toggles on/off (it's a native `<label>` over the checkbox; Alt-W toggles it too); clicking the caret opens the menu (`MatchModeMenu`, a body-parented `.split-btn-menu` singleton positioned by `positionPopover` under the whole control rather than an in-row dropdown, because `.tool-row` clips overflow).
 Picking a mode auto-checks the box, and unchecking leaves the wrapper's `data-mode` and label in place as the memory of what re-checking will enable — the displayed mode is the single source of truth, so the shown and applied modes can't diverge.
-The URL key is `mode=full|word|span`, absent when off; the retired `whole-word` bare key decodes as `mode=full` (an alias kept per § *Stable links*) and re-encodes as the modern key.
+The URL key is `mode=full|start|end|word|span`, absent when off; the retired `whole-word` bare key decodes as `mode=full` (an alias kept per § *Stable links*) and re-encodes as the modern key.
 **Hidden anagram** takes just the spanning constraint as a standalone `Spans words` checkbox — anywhere/spanning are its only meaningful extents (a whole-entry anagram is the Anagrams tool), and its window scan keeps sliding past non-spanning hits, so a later spanning window still matches.
 Its param shares the `mode` key (a value-carrying checkbox, `mode=span` in the URL; any other mode value decodes as off), so growing it into the full mode menu later won't break links.
 
@@ -436,14 +436,14 @@ If a word still can't be read, or it contains a digit, it reads as a **hole**: o
 A run of sounds can't be heard across a hole, but a `*` can step over one.
 A hole also keeps its place in the entry, so Whole entry can't match an entry with an unreadable word unless a `*` covers it.
 An entry's readings are the product of its words' pronunciations, capped at 16.
-The match-mode control sets where the sounds sit: **Whole entry** finds homophones (`KNIGHT` finds `NIGHT`), **Whole word** needs word breaks at both ends (`TEA` finds `TEE` but not `ARTY`), and **Spans words** needs a break inside (`TEA` finds `NOT EVEN`).
+The match-mode control sets where the sounds sit: **Whole entry** finds homophones (`KNIGHT` finds `NIGHT`), **Starts entry** and **Ends entry** pin one end (`KNEE` finds `NEON` and `HONEY` respectively), **Whole word** needs word breaks at both ends (`TEA` finds `TEE` but not `ARTY`), and **Spans words** needs a break inside (`TEA` finds `NOT EVEN`).
 
 **The query is pieces and gaps.**
 The input splits on `*`, and each piece must read as whole words.
 A piece can't be a fragment like `pho` meaning "starts with the letters PHO", because only whole words have pronunciations.
 For each reading of the entry, the tool finds every occurrence of every piece and keeps the ones that lie on some complete match.
 A forward pass records the earliest start any chain of pieces can reach each occurrence from, and a backward pass records the latest end.
-The match mode then tests those ends: Whole entry needs offset 0 and the full length, Whole word needs word breaks, and Spans words needs a break strictly between them.
+The match mode then tests those ends: Whole entry needs offset 0 and the full length, Starts entry and Ends entry need just one of them, Whole word needs word breaks, and Spans words needs a break strictly between them.
 A `*` at either end frees that end, which puts it at 0 or the full length.
 Taking the earliest start and latest end is what lets Spans words find a break wherever one could fall.
 Only the pieces are highlighted.
@@ -920,7 +920,7 @@ The Help dialog is the only help surface, deliberately so: one scrollable dialog
 
 ## URL state
 
-The URL captures the user's active pipeline — each tool stack row in pipeline order, then the permanent Search bar's pattern (`search=`), match mode (`mode=full|word|span`), and the entries-table sort (`sort=`) — plus the open **entry panel** (`entry=`, § *Entry panel*) and the **length filter** (`length=`, [`pipeline.md`](pipeline.md) § *Length filter*).
+The URL captures the user's active pipeline — each tool stack row in pipeline order, then the permanent Search bar's pattern (`search=`), match mode (`mode=full|start|end|word|span`), and the entries-table sort (`sort=`) — plus the open **entry panel** (`entry=`, § *Entry panel*) and the **length filter** (`length=`, [`pipeline.md`](pipeline.md) § *Length filter*).
 Pasting a Grawlix link into a chat reproduces what the sender was looking at; refreshing the page lands you back where you were.
 The scope and the score filter are the deliberate exceptions — see *Out of scope for the URL* below.
 

@@ -33,12 +33,12 @@ export function patternLengthRange(query) {
 // Two arms: the regex runs against both the entry's norm (accents + separators
 // stripped) and its verbatim display, matching if either does — norm forgives
 // separators (`theirs` finds "the IRS"); display requires a typed space/accent.
-// `mode` is the match-extent mode: '' (anywhere), 'full' (whole entry,
-// anchored), 'word' (whole words), or 'span' (crosses a word break); the two
-// word-relative modes read an unspaced entry's words through `reader`, a
-// SpacingReader, when one is given. `literal` treats the query as plain text
-// (no wildcards) so Ctrl-F can share this exact matcher and stay in agreement
-// with Search on what matches.
+// `mode` is the match-extent mode: '' (anywhere), 'full' (whole entry),
+// 'start'/'end' (anchored at that end), 'word' (whole words), or 'span'
+// (crosses a word break); the two word-relative modes read an unspaced
+// entry's words through `reader`, a SpacingReader, when one is given.
+// `literal` treats the query as plain text (no wildcards) so Ctrl-F can
+// share this exact matcher and stay in agreement with Search on what matches.
 export function buildSearchPattern(query, mode = '', { literal = false, reader = null } = {}) {
   // Don't trim: a typed space is a literal that anchors to a word boundary in
   // the display arm. Re-adding `.trim()` reads as an oversight but silently
@@ -80,13 +80,12 @@ export function buildSearchPattern(query, mode = '', { literal = false, reader =
   }
   closeRun();
 
-  const anchor = p => mode === 'full' ? '^(?:' + p + ')$' : p;
   const gated = mode === 'word' || mode === 'span';
   let filterRe, hlRe, globalRe;
   try {
-    filterRe = new RegExp(anchor(pat),   'iu');
-    hlRe     = new RegExp(anchor(hlPat), 'giud');
-    globalRe = new RegExp(anchor(pat),   'giud');
+    filterRe = new RegExp(anchorPattern(mode, pat),   'iu');
+    hlRe     = new RegExp(anchorPattern(mode, hlPat), 'giud');
+    globalRe = new RegExp(anchorPattern(mode, pat),   'giud');
   } catch {
     return null;   // invalid class (e.g. reversed range `[m-a]`) — no usable pattern
   }
@@ -116,6 +115,14 @@ export function buildSearchPattern(query, mode = '', { literal = false, reader =
     globalRe,
     hlRe,
   };
+}
+
+// Non-capturing, so a regex's `$N` backrefs keep their group numbers.
+export function anchorPattern(mode, src) {
+  if (mode === 'full')  return '^(?:' + src + ')$';
+  if (mode === 'start') return '^(?:' + src + ')';
+  if (mode === 'end')   return '(?:' + src + ')$';
+  return src;
 }
 
 // The per-match gate for the word-relative modes, null for the rest. Breaks are

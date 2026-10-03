@@ -221,8 +221,8 @@ function anchorsOf(items, reading, mode) {
   const len = reading.code.length;
   const breaks = mode === 'word' || mode === 'span' ? breaksOf(items, reading) : null;
   return {
-    startsOK: x => (mode === 'full' ? x === 0 : mode === 'word' ? breaks.includes(x) : true),
-    endsOK: x => (mode === 'full' ? x === len : mode === 'word' ? breaks.includes(x) : true),
+    startsOK: x => (mode === 'full' || mode === 'start' ? x === 0 : mode === 'word' ? breaks.includes(x) : true),
+    endsOK: x => (mode === 'full' || mode === 'end' ? x === len : mode === 'word' ? breaks.includes(x) : true),
     spansOK: (s, e) => mode !== 'span' || breaks.some(b => s < b && b < e),
   };
 }
