@@ -104,4 +104,31 @@ test.describe('Search bar layout', () => {
       expect(el.right).toBeLessThanOrEqual(b.bar.right + 0.5);
     }
   });
+
+  test('at 375px viewport: crowded tool rows keep their trailing controls aligned with the bar\'s', async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 700 });
+    await gotoApp(page);
+    await page.evaluate(() => window.__grawlixTest.setStack(
+      ['phone_search', 'hidden_anagram', 'caesar', 'remove'].map(tool => ({ tool, params: {} }))));
+    await page.locator('.tool-row').first().waitFor();
+
+    const edges = await page.evaluate(() => {
+      const right = (el) => el.getBoundingClientRect().right;
+      const bar = document.querySelector('.search-bar');
+      return {
+        barToggle: right(bar.querySelector('.tool-row-invert')),
+        barRemove: right(bar.querySelector('.tool-row-remove-placeholder')),
+        rows: [...document.querySelectorAll('.tool-row')].map(row => ({
+          tool: row.dataset.tool,
+          toggle: right(row.querySelector(':scope > .tool-row-invert, :scope > .tool-row-reverse')),
+          remove: right(row.querySelector(':scope > .tool-row-remove')),
+        })),
+      };
+    });
+
+    for (const row of edges.rows) {
+      expect(Math.abs(row.toggle - edges.barToggle), row.tool).toBeLessThanOrEqual(1);
+      expect(Math.abs(row.remove - edges.barRemove), row.tool).toBeLessThanOrEqual(1);
+    }
+  });
 });

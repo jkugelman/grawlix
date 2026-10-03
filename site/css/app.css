@@ -232,7 +232,7 @@ html.light-mode .histogram-bar { filter: saturate(1.8) brightness(0.9); }
 html.light-mode .histogram-rect { opacity: 0.11; }
 
 /* ─── Search bar ────────────────────────────────────────────────────────────── */
-.search-bar { padding: 8px 14px; background: var(--surface); border-bottom: 1px solid var(--border2); display: grid; grid-template-columns: auto auto auto minmax(64px, auto) auto 1fr auto auto; align-items: center; column-gap: 0; row-gap: 6px; position: relative; }
+.search-bar { padding: 8px 14px; background: var(--surface); border-bottom: 1px solid var(--border2); display: grid; grid-template-columns: auto auto auto minmax(0, auto) auto 1fr auto auto; align-items: center; column-gap: 0; row-gap: 6px; position: relative; }
 .search-bar > .tool-label { margin-left: 12px; }
 .search-bar > .find-replace-caret { margin-left: 4px; }
 .search-bar > .tool-row-param-text { padding-left: 12px; }
@@ -1312,7 +1312,7 @@ body.picker-expanded #picker-backdrop { opacity: 1; }
    doesn't shrink below the height of an input-bearing row, and the search
    bar (visually the bottom row of the stack) lines up with them. */
 .tool-row, .search-bar { min-height: 42px; --tool-control-h: 30px; }
-.tool-row { position: relative; display: grid; grid-template-columns: auto auto auto minmax(80px, auto) auto 1fr auto auto; align-items: center; padding: 8px 14px; border-bottom: 1px solid var(--border2); column-gap: 0; row-gap: 6px; overflow: hidden; }
+.tool-row { position: relative; display: grid; grid-template-columns: auto auto auto minmax(0, auto) auto 1fr auto auto; align-items: center; padding: 8px 14px; border-bottom: 1px solid var(--border2); column-gap: 0; row-gap: 6px; overflow: hidden; }
 .tool-row > .tool-label { margin-left: 12px; }
 /* The tool name and its handle sit on the first control line, not centered
    against a multi-line body (e.g. a Rebus row with several pairs). */
