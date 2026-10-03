@@ -65,7 +65,7 @@ It churns constantly, so a test pinned to it breaks on every wording or layout t
 Assert the outcome the controls produce — a sync attaches, an entry is written, a badge appears — not that there are two buttons reading X and Y. When a design change makes such a test fail, delete it rather than rewrite it, unless it guards genuine behavior.
 
 **Publisher fetches are stubbed.**
-The four auto-fetching publisher wordlists hit `raw.githubusercontent.com` (JK, STWL, Broda) and `raw.codeberg.page` (Nediger) on boot.
+The four auto-fetching publisher wordlists hit `raw.githubusercontent.com` (JK, Broda), `www.spreadthewordlist.com` (STWL), and `raw.codeberg.page` (Nediger) on boot.
 Tests intercept via `page.route()` and return empty bodies by default; tests that need a publisher populated pass their own body.
 See [`tests/browser/helpers.js`](../tests/browser/helpers.js).
 

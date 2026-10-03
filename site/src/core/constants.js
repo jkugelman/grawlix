@@ -99,7 +99,7 @@ export const WORDLIST_PUBLISHERS = [
     popularity: 1,
     name: 'Spread the Word(list)',
     author: 'Brooke Husic & Enrique Henestroza Anguiano',
-    url: 'https://raw.githubusercontent.com/jkugelman/wordlist/refs/heads/main/spreadthewordlist.txt',
+    url: 'https://www.spreadthewordlist.com/downloads/spreadthewordlist_forms.txt',
     homepage: 'https://www.spreadthewordlist.com',
     icon: { type: 'img', url: 'https://www.spreadthewordlist.com/assets/favicon.png' },
     defaultRules: [
@@ -136,10 +136,11 @@ export const URL_REMAPS = [
     ],
   },
   {
-    to: 'https://raw.githubusercontent.com/jkugelman/wordlist/refs/heads/main/spreadthewordlist.txt',
+    to: 'https://www.spreadthewordlist.com/downloads/spreadthewordlist_forms.txt',
     from: [
       'https://grawlix.wtf/spreadthewordlist.txt',
       'https://grawlix.wtf/wordlists/spreadthewordlist.txt',
+      'https://raw.githubusercontent.com/jkugelman/wordlist/refs/heads/main/spreadthewordlist.txt',
     ],
   },
   {
@@ -158,6 +159,11 @@ export const URL_REMAPS = [
     from: ['https://www.spreadthewordlist.com/favicon.ico'],
   },
 ];
+
+// Hosts verified to answer conditional GETs with 304, so the update check may GET
+// them in place of a HEAD. On an unverified host that GET would silently
+// re-download the whole file every hour.
+export const REVALIDATING_HOSTS = ['www.spreadthewordlist.com'];
 
 // Derived from JK's rules, not duplicated: the unified scale IS JK's scoring
 // scheme (its rescore rules are canonical).

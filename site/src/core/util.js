@@ -1,5 +1,7 @@
 'use strict';
 
+import { REVALIDATING_HOSTS } from './constants.js';
+
 // ─── Utility ──────────────────────────────────────────────────────────────────
 
 export function nameFromPath(str) {
@@ -34,6 +36,11 @@ export function timeAgo(ts) {
   if (mo < 12) return `${mo} month${mo === 1 ? '' : 's'} ago`;
   const yr = Math.floor(d / 365);
   return `${yr} year${yr === 1 ? '' : 's'} ago`;
+}
+
+export function revalidatesOnGet(url) {
+  try { return REVALIDATING_HOSTS.includes(new URL(url).host); }
+  catch { return false; }
 }
 
 export function formatBytes(n) {

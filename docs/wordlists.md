@@ -216,14 +216,15 @@ upper  iff  uppercase_count > UPPER_ABSOLUTE_MAX (10000)
 ```
 
 otherwise `'lower'` (`cased` = every letter-bearing entry).
-Case is just an unstandardized convention — some publishers (STWL) ship both an uppercase and a lowercase build — so the thresholds are pinned to real measured distributions rather than any assumption about which case is normal:
+Case is just an unstandardized convention — some publishers (STWL) ship both an uppercase and a lowercase build alongside a cased surface forms one — so the thresholds are pinned to real measured distributions rather than any assumption about which case is normal:
 
 | wordlist | entries | uppercase | verdict |
 |---|---|---|---|
 | Broda | 527K | 527K (100%) | upper |
 | XWI | 281K | 0 | lower |
 | Nediger | 345K | 1,277 (~1% of cased) | lower |
-| STWL (lowercase build), JK | — | ~0 | lower |
+| STWL (surface forms build) | 304K | 2,159 (~1%) | lower |
+| JK | — | ~0 | lower |
 
 `buildWlEntry` then sets `display = null` for a bare letter-run already in the convention case — it renders as lowercase `norm`.
 Anything carrying extra information — spaces, accents, punctuation, or an off-convention case like an `FBI` in a lowercase file — keeps its `display` verbatim.
@@ -508,6 +509,12 @@ A wordlist with a `url` is auto-fetch capable.
 On boot, any URL-backed wordlist that isn't yet populated fetches in the background ([`design.md`](design.md) § *The shell* — default landing).
 Thereafter `checkForUpdates()` runs once on boot and hourly (`UPDATE_CHECK_INTERVAL`): a `HEAD` request per URL-backed, populated wordlist compares `Content-Length` against the stored `fetchedSize`.
 A size change is the update signal — cheap, no body transfer.
+
+A host on `REVALIDATING_HOSTS` (STWL's `www.spreadthewordlist.com`) is checked by `GET` instead, comparing the decoded body's byte length.
+Such a host serves compressed, chunked responses with no `Content-Length`, and its `ETag` is unreadable cross-origin without `Access-Control-Expose-Headers`, so no header can carry the signal.
+What makes the `GET` cheap is the browser's HTTP cache: the host sends `cache-control: no-cache` and answers `If-None-Match` with a 304, so an unchanged file costs an empty response and a read from the local cache — verified in Chromium, Firefox, and WebKit.
+The page sees a 200 with the full body either way, so the code can't tell a cheap host from an expensive one; that's why the list is explicit, and a host joins it only after its 304s are confirmed — elsewhere the `GET` would re-download the whole file every hour.
+For these hosts `fetchedSize` stores the same decoded length, since `Content-Length` is the *encoded* size and the two never compare.
 
 **Eviction-resilient boot.**
 "Isn't yet populated" is decided by the actual `data_<dbKey>` IndexedDB record, not the `populated`/`lastUpdated` fields in the surviving localStorage metadata: the two stores evict independently — a browser reclaiming best-effort storage can drop the IDB wordlist text while the metadata lingers — so a list whose text was evicted reads as unpopulated and the boot gate silently re-fetches it, self-healing what would otherwise be a permanent "No data" desync (every wordlist empty, no reload recovering, since the surviving timestamp keeps vouching for data that's gone).

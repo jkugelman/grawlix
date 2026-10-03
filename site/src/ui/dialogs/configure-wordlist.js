@@ -1,7 +1,7 @@
 'use strict';
 
 import { EMOJI_LIST, WORDLIST_PUBLISHERS } from '../../core/constants.js';
-import { esc, nameFromPath } from '../../core/util.js';
+import { esc, nameFromPath, revalidatesOnGet } from '../../core/util.js';
 import { validateWordlistChunk } from '../../engine/norm.js';
 import { newDbKey } from '../../data/state.js';
 import { getPublisher } from '../../data/publishers.js';
@@ -293,7 +293,7 @@ export const ConfigureWordlistDialog = (() => {
       return;
     }
 
-    if (hasContentLength) {
+    if (hasContentLength || revalidatesOnGet(url)) {
       setUrlCheckOk();
     } else {
       setUrlCheckWarn('Update checking unavailable (no content-length)');

@@ -9,7 +9,7 @@ import { TOOLS } from '../../site/src/engine/tools.js';
 // the real network. Four publisher wordlists fetch on boot:
 //
 //   jkugelman → raw.githubusercontent.com
-//   stwl      → raw.githubusercontent.com
+//   stwl      → www.spreadthewordlist.com
 //   nediger   → raw.codeberg.page
 //   broda     → raw.githubusercontent.com
 //
@@ -20,11 +20,11 @@ import { TOOLS } from '../../site/src/engine/tools.js';
 //
 // Call from a test's `beforeEach` before navigation.
 async function stubPublisherFetches(page, bodies = {}) {
-  await page.route(/raw\.githubusercontent\.com|raw\.codeberg\.page/, route => {
+  await page.route(/raw\.githubusercontent\.com|raw\.codeberg\.page|www\.spreadthewordlist\.com/, route => {
     const url = route.request().url();
     let body = '';
     if (url.includes('jkugelman-wordlist.txt'))        body = bodies.jkugelman ?? '';
-    else if (url.includes('spreadthewordlist.txt'))    body = bodies.stwl ?? '';
+    else if (url.includes('spreadthewordlist'))        body = bodies.stwl ?? '';
     else if (url.includes('Nediger'))                  body = bodies.nediger ?? '';
     else if (url.includes('peter-broda-wordlist.txt')) body = bodies.broda ?? '';
     route.fulfill({

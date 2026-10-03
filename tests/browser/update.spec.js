@@ -123,3 +123,40 @@ test('with auto-update on, a changed wordlist is re-fetched and a toast shows th
   await expect(dialog.locator('.usd-pill-deleted')).toHaveText('1 deleted');
   await expect(dialog.locator('.usd-pill-rescored')).toHaveText('1 rescored');
 });
+
+test('a revalidating host is checked by GET and its change is flagged', async ({ page }) => {
+  const feed = { updated: false };
+  const methods = [];
+  await stubPublisherFetches(page);
+  await page.route(/www\.spreadthewordlist\.com/, route => {
+    methods.push(route.request().method());
+    route.fulfill({ status: 200, contentType: 'text/plain', body: feed.updated ? UPDATED : INITIAL });
+  });
+  await gotoApp(page);
+  await page.locator('#btn-settings').click();
+  await page.locator('#auto-update-seg .seg-btn[data-val="off"]').click();
+  await page.keyboard.press('Escape');
+
+  methods.length = 0;
+  await page.evaluate(() => checkForUpdates());
+  expect(methods).toEqual(['GET']);
+  expect((await page.evaluate(() => window.__grawlixTest.getWordlist('Spread the Word(list)'))).updateAvailable).toBe(false);
+
+  feed.updated = true;
+  await page.evaluate(() => checkForUpdates());
+  expect((await page.evaluate(() => window.__grawlixTest.getWordlist('Spread the Word(list)'))).updateAvailable).toBe(true);
+});
+
+test('any other host is checked by HEAD only, never a full GET', async ({ page }) => {
+  const methods = [];
+  await stubPublisherFetches(page);
+  await page.route(/jkugelman-wordlist/, route => {
+    methods.push(route.request().method());
+    route.fulfill({ status: 200, contentType: 'text/plain', headers: { 'content-length': String(INITIAL.length) }, body: INITIAL });
+  });
+  await gotoApp(page);
+
+  methods.length = 0;
+  await page.evaluate(() => checkForUpdates());
+  expect(methods).toEqual(['HEAD']);
+});

@@ -3,7 +3,7 @@
 import {
   MERGED_ID, EDITS_ICON, WORDLIST_PUBLISHERS, DEFAULT_SCORING,
 } from '../core/constants.js';
-import { esc, pluralize } from '../core/util.js';
+import { esc, pluralize, revalidatesOnGet } from '../core/util.js';
 import { putFetchHandle, dropFetchHandle, bumpFetchStatus } from '../data/fetch-status.js';
 import {
   toNorm, displayOf, parseWordlist,
@@ -793,8 +793,10 @@ export async function fetchWordlist(wordlist, event, { silent = false, viaToast 
   try {
     const resp = await fetch(wordlist.url);
     if (!resp.ok) throw new Error(`HTTP ${resp.status} ${resp.statusText}`);
-    const text = await readBodyWithProgress(resp, handle);
-    const fetchedSize = resp.headers.get('content-length') || null;
+    const { text, byteLength } = await readBodyWithProgress(resp, handle);
+    const fetchedSize = revalidatesOnGet(wordlist.url)
+      ? String(byteLength)
+      : resp.headers.get('content-length') || null;
     const originalFilename = new URL(wordlist.url).pathname.split('/').pop() || null;
     clearTimeout(revealTimer);
     dropFetchHandle(handle.key);
@@ -813,7 +815,10 @@ export async function fetchWordlist(wordlist, event, { silent = false, viaToast 
 }
 
 async function readBodyWithProgress(resp, handle) {
-  if (!resp.body) return resp.text();   // no readable stream: no progress, but still load
+  if (!resp.body) {   // no readable stream: no progress, but still load
+    const buf = await resp.arrayBuffer();
+    return { text: new TextDecoder().decode(buf), byteLength: buf.byteLength };
+  }
   const reader = resp.body.getReader();
   const chunks = [];
   let received = 0;
@@ -830,7 +835,19 @@ async function readBodyWithProgress(resp, handle) {
   const buf = new Uint8Array(received);
   let off = 0;
   for (const c of chunks) { buf.set(c, off); off += c.length; }
-  return new TextDecoder().decode(buf);
+  return { text: new TextDecoder().decode(buf), byteLength: received };
+}
+
+// Must measure exactly as fetchWordlist's `fetchedSize` does: Content-Length is
+// the *encoded* size, so mixing it with a decoded body length reads every check
+// as an update.
+async function remoteSize(url) {
+  if (revalidatesOnGet(url)) {
+    const resp = await fetch(url);
+    return resp.ok ? String((await resp.arrayBuffer()).byteLength) : null;
+  }
+  const resp = await fetch(url, { method: 'HEAD' });
+  return resp.ok ? resp.headers.get('content-length') : null;
 }
 
 const UPDATE_CHECK_INTERVAL = 60 * 60 * 1000; // 1 hour
@@ -852,9 +869,7 @@ export async function checkForUpdates() {
   let anyChanged = false;
   await Promise.all(candidates.map(async wordlist => {
     try {
-      const resp = await fetch(wordlist.url, { method: 'HEAD' });
-      if (!resp.ok) return;
-      const size = resp.headers.get('content-length');
+      const size = await remoteSize(wordlist.url);
       if (!size || size === wordlist.fetchedSize) return;
       if (autoUpdate) {
         await fetchWordlist(wordlist, null, { silent: true, viaToast: true });
