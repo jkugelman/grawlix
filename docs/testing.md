@@ -78,9 +78,9 @@ Chromium, Firefox, and WebKit.
 Cross-browser catches the rare Chrome-only API leak; on a smoke suite the maintenance is cheap because tests target user-visible behavior, not browser-specific quirks.
 
 **CI runs all three; `npm test` runs chromium.**
-The engines cost wildly different amounts — measured locally at 6 workers against `dist`: chromium 123s, firefox 209s, webkit 332s.
-They compose additively, so the full local matrix is ~707s (11.8 min) versus ~124s for chromium alone.
-That 5.7x is paid on every run to re-prove what CI proves anyway: the matrix job runs all three engines sharded 16 ways, and `deploy` declares `needs: test`, so an engine-specific break blocks the release rather than shipping.
+The engines cost different amounts — measured locally at the default worker count (half the cores) against `dist`: chromium 57s, firefox 96s, webkit 90s.
+They compose additively, so the full local matrix is ~243s (4 min) versus ~57s for chromium alone.
+That 4.3x is paid on every run to re-prove what CI proves anyway: the matrix job runs all three engines sharded 16 ways, and `deploy` declares `needs: test`, so an engine-specific break blocks the release rather than shipping.
 Locally the full matrix is also *less* trustworthy than CI's — it runs fully parallel with no retries, so a saturated box produces contention timeouts that read as failures.
 Hence the split: `npm test` for the everyday gate, `npm run test:all` before a push you want extra confidence in.
 Reach for `test:all` when you have touched anything engine-shaped — storage, the File System Access API, workers, or rendering geometry.

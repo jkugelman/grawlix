@@ -17,8 +17,8 @@ Reading it is fine but do not touch it.
 Serving the module graph locally only verifies that the filesystem can read it, which is theatre.
 For real verification, syntax-check changed JS modules with `node --check <file>` (the pre-approved `check-syntax.js` is a classic-script parser and can't read ESM), read the diff carefully, and say "I can't visually verify" when that's the truth — visual inspection requires the user's browser.
 Two test tiers: the Playwright browser suite ([`tests/browser/`](tests/browser/), `npm run test:browser`) covers user-visible behavior; a `node:test` unit tier ([`tests/unit/`](tests/unit/), `npm run test:unit`) covers pure logic by importing the engine/data modules directly.
-`npm test` is the everyday gate: unit tier, then **chromium only** against the bundled `dist` (~2 min).
-`npm run test:all` adds firefox and webkit (~12 min); run it before a push that touches storage, the File System Access API, workers, or rendering geometry.
+`npm test` is the everyday gate: unit tier, then **chromium only** against the bundled `dist` (~1 min).
+`npm run test:all` adds firefox and webkit (~4 min); run it before a push that touches storage, the File System Access API, workers, or rendering geometry.
 CI runs all three engines on every push to `main` touching site, tests, or config, and `deploy` needs `test`, so an engine-specific break blocks the release.
 See [`docs/testing.md`](docs/testing.md) for what's covered and what isn't.
 **The full browser matrix must run against the bundled `dist`, not the raw `site/`** — `npm test`, `npm run test:all`, and `npm run test:dist` all build first; `npm run test:browser` runs against the unbundled `site/`, which flakes on webkit under the cold-load module waterfall, so use it only for single-browser chromium iteration.
