@@ -132,25 +132,11 @@ test('spans words needs the sounds to cross a word break', async () => {
   assert.deepEqual(await hits(['tee', 'arty', { entry: 'not even' }], 'tea', 'span'), { 'not even': ['t', 'e'] });
 });
 
-test('* at an end frees that end of the match', async () => {
+test('the sounds can’t run across a word that can’t be read', async () => {
   seed();
-  const specs = ['neon', 'honey', 'tee'];
-  assert.deepEqual(await hits(specs, 'knee*', 'full'), { neon: ['ne'] });
-  assert.deepEqual(await hits(specs, '*knee', 'full'), { honey: ['ney'] });
-  assert.deepEqual(await hits(specs, 'knee', 'full'), {});
-});
-
-test('* between words may match no sounds at all', async () => {
-  seed();
-  assert.deepEqual(await hits(['arty', 'arbiter'], 'are*tea'), { arty: ['arty'] });
-  assert.deepEqual(await hits(['arty', 'arbiter'], 'are * tea', 'full'), { arty: ['arty'] });
-});
-
-test('* steps over a word that can’t be read, but the sounds can’t', async () => {
-  seed();
-  assert.deepEqual(await hits([{ entry: 'honey 52 tee' }], 'knee*tea'), { 'honey 52 tee': ['ney', 'tee'] });
   assert.deepEqual(await hits(['night', { entry: 'night 52' }], 'knight', 'full'), { night: ['night'] });
-  assert.deepEqual(await hits([{ entry: 'night 52' }], 'knight*', 'full'), { 'night 52': ['night'] });
+  assert.deepEqual(await hits([{ entry: 'night 52' }], 'knight', 'start'), { 'night 52': ['night'] });
+  assert.deepEqual(await hits([{ entry: 'honey 52 tee' }], 'knee tea'), {});
 });
 
 // ─── Replace ─────────────────────────────────────────────────────────────────

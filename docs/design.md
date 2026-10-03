@@ -433,23 +433,16 @@ Phone search ([`engine/tools/phone_search.js`](../site/src/engine/tools/phone_se
 It encodes each phone as exactly one code unit, so `indexOf` can't land partway through a phone.
 A word CMU doesn't know is read through the spacing table's `guess` ([`segmenter.md`](segmenter.md) § *The spacing table*).
 If a word still can't be read, or it contains a digit, it reads as a **hole**: one code unit that no sound matches.
-A run of sounds can't be heard across a hole, but a `*` can step over one.
-A hole also keeps its place in the entry, so Whole entry can't match an entry with an unreadable word unless a `*` covers it.
+A run of sounds can't be heard across a hole, and a hole keeps its place in the entry, so Whole entry can't match an entry with an unreadable word (Starts entry can, when the hole comes after the sounds).
 An entry's readings are the product of its words' pronunciations, capped at 16.
 The match-mode control sets where the sounds sit: **Whole entry** finds homophones (`KNIGHT` finds `NIGHT`), **Starts entry** and **Ends entry** pin one end (`KNEE` finds `NEON` and `HONEY` respectively), **Whole word** needs word breaks at both ends (`TEA` finds `TEE` but not `ARTY`), and **Spans words** needs a break inside (`TEA` finds `NOT EVEN`).
 
-**The query is pieces and gaps.**
-The input splits on `*`, and each piece must read as whole words.
-A piece can't be a fragment like `pho` meaning "starts with the letters PHO", because only whole words have pronunciations.
-For each reading of the entry, the tool finds every occurrence of every piece and keeps the ones that lie on some complete match.
-A forward pass records the earliest start any chain of pieces can reach each occurrence from, and a backward pass records the latest end.
-The match mode then tests those ends: Whole entry needs offset 0 and the full length, Starts entry and Ends entry need just one of them, Whole word needs word breaks, and Spans words needs a break strictly between them.
-A `*` at either end frees that end, which puts it at 0 or the full length.
-Taking the earliest start and latest end is what lets Spans words find a break wherever one could fall.
-Only the pieces are highlighted.
+**The query is whole words.**
+The input must read as whole words; it can't be a fragment like `pho` meaning "starts with the letters PHO", because only whole words have pronunciations.
+For each reading of the entry, the tool finds every occurrence of the query's sounds and keeps the ones the match mode allows: Whole entry needs offset 0 and the full length, Starts entry and Ends entry need just one of them, Whole word needs word breaks, and Spans words needs a break strictly between them.
 
 **The search words themselves never match.**
-A piece occurrence that is the piece's own words is dropped: it starts on a word break, runs through words spelled as the piece's, and ends in its last word or an inflection of it (morphology's `candidates`).
+An occurrence that is the query's own words is dropped: it starts on a word break, runs through words spelled as the query's, and ends in its last word or an inflection of it (morphology's `candidates`).
 `FIGURE` skips `FIGURES` and `FIGURE SKATING` but keeps `CONFIGURE`.
 A sound search that returns the typed word is noise, and under Whole entry this rule is what turns the search into a homophone finder.
 

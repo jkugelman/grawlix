@@ -31,15 +31,16 @@ test('finds entries containing the input’s sounds and marks the letters', asyn
   await expect(row.locator('mark')).toHaveText('ar');
 });
 
-test('the match mode anchors the sounds, and * frees an end', async ({ page }) => {
+test('the match mode anchors the sounds', async ({ page }) => {
   await gotoApp(page);
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
     name: 'PhoneTest',
     entries: ['zarbiter', 'arty', 'tee'],
     scores: [50, 50, 50],
   }));
-  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'phone_search', params: { entry: 'are*' } }]));
+  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'phone_search', params: { entry: 'are' } }]));
   await expectVisible(page, ['zarbiter', 'arty']);
-  await page.locator('.tool-row .tool-row-match input[type="checkbox"]').check();
+  await page.locator('.tool-row .match-mode-arrow').click();
+  await page.locator('.split-btn-menu button[data-mode="start"]').click();
   await expectVisible(page, ['arty']);
 });

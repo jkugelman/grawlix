@@ -7,7 +7,6 @@ import { buildSpacingTable, loadSpacingCorpus, spacingReader } from '../space-ou
 import { stripAccents, toNorm, displayOf, buildNormToDisplay } from '../norm.js';
 import { SEARCH_KINDS } from '../search.js';
 import { candidates } from '../morphology.js';
-import { buildHelpHTML } from '../../core/util.js';
 import { MATCH_PARAM, matchModeOf, isReplacing } from './shared.js';
 
 async function ensureDict() {
@@ -91,8 +90,8 @@ function itemsOf(display, spacing, wide = false) {
 
 const MAX_READINGS = 16;
 
-// An unreadable word reads as one code unit no sound matches: a run of sounds
-// can't be heard across it, but a `*` can step over it.
+// An unreadable word reads as one code unit no sound matches, so a run of
+// sounds can't be heard across it.
 const HOLE = '\u0001';
 
 // Every way to say an entry, one pronunciation per word: [{ code, picks }],
@@ -170,27 +169,17 @@ function mergeRanges(ranges) {
 
 // ─── Matching ────────────────────────────────────────────────────────────────
 
-// The query splits on `*` into pieces, each read as whole words: `pho*` is the
-// word PHO and a gap. A gap at either end frees that end from the match mode's
-// anchor, so `knee*` on Whole entry finds entries that start with the sound.
 function queryOf(text, spacing) {
-  const parts = text.split('*');
-  const pieces = [];
-  for (const part of parts) {
-    if (!part.trim()) continue;
-    const items = itemsOf(part, spacing, true);
-    if (!items.length || items.includes(null)) return null;
-    pieces.push({
-      codes: [...new Set(readingsOf(items).map(r => r.code))],
-      words: items.map(item => item.letters),
-    });
-  }
-  if (!pieces.length) return null;
-  return { pieces, leading: !parts[0].trim(), trailing: !parts[parts.length - 1].trim() };
+  const items = itemsOf(text, spacing, true);
+  if (!items.length || items.includes(null)) return null;
+  return {
+    codes: [...new Set(readingsOf(items).map(r => r.code))],
+    words: items.map(item => item.letters),
+  };
 }
 
-// The hit is the piece's own words: it starts on a word, runs through whole words
-// spelled as the piece's, and ends inside one that is the last piece word or an
+// The hit is the query's own words: it starts on a word, runs through whole words
+// spelled as the query's, and ends inside one that is the last query word or an
 // inflection of it (FIGURES, FIGURED). A split-out part counts as a word, so
 // FIGURESKATING hides like FIGURE SKATING; CONFIGURE's match starts mid-word.
 function isSearchWord(items, reading, a, b, words) {
@@ -205,107 +194,38 @@ function isSearchWord(items, reading, a, b, words) {
     && candidates(items[k].letters).has(words[words.length - 1]);
 }
 
+function modeAllows(items, reading, mode) {
+  const len = reading.code.length;
+  const breaks = mode === 'word' || mode === 'span' ? breaksOf(items, reading) : null;
+  return ({ start, end }) => {
+    switch (mode) {
+      case 'full':  return start === 0 && end === len;
+      case 'start': return start === 0;
+      case 'end':   return end === len;
+      case 'word':  return breaks.includes(start) && breaks.includes(end);
+      case 'span':  return breaks.some(b => start < b && b < end);
+      default:      return true;
+    }
+  };
+}
+
 // Replacing keeps the search words: rewriting KNIGHT in KNIGHT SHIFT isn't noise.
-function occurrencesOf(piece, items, reading, replacing) {
+function occurrencesOf(query, items, reading, mode, replacing = false) {
+  const allows = modeAllows(items, reading, mode);
   const out = [];
-  for (const target of piece.codes) {
+  for (const target of query.codes) {
     for (let at = reading.code.indexOf(target); at !== -1; at = reading.code.indexOf(target, at + 1)) {
-      const end = at + target.length;
-      if (replacing || !isSearchWord(items, reading, at, end, piece.words)) out.push({ start: at, end });
+      const occ = { start: at, end: at + target.length };
+      if (allows(occ) && (replacing || !isSearchWord(items, reading, occ.start, occ.end, query.words))) out.push(occ);
     }
   }
   return out;
 }
 
-function anchorsOf(items, reading, mode) {
-  const len = reading.code.length;
-  const breaks = mode === 'word' || mode === 'span' ? breaksOf(items, reading) : null;
-  return {
-    startsOK: x => (mode === 'full' || mode === 'start' ? x === 0 : mode === 'word' ? breaks.includes(x) : true),
-    endsOK: x => (mode === 'full' || mode === 'end' ? x === len : mode === 'word' ? breaks.includes(x) : true),
-    spansOK: (s, e) => mode !== 'span' || breaks.some(b => s < b && b < e),
-  };
-}
-
-function occurrencesPerPiece(items, reading, query, replacing = false) {
-  const occs = [];
-  for (const piece of query.pieces) {
-    const found = occurrencesOf(piece, items, reading, replacing);
-    if (!found.length) return null;
-    occs.push(found);
-  }
-  return occs;
-}
-
-// Every piece occurrence that lies on some complete match. A forward pass finds
-// the earliest start a chain of pieces can reach each occurrence from, and a
-// backward pass the latest end it can go on to. Spans words needs a break
-// between the two, and the widest start and end give it the most room.
-function hitsIn(items, reading, query, mode) {
-  const occs = occurrencesPerPiece(items, reading, query);
-  if (!occs) return [];
-  const len = reading.code.length;
-  const { startsOK, endsOK, spansOK } = anchorsOf(items, reading, mode);
-  const last = occs.length - 1;
-
-  const from = occs.map(o => o.map(() => Infinity));
-  occs[0].forEach((o, j) => {
-    if (query.leading) from[0][j] = 0;
-    else if (startsOK(o.start)) from[0][j] = o.start;
-  });
-  for (let i = 1; i <= last; i++) {
-    occs[i].forEach((o, j) => occs[i - 1].forEach((p, q) => {
-      if (p.end <= o.start) from[i][j] = Math.min(from[i][j], from[i - 1][q]);
-    }));
-  }
-
-  const to = occs.map(o => o.map(() => -Infinity));
-  occs[last].forEach((o, j) => {
-    if (query.trailing) to[last][j] = len;
-    else if (endsOK(o.end)) to[last][j] = o.end;
-  });
-  for (let i = last - 1; i >= 0; i--) {
-    occs[i].forEach((o, j) => occs[i + 1].forEach((n, q) => {
-      if (n.start >= o.end) to[i][j] = Math.max(to[i][j], to[i + 1][q]);
-    }));
-  }
-
-  const hits = [];
-  occs.forEach((o, i) => o.forEach((occ, j) => {
-    const s = from[i][j], e = to[i][j];
-    if (s === Infinity || e === -Infinity || !spansOK(s, e)) return;
-    hits.push(occ);
-  }));
-  return hits;
-}
-
 // ─── Replacing ───────────────────────────────────────────────────────────────
 
-const MAX_MATCHES = 64;
-
-function matchesIn(items, reading, query, mode) {
-  const occs = occurrencesPerPiece(items, reading, query, true);
-  if (!occs) return [];
-  const len = reading.code.length;
-  const { startsOK, endsOK, spansOK } = anchorsOf(items, reading, mode);
-  const matches = [];
-  const extend = chain => {
-    if (matches.length >= MAX_MATCHES) return;
-    if (chain.length === occs.length) {
-      const start = query.leading ? 0 : chain[0].start;
-      const end = query.trailing ? len : chain[chain.length - 1].end;
-      if (startsOK(start) && endsOK(end) && spansOK(start, end)) matches.push({ start, end, occs: chain });
-      return;
-    }
-    const prev = chain[chain.length - 1];
-    for (const o of occs[chain.length]) if (!prev || o.start >= prev.end) extend([...chain, o]);
-  };
-  extend([]);
-  return matches;
-}
-
 // Search's replace-all semantics, or the two tools rewrite the same entry differently:
-// leftmost first, longest at each start (a greedy `*`), none overlapping.
+// leftmost first, longest at each start, none overlapping.
 function pickMatches(matches) {
   matches.sort((x, y) => x.start - y.start || y.end - x.end);
   const picks = [];
@@ -381,7 +301,7 @@ function runReplace(display, prepared) {
   const self = toNorm(display);
   const outs = new Map();
   for (const reading of readingsOf(items)) {
-    const picks = pickMatches(matchesIn(items, reading, query, mode));
+    const picks = pickMatches(occurrencesOf(query, items, reading, mode, true));
     if (!picks.length) continue;
     let inputHighlights = null;
     for (const rep of reps) {
@@ -389,7 +309,7 @@ function runReplace(display, prepared) {
       for (const target of index.get(code) ?? []) {
         const norm = toNorm(target);
         if (norm === self || outs.has(norm)) continue;
-        inputHighlights ??= mergeRanges(picks.flatMap(m => m.occs.flatMap(o => rangesForHit(items, reading, o.start, o.end))));
+        inputHighlights ??= mergeRanges(picks.flatMap(m => rangesForHit(items, reading, m.start, m.end)));
         outs.set(norm, { entry: target, inputHighlights, outputHighlights: rep ? outputMarks(target, code, spans, spacing) : [] });
       }
     }
@@ -408,7 +328,7 @@ export default {
   assets: ['cmudict', 'unigrams'],
   findReplace: true, replaceName: 'Phone replace',
   params: [
-    { placeholder: 'entry', help: buildHelpHTML([['*', 'any sounds']]) },
+    { placeholder: 'entry' },
     { key: 'replace', placeholder: 'replace', encodeEmpty: true },
     MATCH_PARAM,
   ],
@@ -417,7 +337,7 @@ export default {
   output: params => (tokensOf(params.replace || '').length ? 'highlight' : 'plain'),
   glyph: params => (isReplacing(params) ? '→' : null),
   matchOn: 'display',
-  isInert: params => !/[^\s*]/.test(params.entry || ''),
+  isInert: params => !tokensOf(params.entry || '').length,
   async prepare(params, ctx) {
     await ensureDict();
     await loadSpacingCorpus();
@@ -434,7 +354,7 @@ export default {
     if (!items.some(Boolean)) return false;
     const ranges = [];
     for (const reading of readingsOf(items)) {
-      for (const hit of hitsIn(items, reading, prepared.query, prepared.mode)) {
+      for (const hit of occurrencesOf(prepared.query, items, reading, prepared.mode)) {
         ranges.push(...rangesForHit(items, reading, hit.start, hit.end));
       }
     }
