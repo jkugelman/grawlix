@@ -53,7 +53,7 @@ import {
 } from '../data/disk-sync.js';
 import { propagateDefaults } from '../model/scoring.js';
 import { showToast, showActionToast, showUndoToast } from '../ui/toasts.js';
-import { positionPopover, afterTransition } from '../ui/components.js';
+import { positionPopover, afterTransition, closeMenus } from '../ui/components.js';
 import { showConfirm, showAlert, showMergeConflict } from '../ui/dialogs/confirm.js';
 import { openUpdateSummaryDialog } from '../ui/dialogs/update-summary.js';
 import { SettingsDialog, cycleDarkMode } from '../ui/dialogs/settings.js';
@@ -77,7 +77,6 @@ import {
   checkWorkerAssets, sendFreeDiff,
 } from '../ui/pipeline-worker.js';
 import { SyncDialog } from '../ui/dialogs/sync.js';
-import { ConfigureWordlistDialog } from '../ui/dialogs/configure-wordlist.js';
 import { ImportGuideDialog } from '../ui/dialogs/import-guide.js';
 import { DiscoveryBanner } from '../ui/discovery-banner.js';
 import { ReconnectSplash } from '../ui/reconnect-splash.js';
@@ -93,8 +92,6 @@ export const WordlistActions = (() => {
   const ACTIONS = {
     fetch:     () => fetchWordlist(getActionTargetWordlist()),
     import:    () => importToWordlist(getActionTargetWordlist()),
-    delete:    async () => { await deleteWordlist(getActionTargetWordlist()); },
-    configure: () => ConfigureWordlistDialog.open(getActionTargetWordlist()),
     clear:     () => clearEdits(),
     rescore:   () => WordlistSelector.toggleEditor(),
     bakeRescoring: () => bakeRescoring(getActionTargetWordlist()),
@@ -1450,8 +1447,8 @@ function buildCopyPopoverHTML() {
     `<div class="split-btn copy-row-split">` +
       // copy-row-btn/data-copy keep this on the popover's delegated onCopyClick path.
       `<button type="button" class="split-btn-main copy-row-btn" data-copy="results">Copy</button>` +
-      `<button type="button" class="split-btn-arrow" onclick="toggleSplitMenu(event)" title="Download results" aria-haspopup="menu">${arrow}</button>` +
-      `<div class="split-btn-menu">` +
+      `<button type="button" class="split-btn-arrow" onclick="toggleSplitMenu(event)" title="Download results" aria-haspopup="menu" aria-expanded="false">${arrow}</button>` +
+      `<div class="split-btn-menu" popover="manual" role="menu">` +
         `<button type="button" onclick="exportWordlist()">Download as wordlist</button>` +
         `<button type="button" onclick="exportCSV()">Download as CSV</button>` +
         `<button type="button" onclick="exportJSON()">Download as JSON</button>` +
@@ -1546,7 +1543,7 @@ export const openCopyPopover = (() => {
     event.stopPropagation();
     const trigger = event.currentTarget;
     if (isOpen && anchor === trigger) { close(); return; }
-    document.querySelectorAll('.split-btn.open').forEach(b => b.classList.remove('open'));
+    closeMenus();
     ensure();
     anchor = trigger;
     fill(++seq);

@@ -157,9 +157,9 @@ input:disabled, select:disabled { opacity: 0.5; cursor: not-allowed; }
 .split-btn.primary .split-btn-arrow { background: var(--accent); color: white; border-color: var(--accent); border-left: 1px solid rgba(255,255,255,0.35); }
 .split-btn.primary .split-btn-arrow:hover:not(:disabled) { background: var(--accent-hover); }
 .split-btn-menu, .copy-popover { background: var(--bg); border: 1px solid var(--border); border-radius: 4px; box-shadow: 0 2px 8px rgba(0,0,0,0.15); z-index: 200; }
-.split-btn-menu { display: none; position: absolute; top: 100%; right: 0; margin-top: 3px; padding: 4px 0; white-space: nowrap; }
-.split-btn.open .split-btn-menu { display: block; }
-.split-btn-menu button { display: block; width: 100%; text-align: left; border: none; background: none; border-radius: 0; padding: 6px 13px; color: var(--text); }
+.split-btn-menu { position: fixed; inset: auto; margin: 0; padding: 4px 0; overflow: visible; white-space: nowrap; color: var(--text); }
+.split-btn-menu button { display: flex; align-items: center; justify-content: flex-start; width: 100%; text-align: left; border: none; background: none; border-radius: 0; padding: 6px 13px; color: var(--text); }
+.split-btn-menu button > svg { width: 14px; height: 14px; flex-shrink: 0; margin-right: 8px; }
 .split-btn-menu-header { padding: 4px 13px 5px; margin-bottom: 4px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--faint); border-bottom: 1px solid var(--border2); }
 .more-menu-btn { padding-left: 8px; padding-right: 8px; }
 .more-menu-btn svg { width: 16px; height: 16px; display: block; }
@@ -956,8 +956,6 @@ dialog h2 { font-size: 16px; margin-bottom: 14px; padding-right: 24px; }
 .dialog-close-btn, .manage-close-btn { position: absolute; top: 10px; right: 12px; background: none; border: none; font-size: 18px; line-height: 1; color: var(--muted); cursor: pointer; padding: 2px 6px; border-radius: 4px; z-index: 1; }
 .dialog-close-btn:hover, .manage-close-btn:hover { background: var(--hover); color: var(--text); }
 .dialog-footer { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--border2); display: flex; justify-content: flex-end; gap: 8px; }
-.delete-link { margin-right: auto; padding: 3px 6px; border: none; background: none; color: var(--err-fg); font-size: 13px; font-family: inherit; cursor: pointer; border-radius: 4px; }
-.delete-link:hover { background: var(--del-hover); }
 
 /* Mobile bottom sheets. dvh (not vh) keeps the sheet clear of the URL bar. */
 @media (max-width: 759px) {
@@ -1000,9 +998,14 @@ dialog h2 { font-size: 16px; margin-bottom: 14px; padding-right: 24px; }
   #entry-panel, #entry-panel-backdrop { transition: none; }
 }
 
-#manage-dialog { --dialog-w: 380px; }
+#manage-dialog { --dialog-w: 400px; }
 .manage-list { max-height: 50vh; overflow-y: auto; margin: 4px 0; background: var(--surface); border: 1px solid var(--border2); border-radius: 6px; }
 .manage-list .wordlist-card:last-child { border-bottom: none; }
+.manage-row-kebab .more-menu-btn { width: 28px; height: 28px; padding: 0; border: none; border-radius: 50%; background: none; color: var(--text); font-size: 18px; font-weight: 700; }
+.manage-row-kebab .more-menu-btn:hover:not(:disabled), .manage-row-kebab.open .more-menu-btn { background: var(--border); }
+.manage-row-kebab .split-btn-menu { min-width: 130px; }
+.manage-row-kebab .split-btn-menu .manage-row-delete { color: var(--err-fg); }
+.manage-row-menu-spacer { width: 28px; flex-shrink: 0; }
 .manage-add-row { width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 8px; padding: 8px 10px; border: 1px dashed var(--border3); border-radius: 6px; background: none; color: var(--muted); font-size: 13px; font-weight: 600; cursor: pointer; transition: background 0.1s, color 0.1s, border-color 0.1s; }
 .manage-add-row:hover { background: var(--hover); color: var(--accent); border-color: var(--accent); }
 .manage-add-row .add-wordlist-icon { font-size: 15px; line-height: 1; }
@@ -1377,8 +1380,6 @@ body.picker-expanded #picker-backdrop { opacity: 1; }
 .match-mode-arrow:hover:not(:disabled) { color: var(--text); }
 .match-mode-arrow:focus-visible { outline: 1px solid var(--accent); outline-offset: 1px; border-radius: 3px; }
 .match-mode-arrow .more-menu-caret { width: 8px; height: 5px; display: block; }
-.match-mode-menu { position: fixed; right: auto; margin-top: 0; }
-.match-mode-menu.open { display: block; }
 .match-mode-menu button::before { content: ""; display: inline-block; width: 1.2em; }
 .match-mode-menu button[aria-checked="true"]::before { content: "✓"; }
 .tool-row-param-text { width: 200px; max-width: 100%; min-width: 0; justify-self: start; }

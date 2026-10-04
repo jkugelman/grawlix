@@ -69,8 +69,12 @@ A disabled wordlist renders grayed out (a disabled-select-option look, a modifie
 The closed trigger is a borderless title (the selector doubles as the screen's title); the open menu lists the same rows plus two signals — each row's **"X of Y entries used"** contribution count (`wordlistCardMeta` — how many of a list's entries survive dedup/priority in the merge, not its raw count), and an update dot per row, with an aggregate update dot on the collapsed trigger so a folded selector still flags it.
 
 **The manage panel lives inside the dropdown.**
-Cross-list operations — reorder, enable/disable, add wordlist — are reached from a **Manage wordlists** footer below the scope rows, because the picker and the manager operate on the same object (the set of wordlists): the picker is the read view (scope to one), the manage panel its edit view.
-This keeps the bar calm and reserves its right edge for per-source actions.
+Every change to the set of wordlists or to one wordlist's setup — reorder, enable/disable, add, configure, delete — is reached from a **Manage wordlists** footer below the scope rows, because the picker and the manager operate on the same object (the set of wordlists): the picker is the read view (scope to one), the manage panel its edit view.
+Each row carries a drag handle, its enable toggle, and a `⋮` menu with **⚙ Configure** (the Configure dialog — rename, icon, publisher, URL, import, rules) and **🗑 Delete** (red, confirm-gated) — the switch-plus-overflow-menu row of Firefox's add-on manager, which keeps the destructive action one step away from the frequently clicked toggle.
+My Edits has no menu — it has no Configure and can't be deleted — and a spacer keeps its toggle aligned.
+The menu floats in the top layer like every dropdown ([`components.md`](components.md) § `openMenu`), so the scrolling list can't clip it.
+Configure and delete live only here: users looking to delete or configure a list went to Manage first, and a single path keeps the answer to "where is it?" unambiguous.
+This keeps the bar calm and reserves its right edge for working on the scoped list's data.
 The discoverability trade — a dropdown footer advertises less than a visible button — is accepted because list management is infrequent and the selector is exactly where one goes when thinking about wordlists.
 A visible adjustments button next to the selector was the original plan; it was demoted into the dropdown, and the bar slot it would have taken went to the rescore trigger instead.
 
@@ -80,6 +84,7 @@ Reorder and toggle operate on a **staged shadow** of order + enabled flags — a
 **Save** is disabled whenever the staged shadow matches canonical, so there's no no-op commit — and because an add commits immediately, adding a list alone leaves the shadow clean and Save dimmed.
 This converts what was a freeze on *every* drag and *every* toggle into one expected pause on a deliberate confirm.
 **Add wordlist** launches the real import/fetch flow immediately as a sub-dialog (you can't stage a fetch); on completion the new list is absorbed into the shadow and the user keeps arranging — so Cancel discards staged reorders/toggles but does *not* undo an add.
+Configure and Delete work the same way: each commits immediately through its own dialog, the row re-renders (or drops out of the shadow), and staged reorders/toggles of the other rows survive.
 The panel opts out of backdrop-dismiss and its X is guarded ("discard changes?") only when changes are pending — following the app-wide rule that outside-click-to-dismiss is fine when dismissal is non-destructive and off when it would discard unsaved edits (`createDialog`'s `dismissOnBackdrop` flag, default true).
 
 **My Edits isn't pinned — reorder and disable apply to it like any list.**
@@ -91,8 +96,8 @@ The cost is a footgun — an edit can silently fail to surface — accepted for 
 Pinning it on top and always-enabled (the search bar's permanence pattern — [`design.md`](design.md) § *Search is a tool*) is a deliberate future option, not yet taken.
 
 **Per-source actions.**
-When a source is scoped the bar's right cluster is **Download + a `Rescoring` text button + a slim `⋮` kebab** (**Fetch** for a URL-backed list, **Import**, **Configure**; Configure is the existing dialog, already holding rename/icon/publisher/URL/import/rules — plus **Delete** as a quiet red link in its footer, a rare destructive action kept off the bar itself and demoted by weight so it doesn't compete with Save, so there are no standalone rename/icon/delete items).
-**My Edits** gets the same Download and `Rescoring` button, with **Import** and **Clear** (confirm-gated) in its kebab; it has no Configure.
+When a source is scoped the bar's right cluster is **Download + a `Rescoring` text button + a slim `⋮` kebab** (**Fetch** for a URL-backed list, **Import**).
+**My Edits** gets the same Download and `Rescoring` button, with **Import** and **Clear** (confirm-gated) in its kebab.
 On **All Wordlists** it's just Download (the merged product) + a `Scoring` text button (the tier editor), no kebab.
 The **sync button** (§ *Disk sync*) sits in that right cluster, by Download, in every scope.
 Responsive behavior is **measure-and-fold**: the `⋮` kebab is an overflow bucket, and a ResizeObserver folds **Download** into the kebab (its split becomes explicit Download-rescored/original items) as soon as the scope name would otherwise ellipsize, then **Rescoring** — so buttons collapse *before* the name truncates, and the name only ellipsizes once everything's folded.

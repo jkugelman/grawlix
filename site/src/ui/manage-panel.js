@@ -2,23 +2,24 @@
 
 // ─── Manage wordlists panel ─────────────────────────────────────────────────
 
-import { pluralize } from '../core/util.js';
+import { esc, pluralize } from '../core/util.js';
 import { effect } from '../core/signals.js';
 import { state, cacheVersion$, configSummary$ } from '../data/state.js';
 import { persistMeta, batchUpdate, repaintAfterCacheChange } from '../data/persist.js';
 import { sourceTotal } from '../data/merge.js';
 import { getWordlistIcon } from './icons.js';
-import { makeReorderable } from './components.js';
+import { makeReorderable, buildMoreMenuHTML, buildTrashIconHTML, closeMenus } from './components.js';
 import { createDialog, showDialog } from './dialogs/dialog.js';
 import { showConfirm } from './dialogs/confirm.js';
+import { ConfigureWordlistDialog } from './dialogs/configure-wordlist.js';
 import { buildWordlistCardHTML } from './scope-selector.js';
 
-// The Add-wordlist dialog lives upward (main.js); injected so this view imports
+// deleteWordlist lives upward (app/actions.js); injected so this view imports
 // nothing above ui.
-let _openAddWordlist = () => {};
+let _deleteWordlist = async () => false;
 
-export function configureManagePanel({ openAddWordlist }) {
-  if (openAddWordlist) _openAddWordlist = openAddWordlist;
+export function configureManagePanel({ deleteWordlist }) {
+  if (deleteWordlist) _deleteWordlist = deleteWordlist;
 }
 
 export const ManagePanel = (() => {
@@ -35,11 +36,20 @@ export const ManagePanel = (() => {
       getWordlistIcon(wl),
       wl.name,
       total == null ? '…' : pluralize(total, 'entry', 'entries'),
-      { enabled, populated: wl.populated },
+      { enabled, populated: wl.populated, extraActions: rowMenuHTML(wl) },
     );
   }
 
+  function rowMenuHTML(wl) {
+    if (wl.type === 'edits') return '<span class="manage-row-menu-spacer"></span>';
+    return buildMoreMenuHTML([
+      ['Configure', '', { className: 'manage-row-configure', icon: '<svg aria-hidden="true"><use href="#icon-settings"/></svg>' }],
+      ['Delete',    '', { className: 'manage-row-delete',    icon: buildTrashIconHTML() }],
+    ], { className: 'manage-row-kebab', title: `More options for ${esc(wl.name)}` });
+  }
+
   function render() {
+    closeMenus();
     listEl.innerHTML = shadow.order.map(rowHTML).join('');
     listEl.querySelectorAll('.wordlist-card').forEach((cardEl, i) => { cardEl._wordlist = shadow.order[i]; });
     syncApplyDisabled();
@@ -52,6 +62,12 @@ export const ManagePanel = (() => {
       if (!shadow.order.includes(wl)) { shadow.order.push(wl); grew = true; }
     }
     if (grew) render();
+  }
+
+  function prune(wl) {
+    shadow.order = shadow.order.filter(w => w !== wl);
+    shadow.enabled.delete(wl);
+    render();
   }
 
   function isDirty() {
@@ -128,7 +144,19 @@ export const ManagePanel = (() => {
       el.close();
     });
 
-    addRow.addEventListener('click', () => _openAddWordlist(absorb));
+    listEl.addEventListener('click', async e => {
+      const item = e.target.closest('.manage-row-configure, .manage-row-delete');
+      if (!item) return;
+      const wl = item.closest('.wordlist-card')._wordlist;
+      if (item.classList.contains('manage-row-configure')) {
+        ConfigureWordlistDialog.open(wl, () => { if (shadow) render(); });
+      } else if (await _deleteWordlist(wl) && shadow) {
+        prune(wl);
+      }
+    });
+    el.addEventListener('close', closeMenus);
+
+    addRow.addEventListener('click', () => ConfigureWordlistDialog.openAdd(absorb));
 
     // Self-gates on shadow rather than subscribing only while open: the signals
     // lib has no teardown, so this lifelong effect must no-op when closed.

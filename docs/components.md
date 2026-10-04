@@ -43,8 +43,10 @@ This table is exhaustive — [`tests/unit/components-doc.test.js`](../tests/unit
 | `afterTransition(el, done, opts)` | Runs `done` when the element's transition ends, or after `opts.timeout` (default 1000ms) if it never fires — a backgrounded tab or a coalesced style change runs no transition at all. **Every teardown hung on a `transitionend` goes through this**; unbounded, a missed event strands an already-transparent node that still takes pointer events or focus. Pass `opts.property` when more than one property transitions. |
 | `PopupHelp` | Class. A help popover bound to an anchor's focus, dismissed on blur or Escape and suppressed on narrow viewports. `show()` / `hide()` / `destroy()`. |
 | `buildSplitBtn(mainLabel, mainOnclick, menuItems, opts)` | A primary action button with an attached ▾ menu of secondary actions. |
-| `buildMoreMenuHTML(menuItems, opts)` | A menu with no primary action — trigger is a ⋮, a named icon, or a text label with a caret. |
-| `toggleSplitMenu(event)` | The open/close handler both of the above wire up. Closes any other open menu first. |
+| `buildMoreMenuHTML(menuItems, opts)` | A menu with no primary action — trigger is a ⋮, a named icon, or a text label with a caret. Each item is `[label, onclick, opts]`; `opts.icon` prepends an icon, and an empty `onclick` plus `opts.className` leaves the item to a delegated listener. |
+| `toggleSplitMenu(event)` | The open/close handler both of the above wire up. |
+| `openMenu(menu, trigger, opts)`, `toggleMenu(…)`, `closeMenus()`, `isMenuOpen(menu)` | **Every dropdown menu floats through these.** The menu is a `popover="manual"` element in the top layer, so no scrolling or overflow-clipped ancestor (a dialog, a list, a tool row) can cut it off; it's positioned under `opts.anchor` (default: the trigger) and repositioned on scroll/resize. One menu is open at a time. A menu built outside the two builders above (e.g. the tool stack's match-mode menu) calls these directly instead of rolling its own open/dismiss logic. |
+| `mountMenus()` | Installs the document-level dismissal: any click outside the trigger, or Escape (which closes only the menu, never a dialog under it). Called once from `boot()`. |
 | `buildUrlInputHTML(id, placeholder)` | A URL field with a leading globe icon. |
 | `buildEditHintHTML(extraClass, onclick)` | The ✏️ that fades in on hover to mean "click to edit". |
 | `buildTrashIconHTML()` | The trash `<svg>`. |

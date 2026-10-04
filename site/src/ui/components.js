@@ -235,33 +235,94 @@ export function buildSplitBtn(mainLabel, mainOnclick, menuItems, { primary = fal
   const items = menuItems.map(([lbl, fn]) => `<button onclick="${fn}">${lbl}</button>`).join('');
   return `<div class="split-btn${primary ? ' primary' : ''}"${idAttr}>` +
     `<button class="split-btn-main"${titleAttr} onclick="${mainOnclick}"${dis}>${mainLabel}</button>` +
-    `<button class="split-btn-arrow" onclick="toggleSplitMenu(event)" title="More options"${dis}>${arrow}</button>` +
-    `<div class="split-btn-menu">${items}</div>` +
+    `<button class="split-btn-arrow" onclick="toggleSplitMenu(event)" title="More options" aria-haspopup="menu" aria-expanded="false"${dis}>${arrow}</button>` +
+    `<div class="split-btn-menu" popover="manual" role="menu">${items}</div>` +
     `</div>`;
 }
 
 export function buildMoreMenuHTML(menuItems, { className = '', header = '', icon = '', label = '', title = 'More options' } = {}) {
   const items = menuItems.map(([lbl, fn, opts = {}]) => {
-    const dis   = opts.disabled ? ' disabled' : '';
+    const onclick   = fn ? ` onclick="${fn}"` : '';
+    const cls       = opts.className ? ` class="${opts.className}"` : '';
+    const dis       = opts.disabled ? ' disabled' : '';
     const itemTitle = opts.title ? ` title="${esc(opts.title)}"` : '';
-    return `<button onclick="${fn}"${dis}${itemTitle}>${lbl}</button>`;
+    const itemIcon  = opts.icon ?? '';
+    return `<button type="button" role="menuitem"${cls}${onclick}${dis}${itemTitle}>${itemIcon}${lbl}</button>`;
   }).join('');
   const headerHTML = header ? `<div class="split-btn-menu-header">${esc(header)}</div>` : '';
   const caret = `<svg class="more-menu-caret" aria-hidden="true" viewBox="0 0 8 5"><use href="#icon-arrow"/></svg>`;
   const trigger = label ? `${esc(label)}${caret}` : (icon ? `<svg aria-hidden="true"><use href="#icon-${icon}"/></svg>` : '⋮');
   const btnClass = label ? 'more-menu-btn more-menu-labeled' : 'more-menu-btn';
   return `<div class="split-btn${className ? ' ' + className : ''}">` +
-    `<button class="${btnClass}" onclick="toggleSplitMenu(event)" title="${esc(title)}">${trigger}</button>` +
-    `<div class="split-btn-menu">${headerHTML}${items}</div>` +
+    `<button type="button" class="${btnClass}" onclick="toggleSplitMenu(event)" title="${esc(title)}" aria-haspopup="menu" aria-expanded="false">${trigger}</button>` +
+    `<div class="split-btn-menu" popover="manual" role="menu">${headerHTML}${items}</div>` +
     `</div>`;
 }
 
 export function toggleSplitMenu(event) {
   event.stopPropagation();
-  const btn = event.currentTarget.closest('.split-btn');
-  const isOpen = btn.classList.contains('open');
-  document.querySelectorAll('.split-btn.open').forEach(b => b.classList.remove('open'));
-  if (!isOpen) btn.classList.add('open');
+  const trigger = event.currentTarget;
+  const split = trigger.closest('.split-btn');
+  toggleMenu(split.querySelector('.split-btn-menu'), trigger, { anchor: split });
+}
+
+// ─── Floating menus ───────────────────────────────────────────────────────
+// Every dropdown menu is a native popover, so it paints in the top layer: an
+// in-flow menu gets clipped by any scrolling or overflow-hidden ancestor (a
+// dialog, the Manage list, a tool row), and only on the rows near its edge.
+
+let _openMenu = null;   // { menu, trigger, anchor, placement, align, offset, onClose }
+
+function placeOpenMenu() {
+  const { menu, anchor, placement, align, offset } = _openMenu;
+  positionPopover(menu, anchor, { placement, align, offset });
+}
+
+export function openMenu(menu, trigger, { anchor = trigger, placement = 'below', align = 'right', offset = 3, onClose = null } = {}) {
+  closeMenus();
+  _openMenu = { menu, trigger, anchor, placement, align, offset, onClose };
+  menu.showPopover();
+  trigger.setAttribute('aria-expanded', 'true');
+  trigger.closest('.split-btn')?.classList.add('open');
+  placeOpenMenu();
+}
+
+export function toggleMenu(menu, trigger, opts) {
+  if (_openMenu?.menu === menu && _openMenu.trigger === trigger) closeMenus();
+  else openMenu(menu, trigger, opts);
+}
+
+export function isMenuOpen(menu) {
+  return _openMenu?.menu === menu;
+}
+
+export function closeMenus() {
+  if (!_openMenu) return false;
+  const { menu, trigger, onClose } = _openMenu;
+  _openMenu = null;
+  if (menu.matches(':popover-open')) menu.hidePopover();
+  trigger.setAttribute('aria-expanded', 'false');
+  trigger.closest('.split-btn')?.classList.remove('open');
+  onClose?.();
+  return true;
+}
+
+export function mountMenus() {
+  document.addEventListener('click', e => {
+    if (_openMenu && !_openMenu.trigger.contains(e.target)) closeMenus();
+  });
+  // Capture phase, and preventDefault: inside a modal dialog, Escape must
+  // close only the menu, not the dialog under it.
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && closeMenus()) { e.preventDefault(); e.stopPropagation(); }
+  }, true);
+  const reflow = () => {
+    if (!_openMenu) return;
+    if (_openMenu.trigger.isConnected) placeOpenMenu();
+    else closeMenus();
+  };
+  window.addEventListener('resize', reflow);
+  window.addEventListener('scroll', reflow, true);
 }
 
 export function buildUrlInputHTML(id, placeholder) {

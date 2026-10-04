@@ -48,7 +48,7 @@ import { resetPipelineProgress } from './entries-table.js';
 import { bumpPipelineVersion, setResultsStale } from '../data/state.js';
 import {
   buildTextInputHTML, buildParamHTML, syncClearButton, setSegCtrlActive,
-  buildDragHandleHTML, makeReorderable, positionPopover,
+  buildDragHandleHTML, makeReorderable, positionPopover, openMenu, closeMenus, isMenuOpen,
 } from './components.js';
 
 // Router (URL persistence), the tool-row error popover, and help-popup
@@ -361,33 +361,19 @@ export const ToolStack = (() => {
     return !!row && isReplacing(row.params);
   }
 
-  // Body-parented singleton (like SymbolSuggest) rather than a menu anchored
-  // inside the row: .tool-row clips overflow, so an in-row dropdown would be
-  // cut off on user-added Search/Regex rows.
   const MatchModeMenu = (() => {
     let el = null, anchor = null;
-
-    // Anchor the menu under the whole match control, not the narrow arrow it
-    // sprang from, so it reads as the control's dropdown rather than the caret's.
-    const anchorRect = () => anchor?.closest('.tool-row-match');
-    const reflow = () => { if (el?.classList.contains('open') && anchor) positionPopover(el, anchorRect(), { placement: 'below', offset: 4 }); };
 
     function ensure() {
       if (el) return el;
       el = document.createElement('div');
       el.className = 'split-btn-menu match-mode-menu';
+      el.setAttribute('popover', 'manual');
+      el.setAttribute('role', 'menu');
       el.addEventListener('click', (e) => {
         const opt = e.target.closest('button[data-mode]');
         if (opt) pick(opt.dataset.mode);
       });
-      document.addEventListener('click', (e) => {
-        if (el.classList.contains('open') && !el.contains(e.target)) close();
-      });
-      document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape') close();
-      });
-      window.addEventListener('resize', reflow);
-      window.addEventListener('scroll', reflow, true);
       document.body.appendChild(el);
       return el;
     }
@@ -398,7 +384,7 @@ export const ToolStack = (() => {
       const token = box.dataset.row;
       const row = token === 'bar' ? getSearchBarRow() : stack[parseInt(token, 10)];
       const choice = MATCH_PARAM.choices.find(c => c.value === mode);
-      close();
+      closeMenus();
       if (!row || !choice) return;
       wrap.dataset.mode = mode;
       wrap.querySelector('.match-mode-label').textContent = choice.label;
@@ -411,27 +397,19 @@ export const ToolStack = (() => {
 
     function open(btn) {
       anchor = btn;
-      const active = btn.closest('.tool-row-match').dataset.mode;
+      const wrap = btn.closest('.tool-row-match');
       ensure().innerHTML = MATCH_PARAM.choices.map(c =>
-        `<button type="button" role="menuitemradio" aria-checked="${c.value === active}"`
+        `<button type="button" role="menuitemradio" aria-checked="${c.value === wrap.dataset.mode}"`
         + ` data-mode="${esc(c.value)}">${esc(c.label)}</button>`).join('');
-      el.classList.add('open');
-      btn.setAttribute('aria-expanded', 'true');
-      positionPopover(el, anchorRect(), { placement: 'below', offset: 4 });
-    }
-
-    function close() {
-      if (!el?.classList.contains('open')) return;
-      el.classList.remove('open');
-      anchor?.setAttribute('aria-expanded', 'false');
-      anchor = null;
+      // Under the whole match control, not the narrow arrow it sprang from, so
+      // it reads as the control's dropdown rather than the caret's.
+      openMenu(el, btn, { anchor: wrap, align: 'left', offset: 4 });
     }
 
     return {
       toggle(btn) {
-        const reopen = !(el?.classList.contains('open') && anchor === btn);
-        close();
-        if (reopen) open(btn);
+        if (isMenuOpen(el) && anchor === btn) closeMenus();
+        else open(btn);
       },
     };
   })();

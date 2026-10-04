@@ -36,6 +36,7 @@ export function buildWordlistCardHTML(icon, name, meta, opts = {}) {
     severityTitle = '',
     draggable     = true,
     toggle        = true,
+    extraActions  = '',
   } = opts;
 
   const classes = ['wordlist-card'];
@@ -58,7 +59,7 @@ export function buildWordlistCardHTML(icon, name, meta, opts = {}) {
     <label class="toggle" title="${toggleTitle}" aria-label="Toggle ${esc(name)}">
       <input type="checkbox"${populated && enabled ? ' checked' : ''}${populated ? '' : ' disabled'}>
       <span class="toggle-slider"></span>
-    </label>
+    </label>${extraActions}
   </div>` : '';
 
   return `<div class="${classes.join(' ')}" data-wordlist tabindex="0" role="option">${dragHandle}${icon}${cardInfo}${cardActions}</div>`;
@@ -166,12 +167,9 @@ export const WordlistSelector = (() => {
         ['Clear',  `WordlistActions.action('clear')`],
       ];
     } else {
-      const fetchItems = scope.url
-        ? [['Fetch', `WordlistActions.action('fetch')`], ['Import', `WordlistActions.action('import')`]]
-        : [['Import', `WordlistActions.action('import')`]];
       base = [
-        ...fetchItems,
-        ['Configure', `WordlistActions.action('configure')`],
+        ...(scope.url ? [['Fetch', `WordlistActions.action('fetch')`]] : []),
+        ['Import', `WordlistActions.action('import')`],
       ];
     }
     return buildMoreMenuHTML([...folded, ...base], { className: 'wls-kebab' });

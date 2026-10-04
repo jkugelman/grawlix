@@ -5,7 +5,7 @@
 // handler once stayed green through exactly this gap.
 
 import { test, expect } from '@playwright/test';
-import { stubPublisherFetches, gotoApp, scopeTo, expectVisible } from './helpers.js';
+import { stubPublisherFetches, gotoApp, scopeTo, expectVisible, openManagePanel } from './helpers.js';
 
 test.beforeEach(async ({ page }) => {
   await stubPublisherFetches(page);
@@ -119,14 +119,16 @@ async function kebabAction(page, label) {
   await kebab.locator('.split-btn-menu button', { hasText: label }).click();
 }
 
-test('the kebab Configure item opens the ConfigureWordlist dialog and its icon picker', async ({ page }) => {
+test('a Manage row\'s Configure menu item opens the ConfigureWordlist dialog and its icon picker', async ({ page }) => {
   await gotoApp(page);
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
     name: 'Configurable', entries: ['cat'], scores: [50],
   }));
-  await scopeTo(page, 'Configurable');
 
-  await kebabAction(page, 'Configure');
+  await openManagePanel(page);
+  const row = page.locator('#manage-dialog .wordlist-card', { hasText: 'Configurable' });
+  await row.locator('.manage-row-kebab .more-menu-btn').click();
+  await row.locator('.manage-row-configure').click();
   const dialog = page.locator('#configure-wordlist-dialog');
   await expect(dialog).toBeVisible();
   await expect(dialog.locator('#config-name-input')).toHaveValue('Configurable');

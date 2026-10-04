@@ -10,7 +10,7 @@ import { serializeEntries } from './engine/serialize.js';
 import { getOutputFormat, setOutputFormat } from './data/serialize.js';
 import { persistMeta } from './data/persist.js';
 import { configureSyncDialogs, configureMirrorSerializer, configureEditsMerger } from './data/disk-sync.js';
-import { mountClearableInputs, buildClearableInputHTML, toggleSplitMenu } from './ui/components.js';
+import { mountClearableInputs, buildClearableInputHTML, toggleSplitMenu, mountMenus } from './ui/components.js';
 import { showConfirm, showAlert, showMergeConflict, showEditsConflict } from './ui/dialogs/confirm.js';
 import { openUpdateSummaryDialog } from './ui/dialogs/update-summary.js';
 import { SettingsDialog, configureSettings } from './ui/dialogs/settings.js';
@@ -82,10 +82,6 @@ function exposeWindowGlobals() {
   });
 }
 
-function mountSplitMenuDismiss() {
-  document.addEventListener('click', () => document.querySelectorAll('.split-btn.open').forEach(b => b.classList.remove('open')));
-}
-
 // Hide the splash screen immediately if no wordlists have data. (When data
 // exists, init's reconnect/fade path retires it instead.)
 function maybeRemoveSplashEarly() {
@@ -110,7 +106,7 @@ function boot() {
   configurePipelineWorker({ baseURL: import.meta.url });
 
   configureSyncDialog({ WordlistActions });
-  configureConfigureWordlist({ addNewWordlist, fetchWordlist, ingestFile, deleteWordlist });
+  configureConfigureWordlist({ addNewWordlist, fetchWordlist, ingestFile });
   configureImportGuide({ ingestFile });
 
   // Inject the app-layer callees the extracted ui views can't import upward.
@@ -135,9 +131,7 @@ function boot() {
     bakeMenuOpts,
     bake: () => WordlistActions.action('bakeRescoring'),
   });
-  configureManagePanel({
-    openAddWordlist: onAdded => ConfigureWordlistDialog.openAdd(onAdded),
-  });
+  configureManagePanel({ deleteWordlist });
   configureDiscoveryBanner({
     runImport: () => WordlistActions.action('import'),
   });
@@ -152,7 +146,7 @@ function boot() {
   mountClearableInputs();
   mountScoreRangeControl();
   mountHistogramPointer();
-  mountSplitMenuDismiss();
+  mountMenus();
 
   // Dialog/overlay singletons append to <body>. showConfirm must exist before
   // init() (init's migration path calls it); the rest before any UI opens them.

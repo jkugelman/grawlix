@@ -1185,14 +1185,14 @@ The worker-side seams are wired at the top of `engine/worker.js` or on its `conf
 |---|---|---|---|
 | `configurePipelineWorker` | `ui/pipeline-worker.js` | `baseURL: import.meta.url` (main.js's) | `null`: spawning the worker throws |
 | `configureSyncDialog` | `ui/dialogs/sync.js` | `WordlistActions` | no-op |
-| `configureConfigureWordlist` | `ui/dialogs/configure-wordlist.js` | `addNewWordlist`, `fetchWordlist`, `ingestFile`, `deleteWordlist` | no-op (`deleteWordlist` resolves false) |
+| `configureConfigureWordlist` | `ui/dialogs/configure-wordlist.js` | `addNewWordlist`, `fetchWordlist`, `ingestFile` | no-op |
 | `configureImportGuide` | `ui/dialogs/import-guide.js` | `ingestFile` | no-op |
 | `configureRendering` | `ui/rendering.js` | `refreshDerivedDisplays`, `deleteFromEdits`, `attachExternalEditHandlers`, the score-range, length-range, and Share HTML builders | no-op; builders return `''` |
 | `configureAppView` | `ui/app-view.js` | `navigate` (`Router.navigate`) | no-op |
 | `configureEntriesTable` | `ui/entries-table.js` | `navigate` (`Router.navigate`) | no-op |
 | `configureToolStack` | `ui/tool-stack.js` | `navigate`, `showRowError` (`ErrorPopover`), `attachHelpPopups` | no-op |
 | `configureRescoreEditor` | `ui/rescore-editor.js` | `bakeMenuOpts`, `bake` | no-op |
-| `configureManagePanel` | `ui/manage-panel.js` | `openAddWordlist` | no-op |
+| `configureManagePanel` | `ui/manage-panel.js` | `deleteWordlist` | resolves false |
 | `configureDiscoveryBanner` | `ui/discovery-banner.js` | `runImport` | no-op |
 | `configureSettings` | `ui/dialogs/settings.js` | `checkForUpdates`, `regenerateFillOutputs`, `getAutoUpdate` | no-op (`getAutoUpdate` → true) |
 | `configureSyncDialogs` | `data/disk-sync.js` | `alert` (`showAlert`), `resolveConflict` (`showEditsConflict`) | no-op; a conflict resolves to `'device'` unasked |

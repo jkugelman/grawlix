@@ -5,7 +5,7 @@
 // guards with a confirm.
 
 import { test, expect } from '@playwright/test';
-import { stubPublisherFetches, gotoApp, openManagePanel } from './helpers.js';
+import { stubPublisherFetches, gotoApp, openManagePanel, scopeTo } from './helpers.js';
 
 // Taller viewport so every card fits without scrolling — else makeReorderable's
 // drag auto-scroll flakes the reorder tests (as in wordlist-reorder.spec).
@@ -296,4 +296,116 @@ test('a source added while the panel is open is absorbed via the cacheVersion ef
 
   expect(await page.evaluate(() => window.__grawlixTest.getWordlist('TestGrains').enabled)).toBe(true);
   expect(await page.evaluate(() => window.__grawlixTest.getMergedEntry('OAT'))).not.toBeNull();
+});
+
+// ─── Per-row Configure and Delete ───────────────────────────────────────────
+//
+// Like an add, both commit immediately through their own dialogs; staged
+// reorders and toggles of the other lists survive them.
+function rowMenuBtn(page, name) {
+  return page.locator(`#manage-dialog .manage-row-kebab .more-menu-btn[title="More options for ${name}"]`);
+}
+
+function rowMenu(page, name) {
+  return page.locator('#manage-dialog .wordlist-card', { hasText: name }).locator('.split-btn-menu');
+}
+
+async function rowAction(page, action, name) {
+  await rowMenuBtn(page, name).click();
+  await rowMenu(page, name).locator(`.manage-row-${action}`).click();
+}
+
+test('My Edits has no row menu; another row\'s menu offers Configure and Delete', async ({ page }) => {
+  await gotoApp(page);
+  await addTwoLists(page);
+
+  await openManagePanel(page);
+  const edits = page.locator('#manage-dialog .wordlist-card', { hasText: 'My Edits' });
+  await expect(edits.locator('.manage-row-kebab')).toHaveCount(0);
+
+  const menu = rowMenu(page, 'TestFruits');
+  await expect(menu).toBeHidden();
+  await rowMenuBtn(page, 'TestFruits').click();
+  await expect(menu).toBeVisible();
+  expect(await menu.locator('button').allTextContents()).toEqual(['Configure', 'Delete']);
+
+  await rowMenuBtn(page, 'TestFruits').click();   // the trigger toggles it shut
+  await expect(menu).toBeHidden();
+});
+
+test('the row menu closes on Escape without closing the panel', async ({ page }) => {
+  await gotoApp(page);
+  await addTwoLists(page);
+
+  await openManagePanel(page);
+  const menu = rowMenu(page, 'TestFruits');
+  await rowMenuBtn(page, 'TestFruits').click();
+  await expect(menu).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(menu).toBeHidden();
+  await expect(page.locator('#manage-dialog')).toBeVisible();
+});
+
+test('Configure from a row saves immediately and the row shows the new name', async ({ page }) => {
+  await gotoApp(page);
+  await addTwoLists(page);
+
+  await openManagePanel(page);
+  await rowAction(page, 'configure', 'TestFruits');
+  const dialog = page.locator('#configure-wordlist-dialog');
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByRole('button', { name: 'Delete', exact: true })).toHaveCount(0);
+  await dialog.locator('#config-name-input').fill('TestOrchard');
+  await dialog.locator('#btn-cfg-save').click();
+  await expect(dialog).toBeHidden();
+
+  await expect(page.locator('#manage-dialog')).toBeVisible();
+  await expect.poll(() => panelRowNames(page)).toContain('TestOrchard');
+  expect(await page.evaluate(() => window.__grawlixTest.getWordlist('TestOrchard'))).not.toBeNull();
+  await expect(page.locator('#manage-dialog .manage-apply-btn')).toBeDisabled();
+});
+
+test('Delete from a row removes the list and falls back to All Wordlists when it was scoped', async ({ page }) => {
+  await gotoApp(page);
+  await addTwoLists(page);
+  await scopeTo(page, 'TestBerries');
+
+  await openManagePanel(page);
+  await rowAction(page, 'delete', 'TestBerries');
+  await page.locator('#confirm-dialog #btn-confirm-ok').click();
+
+  await expect.poll(() => panelRowNames(page)).not.toContain('TestBerries');
+  await expect(page.locator('#manage-dialog')).toBeVisible();
+  await expect(page.locator('#manage-dialog .manage-apply-btn')).toBeDisabled();
+  expect(await page.evaluate(() => state.sources.some(w => w.name === 'TestBerries'))).toBe(false);
+  await expect(page.locator('#wordlist-bar .wls-trigger-label')).toHaveText('All Wordlists');
+});
+
+test('cancelling the delete confirm keeps the list', async ({ page }) => {
+  await gotoApp(page);
+  await addTwoLists(page);
+
+  await openManagePanel(page);
+  await rowAction(page, 'delete', 'TestBerries');
+  await page.locator('#confirm-dialog #btn-confirm-cancel').click();
+
+  await expect(page.locator('#manage-dialog')).toBeVisible();
+  expect(await panelRowNames(page)).toContain('TestBerries');
+  expect(await page.evaluate(() => state.sources.some(w => w.name === 'TestBerries'))).toBe(true);
+});
+
+test('a staged toggle survives deleting another row and still commits on Save', async ({ page }) => {
+  await gotoApp(page);
+  await addTwoLists(page);
+
+  await openManagePanel(page);
+  await rowToggle(page, 'TestFruits').click();
+  await rowAction(page, 'delete', 'TestBerries');
+  await page.locator('#confirm-dialog #btn-confirm-ok').click();
+  await expect.poll(() => panelRowNames(page)).not.toContain('TestBerries');
+
+  expect(await page.evaluate(() => window.__grawlixTest.getWordlist('TestFruits').enabled)).toBe(true);
+  await page.locator('#manage-dialog .manage-apply-btn').click();
+  await expect(page.locator('#manage-dialog')).toBeHidden();
+  expect(await page.evaluate(() => window.__grawlixTest.getWordlist('TestFruits').enabled)).toBe(false);
 });
