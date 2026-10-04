@@ -108,6 +108,7 @@ export const LOOKUP_SOURCES = [
   { id: 'xwordinfo', name: 'XWord Info', url: (entry, norm) => `https://www.xwordinfo.com/Finder?word=${encodeURIComponent(norm || '')}` },
   // Crosserville normalizes the query itself but errors on punctuation (`I,bet`), so it gets the norm.
   { id: 'crosserville', name: 'Crosserville', url: (entry, norm) => `https://www.crosserville.com/search/theme?q=${encodeURIComponent((norm || '').toUpperCase())}` },
+  { id: 'puzzmo', name: 'Puzzmo', url: (entry, norm) => `https://data.puzzmo.com/xwd/words?q=${encodeURIComponent(norm || '')}` },
 ];
 
 export function getLookupSource(id) {

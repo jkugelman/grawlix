@@ -19,7 +19,7 @@ Constructors use Grawlix in two modes that share one UI:
 Neither mode is primary.
 The workspace-leaning design accommodates sidekick mode for free as long as load is fast and chrome isn't loud — sidekick is just "brief use, leave."
 
-Entry lookups (Wiktionary definitions, Wikipedia, and thesaurus inline, plus link-outs to Google, OneLook, XWord Info, and Crosserville) are differentially valuable to constructors using grid software without built-in lookup.
+Entry lookups (Wiktionary definitions, Wikipedia, and thesaurus inline, plus link-outs to Google, OneLook, XWord Info, Crosserville, and Puzzmo) are differentially valuable to constructors using grid software without built-in lookup.
 Crossfire and Crossword Compiler are the populations that benefit most; Ingrid has Google integration and Crosserville has clue lookup, so those populations need Grawlix-side lookup less.
 
 Mobile is a third mode — theme research on the go (subway, Discord), where a constructor wants to act on an idea before it evaporates.
