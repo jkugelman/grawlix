@@ -58,6 +58,8 @@ This table is exhaustive — [`tests/unit/components-doc.test.js`](../tests/unit
 Small, stable, cross-cutting — reuse rather than reimplement:
 
 - **Dialogs** — [`ui/dialogs/dialog.js`](../site/src/ui/dialogs/dialog.js): `createDialog(id, opts)` builds the element and delegates dismiss clicks; `showDialog(el, onClose?)` opens it and handles focus.
+  A dialog holding unsaved edits passes `opts.isDirty`: the ✕, a backdrop click, and Escape then ask "Discard changes?" while it returns true, and Cancel (an explicit discard) still closes at once.
+  Never block the backdrop outright or hand-roll a discard prompt.
   Never hand-wire backdrop close, `tabIndex`, or post-`showModal()` focus.
   The full contract, including promise-returning dialogs, is in [`CLAUDE.md`](../CLAUDE.md) § *Component architecture*.
 - **Icons** — [`ui/icons.js`](../site/src/ui/icons.js): `buildIconHTML(descriptor, name, seed)` renders a wordlist/publisher icon from its stored descriptor; `getWordlistIcon(wordlist)` is the usual call site.

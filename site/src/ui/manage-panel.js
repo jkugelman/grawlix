@@ -10,7 +10,6 @@ import { sourceTotal } from '../data/merge.js';
 import { getWordlistIcon } from './icons.js';
 import { makeReorderable, buildMoreMenuHTML, buildTrashIconHTML, closeMenus } from './components.js';
 import { createDialog, showDialog } from './dialogs/dialog.js';
-import { showConfirm } from './dialogs/confirm.js';
 import { ConfigureWordlistDialog } from './dialogs/configure-wordlist.js';
 import { buildWordlistCardHTML } from './scope-selector.js';
 
@@ -23,7 +22,7 @@ export function configureManagePanel({ deleteWordlist }) {
 }
 
 export const ManagePanel = (() => {
-  let el, listEl, closeBtn, applyBtn, addRow;
+  let el, listEl, applyBtn, addRow;
   let shadow = null;
 
   function rowHTML(wl) {
@@ -94,9 +93,9 @@ export const ManagePanel = (() => {
 
   function mount() {
     let body;
-    ({ el, body } = createDialog('manage-dialog', { labelledby: 'manage-dialog-title', dismissOnBackdrop: false }));
+    ({ el, body } = createDialog('manage-dialog', { labelledby: 'manage-dialog-title', isDirty: () => !!shadow && isDirty() }));
     body.innerHTML = `
-      <button type="button" class="manage-close-btn" aria-label="Close">✕</button>
+      <button type="button" class="dialog-close-btn" aria-label="Close">✕</button>
       <h2 id="manage-dialog-title">Manage wordlists</h2>
       <div class="manage-list"></div>
       <button type="button" class="manage-add-row"><span class="add-wordlist-icon">＋</span>Add wordlist</button>
@@ -106,7 +105,6 @@ export const ManagePanel = (() => {
       </div>`;
 
     listEl   = el.querySelector('.manage-list');
-    closeBtn = el.querySelector('.manage-close-btn');
     applyBtn = el.querySelector('.manage-apply-btn');
     addRow   = el.querySelector('.manage-add-row');
 
@@ -139,10 +137,6 @@ export const ManagePanel = (() => {
     });
 
     applyBtn.addEventListener('click', apply);
-    closeBtn.addEventListener('click', async () => {
-      if (isDirty() && !await showConfirm('Discard changes?', { confirmText: 'Discard' })) return;
-      el.close();
-    });
 
     listEl.addEventListener('click', async e => {
       const item = e.target.closest('.manage-row-configure, .manage-row-delete');

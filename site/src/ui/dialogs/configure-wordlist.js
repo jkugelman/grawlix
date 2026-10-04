@@ -333,6 +333,17 @@ export const ConfigureWordlistDialog = (() => {
     return _mode === 'add' ? [] : null;
   }
 
+  function isDirty() {
+    const name = nameInput.value.trim();
+    const url  = urlInput.value.trim();
+    if (_mode === 'add') return !!(name || url || _pendingFile || _pendingIcon || _selectedPublisher);
+    return name !== _wordlist.name
+      || url !== (_wordlist.url || '')
+      || JSON.stringify(_pendingIcon) !== JSON.stringify(_wordlist.icon || null)
+      || _selectedPublisher !== _originalPublisher
+      || computeRulesToApply() !== null;
+  }
+
   function wireSaveAndClose() {
     btnSave.onclick = () => {
       const name = nameInput.value.trim();
@@ -366,7 +377,11 @@ export const ConfigureWordlistDialog = (() => {
       }
     };
 
-    el.addEventListener('cancel', e => { if (_pickerOpen) { e.preventDefault(); closePicker(); } });
+    // Capture, to run before createDialog's discard guard: with the picker
+    // open, Escape closes only the picker.
+    el.addEventListener('cancel', e => {
+      if (_pickerOpen) { e.preventDefault(); e.stopImmediatePropagation(); closePicker(); }
+    }, true);
     el.addEventListener('close',  () => {
       closePicker();
       clearTimeout(_urlCheckTimer);
@@ -450,7 +465,7 @@ export const ConfigureWordlistDialog = (() => {
 
   function mount() {
     let body;
-    ({ el, body } = createDialog('configure-wordlist-dialog', { labelledby: 'configure-wordlist-title', dismissOnBackdrop: false }));
+    ({ el, body } = createDialog('configure-wordlist-dialog', { labelledby: 'configure-wordlist-title', isDirty }));
     body.innerHTML = `
       <button class="dialog-close-btn" aria-label="Close">✕</button>
       <h2 id="configure-wordlist-title"></h2>

@@ -953,8 +953,8 @@ dialog:focus { outline: none; }
 .dialog-body { padding: 22px; }
 dialog::backdrop { background: var(--backdrop); }
 dialog h2 { font-size: 16px; margin-bottom: 14px; padding-right: 24px; }
-.dialog-close-btn, .manage-close-btn { position: absolute; top: 10px; right: 12px; background: none; border: none; font-size: 18px; line-height: 1; color: var(--muted); cursor: pointer; padding: 2px 6px; border-radius: 4px; z-index: 1; }
-.dialog-close-btn:hover, .manage-close-btn:hover { background: var(--hover); color: var(--text); }
+.dialog-close-btn { position: absolute; top: 10px; right: 12px; background: none; border: none; font-size: 18px; line-height: 1; color: var(--muted); cursor: pointer; padding: 2px 6px; border-radius: 4px; z-index: 1; }
+.dialog-close-btn:hover { background: var(--hover); color: var(--text); }
 .dialog-footer { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--border2); display: flex; justify-content: flex-end; gap: 8px; }
 
 /* Mobile bottom sheets. dvh (not vh) keeps the sheet clear of the URL bar. */

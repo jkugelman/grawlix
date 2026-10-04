@@ -115,7 +115,7 @@ test('a dirty X prompts to discard; cancelling the confirm keeps the panel open'
   await openManagePanel(page);
   await rowToggle(page, 'TestBerries').click();
 
-  await page.locator('#manage-dialog .manage-close-btn').click();
+  await page.locator('#manage-dialog .dialog-close-btn').click();
   await expect(page.locator('#confirm-dialog')).toBeVisible();
 
   await page.locator('#confirm-dialog #btn-confirm-cancel').click();
@@ -123,7 +123,7 @@ test('a dirty X prompts to discard; cancelling the confirm keeps the panel open'
   await expect(page.locator('#manage-dialog')).toBeVisible();
   expect(await page.evaluate(() => window.__grawlixTest.getWordlist('TestBerries').enabled)).toBe(true);
 
-  await page.locator('#manage-dialog .manage-close-btn').click();
+  await page.locator('#manage-dialog .dialog-close-btn').click();
   await expect(page.locator('#confirm-dialog')).toBeVisible();
   await page.locator('#confirm-dialog #btn-confirm-ok').click();
   await expect(page.locator('#manage-dialog')).toBeHidden();
@@ -136,9 +136,53 @@ test('a clean X closes immediately, no confirm', async ({ page }) => {
   await addTwoLists(page);
 
   await openManagePanel(page);
-  await page.locator('#manage-dialog .manage-close-btn').click();
+  await page.locator('#manage-dialog .dialog-close-btn').click();
   await expect(page.locator('#manage-dialog')).toBeHidden();
   await expect(page.locator('#confirm-dialog')).toBeHidden();
+});
+
+async function clickBackdrop(page) {
+  await page.mouse.click(5, 5);
+}
+
+test('a clean backdrop click closes immediately, no confirm', async ({ page }) => {
+  await gotoApp(page);
+  await addTwoLists(page);
+
+  await openManagePanel(page);
+  await clickBackdrop(page);
+  await expect(page.locator('#manage-dialog')).toBeHidden();
+  await expect(page.locator('#confirm-dialog')).toBeHidden();
+});
+
+test('a dirty backdrop click prompts to discard; cancelling keeps the panel and its staging', async ({ page }) => {
+  await gotoApp(page);
+  await addTwoLists(page);
+
+  await openManagePanel(page);
+  await rowToggle(page, 'TestBerries').click();
+  await clickBackdrop(page);
+  await expect(page.locator('#confirm-dialog')).toBeVisible();
+  await page.locator('#confirm-dialog #btn-confirm-cancel').click();
+  await expect(page.locator('#manage-dialog')).toBeVisible();
+  await expect(page.locator('#manage-dialog .manage-apply-btn')).toBeEnabled();
+
+  await clickBackdrop(page);
+  await page.locator('#confirm-dialog #btn-confirm-ok').click();
+  await expect(page.locator('#manage-dialog')).toBeHidden();
+  expect(await page.evaluate(() => window.__grawlixTest.getWordlist('TestBerries').enabled)).toBe(true);
+});
+
+test('a dirty Escape prompts to discard', async ({ page }) => {
+  await gotoApp(page);
+  await addTwoLists(page);
+
+  await openManagePanel(page);
+  await rowToggle(page, 'TestBerries').click();
+  await page.keyboard.press('Escape');
+  await expect(page.locator('#confirm-dialog')).toBeVisible();
+  await page.locator('#confirm-dialog #btn-confirm-cancel').click();
+  await expect(page.locator('#manage-dialog')).toBeVisible();
 });
 
 test('reordering rows stages into the panel but leaves state.sources frozen until Apply', async ({ page }) => {
@@ -229,7 +273,7 @@ test('adding via the panel commits immediately; the list stays after closing', a
 
   // The add already committed to canonical, so the shadow matches it — nothing to save.
   await expect(page.locator('#manage-dialog .manage-apply-btn')).toBeDisabled();
-  await page.locator('#manage-dialog .manage-close-btn').click();
+  await page.locator('#manage-dialog .dialog-close-btn').click();
   await expect(page.locator('#manage-dialog')).toBeHidden();
 
   const wl = await page.evaluate(() => window.__grawlixTest.getWordlist('TestGrains'));
@@ -291,7 +335,7 @@ test('a source added while the panel is open is absorbed via the cacheVersion ef
 
   await expect.poll(() => panelRowNames(page)).toContain('TestGrains');
 
-  await page.locator('#manage-dialog .manage-close-btn').click();
+  await page.locator('#manage-dialog .dialog-close-btn').click();
   await expect(page.locator('#manage-dialog')).toBeHidden();
 
   expect(await page.evaluate(() => window.__grawlixTest.getWordlist('TestGrains').enabled)).toBe(true);
@@ -363,6 +407,62 @@ test('Configure from a row saves immediately and the row shows the new name', as
   await expect.poll(() => panelRowNames(page)).toContain('TestOrchard');
   expect(await page.evaluate(() => window.__grawlixTest.getWordlist('TestOrchard'))).not.toBeNull();
   await expect(page.locator('#manage-dialog .manage-apply-btn')).toBeDisabled();
+});
+
+test('Configure: a clean X closes at once; an edited one prompts before discarding', async ({ page }) => {
+  await gotoApp(page);
+  await addTwoLists(page);
+
+  await openManagePanel(page);
+  const dialog = page.locator('#configure-wordlist-dialog');
+  await rowAction(page, 'configure', 'TestFruits');
+  await dialog.locator('.dialog-close-btn').click();
+  await expect(dialog).toBeHidden();
+  await expect(page.locator('#confirm-dialog')).toBeHidden();
+
+  await rowAction(page, 'configure', 'TestFruits');
+  await dialog.locator('#config-name-input').fill('TestOrchard');
+  await dialog.locator('.dialog-close-btn').click();
+  await expect(page.locator('#confirm-dialog')).toBeVisible();
+  await page.locator('#confirm-dialog #btn-confirm-cancel').click();
+  await expect(dialog).toBeVisible();
+  await expect(dialog.locator('#config-name-input')).toHaveValue('TestOrchard');
+
+  await clickBackdrop(page);
+  await page.locator('#confirm-dialog #btn-confirm-ok').click();
+  await expect(dialog).toBeHidden();
+  expect(await page.evaluate(() => window.__grawlixTest.getWordlist('TestFruits'))).not.toBeNull();
+});
+
+test('Configure: Cancel discards edits without a prompt', async ({ page }) => {
+  await gotoApp(page);
+  await addTwoLists(page);
+
+  await openManagePanel(page);
+  const dialog = page.locator('#configure-wordlist-dialog');
+  await rowAction(page, 'configure', 'TestFruits');
+  await dialog.locator('#config-name-input').fill('TestOrchard');
+  await dialog.locator('#btn-cfg-cancel').click();
+  await expect(dialog).toBeHidden();
+  await expect(page.locator('#confirm-dialog')).toBeHidden();
+  expect(await page.evaluate(() => window.__grawlixTest.getWordlist('TestOrchard'))).toBeNull();
+});
+
+test('Configure: Escape with the icon picker open closes only the picker', async ({ page }) => {
+  await gotoApp(page);
+  await addTwoLists(page);
+
+  await openManagePanel(page);
+  const dialog = page.locator('#configure-wordlist-dialog');
+  await rowAction(page, 'configure', 'TestFruits');
+  await dialog.locator('#config-name-input').fill('TestOrchard');
+  await dialog.locator('#icon-picker-trigger').click();
+  await expect(dialog.locator('#icon-picker-popup')).toBeVisible();
+
+  await page.keyboard.press('Escape');
+  await expect(dialog.locator('#icon-picker-popup')).toBeHidden();
+  await expect(page.locator('#confirm-dialog')).toBeHidden();
+  await expect(dialog).toBeVisible();
 });
 
 test('Delete from a row removes the list and falls back to All Wordlists when it was scoped', async ({ page }) => {

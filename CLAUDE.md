@@ -297,6 +297,7 @@ Nothing outside a component should reach into its DOM subtree.
 [`docs/components.md`](docs/components.md) catalogues what `ui/components.js` already provides.
 
 **Dialog helpers** — `createDialog(id, opts)` returns `{el, body}` and delegates dismiss clicks (backdrop, `.dialog-close-btn`, `.dialog-cancel-btn`) to close the dialog.
+A dialog with unsaved edits passes `opts.isDirty`, and the ✕, backdrop, and Escape confirm "Discard changes?" while it's true; Cancel is an explicit discard and never confirms.
 `showDialog(el, onClose?)` opens the dialog: captures the opener for refocus-on-close, clears `el.returnValue`, runs an optional close callback, and falls back to focusing the dialog body itself when no descendant has `autofocus`.
 Put `autofocus` on the primary input/button if there is one — otherwise the helper handles initial focus.
 Don't manually wire backdrop close, dismiss-button onclick, `tabIndex=-1`, or post-`showModal` `.focus()` calls.

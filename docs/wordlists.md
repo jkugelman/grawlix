@@ -85,7 +85,7 @@ Reorder and toggle operate on a **staged shadow** of order + enabled flags — a
 This converts what was a freeze on *every* drag and *every* toggle into one expected pause on a deliberate confirm.
 **Add wordlist** launches the real import/fetch flow immediately as a sub-dialog (you can't stage a fetch); on completion the new list is absorbed into the shadow and the user keeps arranging — so Cancel discards staged reorders/toggles but does *not* undo an add.
 Configure and Delete work the same way: each commits immediately through its own dialog, the row re-renders (or drops out of the shadow), and staged reorders/toggles of the other rows survive.
-The panel opts out of backdrop-dismiss and its X is guarded ("discard changes?") only when changes are pending — following the app-wide rule that outside-click-to-dismiss is fine when dismissal is non-destructive and off when it would discard unsaved edits (`createDialog`'s `dismissOnBackdrop` flag, default true).
+Closing follows the app-wide dialog rule (`createDialog`'s `isDirty` option): the ✕, a backdrop click, and Escape close a clean panel at once and ask "Discard changes?" when something is staged; **Cancel** is an explicit discard and never asks.
 
 **My Edits isn't pinned — reorder and disable apply to it like any list.**
 The panel treats My Edits as an ordinary row: drag it anywhere, toggle it off; only delete is blocked.
