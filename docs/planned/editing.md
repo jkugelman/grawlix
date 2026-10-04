@@ -22,7 +22,7 @@ The stretch goal has no design yet; its concrete real-world cases are captured v
 - **"Select this family" affordance.**
   The panel already *shows* the current entry's family in its Related entries section; what's parked is promoting that family to a bounded **selection** in one gesture (click the family bracket, or a key on a member).
   It's the sort-proof way to walk a whole family — a selection stays a coherent set under any sort, and stays highlighted as the walk steps it, where a table walk scatters under a Score sort.
-  The worker already ships `familyStarts` and the scroller brackets each family run under the Entry sort ([`design.md`](../design.md) § *Family-grouping bracket*), so the pieces are in place; it only helps *already-spaced* families, so it complements, not replaces, the non-contiguous multi-select.
+  The worker already ships a per-row `runStart` flag and the scroller brackets each family run under the Entry sort ([`design.md`](../design.md) § *Run bracket*), so the pieces are in place; it only helps *already-spaced* families, so it complements, not replaces, the non-contiguous multi-select.
 - **Type-ahead jump** — type a prefix to jump to the next matching entry.
   A classic listbox aid, handy for the family workflow, but it overlaps the search bar — probably last, if at all.
 

@@ -24,7 +24,7 @@ import {
   isGroupChain, rowLastEntry, rowSetAtoms,
 } from '../engine/executor.js';
 import {
-  compareItems, compareValues, activeGroupColumns, activeGroupAnchorLabel,
+  compareItems, compareValues, activeGroupColumns, activeGroupAnchorLabel, activeFlatColumn,
   sortAxes, chainSortTier, DEFAULT_SORT_BY_TIER, isValidSortAxis,
   isMultiLaneTier, rowMinScore, rowMaxScore, rowMinLength, rowMaxLength,
 } from '../engine/sort.js';
@@ -219,14 +219,16 @@ const sortSig = list => list.map(s => s.key + ':' + s.dir).join(',');
 
 // Run synchronously on stack mutation and URL load: the sort tier follows
 // the stack, and settling it lazily in the async render let the URL builder
-// read a stale axis. A real cross-tier counterpart (Score ⇄ Min score) keeps
-// the user's direction; a fallback to the tier default resets it too.
+// read a stale axis. Derives the sort in effect from the user's pick, never from
+// the previous effective sort, so a level the stack drops comes back when its
+// axis does. A real cross-tier counterpart (Score ⇄ Min score) keeps the user's
+// direction; a fallback to the tier default resets it too.
 export function reconcileSort(stack) {
   const tier = chainSortTier(stack);
   const axes = sortAxes(tier, stack);
   const out = [];
   const seen = new Set();
-  for (let { key, dir } of AppView.sortList) {
+  for (let { key, dir } of AppView.sortPick) {
     if (!(key in axes)) {
       const mapped = SORT_AXIS_TIER_MAP[key];
       if (mapped && mapped in axes) key = mapped;
@@ -238,6 +240,10 @@ export function reconcileSort(stack) {
   }
   if (!out.length) out.push({ key: DEFAULT_SORT_BY_TIER[tier], dir: 'asc' });
   AppView.setSortList(out);
+  // The header is built from exactly the stack and the sort settled here, so resync
+  // it here: result-driven rebuilds miss changes no result path flags (a tool column
+  // coming or going, a dropped sort), leaving the header naming a sort the rows lack.
+  rebuildEntryHeaders();
 }
 
 const ENTRY_SLOT_CAP = 28;
@@ -1991,12 +1997,9 @@ export class EntriesScroller extends BaseVirtualScroller {
 
   applySort(key, dir) { this.applySortList([{ key, dir }]); }
 
-  // rebuildEntryHeaders looks redundant here — its only other caller fires on a
-  // tier flip — but it's what re-syncs the header arrows on same-tier sort changes.
   applySortList(list) {
-    AppView.setSortList(list);
+    AppView.pickSortList(list);
     this.sortList = AppView.sortList;
-    rebuildEntryHeaders();
     reprojectMergedScroller();
     _navigate();
   }
@@ -2072,6 +2075,7 @@ export class EntriesScroller extends BaseVirtualScroller {
     // renders while pending, though — its shape tracks the tool stack, not the
     // scroller's transient 'tuple' tier — so seed its label floors or the
     // labels sit at the CSS fallback with no rows to widen them.
+    applyToolColumnLayout();
     if (this._errored || this._streamPending) { this._seedFlatHeaderFloors(); return; }
     if (isMultiLaneTier(this.sortTier)) { this._computeGroupSlotWidths(); return; }
     if (this._flat) { this._computeFlatSlotWidths(); return; }
@@ -2308,7 +2312,7 @@ export class EntriesScroller extends BaseVirtualScroller {
         this._buildChainRow(chainRow, i, ctx.activeNorm, ctx.preview, ctx.draftRules),
       skeletonHTML: i => `<span class="atom-count">${i + 1}.</span>`,
       decorateRow: (row, i) => {
-        if (this._flat) { this._applyFamilyBracket(row, i); this._applyRowSelection(row, i); }
+        if (this._flat) { this._applyRunBracket(row, i); this._applyRowSelection(row, i); }
       },
       invalidateCache: () => this._invalidateWinCacheIfStale(),
       fetchWindow: (lo, hi) => this._fetchWindow(lo, hi),
@@ -2446,25 +2450,26 @@ export class EntriesScroller extends BaseVirtualScroller {
     // so they share one wlEntry; each carries its own highlights/glyph slot.
     return {
       atoms: row.atoms.map(a => ({ wlEntry, highlights: a.highlights, glyph: a.glyph })),
-      familyStart: row.familyStart,
+      runStart: row.runStart,
+      columnValue: row.columnValue,
     };
   }
 
-  // Reads each row's familyStart flag off the cached chain (worker-stamped under
-  // the Entry sort), so the bracket renders mid-stream too. A non-Entry sort ships
+  // Reads each row's runStart flag off the cached chain (worker-stamped under a
+  // bracketing sort), so the bracket renders mid-stream too. Any other sort ships
   // no flag → bail. A miss on the next row (off-window) defers the end cap to the
   // render that caches it — a transient, not a wrong run.
-  _applyFamilyBracket(row, i) {
-    row.classList.remove('fam-member', 'fam-start', 'fam-end');
+  _applyRunBracket(row, i) {
+    row.classList.remove('run-member', 'run-start', 'run-end');
     const cur = this._winCache.get(i);
-    if (!cur || cur.familyStart === undefined) return;
+    if (!cur || cur.runStart === undefined) return;
     const next = this._winCache.get(i + 1);
-    const isStart = cur.familyStart === true;
-    const isEnd = i + 1 >= this._renderRowCount() || next?.familyStart === true;
+    const isStart = cur.runStart === true;
+    const isEnd = i + 1 >= this._renderRowCount() || next?.runStart === true;
     if (isStart && isEnd) return;
-    row.classList.add('fam-member');
-    if (isStart) row.classList.add('fam-start');
-    if (isEnd) row.classList.add('fam-end');
+    row.classList.add('run-member');
+    if (isStart) row.classList.add('run-start');
+    if (isEnd) row.classList.add('run-end');
   }
 
   _fetchWindow(lo, hi) {
@@ -2564,6 +2569,7 @@ export class EntriesScroller extends BaseVirtualScroller {
         entryCell +
         `<span class="atom-len">${norm.length}</span>` +
         `<span class="atom-score">${scoreInner}</span>` +
+        (ai === 0 && chainRow.columnValue !== undefined ? `<span class="atom-tool">${esc(chainRow.columnValue)}</span>` : '') +
         `<span class="atom-comment"${commentText ? ` title="${esc(commentText)}"` : ''}>${commentInner}</span>` +
         sourceCell +
         `</span>`;
@@ -4996,11 +5002,13 @@ export function buildEntryHeadersHTML() {
       <span class="group-entries-label">${hdr('Entries', entriesAxes, 'group-entries')}</span>
     </div>`;
   }
+  const toolCol = activeFlatColumn(stack);
   return `<div class="entry-headers entry-headers-font">
       <span></span>
       <span class="col-entry">${hdr('Entry', columnSortAxes('col-entry', tierAxes), 'col-entry')}</span>
       <span class="col-len">${hdr('Length', columnSortAxes('col-len', tierAxes), 'col-len')}</span>
       <span class="col-score">${hdr('Score', columnSortAxes('col-score', tierAxes), 'col-score')}</span>
+      ${toolCol ? `<span class="col-tool">${hdr(toolCol.label, toolCol.key in tierAxes ? [toolCol.key] : [], 'col-tool')}</span>` : ''}
       <span class="col-comment">${hdr('Comment', columnSortAxes('col-comment', tierAxes), 'col-comment')}</span>
       <span class="col-source">Sources</span>
     </div>`;
@@ -5031,9 +5039,29 @@ export function onSortHeaderActivate(e) {
   if (e.type === 'keydown') document.querySelector(`.sticky-stack [data-sort-col="${CSS.escape(cell.dataset.sortCol)}"]`)?.focus();
 }
 
+// The grid's tool track and the header's tool cell must switch together: either
+// one alone wraps a header cell onto a second line until the next result lands.
+function applyToolColumnLayout() {
+  const target = document.getElementById('detail-panel');
+  if (!target) return;
+  const col = activeFlatColumn(ToolStack.getStack());
+  target.classList.toggle('has-tool-col', !!col);
+  if (!col) return;
+  const contentW = Math.ceil(col.width(col.row.params) * measureMonoChPx()) + 1;
+  target.style.setProperty('--toolcol-w', `${Math.max(contentW, sortableHeaderPx(col.label))}px`);
+}
+
 // rerenderRows rebuilds only the tool rows, so a stack edit that flips chain
 // rows ⇄ group rows leaves the column headers stale until this runs.
 export function rebuildEntryHeaders() {
+  applyToolColumnLayout();
   const el = document.querySelector('.sticky-stack .entry-headers, .sticky-stack .group-headers');
-  if (el) el.outerHTML = buildEntryHeadersHTML();
+  if (!el) return;
+  const html = buildEntryHeadersHTML();
+  if (el._builtHTML === html) return;
+  const tpl = document.createElement('template');
+  tpl.innerHTML = html;
+  const fresh = tpl.content.firstElementChild;
+  fresh._builtHTML = html;
+  el.replaceWith(fresh);
 }

@@ -142,6 +142,23 @@ test('tier remap: a Length sort becomes Min length across the group boundary, th
   expect((await sortState(page)).key).toBe('length');
 });
 
+test('a Count sort shows as Length once the group goes, and comes back with it', async ({ page }) => {
+  await gotoApp(page);
+  await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
+    name: 'RemapSort',
+    entries: ['opt', 'pot', 'top', 'act', 'cat', 'dog'],
+    scores:  [50, 40, 30, 60, 20, 70],
+  }));
+  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'letter_bank', grouped: true }]));
+  await page.locator('.group-headers .group-count .col-sort').click();
+  expect((await sortState(page)).key).toBe('count');
+
+  await page.evaluate(() => window.__grawlixTest.setStack([]));
+  expect((await sortState(page)).key).toBe('length');
+  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'letter_bank', grouped: true }]));
+  expect((await sortState(page)).key).toBe('count');
+});
+
 test('keyboard: Enter sorts a single-axis header and opens the menu on a multi-axis one', async ({ page }) => {
   await gotoApp(page);
   await addFixture(page);

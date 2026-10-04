@@ -36,6 +36,7 @@ import initialisms, { wordSplits } from './tools/initialisms.js';
 import head_off from './tools/head_off.js';
 import back_off from './tools/back_off.js';
 import dead_center from './tools/dead_center.js';
+import bookends from './tools/bookends.js';
 import rebus from './tools/rebus.js';
 import remove from './tools/remove.js';
 import optional_letters from './tools/optional_letters.js';
@@ -94,6 +95,7 @@ export const TOOLS = {
   head_off,
   back_off,
   dead_center,
+  bookends,
   rebus,
   remove,
   optional_letters,

@@ -41,13 +41,17 @@ export function normalizeRangeInput(value, inputId) {
 export const AppView = (() => {
   // View-private state. Read externally via the getters in the returned
   // object; written either through the handlers below or through
-  // `applyURLState` (Router) / `restoreScoreRange` (boot). The sort state
-  // is mutated by EntriesScroller's toolbar via `setSortList`.
+  // `applyURLState` (Router) / `restoreScoreRange` (boot). The sort is two
+  // lists: `_sortPick`, what the user chose (a header click or the URL), and
+  // `_sortList`, what's in effect — the pick reconciled against the current
+  // stack (`reconcileSort`), so an axis the stack lacks for a while returns
+  // with the tool instead of being forgotten.
   // Search query / match mode are *not* here — they live in the permanent
   // Search bar's ToolStack row params; the getters below read them from it.
   let _scoreRange      = '';
   let _lengthRange     = '';
   let _sortList        = [{ key: 'entry', dir: 'asc' }];
+  let _sortPick        = _sortList;
 
   function show() {
     // Reposition once the bars are laid out: rect positioning reads live
@@ -88,18 +92,20 @@ export const AppView = (() => {
     getEntriesScroller()?.setScoreRange(_scoreRange);
     repositionAllHistogramRects();
   }
-  // Canonical sort write. No filter call here — the scroller re-applies sort
-  // itself; this just holds the source of truth the getters and URL read.
-  function setSortList(list) { _sortList = list.length ? list.map(s => ({ ...s })) : [{ key: 'entry', dir: 'asc' }]; }
+  // No filter call in either write — the scroller re-applies sort itself; these
+  // just hold the source of truth the getters and URL read.
+  const copySort = list => list.length ? list.map(s => ({ ...s })) : [{ key: 'entry', dir: 'asc' }];
+  function pickSortList(list) { _sortPick = copySort(list); _sortList = copySort(list); }
+  function setSortList(list) { _sortList = copySort(list); }
 
   // Bulk-apply URL sort state at boot, after Router has set the tool stack.
   // legacyDir carries an old `sort-dir=` that arrived with no `sort=` — the
   // default axis at that direction — so an old shared link keeps its direction.
   function applyURLState({ sortList, legacyDir }) {
     const stack = ToolStack.getStack();
-    _sortList = (sortList && sortList.length)
-      ? sortList.map(s => ({ ...s }))
-      : [{ key: DEFAULT_SORT_BY_TIER[chainSortTier(stack)], dir: legacyDir || 'asc' }];
+    pickSortList((sortList && sortList.length)
+      ? sortList
+      : [{ key: DEFAULT_SORT_BY_TIER[chainSortTier(stack)], dir: legacyDir || 'asc' }]);
     reconcileSort(stack);
   }
 
@@ -112,13 +118,14 @@ export const AppView = (() => {
     show,
     onScoreRange, resetScoreRange,
     onLengthRange, restoreLengthRange,
-    setSortList, applyURLState, restoreScoreRange,
+    pickSortList, setSortList, applyURLState, restoreScoreRange,
     get searchQuery()     { return ToolStack.getSearchBarRow().params.pattern || ''; },
     get scoreRange()      { return _scoreRange; },
     get lengthRange()     { return _lengthRange; },
     get sortKey()         { return _sortList[0].key; },
     get sortDir()         { return _sortList[0].dir; },
     get sortList()        { return _sortList.map(s => ({ ...s })); },
+    get sortPick()        { return _sortPick.map(s => ({ ...s })); },
   };
 })();
 

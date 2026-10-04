@@ -201,7 +201,7 @@ test('each streamed snapshot renders its sorted top window, reshuffling as bette
 });
 
 // Family-demarcation brackets render DURING the stream under the Entry sort (each
-// streamed row carries its own familyStart flag) and reshuffle as a family gains
+// streamed row carries its own runStart flag) and reshuffle as a family gains
 // members — the bracket grows, the old end-cap becomes a mid-member.
 test('family brackets render mid-stream and grow as members arrive', async ({ page }) => {
   await gotoApp(page);
@@ -212,13 +212,13 @@ test('family brackets render mid-stream and grow as members arrive', async ({ pa
     await T.addCustomWordlist({ name: 'Mount', entries: ['AAA'], scores: [50] });
     await T.pipelineIdle();
 
-    const mk = (d, familyStart) => ({ norm: d, display: d, score: 50, familyStart, atoms: [{}] });
+    const mk = (d, runStart) => ({ norm: d, display: d, score: 50, runStart, atoms: [{}] });
     const wh = { maxDisplayLen: 2, maxLenDigits: 1, maxScoreDigits: 2, maxRawDigits: 0 };
     const readFam = () => [...document.querySelectorAll('#vs-host .entry-row')].map(r => ({
       text: (r.querySelector('.atom-entry')?.textContent || '').trim(),
-      start: r.classList.contains('fam-start'),
-      member: r.classList.contains('fam-member'),
-      end: r.classList.contains('fam-end'),
+      start: r.classList.contains('run-start'),
+      member: r.classList.contains('run-member'),
+      end: r.classList.contains('run-end'),
     }));
 
     // Families [AA,AB] and [CC,CD,CE] plus a singleton ZZ.

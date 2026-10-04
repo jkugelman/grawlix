@@ -59,7 +59,7 @@ import { openUpdateSummaryDialog } from '../ui/dialogs/update-summary.js';
 import { SettingsDialog, cycleDarkMode } from '../ui/dialogs/settings.js';
 import { HelpDialog } from '../ui/dialogs/help.js';
 import { AppView } from '../ui/app-view.js';
-import { isMultiLaneTier } from '../engine/sort.js';
+import { isMultiLaneTier, activeFlatColumn } from '../engine/sort.js';
 import {
   activeGroupColumns, EntryPanel, handleScoreDigitShortcut,
 } from '../ui/entries-table.js';
@@ -1635,10 +1635,12 @@ export function buildCSVText(rows, grouped, stack, tuple = false, fmt = AS_IS_FO
   const atomCount = currentContentAtomCount(stack);
   const isMulti = atomCount > 1;
   const groupCols = grouped ? activeGroupColumns(stack) : [];
+  const toolCol = grouped ? null : activeFlatColumn(stack);
 
   const header = [];
   if (grouped) header.push('group_key', 'count');
   for (const col of groupCols) header.push(col.key);
+  if (toolCol) header.push(toolCol.key);
   if (isMulti) header.push('min_score', 'max_score');
   if (atomCount === 1) {
     header.push('entry', 'length', 'score');
@@ -1661,6 +1663,7 @@ export function buildCSVText(rows, grouped, stack, tuple = false, fmt = AS_IS_FO
       cells.push(group.key, group.chains.length);
       for (const col of groupCols) cells.push(col.value(group));
     }
+    if (toolCol) cells.push(chain.columnValue ?? '');
     if (isMulti) {
       let mn = Infinity, mx = -Infinity;
       for (const wlE of content) { if (wlE.score < mn) mn = wlE.score; if (wlE.score > mx) mx = wlE.score; }
@@ -1702,6 +1705,7 @@ export function buildExportJSONObject(rows, grouped, stack, tuple = false) {
   if (range) obj.score_range = range;
   obj.sort = exportSortMetadata();
   const groupCols = grouped ? activeGroupColumns(stack) : [];
+  const toolCol = grouped ? null : activeFlatColumn(stack);
 
   function chainObj(chain, includeProvenance) {
     const entries = chainContentEntries(chain).map(wlE => {
@@ -1712,7 +1716,7 @@ export function buildExportJSONObject(rows, grouped, stack, tuple = false) {
       }
       return e;
     });
-    return { entries };
+    return toolCol ? { [toolCol.key]: chain.columnValue ?? null, entries } : { entries };
   }
 
   if (tuple) {

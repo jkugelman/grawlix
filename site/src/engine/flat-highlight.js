@@ -5,6 +5,7 @@
 import { normalizeParams } from './tools.js';
 import { displayOf } from './norm.js';
 import { collapseRepeatAtoms } from './executor.js';
+import { activeFlatColumn } from './sort.js';
 
 // ─── Flat-tier highlight re-derivation ──────────────────────────────────────
 // The flat result ships no highlights; the visible window re-derives them by
@@ -18,16 +19,38 @@ export function compileFlatHighlighters(stack, ctx) {
   for (const row of stack) {
     const { def } = row;
     if (row.isInert() || row.kind() !== 'filter' || !row.inputHi() || row.inverted()) continue;
-    const params = normalizeParams(row.params, def.params);
-    // Sync only — the render path can't await, and an async prepare would silently
-    // ship a Promise as `prepared`. A filter whose prepare awaits or reads ctx
-    // declares a sync `replay(params, ctx)` that rebuilds the same value.
-    const prepared = def.replay ? def.replay(params, ctx)
-      : def.prepare ? def.prepare(params, {}) : params;
     const coord = def.matchOn === 'display' ? 'display' : 'norm';
-    out.push({ def, prepared, coord });
+    out.push({ def, prepared: preparedSync(row, ctx), coord });
   }
   return out;
+}
+
+// Sync only — the render path can't await, and an async prepare would silently
+// ship a Promise as `prepared`. A filter whose prepare awaits or reads ctx
+// declares a sync `replay(params, ctx)` that rebuilds the same value.
+function preparedSync(row, ctx) {
+  const { def } = row;
+  const params = normalizeParams(row.params, def.params);
+  return def.replay ? def.replay(params, ctx)
+    : def.prepare ? def.prepare(params, {}) : params;
+}
+
+function runInput(def, wlEntry) {
+  return def.matchOn === 'both' ? wlEntry
+    : def.matchOn === 'display' ? displayOf(wlEntry)
+    : wlEntry.norm;
+}
+
+export function compileFlatColumn(stack, ctx) {
+  const col = activeFlatColumn(stack);
+  if (!col) return null;
+  const { def } = col.row;
+  const prepared = preparedSync(col.row, ctx);
+  return {
+    key: col.key,
+    value: e => col.value(runInput(def, e), prepared),
+    order: e => col.order(runInput(def, e), prepared),
+  };
 }
 
 function tagCoord(ranges, coord) {
@@ -37,10 +60,7 @@ function tagCoord(ranges, coord) {
 export function materializeFlatRow(wlEntry, highlighters) {
   const atoms = [{ wlEntry, highlights: null, glyph: null }];
   for (const { def, prepared, coord } of highlighters) {
-    const input = def.matchOn === 'both' ? wlEntry
-      : def.matchOn === 'display' ? displayOf(wlEntry)
-      : wlEntry.norm;
-    const result = def.run(input, prepared, null);
+    const result = def.run(runInput(def, wlEntry), prepared, null);
     const highlights = Array.isArray(result) ? tagCoord(result, coord) : [];
     atoms.push({ wlEntry, highlights, glyph: null });
   }

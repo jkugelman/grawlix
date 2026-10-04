@@ -210,13 +210,16 @@ export function chainSortTier(stack) {
 }
 export function sortAxes(tier, stack, anchors = null) {
   if (isMultiLaneTier(tier)) return groupSortAxes(stack);
-  const axes = SORT_AXES[tier];
+  let axes = SORT_AXES[tier];
+  const col = tier === 'single' ? activeFlatColumn(stack) : null;
+  if (col) axes = { ...axes, [col.key]: { label: col.label } };
   if (!anchors) return axes;
   return { ...axes, entry: { ...axes.entry, primary: entryPrimary(anchors) } };
 }
 export function isValidSortAxis(key) {
   if (key in SORT_AXES.single || key in SORT_AXES.multi
       || key in GROUP_SORT_AXES) return true;
+  if (Object.values(TOOLS).some(tool => tool.column?.key === key)) return true;
   for (const tool of Object.values(TOOLS)) {
     for (const col of tool.group?.columns || []) {
       if (col.key === key) return true;
@@ -281,6 +284,14 @@ export const GROUP_SORT_AXES = {
 
 export function activeGroupRow(stack) {
   return stack.find(r => r.kind() === 'group' && !r.isInert()) ?? null;
+}
+// Main's header and the worker's row values both gate on this; a forked gate would
+// silently render a column of empty cells.
+export function activeFlatColumn(stack) {
+  if (!stack || !isFilterOnlyChain(stack) || isGroupChain(stack) || isTupleChain(stack)) return null;
+  const row = stack.find(r => r.def.column && r.kind() === 'filter' && !r.isInert()
+    && r.inputHi() && !r.inverted());
+  return row ? { row, ...row.def.column } : null;
 }
 export function activeGroupColumns(stack) {
   return activeGroupRow(stack)?.def.group?.columns || [];

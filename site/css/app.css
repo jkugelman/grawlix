@@ -256,6 +256,7 @@ mark.search-match { border-radius: 2px; padding: 0 1px; margin: 0 -1px; font-sty
    dropped to get from the a-side to the b-side — strike-through plus a touch
    of opacity reads as "this part was taken away." */
 .hl-removed { text-decoration: line-through; opacity: 0.5; }
+.hl-ambiguous { background: var(--hl6); color: var(--hl6-fg); border-radius: 2px; padding: 0 1px; margin: 0 -1px; }
 .search-match-0 { background: var(--hl0); color: var(--hl0-fg); }
 .search-match-1 { background: var(--hl1); color: var(--hl1-fg); }
 .search-match-2 { background: var(--hl2); color: var(--hl2-fg); }
@@ -286,6 +287,7 @@ mark.find-hit.find-current { background: var(--find-current-bg); color: var(--fi
    content box, so container padding can't buy it back — lops off the final glyph. */
 mark.search-match:last-child,
 mark.find-hit:last-child,
+.hl-ambiguous:last-child,
 [class^="hl-umiaq-var-"]:last-child { padding-right: 0; margin-right: 0; }
 
 /* ─── Entries table ─────────────────────────────────────────────────────────── */
@@ -414,7 +416,7 @@ mark.find-hit:last-child,
 .entries-table-rows:focus, .entries-table-rows:focus-visible { outline: none; }
 .entries-table-rows:focus .entry-row.cursor { outline: 2px solid var(--accent); outline-offset: -2px; border-radius: 2px; }
 
-.entry-row.fam-member::before {
+.entry-row.run-member::before {
   content: '';
   position: absolute;
   left: 6px; top: 0; bottom: 0;
@@ -422,8 +424,8 @@ mark.find-hit:last-child,
   background: var(--accent);
   opacity: 0.4;
 }
-.entry-row.fam-start::before { top: 4px; border-top-left-radius: 2px; border-top-right-radius: 2px; }
-.entry-row.fam-end::before { bottom: 4px; border-bottom-left-radius: 2px; border-bottom-right-radius: 2px; }
+.entry-row.run-start::before { top: 4px; border-top-left-radius: 2px; border-top-right-radius: 2px; }
+.entry-row.run-end::before { bottom: 4px; border-bottom-left-radius: 2px; border-bottom-right-radius: 2px; }
 
 @keyframes skeleton-shimmer { to { background-position: -200% 0; } }
 .skeleton-bar {
@@ -455,6 +457,14 @@ mark.find-hit:last-child,
 .atom-glyph { color: var(--faint); user-select: none; }
 .entry-row .atom-comment, .entry-row .atom-source { display: none; }
 
+.entry-row .atom-tool { display: none; }
+#detail-panel.has-tool-col .entry-row .atom-tool { display: block; grid-column: 5; font-size: 12px; color: var(--muted); }
+#detail-panel.has-tool-col .entry-row .atom-comment { grid-column: 6; }
+#detail-panel.has-tool-col .entry-row .atom-source  { grid-column: 7; }
+#detail-panel.has-tool-col .entry-row, #detail-panel.has-tool-col .entry-headers {
+  grid-template-columns: var(--count-w, 2ch) var(--entry-w, 12ch) var(--len-w, 3ch) var(--score-w, calc(5ch + 12px)) var(--toolcol-w, 6ch);
+}
+
 /* Comment + source columns appear on every chain shape — a one-atom row and a
    stacked multi-atom row alike — when the viewport has room. They render
    per-atom: each atom line carries its own comment and source, so a chain row
@@ -466,6 +476,9 @@ mark.find-hit:last-child,
     grid-template-columns: var(--count-w, 2ch) var(--entry-w, 12ch) var(--len-w, 3ch) var(--score-w, calc(5ch + 12px)) minmax(0, 1fr);
   }
   .entry-row .atom-comment, .entry-headers .col-comment { display: block; }
+  #detail-panel.has-tool-col .entry-row, #detail-panel.has-tool-col .entry-headers {
+    grid-template-columns: var(--count-w, 2ch) var(--entry-w, 12ch) var(--len-w, 3ch) var(--score-w, calc(5ch + 12px)) var(--toolcol-w, 6ch) minmax(0, 1fr);
+  }
 }
 @media (min-width: 960px) {
   .entry-row, .entry-headers {
@@ -473,6 +486,9 @@ mark.find-hit:last-child,
   }
   .entry-headers .col-source { display: block; }
   .entry-row .atom-source { display: flex; }
+  #detail-panel.has-tool-col .entry-row, #detail-panel.has-tool-col .entry-headers {
+    grid-template-columns: var(--count-w, 2ch) var(--entry-w, 12ch) var(--len-w, 3ch) var(--score-w, calc(5ch + 12px)) var(--toolcol-w, 6ch) minmax(0, 1fr) minmax(0, var(--source-max, 22ch));
+  }
 }
 
 @media (max-width: 480px) {
@@ -483,6 +499,10 @@ mark.find-hit:last-child,
   .entry-row .atom-entry { grid-column: 1; }
   .entry-row .atom-len   { grid-column: 2; }
   .entry-row .atom-score { grid-column: 3; }
+  #detail-panel.has-tool-col .entry-row, #detail-panel.has-tool-col .entry-headers {
+    grid-template-columns: var(--entry-w, 12ch) var(--len-w, 3ch) var(--score-w, calc(5ch + 12px)) var(--toolcol-w, 6ch);
+  }
+  #detail-panel.has-tool-col .entry-row .atom-tool { grid-column: 4; }
   .group-rownum { display: none; }
 }
 

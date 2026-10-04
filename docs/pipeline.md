@@ -535,6 +535,14 @@ A transform that hides a side (§ *A row can hide the side it came from*) leaves
   Length stays a first-atom axis (below); Min/Max length are its across-the-row twins, the shortest and longest atom of the chain, paralleling Min/Max score.
 
 Comment owns its own column (single-axis, like Entry and Length), sorting on the first atom's comment text (`localeCompare`).
+
+**A flat tool can add one column.**
+A filter declares `column: { key, label, value(input, prepared), order(input, prepared), width(params) }`; Bookends' Split is the one user.
+`activeFlatColumn(stack)` picks the first active, non-inverted, highlighting filter that declares one, and only in a filter-only stack (no transform, group, or tuple row); main's header and the worker's rows and sort both gate on it.
+The column sits after Score with its own single-axis sort (`order`, ties to score desc then collation), its cells carry `value`, and `width` sizes the track from the params, since main never sees every row.
+Under its sort the run bracket marks runs of equal `order` (`design.md` § *Run bracket*).
+Removing the tool drops the axis through `reconcileSort` like any other axis the tier lacks.
+CSV and JSON exports carry the column under its key.
 The Sources column shows each entry's contributing wordlists as a row of icons rather than a single name, so it carries no sort axis — there's no one value to order by.
 Because the worker keys every source by `dbKey` and nothing sorts by name, it never carries the human label at all.
 - **Grouped pipelines** (a group tool in the stack): Entry, Count, Min score, Max score, Min length, Max length.
@@ -556,7 +564,7 @@ The single-vs-multi split is the deliberate gesture difference: a column with on
 
 **A modifier-click — Shift, Ctrl, Alt, or Cmd, any of them — extends the sort instead of replacing it.**
 The clicked axis joins as the next-lower priority rather than becoming the sole sort, so you can sort by Count then break ties by Letters.
-The sort is an ordered list `[{key, dir}]` (`AppView.sortList`, the source of truth that `sortKey`/`sortDir` read `[0]` of); a plain click replaces it with a single entry, a modifier-click runs it through `extendSortList`.
+The sort is an ordered list `[{key, dir}]` (`AppView.sortList`, the sort in effect, which `sortKey`/`sortDir` read `[0]` of); a plain click replaces it with a single entry, a modifier-click runs it through `extendSortList`, and either becomes the user's pick (below).
 Modifier-clicking an axis already in the list flips just that level's direction; clicking a *sibling* axis of a column already in the list (Min ⇄ Max score) swaps in place, because a column shows one arrow and so owns at most one active axis.
 Once two or more levels are active each active header shows a small rank badge (①②…) beside its arrow — a lone sort shows just the arrow, so the simple case stays unadorned.
 The levels compose into one comparator through `composeSortAxis`: each pick runs at its own fixed direction in priority order, then the primary axis's built-in tiebreakers settle the rest, leaving `compareItems` and the per-tier axis tables untouched.
@@ -577,7 +585,7 @@ Per-view, not per-corpus, is deliberate: anchoring at a member the active filter
 The consequence is that a family's position depends on which of its members are on screen, so a cluster can shift as a result streams in — accepted, because a position the user can't see the reason for is worse than one that moves.
 It supplants plain alphabetical outright — there is no A–Z Entry option — and reads as a smarter alphabetical, since relatives that already sat near each other in alphabetical order now cluster exactly.
 The grouping is inflection only (plurals, verb conjugations, articles); derivation (`red`/`redness`/`redden`) is deliberately out of scope.
-Only the Entry axis reads the family key; every other axis sorts plainly, and the table brackets family runs only under Entry ([`design.md`](design.md) § *Family-grouping bracket*).
+Only the Entry axis reads the family key; every other axis sorts plainly, and the table brackets family runs only under Entry ([`design.md`](design.md) § *Run bracket*).
 Each axis carries `{label, primary, tiebreakers}`.
 Flipping the user direction reverses the primary **and** any tiebreaker that omits its own `dir` — Entry's alphabetical-within-family order is such a tiebreaker (it continues the primary's ordering, not a ranking of ties), so descending reads as a full mirror, members included, rather than reversed clusters with their interiors left ascending.
 A tiebreaker that *declares* a direction keeps it regardless of the toggle, so short low-scoring junk doesn't float to the top of a tied bucket (longer > shorter, higher > lower, alphabetical asc as the final stable fallback).
@@ -633,10 +641,14 @@ The URL drops `sort=` when the sort is just the tier default (`entry` asc, one l
 A stack edit that flips the tier — adding or removing a transform or a group tool — never snaps the chosen axes to a tier default; it remaps them, level by level.
 `entry` exists in every tier and carries across untouched.
 `length` and `score` each ⇄ their across-the-row Min twin (`length` ⇄ `min-length`, `score` ⇄ `min-score`), and the Max form collapses back onto that same single axis when the row goes single-atom — the first-atom `length` axis itself also persists in the multi-atom tiers, coexisting with the spread, so a single→multi Length sort holds directly.
-`count` is group-only with no real counterpart, so it maps to `length` one-way — a magnitude sort surviving the group's dissolution rather than dropping to the default.
-Every axis survives a tier round-trip rather than being silently lost.
-`reconcileSort` applies this per level: a level with no counterpart in the new tier drops out, and if a remap collides two levels onto one axis the later one folds away, leaving the order otherwise intact.
-The tier default applies only when nothing survives, never as a snap-back when crossing a boundary, so the user's sort intent survives adding and removing tools.
+`count` is group-only with no real counterpart, so it maps to `length` — a magnitude sort surviving the group's dissolution rather than dropping to the default.
+
+**The sort is two lists: the user's pick and the sort in effect.**
+A header click or a URL sets the pick (`AppView.pickSortList`); every stack edit derives the sort in effect from it (`reconcileSort`), and the table, the worker, and the URL all read the sort in effect.
+Deriving from the pick rather than from the previous sort in effect is what makes every axis survive a round-trip: clearing a Bookends word removes the Split axis and the table falls back to Entry, but retyping it brings the Split sort back, as does toggling a group tool's `✱` back on for a Count sort.
+`reconcileSort` applies the remap per level: a level with no counterpart in the current tier drops out of the sort in effect (staying in the pick), and if a remap collides two levels onto one axis the later one folds away, leaving the order otherwise intact.
+The tier default applies only when nothing survives, never as a snap-back when crossing a boundary.
+The URL writes the sort in effect, so a shared link never names a sort its page can't show; a reload while an axis is absent therefore forgets that level.
 Each level's direction is preserved across a remap.
 The whole sort story is provisional — expect iteration now that the UI is live.
 
@@ -669,7 +681,7 @@ Search-replace highlights differently from its filter mode: `runSearchReplace` d
 It marks the whole matched span on the input atom and the whole replacement span on the output atom — one `search:N` color per match, paired across the two so the swap reads at a glance.
 
 The kind registry is open-ended — adding a new tool highlight kind is one (kind name, CSS rule) pair.
-`removed` is the only tool-emitted kind shipped today (line-through + 0.5 opacity); future kinds (`kept`, `inserted`, `shifted`) land as tools start producing them.
+Two tool-emitted kinds ship today: `removed` (line-through + 0.5 opacity) and Bookends' `ambiguous` (the letters an entry's several splits disagree on); future kinds (`kept`, `inserted`, `shifted`) land as tools start producing them.
 Match and capture-group coloring did not need a new kind — the Regex tool reuses the `search:N` channel (see *Highlights pipeline*).
 
 The `EntriesScroller` routes through `renderHighlightedText` for both pipeline hits and the at-rest list.

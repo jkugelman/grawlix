@@ -56,7 +56,7 @@ Tool lists in those two categories are provisional.
 | ✓ | Side | 🍑 Back off | Remove a matching suffix — a string or wildcards — reverse for Back on | party → part |
 |   | Side | 🪚 Side splitting | Remove both sides | if at all → fatal |
 | ✓ | Side | 🎯 Dead center | Input sits at the exact center of a longer word | abe → alphabetize |
-|   | Side | 🥪 Sandwich | TBD | TBD |
+| ✓ | Side | 📚 Bookends | Word split across both ends | book → Babadook |
 |   | Thesaurus | 🤝 Synonyms | Words with similar meaning to a target | TBD |
 |   | Thesaurus | ⚔️ Antonyms | Words opposite in meaning | TBD |
 |   | Thesaurus | 📚 Category | Words in the same semantic category | TBD |

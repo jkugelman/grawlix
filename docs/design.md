@@ -308,6 +308,19 @@ So adding a slug to `RETURNING_BASELINE` hides that tool from those visitors, an
 **How a stack runs** — the executor, the chain-row and group-row models, the length filter, inversion, the cooperative runtime and streaming, sort axes, and highlights — has its own doc, [`pipeline.md`](pipeline.md).
 The sections below cover the individual tools whose design needs more than their catalog entry in [`tools.md`](tools.md).
 
+### Bookends
+
+Bookends finds entries that start with one piece of the typed word and end with the rest: PURSE bookends `(PURS)UIT OF JUSTIC(E)`.
+The middle must be non-empty, so the word itself never matches.
+An entry that also contains the word whole (PURSES GALORE) still matches, and so does one with several valid splits (PURE BRED HORSE reads as `PU|RSE` and `PUR|SE`): editors count either as a ding, not a disqualification, and a tool should err toward showing too much.
+
+The letters that could belong to either end (the R in PURE BRED HORSE) wear a second highlight color, `ambiguous`, at both of their positions, so the ding shows on the row.
+Each entry stays one row, since the flat table's selection, counts, and downloads all assume one row per entry.
+
+Results stay flat rather than grouping by split; a **Split** column shows each row's split (`purs…e`; an ambiguous entry shows its longest start piece) and sorts by it, and the run bracket marks each split's run under that sort.
+The column is the flat tool-column hook ([`pipeline.md`](pipeline.md) § *Sort axes per tier*), so it shows only in a filter-only stack: chaining a transform after Bookends drops it, leaving the highlights.
+Clearing the word hides the column too, and the Split sort returns with it once a word is typed again.
+
 ### Initialisms
 
 The first tool to operate on word structure rather than letter sequence.
@@ -610,10 +623,11 @@ A modifier-click (Shift / Ctrl / Cmd) anywhere is always a selection gesture, ne
 The non-flat exploration tiers (group/transform) aren't selectable, so they open on a single click on every pointer.
 Selection — not hover — is the sole target for row-level shortcuts (§ *Keyboard navigation & multi-select*).
 
-**Family-grouping bracket.**
+**Run bracket.**
 Under the Entry (family) sort, a thin accent down the left gutter brackets each run of two or more same-family rows; singletons are unmarked, so the list stays calm and only the clusters read.
-The worker ships a `familyStarts` flag array (`Uint8Array`, 1 = first row of a family) parallel to the sorted+filtered flat indices, only for the Entry sort — the one order where same-family rows are contiguous ([`pipeline.md`](pipeline.md) § *Sort axes per tier*).
-The scroller reads it per rendered position to tag each row `fam-start` / `fam-end` / `fam-member` (a row that is both a start and an end is a singleton and gets no class), and the bracket itself is a CSS `::before` riding in the row's existing left padding — no DOM, no layout shift.
+Under a flat tool column's sort (Bookends' Split) the same bracket marks each run of equal column values.
+The worker stamps a per-row `runStart` flag (true on the first row of a run) only under those sorts — the orders where equal keys are contiguous ([`pipeline.md`](pipeline.md) § *Sort axes per tier*).
+The scroller reads it per rendered position to tag each row `run-start` / `run-end` / `run-member` (a row that is both a start and an end is a singleton and gets no class), and the bracket itself is a CSS `::before` riding in the row's existing left padding — no DOM, no layout shift.
 Flat tier only; transform and group tiers don't bracket.
 The score badges are already tier-colored, so within a bracketed family a scoring discrepancy (`cat=60` green above `cats=20` red) reads off the existing colors with no added marker — the deliberate non-feature here is any discrepancy *flag*, which would pile up like an uncleared warning.
 

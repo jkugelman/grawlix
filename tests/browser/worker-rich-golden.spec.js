@@ -103,10 +103,10 @@ const resolve = (rows, dbKeys) => rows.map(({ wl, wls, act, ...rest }) =>
   ({ ...rest, sourceId: dbKeys[wl], sourceIds: (wls ?? [wl]).map(n => dbKeys[n]),
      activeIds: (act ?? [wl]).map(n => dbKeys[n]) }));
 
-// The golden freezes row CONTENT; the per-row familyStart flag (Entry sort) is a
+// The golden freezes row CONTENT; the per-row runStart flag (Entry sort) is a
 // derived presentation cue whose correctness lives in streaming-render.spec.js,
 // so strip it here rather than couple the golden to morphology family assignment.
-const rowsOf = reply => reply.rows.map(({ familyStart, ...r }) => r);
+const rowsOf = reply => reply.rows.map(({ runStart, ...r }) => r);
 
 function isRich(row) {
   return 'norm' in row && 'sourceId' in row && Array.isArray(row.atoms);

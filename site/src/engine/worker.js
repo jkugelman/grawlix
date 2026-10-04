@@ -26,7 +26,7 @@ import { SPACE_OUT_BIGRAMS } from './space-out-bigrams-data.js';
 import { getHistogramLayout, invalidateHistogramLayout, bucketCounts } from './histogram.js';
 import { computeStatsRaw } from './stats.js';
 import { makeWidthHintAcc, computeWidthHints, computeCorpusWidthBound } from './width-hints.js';
-import { compileFlatHighlighters, materializeFlatRow } from './flat-highlight.js';
+import { compileFlatHighlighters, compileFlatColumn, materializeFlatRow } from './flat-highlight.js';
 import { serializeEntries } from './serialize.js';
 import { threeWayMergeEdits, sameEditsEntries } from './edits-merge.js';
 import { applyEditsWriteSet, planEntryWrite } from './edit-plan.js';
@@ -406,6 +406,7 @@ function streamWindow(runId, total, defaultSize) {
 // per-batch delta it can't accumulate would leave the stats/histogram stale.
 function makeStreamEmitter(runId, viewSpec, scope, stack, signal, streamState, resumeCtx = null) {
   const widthAcc = makeWidthHintAcc();
+  const column = compileFlatColumn(stack, renderCtx(scope));
   const join = resumeCtx ? resumeCtx.join : [];   // resumed: append past catch-up to the painted join
   let cursor = 0, caughtUp = !resumeCtx;
   if (resumeCtx) {   // seed width hints from the painted prefix so post-crossover snapshots match a cold run
@@ -450,7 +451,7 @@ function makeStreamEmitter(runId, viewSpec, scope, stack, signal, streamState, r
     }
     if (batchIdx.length === 0) return;   // join grew but nothing in-range — no snapshot (join.push already ran)
 
-    const cmp = flatComparator(viewSpec.sort, ownedCorpus, anchors);
+    const cmp = flatComparator(viewSpec.sort, ownedCorpus, anchors, column);
     // Anchoring makes the comparator time-varying, so mergeSortedIndices' precondition
     // (both sides sorted the same way) stops holding for free. A family whose anchor
     // just dropped re-enters the batch; without that the merge silently interleaves.
@@ -469,7 +470,7 @@ function makeStreamEmitter(runId, viewSpec, scope, stack, signal, streamState, r
 
     if (!streamState.streamed) {
       streamState.streamed = true;
-      lastFlatResult = { runId, version: 0, indices: batchIndices, anchors, join, scope, viewSpec, stack, highlighters: compileFlatHighlighters(stack, renderCtx(scope)), familySort: isFamilySort(viewSpec.sort) };
+      lastFlatResult = { runId, version: 0, indices: batchIndices, anchors, join, scope, viewSpec, stack, highlighters: compileFlatHighlighters(stack, renderCtx(scope)), column, bracketKey: flatBracketKey(viewSpec.sort, column) };
       lastGroupedResult = null;
       lastTransformResult = null;
     } else {
@@ -477,7 +478,7 @@ function makeStreamEmitter(runId, viewSpec, scope, stack, signal, streamState, r
       lastFlatResult.anchors = anchors;
     }
     lastFlatResult.version++;   // one monotonic counter shared with reproject, so a mid-stream reproject can't collide the version a fetch drops on
-    lastFlatResult.familySort = isFamilySort(viewSpec.sort);
+    lastFlatResult.bracketKey = flatBracketKey(viewSpec.sort, column);
     lastFlatResult.histogram = flatHistogram(join, filter, scope, ownedCorpus);
     lastFlatResult.widthHints = widthAcc.hints();
     lastFlatResult.stats = flatViewStats(lastFlatResult.indices, ownedCorpus);
@@ -509,7 +510,7 @@ function corpusFor(r) {
 
 // The join is UNFILTERED, which is what lets a widening filter re-admit rows the
 // narrower view had dropped — filter the join itself and widening can't recover them.
-function flatViewIndices(join, viewSpec, corpus) {
+function flatViewIndices(join, viewSpec, corpus, column) {
   const filter = parseViewFilter(viewSpec);
   const rowOk = filter && entryPredicate(filter);
   const entries = corpus.entries;
@@ -522,7 +523,7 @@ function flatViewIndices(join, viewSpec, corpus) {
     arr.push(i);
     if (anchors) foldAnchor(anchors, entries[i]);
   }
-  arr.sort(flatComparator(viewSpec.sort, corpus, anchors));
+  arr.sort(flatComparator(viewSpec.sort, corpus, anchors, column));
   return { indices: Int32Array.from(arr), anchors };
 }
 
@@ -927,8 +928,8 @@ function handleReproject({ runId, reprojectId, sort, scoreRange, lengthRange, re
 // score-range leave it (invariant over the length-filtered join).
 function reprojectFlat(r, reprojectId, recomputeHistogram) {
   const corpus = corpusFor(r);
-  ({ indices: r.indices, anchors: r.anchors } = flatViewIndices(r.join, r.viewSpec, corpus));
-  r.familySort = isFamilySort(r.viewSpec.sort);
+  ({ indices: r.indices, anchors: r.anchors } = flatViewIndices(r.join, r.viewSpec, corpus, r.column));
+  r.bracketKey = flatBracketKey(r.viewSpec.sort, r.column);
   r.stats = flatViewStats(r.indices, corpus);
   r.widthHints = computeWidthHints(r.indices, corpus);
   if (recomputeHistogram) r.histogram = flatHistogram(r.join, parseViewFilter(r.viewSpec), r.scope, corpus);
@@ -1090,11 +1091,12 @@ function terminalJoin(tier, laneKind, rows, stack) {
 // Shared by the non-streamed terminal and reproject so a re-derived flat result is
 // structurally identical to a streamed one (else the two paths silently drift).
 function deriveFlatResult(runId, join, viewSpec, scope, stack) {
-  const { indices, anchors } = flatViewIndices(join, viewSpec, ownedCorpus);
+  const column = compileFlatColumn(stack, renderCtx(scope));
+  const { indices, anchors } = flatViewIndices(join, viewSpec, ownedCorpus, column);
   const filter = parseViewFilter(viewSpec);
   return {
     runId, version: 1, indices, anchors, join, scope, viewSpec, stack,
-    highlighters: compileFlatHighlighters(stack, renderCtx(scope)), familySort: isFamilySort(viewSpec.sort),
+    highlighters: compileFlatHighlighters(stack, renderCtx(scope)), column, bracketKey: flatBracketKey(viewSpec.sort, column),
     histogram: flatHistogram(join, filter, scope, ownedCorpus), stats: flatViewStats(indices, ownedCorpus),
     widthHints: computeWidthHints(indices, ownedCorpus),
   };
@@ -1427,7 +1429,7 @@ function shipContributors(e) {
 // for a window whose ownedCorpus is no longer fresh+scope-matched is dropped
 // upstream (fetchResultFresh) rather than shipping un-decodable indices here.
 function buildFlatRows(lo, hi) {
-  const { indices, highlighters, familySort } = lastFlatResult;
+  const { indices, highlighters, column, bracketKey } = lastFlatResult;
   const entries = corpusFor(lastFlatResult).entries;
   const rows = [];
   for (let i = lo; i < hi; i++) {
@@ -1442,10 +1444,11 @@ function buildFlatRows(lo, hi) {
       norm: e.norm, display: e.display, score: e.score, rawScore: e.rawScore,
       comment: e.comment, sourceId: e.wordlist.dbKey, sourceIds, activeIds, atoms,
     };
-    // Per-row family-boundary flag for the demarcation bracket — set only under
-    // the Entry sort, where same-family rows are contiguous; under any other sort
-    // it would mark false family runs. The client reads it off each cached row.
-    if (familySort) row.familyStart = i === 0 || e.family !== entries[indices[i - 1]].family;
+    if (column) row.columnValue = column.value(e);
+    // Per-row run-boundary flag for the demarcation bracket — set only under a sort
+    // whose equal keys are contiguous (Entry's families, the tool column's values);
+    // under any other sort it would mark false runs. The client reads it off each row.
+    if (bracketKey) row.runStart = i === 0 || bracketKey(e) !== bracketKey(entries[indices[i - 1]]);
     rows.push(row);
   }
   return rows;
@@ -1952,12 +1955,13 @@ const cmpVal = compareValues;
 // tiers with no error to catch it. The `ia - ib` final tiebreak is load-bearing,
 // not cosmetic: without a total order the streaming emitter's incremental merge
 // is batch-order dependent, so the rendered sort would shift with scan timing.
-function flatComparator(sort, runCorpus, anchors = null) {
-  const picks = (sort || []).filter(s => s && FLAT_SORT_AXES[s.key]);
+function flatComparator(sort, runCorpus, anchors = null, column = null) {
+  const axisOf = key => FLAT_SORT_AXES[key] ?? (column && key === column.key ? columnAxis(column) : null);
+  const picks = (sort || []).filter(s => s && axisOf(s.key));
   const list = picks.length ? picks : [{ key: 'entry', dir: 'asc' }];
-  const keyed = list.map(s => ({ p: FLAT_SORT_AXES[s.key].primary, dir: s.dir === 'desc' ? -1 : 1 }));
+  const keyed = list.map(s => ({ p: axisOf(s.key).primary, dir: s.dir === 'desc' ? -1 : 1 }));
   const primaryDir = list[0].dir === 'desc' ? -1 : 1;
-  const tiebreakers = FLAT_SORT_AXES[list[0].key].tiebreakers;
+  const tiebreakers = axisOf(list[0].key).tiebreakers;
   const entries = runCorpus.entries;
   return (ia, ib) => {
     const a = entries[ia], b = entries[ib];
@@ -1973,8 +1977,18 @@ function flatComparator(sort, runCorpus, anchors = null) {
   };
 }
 
-function isFamilySort(sort) {
-  return ((sort || []).filter(s => s && FLAT_SORT_AXES[s.key])[0]?.key ?? 'entry') === 'entry';
+function columnAxis(column) {
+  return {
+    primary: e => column.order(e),
+    tiebreakers: [{ p: e => e.score, dir: -1 }, { p: e => collationKey(e), dir: 1 }],
+  };
+}
+
+function flatBracketKey(sort, column) {
+  const primary = (sort || []).find(s => s && (FLAT_SORT_AXES[s.key] || s.key === column?.key))?.key ?? 'entry';
+  if (primary === 'entry') return e => e.family;
+  if (primary === column?.key) return column.order;
+  return null;
 }
 
 
