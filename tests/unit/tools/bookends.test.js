@@ -50,6 +50,14 @@ test('an ambiguous split marks the letters that could sit at either end', async 
     [['pu', 'search:0'], ['se', 'search:0'], ['r', 'ambiguous'], ['r', 'ambiguous']]);
 });
 
+test('the word whole at either end makes the letters past the split ambiguous', async () => {
+  const { rows } = await run(['chance of a lifetime', 'come by chance'], [{ tool: 'bookends', params: { entry: 'chance' } }]);
+  assert.deepEqual(marks(rowByFirst(rows, 'chance of a lifetime')),
+    [['chanc', 'search:0'], ['e', 'ambiguous'], ['e', 'ambiguous']]);
+  assert.deepEqual(marks(rowByFirst(rows, 'come by chance')),
+    [['hance', 'search:0'], ['c', 'ambiguous'], ['c', 'ambiguous']]);
+});
+
 test('the Split column shows and orders by the longest start piece', () => {
   const { value, order } = bookends.column;
   assert.equal(value('pursuitofjustice', 'purse'), 'purs…e');
@@ -59,8 +67,8 @@ test('the Split column shows and orders by the longest start piece', () => {
 });
 
 test('ambiguous marks that would overlap merge into one', async () => {
-  const { rows } = await run(['aaaaa'], [{ tool: 'bookends', params: { entry: 'aaaa' } }]);
-  assert.deepEqual(marks(rows[0]), [['a', 'search:0'], ['a', 'search:0'], ['aaa', 'ambiguous']]);
+  const { rows } = await run(['abbba'], [{ tool: 'bookends', params: { entry: 'abba' } }]);
+  assert.deepEqual(marks(rows[0]), [['a', 'search:0'], ['a', 'search:0'], ['bbb', 'ambiguous']]);
 });
 
 test('the Split sort axis exists only while an active, uninverted Bookends row sits in a flat stack', () => {

@@ -314,7 +314,7 @@ Bookends finds entries that start with one piece of the typed word and end with 
 The middle must be non-empty, so the word itself never matches.
 An entry that also contains the word whole (PURSES GALORE) still matches, and so does one with several valid splits (PURE BRED HORSE reads as `PU|RSE` and `PUR|SE`): editors count either as a ding, not a disqualification, and a tool should err toward showing too much.
 
-The letters that could belong to either end (the R in PURE BRED HORSE) wear a second highlight color, `ambiguous`, at both of their positions, so the ding shows on the row.
+The letters that could belong to either end (the R in PURE BRED HORSE, or the E in CHANCE OF A LIFETIME, where the whole word at the start is one more reading) wear a second highlight color, `ambiguous`, at both of their positions, so the ding shows on the row.
 Each entry stays one row, since the flat table's selection, counts, and downloads all assume one row per entry.
 
 Results stay flat rather than grouping by split; a **Split** column shows each row's split (`purs…e`; an ambiguous entry shows its longest start piece) and sorts by it, and the run bracket marks each split's run under that sort.

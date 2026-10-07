@@ -26,12 +26,13 @@ export default {
   run(entry, word, wordlist) {
     const split = bookendSplits(entry, word);
     if (!split) return false;
-    const { lo, hi } = split;
+    // The word whole at either end widens only the ambiguous span: as a split it would match the word itself.
+    const lo = entry.endsWith(word) ? 0 : split.lo;
+    const hi = entry.startsWith(word) ? word.length : split.hi;
     const L = entry.length, w = word.length;
-    const ranges = [
-      { start: 0, end: lo, kind: 'search:0' },
-      { start: L - (w - hi), end: L, kind: 'search:0' },
-    ];
+    const ranges = [];
+    if (lo) ranges.push({ start: 0, end: lo, kind: 'search:0' });
+    if (hi < w) ranges.push({ start: L - (w - hi), end: L, kind: 'search:0' });
     if (hi > lo) {
       const endStart = L - (w - lo), endEnd = L - (w - hi);
       // Overlapping marks must merge: the renderer drops any range that starts inside another.
