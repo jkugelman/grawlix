@@ -25,9 +25,10 @@ for (const line of WORDNET_IRREGULARS.trim().split('\n')) {
 // lemmas (people, women) and a couple of irregular plurals it lacks. Without
 // these they silently split from their singulars. being/doing look regular, but
 // the -ing rule's silent-e restoration outranks the bare stem on length: bee, doe.
+// upped/upping: consonant doubling skips two-letter stems.
 for (const [base, forms] of Object.entries({
   woman: ['women'], person: ['people'], die: ['dice'], bacterium: ['bacteria'],
-  be: ['being'], do: ['doing'],
+  be: ['being'], do: ['doing'], up: ['upped', 'upping'],
 })) {
   for (const form of forms) addIrregular(form, base);
 }
@@ -243,6 +244,11 @@ export function collectVocab(texts) {
 
 const isVowel = c => 'aeiou'.includes(c ?? '');
 
+// suffixReduce undoubles, so without this chipped finds chip but chip misses chipped.
+// Three letters minimum: two-letter stems double into strangers (it → sitting, ad → added).
+const DOUBLES_FINAL = /(?:^|[^aeiou])[aeiou][bcdfghjklmnpqrstvz]$/;
+const doubles = stem => stem.length >= 3 && DOUBLES_FINAL.test(stem);
+
 function suffixReduce(word) {
   const out = [];
   const add = s => { if (s && s.length >= 2) out.push(s); };
@@ -255,10 +261,11 @@ function suffixReduce(word) {
   return out;
 }
 
-function suffixExpand(stem) {
+function suffixExpand(stem, mayDouble) {
   const out = [stem + 's', stem + 'es', stem + 'ed', stem + 'ing'];
   if (stem.endsWith('e')) out.push(stem.slice(0, -1) + 'ed', stem.slice(0, -1) + 'ing', stem + 'd');
   if (stem.endsWith('y') && !isVowel(stem.at(-2))) out.push(stem.slice(0, -1) + 'ies', stem.slice(0, -1) + 'ied');
+  if (mayDouble && doubles(stem)) out.push(stem + stem.at(-1) + 'ed', stem + stem.at(-1) + 'ing');
   return out;
 }
 
@@ -268,10 +275,15 @@ export function inflectForms(word) {
   const irBase = IRREGULARS.get(word);
   if (irBase) stems.add(irBase);
   for (const s of suffixReduce(word)) stems.add(s);
+  // Only stems whose spelling is certain may double. Stripping -ed/-ing/-es can shed a
+  // silent e, and doubling that clipped stem lands on a stranger (waged → wag → wagging,
+  // lobes → lob → lobbing); a doubled -ed/-ing already reaches its base by undoubling.
+  const mayDouble = new Set([word, irBase]);
+  if (/[^s]s$/.test(word)) mayDouble.add(word.slice(0, -1));
   for (const stem of stems) {
     forms.add(stem);
     for (const f of IRREGULARS_REVERSE.get(stem) ?? []) forms.add(f);
-    for (const f of suffixExpand(stem)) forms.add(f);
+    for (const f of suffixExpand(stem, mayDouble.has(stem))) forms.add(f);
   }
   return [...forms];
 }

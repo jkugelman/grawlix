@@ -186,6 +186,21 @@ test('inflectForms handles consonant-y plurals', () => {
   assert.ok(new Set(inflectForms('parties')).has('party'));
 });
 
+test('inflectForms doubles a final consonant in both directions', () => {
+  for (const w of ['chip', 'chips', 'chipped', 'chipping']) {
+    const forms = new Set(inflectForms(w));
+    for (const f of ['chip', 'chips', 'chipped', 'chipping']) assert.ok(forms.has(f), `${w}: missing ${f}`);
+  }
+  assert.ok(new Set(inflectForms('up')).has('upped'));
+});
+
+test('inflectForms never doubles a stem that may have shed a silent e', () => {
+  assert.ok(!new Set(inflectForms('waged')).has('wagging'));
+  assert.ok(!new Set(inflectForms('poling')).has('polled'));
+  assert.ok(!new Set(inflectForms('lobes')).has('lobbing'));
+  assert.ok(!new Set(inflectForms('it')).has('itting'));
+});
+
 test('generateRelativeNorms bridges spacing: a phrase and its glued spelling generate each other', () => {
   assert.ok(generateRelativeNorms('electric bill').has('electricbills'));
   assert.ok(generateRelativeNorms('electricbills').has('electricbill'));
