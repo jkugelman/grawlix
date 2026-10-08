@@ -76,10 +76,13 @@ test('mode=span rejects a break the match merely touches at its edge', async () 
   sameVisible(await visible(lib, search('heir', { mode: 'span' })), ['the IRS']);
 });
 
-test('a hyphen counts as a word break; an apostrophe does not', async () => {
+test('dashes and slashes count as word breaks; apostrophes, periods and ampersands do not', async () => {
   const lib = ['x-ray', "isn't"];
   sameVisible(await visible(lib, search('xr', { mode: 'span' })), ['x-ray']);
   sameVisible(await visible(lib, search('nt', { mode: 'span' })), []);
+  const pairs = ['a/d', 'A&D', 'A.D.', 'a\u2013d', 'a\u2014d', 'a\td', 'a\u00a0d'];
+  sameVisible(await visible(pairs, search('ad', { mode: 'span' })),
+    ['a/d', 'a\u2013d', 'a\u2014d', 'a\td', 'a\u00a0d']);
 });
 
 test('`?` fills exactly one letter or digit — never a separator, space, or nothing', async () => {

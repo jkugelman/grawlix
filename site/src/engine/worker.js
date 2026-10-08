@@ -13,7 +13,7 @@ import {
 import { bestSpaceOutSplit } from './space-out.js';
 import { configureIO as configurePhoneticsIO } from './phonetics.js';
 import { DATA_ASSETS, getDataAsset } from './assets.js';
-import { parseWordlist, toNorm, displayOf } from './norm.js';
+import { parseWordlist, toNorm, displayOf, isUnspaced } from './norm.js';
 import { findOccurrences, findEntryOccurrences, buildFindMatcher, FIND_MATCH_CAP } from './find.js';
 import { matchesRange, parseViewFilter } from './range.js';
 import { compileRescoreRules } from './rescore.js';
@@ -1738,7 +1738,7 @@ async function handleFetchFamily({ requestId, norm, display, boundNorm = norm, b
   // wasn't loaded yet still reports ready, so nothing would re-ask. The stall it costs
   // is one download for a brand-new user — IDB-cached after — and the space-out query
   // fired alongside it already awaits the same asset.
-  if (!/\s/.test(display ?? norm) && !hasUnigramCorpus()) {
+  if (isUnspaced(display ?? norm) && !hasUnigramCorpus()) {
     try { await loadUnigramCorpus(); } catch { /* offline → unsegmented membership */ }
   }
   let members = [];
@@ -1759,7 +1759,7 @@ async function handleFetchFamily({ requestId, norm, display, boundNorm = norm, b
     const genNorms = generateRelativeNorms(display ?? norm);
     // A glued single token hides buried inflections (hadagraspon ↔ hasagraspon) until
     // segmented; the load above is what makes this reachable on a first query.
-    if (!/\s/.test(display ?? norm) && hasUnigramCorpus()) {
+    if (isUnspaced(display ?? norm) && hasUnigramCorpus()) {
       for (const parts of rankedSplits(norm, SPACE_OUT_WINDOWS.few, ownedMerged).slice(0, 3)) {
         for (const n of generateRelativeNorms(parts.join(' '))) genNorms.add(n);
       }

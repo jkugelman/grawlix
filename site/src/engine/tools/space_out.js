@@ -1,6 +1,6 @@
 'use strict';
 
-import { displayOf } from '../norm.js';
+import { displayOf, isUnspaced } from '../norm.js';
 import { SPACE_OUT_WINDOWS, loadUnigramCorpus, hasUnigramCorpus } from '../segmenter.js';
 import { spaceOutSplits } from '../space-out.js';
 
@@ -44,7 +44,7 @@ export default {
     // This row's own spelling, not the norm's canonical one: asking the corpus
     // which spelling represents the norm answers about a sibling row, so a spaced
     // entry sitting beside an unspaced one re-splits into a synthetic duplicate.
-    if (displayOf(wlEntry).includes(' ')) return [{ entry }];
+    if (!isUnspaced(displayOf(wlEntry))) return [{ entry }];
     const { vocab, window, limit } = prepared;
     // A split re-spaces the entry without changing its letters, so every output
     // shares the input's norm — the wordlist's own spelling of it is the passthrough

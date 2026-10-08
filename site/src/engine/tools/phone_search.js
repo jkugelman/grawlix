@@ -49,10 +49,13 @@ function readingsOf(items) {
 
 const lengthOf = (items, reading, k) => (items[k] ? items[k].sounds[reading.picks[k]].phones.length : 1);
 
-function breaksOf(items, reading) {
+function breaksOf({ items, starts }, reading) {
   const breaks = [0];
   let off = 0;
-  for (let k = 0; k < items.length; k++) breaks.push(off += lengthOf(items, reading, k));
+  for (let k = 0; k < items.length; k++) {
+    off += lengthOf(items, reading, k);
+    if (k === items.length - 1 || starts[k + 1]) breaks.push(off);
+  }
   return breaks;
 }
 
@@ -89,7 +92,7 @@ function mergeRanges(ranges) {
 // ─── Matching ────────────────────────────────────────────────────────────────
 
 function queryOf(text, spacing) {
-  const items = itemsOf(text, spacing, true);
+  const { items } = itemsOf(text, spacing, true);
   if (!items.length || items.includes(null)) return null;
   return {
     codes: [...new Set(readingsOf(items).map(r => r.code))],
@@ -113,9 +116,9 @@ function isSearchWord(items, reading, a, b, words) {
     && candidates(items[k].letters).has(words[words.length - 1]);
 }
 
-function modeAllows(items, reading, mode) {
+function modeAllows(read, reading, mode) {
   const len = reading.code.length;
-  const breaks = mode === 'word' || mode === 'span' ? breaksOf(items, reading) : null;
+  const breaks = mode === 'word' || mode === 'span' ? breaksOf(read, reading) : null;
   return ({ start, end }) => {
     switch (mode) {
       case 'full':  return start === 0 && end === len;
@@ -129,8 +132,9 @@ function modeAllows(items, reading, mode) {
 }
 
 // Replacing keeps the search words: rewriting KNIGHT in KNIGHT SHIFT isn't noise.
-function occurrencesOf(query, items, reading, mode, replacing = false) {
-  const allows = modeAllows(items, reading, mode);
+function occurrencesOf(query, read, reading, mode, replacing = false) {
+  const { items } = read;
+  const allows = modeAllows(read, reading, mode);
   const out = [];
   for (const target of query.codes) {
     for (let at = reading.code.indexOf(target); at !== -1; at = reading.code.indexOf(target, at + 1)) {
@@ -165,7 +169,7 @@ function splice(code, picks, rep) {
 }
 
 function replacementsOf(text, spacing) {
-  const items = itemsOf(text, spacing, true);
+  const { items } = itemsOf(text, spacing, true);
   if (!items.length) return [''];
   if (items.includes(null)) return null;
   return [...new Set(readingsOf(items).map(r => r.code))];
@@ -182,7 +186,7 @@ async function soundIndex(ctx, spacing) {
   let bytes = 0;
   await ctx.forEach(ctx.wordlist.entries, wlEntry => {
     const display = displayOf(wlEntry);
-    const items = itemsOf(display, spacing);
+    const { items } = itemsOf(display, spacing);
     if (!items.length || items.includes(null)) return;
     for (const { code } of readingsOf(items)) {
       const list = index.get(code);
@@ -207,7 +211,7 @@ function toNormRanges(display, ranges) {
 }
 
 function outputMarks(display, code, spans, spacing) {
-  const items = itemsOf(display, spacing);
+  const { items } = itemsOf(display, spacing);
   const reading = readingsOf(items).find(r => r.code === code);
   if (!reading) return [];
   return toNormRanges(display, mergeRanges(spans.flatMap(([a, b]) => rangesForHit(items, reading, a, b))));
@@ -216,12 +220,13 @@ function outputMarks(display, code, spans, spacing) {
 function runReplace(display, prepared) {
   const { query, mode, spacing, reps, index } = prepared;
   if (!reps) return [];
-  const items = itemsOf(display, spacing);
+  const read = itemsOf(display, spacing);
+  const { items } = read;
   if (!items.some(Boolean)) return [];
   const self = toNorm(display);
   const outs = new Map();
   for (const reading of readingsOf(items)) {
-    const picks = pickMatches(occurrencesOf(query, items, reading, mode, true));
+    const picks = pickMatches(occurrencesOf(query, read, reading, mode, true));
     if (!picks.length) continue;
     let inputHighlights = null;
     for (const rep of reps) {
@@ -271,11 +276,12 @@ export default {
   run(display, prepared) {
     if (!hasCmuDict() || !prepared.query) return false;
     if (prepared.index) return runReplace(display, prepared);
-    const items = itemsOf(display, prepared.spacing);
+    const read = itemsOf(display, prepared.spacing);
+    const { items } = read;
     if (!items.some(Boolean)) return false;
     const ranges = [];
     for (const reading of readingsOf(items)) {
-      for (const hit of occurrencesOf(prepared.query, items, reading, prepared.mode)) {
+      for (const hit of occurrencesOf(prepared.query, read, reading, prepared.mode)) {
         ranges.push(...rangesForHit(items, reading, hit.start, hit.end));
       }
     }

@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  wordBreaks, partBreaks, spansWords, isWholeWords, displayRangeToNorm, isUnspaced,
+  wordBreaks, partBreaks, spansWords, isWholeWords, displayRangeToNorm, isUnspaced, splitWords,
 } from '../../site/src/engine/norm.js';
 
 const wl = (norm, display = null) => ({ norm, display });
@@ -15,10 +15,20 @@ test('breaks: a spaced display breaks at the norm offset of each space', () => {
   assert.deepEqual(wordBreaks(wl('catfoodbowl', 'cat food bowl')), [3, 7]);
 });
 
-test('breaks: hyphens are breaks; apostrophes and periods are not', () => {
+test('breaks: dashes and slashes are breaks; apostrophes, periods and ampersands are not', () => {
   assert.deepEqual(wordBreaks(wl('xray', 'x-ray')), [1]);
+  assert.deepEqual(wordBreaks(wl('ab', 'a\u2013b')), [1]);
+  assert.deepEqual(wordBreaks(wl('ab', 'a\u2014b')), [1]);
+  assert.deepEqual(wordBreaks(wl('ab', 'a\u2010b')), [1]);
+  assert.deepEqual(wordBreaks(wl('acdc', 'AC/DC')), [2]);
   assert.deepEqual(wordBreaks(wl('isnt', "isn't")), []);
   assert.deepEqual(wordBreaks(wl('usa', 'U.S.A.')), []);
+  assert.deepEqual(wordBreaks(wl('att', 'AT&T')), []);
+});
+
+test('breaks: any whitespace is a break', () => {
+  assert.deepEqual(wordBreaks(wl('ab', 'a\tb')), [1]);
+  assert.deepEqual(wordBreaks(wl('ab', 'a\u00a0b')), [1]);
 });
 
 test('breaks: a run of separators is one break', () => {
@@ -54,6 +64,17 @@ test('isUnspaced: the same policy as the breaks', () => {
   assert.equal(isUnspaced("isn't"), true);
   assert.equal(isUnspaced('the IRS'), false);
   assert.equal(isUnspaced('x-ray'), false);
+  assert.equal(isUnspaced('AC/DC'), false);
+  assert.equal(isUnspaced('U.S.A.'), true);
+});
+
+test('splitWords: splits at every break, a run of breaks counting once', () => {
+  assert.deepEqual(splitWords('cat'), ['cat']);
+  assert.deepEqual(splitWords('merry-go-round'), ['merry', 'go', 'round']);
+  assert.deepEqual(splitWords('rock \u2013 roll'), ['rock', 'roll']);
+  assert.deepEqual(splitWords('AC/DC\tlive\u00a0show'), ['AC', 'DC', 'live', 'show']);
+  assert.deepEqual(splitWords("-isn't U.S. AT&T-"), ["isn't", 'U.S.', 'AT&T']);
+  assert.deepEqual(splitWords(''), []);
 });
 
 // ─── spansWords ───────────────────────────────────────────────────────────────

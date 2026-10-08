@@ -1,16 +1,7 @@
 'use strict';
 import { bestRowForNorm } from '../corpus.js';
-import { toNorm, isUnspaced } from '../norm.js';
+import { toNorm, isUnspaced, splitWords } from '../norm.js';
 import { buildSpacingTable, spacingReader, loadSpacingCorpus, SPACING_PASS } from '../space-out.js';
-
-export function wordSplits(display) {
-  const stripped = display.split(/[ ]+/).filter(Boolean);
-  const splits = [stripped];
-  if (stripped.some(w => w.includes('-'))) {
-    splits.push(stripped.flatMap(w => w.split(/-+/).filter(Boolean)));
-  }
-  return splits;
-}
 
 const spells = (words, target) =>
   words.length === target.length && words.every((w, i) => w[0].toLowerCase() === target[i]);
@@ -50,7 +41,7 @@ export default {
   replay: prepareFilter,
   run(displayText, { target, spacing }) {
     if (!target) return true;
-    if (wordSplits(displayText).some(words => spells(words, target))) return true;
+    if (spells(splitWords(displayText), target)) return true;
     if (target.length < 2 || !isUnspaced(displayText)) return false;
     // Reading an entry costs a segmenter pass, so rule it out on its letters first.
     const norm = toNorm(displayText);
@@ -65,7 +56,7 @@ export default {
       return { spacing: await buildSpacingTable(ctx) };
     },
     key: (displayText, { spacing }) => {
-      const words = displayText.split(/[ ]+/).filter(Boolean);
+      const words = splitWords(displayText);
       if (words.length >= 2) return words.map(w => w[0].toLowerCase()).join('');
       const parts = isUnspaced(displayText) && spacing.best(toNorm(displayText));
       return parts ? initialsOf(parts) : null;

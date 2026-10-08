@@ -6,7 +6,6 @@ import { consonantSkeleton } from '../../site/src/engine/tools/consonantcy.js';
 import { vowelSkeleton } from '../../site/src/engine/tools/vowelcy.js';
 import { caesarShift, caesarKey } from '../../site/src/engine/tools/caesar.js';
 import { patternKey } from '../../site/src/engine/tools/cryptogram.js';
-import { wordSplits } from '../../site/src/engine/tools/initialisms.js';
 
 test('sortLetters: returns the letters in ascending code-unit order', () => {
   assert.equal(sortLetters('cat'), 'act');
@@ -119,46 +118,6 @@ test('patternKey: digits are literal anchors, not enciphered', () => {
 
 test('patternKey: empty input yields the empty string', () => {
   assert.equal(patternKey(''), '');
-});
-
-test('wordSplits: a single word yields one space-split candidate', () => {
-  assert.deepEqual(wordSplits('cat'), [['cat']]);
-});
-
-test('wordSplits: a multi-word phrase splits on spaces only (no hyphen variant)', () => {
-  assert.deepEqual(wordSplits('hello world'), [['hello', 'world']]);
-});
-
-test('wordSplits: runs of spaces collapse (no empty segments)', () => {
-  assert.deepEqual(wordSplits('a  b'), [['a', 'b']]);
-});
-
-test('wordSplits: a hyphenated word adds a SECOND candidate split further on hyphens', () => {
-  assert.deepEqual(wordSplits('merry-go-round'), [
-    ['merry-go-round'],
-    ['merry', 'go', 'round'],
-  ]);
-});
-
-test('wordSplits: the hyphen pass applies across all space-separated words', () => {
-  assert.deepEqual(wordSplits('la-di-da time'), [
-    ['la-di-da', 'time'],
-    ['la', 'di', 'da', 'time'],
-  ]);
-});
-
-test('wordSplits: leading/trailing hyphens drop to empty (filtered out)', () => {
-  assert.deepEqual(wordSplits('-cat-'), [
-    ['-cat-'],
-    ['cat'],
-  ]);
-});
-
-test('wordSplits: consecutive hyphens split as one boundary', () => {
-  assert.deepEqual(wordSplits('a--b'), [
-    ['a--b'],
-    ['a', 'b'],
-  ]);
 });
 
 test('normalizeParams: lowercases ordinary string params', () => {

@@ -587,7 +587,7 @@ Its own request-id space; a timeout resolves `{ members: [], ready: false }`, wh
 - **On receipt:** guarded by `ownedMerged && ownedCorpusFresh` (the freshness rule the edit-seed fetch documents).
   Compute the query's family `familyKey(display ?? norm, ownedMerged.vocab)` — re-keyed from the query, *not* read off a looked-up row, so a live rename's not-yet-saved spelling resolves its own family — resolve the **bound** row (`byKey.get(mergeKey(boundNorm, boundDisplay))`), scan `ownedMerged.entries` for `e.norm === norm || e.family === family || genNorms.has(e.norm)` (a per-query O(n) scan, no persistent index — the norm clause catches same-norm spellings whose token-derived family differs), and reply `family` with the members.
 - **Name runs** are a fourth membership clause in that same scan, so they cost no index.
-  A row qualifies when its word sequence (`nameParts`, [`engine/morphology.js`](../site/src/engine/morphology.js) — plain `tokenize`, *not* the article-stripping `familyTokens` nor the lemma-reducing `familyKey`) is a strictly shorter **contiguous run** inside the other's, and that run is capitalized in every word **on both sides**.
+  A row qualifies when its word sequence (`nameParts`, [`engine/morphology.js`](../site/src/engine/morphology.js) — split at the shared word breaks (`splitWords`), *not* the article-stripping `familyTokens` nor the lemma-reducing `familyKey`) is a strictly shorter **contiguous run** inside the other's, and that run is capitalized in every word **on both sides**.
   Contiguity is what keeps it a *sub-name*: under mere token containment the band `The The` matches every title saying "the" twice (15,655 rows).
   Judging the run inside the **longer** entry too is what separates `Rigoberta Menchú` from `iced tea` — both hold the anchor as a whole word, only one writes it as a name — so `nameParts` pairs each word with its norm token and drops the same slots from both, keeping them index-aligned when a word norms away (`Rock & Roll`).
   A null `display` renders as its lowercase norm (`displayForRaw`, `engine/norm.js`), so an all-uppercase source contributes no case signal and can't flood the list.
@@ -632,7 +632,7 @@ There is no `ready` flag: an empty reply, whatever the cause, opens the panel on
 
 #### `fetchSpaceOut` (entry-panel spacing hint)
 `{ type: 'fetchSpaceOut', requestId, norm }` — **propose a spacing** for a concatenated entry so the panel can offer a "Rename to …" link.
-Fired at open and re-fired per entry-text keystroke (like `fetchFamily`), but **only** while the entry is editable (not read-only) and carries no space — main clears the hint synchronously otherwise, so the worker is queried only for genuine candidates.
+Fired at open and re-fired per entry-text keystroke (like `fetchFamily`), but **only** while the entry is editable (not read-only) and carries no word break (`isUnspaced`) — main clears the hint synchronously otherwise, so the worker is queried only for genuine candidates.
 Its own request-id space; a timeout resolves `{ suggestion: null, ready: false }`.
 Unlike the family/provenance reads it does **not** await the pending-edit barrier — the hint is advisory and keys only on vocab membership, which a pending rescore never changes.
 Its client timeout is longer than the sibling reads because a cold query lazily loads the multi-MB unigram corpus (`loadUnigramCorpus`) in the worker on first use.

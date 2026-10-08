@@ -102,11 +102,13 @@ export function projectRangesToDisplay(ranges, wlEntry) {
 
 // ─── Word breaks ─────────────────────────────────────────────────────────────
 
-// Deliberately whitespace + hyphen, not all punctuation: ISNT inside "isn't"
-// is one word, not a spanning match. Widening this silently changes what the
-// Whole-word and Spans-words gates keep.
-export const WORD_BREAK_RE = /[\s-]/;
+// Not all punctuation: ISNT inside "isn't", U.S. and AT&T are each one word.
+// Widening this silently changes what the Whole-word and Spans-words gates keep
+// and how Initialisms reads an entry.
+export const WORD_BREAK_RE = /[\s\p{Pd}/]/u;
+const WORD_BREAKS_RE = /[\s\p{Pd}/]+/u;
 export const isUnspaced = display => !WORD_BREAK_RE.test(display);
+export const splitWords = text => text.split(WORD_BREAKS_RE).filter(Boolean);
 
 const NO_BREAKS = Object.freeze([]);
 

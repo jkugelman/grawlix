@@ -1,6 +1,7 @@
 'use strict';
 
 import { spellsOut } from './phone-align.js';
+import { splitWords } from './norm.js';
 
 export const CMU_DICT_URL = 'https://raw.githubusercontent.com/cmusphinx/cmudict/master/cmudict.dict';
 export const CMU_DICT_IDB_KEY = 'cmu_dict_decoded';
@@ -34,13 +35,7 @@ export function setCmuDict(map) {
 
 const cmuKey = word => word.toUpperCase().replace(/[^A-Z]/g, '');
 
-function lastWord(text) {
-  const tokens = text.split(/[\s-]+/);
-  for (let i = tokens.length - 1; i >= 0; i--) {
-    if (tokens[i]) return tokens[i];
-  }
-  return '';
-}
+const lastWord = text => splitWords(text).at(-1) ?? '';
 
 // The cot–caught merger, deliberate: CMU records the AO/AA split arbitrarily —
 // CAUGHT both ways, GONE only AO, DON only AA, ON both — so honoring it tears one
@@ -181,7 +176,7 @@ function syllableKeys(sylls) {
 // One unreadable word and there is no reading at all — unlike the last-word modes,
 // which only ever needed the tail.
 function wholeEntryParts(text) {
-  const words = text.split(/[\s-]+/).filter(Boolean);
+  const words = splitWords(text);
   let combos = [[]];
   for (const word of words) {
     const prons = cmuDict.get(cmuKey(word));

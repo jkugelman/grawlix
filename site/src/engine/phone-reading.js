@@ -1,7 +1,7 @@
 'use strict';
 
 import { hasUnigramCorpus, rankedSplits, SPACE_OUT_WINDOWS } from './segmenter.js';
-import { stripAccents } from './norm.js';
+import { stripAccents, WORD_BREAK_RE } from './norm.js';
 
 // ─── Reading an entry aloud ──────────────────────────────────────────────────
 // `lookup` answers null, never [], for an unknown word: an empty list passes as a
@@ -11,7 +11,11 @@ import { stripAccents } from './norm.js';
 // token unreadable: CMU has no numerals, and dropping them would read B52S as BS.
 export function tokensOf(display) {
   const tokens = [];
-  let cur = null;
+  let cur = null, broke = false;
+  const open = () => {
+    cur ??= { letters: '', at: [], digits: false, wordStart: broke };
+    broke = false;
+  };
   const close = () => { if (cur) tokens.push(cur); cur = null; };
   for (let i = 0; i < display.length; i++) {
     const ch = display[i];
@@ -20,17 +24,20 @@ export function tokensOf(display) {
     let letter = false;
     for (const c of folded) {
       if (c >= 'a' && c <= 'z') {
-        cur ??= { letters: '', at: [], digits: false };
+        open();
         cur.letters += c;
         cur.at.push(i);
         letter = true;
       } else if (c >= '0' && c <= '9') {
-        cur ??= { letters: '', at: [], digits: false };
+        open();
         cur.digits = true;
         letter = true;
       }
     }
-    if (!letter) close();
+    if (!letter) {
+      close();
+      if (WORD_BREAK_RE.test(ch)) broke = true;
+    }
   }
   close();
   return tokens;
@@ -71,8 +78,17 @@ function unitsOf(token, spacing, lookup, wide) {
 }
 
 // One item per word read: { letters, at, sounds }, or null for a word that can't be.
+// An item boundary isn't always a word break: tokens split at every punctuation mark
+// so U.S.A. reads as three letters, but Whole word must agree with Search that U.S.A.
+// is one word. starts[k] marks a WORD_BREAK_RE gap or a split inside a token.
 export function itemsOf(display, spacing, lookup, wide = false) {
-  const items = [];
-  for (const token of tokensOf(display)) items.push(...(unitsOf(token, spacing, lookup, wide) ?? [null]));
-  return items;
+  const items = [], starts = [];
+  for (const token of tokensOf(display)) {
+    const units = unitsOf(token, spacing, lookup, wide) ?? [null];
+    units.forEach((unit, i) => {
+      items.push(unit);
+      starts.push(i > 0 || token.wordStart);
+    });
+  }
+  return { items, starts };
 }

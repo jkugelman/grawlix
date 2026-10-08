@@ -5,7 +5,7 @@
 // own vocabulary, not a fixed dictionary, so out-of-dictionary crossword fill
 // still reduces to a base that actually appears in the list.
 
-import { toNorm } from './norm.js';
+import { toNorm, splitWords } from './norm.js';
 import { WORDNET_IRREGULARS } from './irregulars-data.js';
 
 // ─── Irregulars ──────────────────────────────────────────────────────────────
@@ -114,8 +114,12 @@ function reduceToken(word, vocab, raw = word) {
 
 // ─── Family key ──────────────────────────────────────────────────────────────
 
+// Spaces only, not splitWords: a hyphen splitting the token orphans the solid↔hyphen
+// plural pairs (ack-ack ↔ ackacks) — see pipeline.md § *Sort axes per tier*.
+const familySplit = text => text.split(/\s+/);
+
 function familyWords(text) {
-  const words = text.split(/\s+/).map(raw => ({ raw, norm: toNorm(raw) })).filter(w => w.norm);
+  const words = familySplit(text).map(raw => ({ raw, norm: toNorm(raw) })).filter(w => w.norm);
   while (words.length > 1 && ARTICLES.has(words[0].norm)) words.shift();
   return words;
 }
@@ -164,7 +168,7 @@ const canAnchor = t => t.length > 1 && !ROMAN_NUMERAL.test(t) && !NON_NAMES.has(
 // would let `Williams` stand in for `William`.
 export function nameParts(text) {
   const parts = [];
-  for (const word of String(text ?? '').split(/\s+/)) {
+  for (const word of splitWords(String(text ?? ''))) {
     const token = toNorm(word);
     if (token) parts.push({ token, word });
   }
@@ -235,7 +239,7 @@ class Vocab {
 export function collectVocab(texts) {
   const vocab = new Vocab();
   for (const text of texts) {
-    for (const raw of text.split(/\s+/)) vocab.add(raw);
+    for (const raw of familySplit(text)) vocab.add(raw);
   }
   return vocab;
 }
@@ -289,7 +293,7 @@ export function inflectForms(word) {
 }
 
 export function generateRelativeNorms(text, { maxChanged = 2, cap = 5000 } = {}) {
-  const words = text.split(/\s+/).map(w => w.toLowerCase()).filter(Boolean);
+  const words = familySplit(text).map(w => w.toLowerCase()).filter(Boolean);
   const norms = new Set();
   if (!words.length) return norms;
   const variants = words.map(inflectForms);

@@ -132,6 +132,13 @@ test('spans words needs the sounds to cross a word break', async () => {
   assert.deepEqual(await hits(['tee', 'arty', { entry: 'not even' }], 'tea', 'span'), { 'not even': ['t', 'e'] });
 });
 
+test('the word modes break words where Search does, not at every punctuation mark', async () => {
+  seed();
+  const specs = [{ entry: 'R&R' }, { entry: 'R/R' }, { entry: 'R\u2013R' }];
+  assert.deepEqual(await hits(specs, 'are', 'word'), { 'R/R': ['R', 'R'], 'R\u2013R': ['R', 'R'] });
+  assert.deepEqual(await hits(specs, 'are are', 'span'), { 'R/R': ['R', 'R'], 'R\u2013R': ['R', 'R'] });
+});
+
 test('the sounds can’t run across a word that can’t be read', async () => {
   seed();
   assert.deepEqual(await hits(['night', { entry: 'night 52' }], 'knight', 'full'), { night: ['night'] });

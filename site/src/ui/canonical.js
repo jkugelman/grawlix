@@ -6,7 +6,7 @@
 // panel's rename hint and the lookup fallback both route here so one cache and
 // one whole-word suppressor serve both.
 
-import { toNorm } from '../engine/norm.js';
+import { toNorm, isUnspaced } from '../engine/norm.js';
 import { resolveReference } from '../engine/canonical.js';
 import { LruCache } from '../core/lru.js';
 import { fetchWorkerSpaceOut, fetchWorkerWordCase } from './pipeline-worker.js';
@@ -19,12 +19,12 @@ const cache = new LruCache(100, 60 * 60 * 1000);
 async function computeCanonical(display) {
   const norm = toNorm(display);
   if (!norm) return { value: display, complete: true };
-  const hasSpace = /\s/.test(display);
+  const unspaced = isUnspaced(display);
   // The local fallback (worker spacing + wordlist casing) is what shows when the
   // references can't complete — computed up front so a thrown fetch degrades to it
   // rather than to a force-capped partial (Wiktionary down → "ground frost", not
   // "Ground frost").
-  const spaced = hasSpace ? { suggestion: null, ready: true } : await fetchWorkerSpaceOut(norm);
+  const spaced = unspaced ? await fetchWorkerSpaceOut(norm) : { suggestion: null, ready: true };
   const fallback = spaced.suggestion || display;
   // Taints only the fallback return. An un-ready segmenter leaves fallback === display,
   // which gates out the re-resolve below, so every reference-derived answer here stands
@@ -50,8 +50,8 @@ async function computeCanonical(display) {
     // A spaced bare reference is a Wikipedia-only fuzz-match across the missing space
     // (generalassemblies → "General assemblies"); Wiktionary's stricter search never
     // matched the concatenation, so re-resolve the spaced fallback to let its correct
-    // lowercase form win. The `/\s/` clause is load-bearing — dropping it re-caps.
-    if (!hasSpace && (!ref || /\s/.test(ref)) && fallback !== display) {
+    // lowercase form win. The `isUnspaced(ref)` clause is load-bearing — dropping it re-caps.
+    if (unspaced && (!ref || !isUnspaced(ref)) && fallback !== display) {
       ref = (await resolveReference(fallback, norm, caseOf)) || ref;
     }
     if (ref) return { value: ref, complete: caseReady };

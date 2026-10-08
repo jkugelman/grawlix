@@ -21,7 +21,7 @@ const stressOf = ph => ph[ph.length - 1];
 const bare = ph => ph.replace(/\d$/, '');
 
 export function readingsOf(display, spacing) {
-  const items = itemsOf(display, spacing, stressedSoundsOf);
+  const { items } = itemsOf(display, spacing, stressedSoundsOf);
   if (!items.length || items.includes(null)) return [];
   // A phrase takes each word's first pronunciation. Vary them and every phrase
   // becomes a group of itself: IS THIS IT stressed on each word in turn, ADVERSE

@@ -21,7 +21,7 @@ export function casePart(part, wordlist) {
   if (wordlist.byKey.has(mergeKey(part, part))) return part;
   const display = bestRowForNorm(wordlist, part)?.display;
   // A spaced display would re-split the very part it is meant to spell.
-  return display && !/\s/.test(display) ? display : part;
+  return display && isUnspaced(display) ? display : part;
 }
 
 export function spaceOutSplits(norm, wordlist, { window = MIN_WINDOW, limit = Infinity } = {}) {

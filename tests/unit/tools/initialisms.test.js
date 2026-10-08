@@ -12,14 +12,18 @@ test('matches displays whose word-initial letters spell the initialism', async (
     ['what the fuck', 'world tour finals']);
 });
 
-test('hyphens are optional word boundaries', async () => {
+test('dashes and slashes are word boundaries', async () => {
   sameVisible(await visible(LIB, [{ tool: 'initialisms', params: { word: 'CO' } }]),
     ['co-op']);
+  sameVisible(await visible(['AC/DC', 'rock \u2013 roll', 'ACDC'], [{ tool: 'initialisms', params: { word: 'AD' } }]),
+    ['AC/DC']);
+  sameVisible(await visible(['AC/DC', 'rock \u2013 roll'], [{ tool: 'initialisms', params: { word: 'RR' } }]),
+    ['rock \u2013 roll']);
 });
 
-test('single-letter pattern matches every entry whose first word starts with it', async () => {
+test('single-letter pattern matches every one-word entry that starts with it', async () => {
   sameVisible(await visible(LIB, [{ tool: 'initialisms', params: { word: 'C' } }]),
-    ['cat', 'co-op']);
+    ['cat']);
 });
 
 test("apostrophes aren't word boundaries — DT doesn't match \"don't\"", async () => {
@@ -43,12 +47,12 @@ test('grouped: skips single-word entries (one-letter initialisms are just prefix
   assert.deepEqual(await groups(['C', 'cat', 'cow'], [{ tool: 'initialisms', grouped: true }]), []);
 });
 
-test('grouped: hyphens are not word boundaries in grouped mode', async () => {
+test('grouped: hyphens are word boundaries in grouped mode too', async () => {
   const gs = await groups(
     [{ entry: 'CO', score: 60 }, 'Cycle Op', 'Camera Op', 'co-op'],
     [{ tool: 'initialisms', grouped: true }]);
   assert.deepEqual(gs.map(g => ({ anchor: g.anchor, chains: g.chains.flat().sort() })),
-    [{ anchor: { entry: 'CO', score: 60 }, chains: ['Camera Op', 'Cycle Op'] }]);
+    [{ anchor: { entry: 'CO', score: 60 }, chains: ['Camera Op', 'Cycle Op', 'co-op'] }]);
 });
 
 // ─── Unspaced entries ────────────────────────────────────────────────────────

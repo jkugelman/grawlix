@@ -222,11 +222,13 @@ On a run-together list the first search in a word-relative mode pauses a few sec
 Offline, before the segmenter's corpus has been fetched, a run-together entry counts as one word.
 
 Search and Regex carry one `mode` param (`MATCH_PARAM`, `tools/shared.js`) that constrains where a match sits relative to the entry's words: absent (anywhere), `full` (whole entry — the anchored `^…$` wrap), `start`/`end` (anchored at one end — `^…` or `…$`), `word` (whole words — the match's first letter starts a word and its last letter ends one, possibly covering *several* complete words so a norm-arm query can match an exact phrase), or `span` (spans words — the match's letters straddle a break, the hidden-theme hunt: `heir` finds `the IRS`).
-A **word break is whitespace or a hyphen; an apostrophe or period is not** (`isn't` is one word) — the policy lives in `WORD_BREAK_RE` (`engine/norm.js`) beside `wordBreaks`, which answers an entry's breaks as norm offsets, and the two predicates over them, `isWholeWords` and `spansWords`.
+A **word break is whitespace, any dash, or a slash; an apostrophe, period or ampersand is not** (`isn't`, `U.S.` and `AT&T` are each one word) — the policy lives in `WORD_BREAK_RE` (`engine/norm.js`) beside `splitWords`, `isUnspaced`, and `wordBreaks`, which answers an entry's breaks as norm offsets, and the two predicates over them, `isWholeWords` and `spansWords`.
+The rule is written for well-typeset lists, where an en dash or a slash separates words, rather than tuned to how today's lists happen to be punctuated.
+Only word logic shares it: literal spaces in Search and Umiaq patterns, the segmenter's space-joined encoding and the export format axes keep their own whitespace handling.
 A display-coordinate match is projected onto the norm first (`displayRangeToNorm`), so both gates run in one coordinate space; the projection counts letters, which drops a separator at either edge (a `\s` a regex extends onto a space) rather than letting a one-word match that touches a break count as spanning.
 **A run-together entry reads its breaks from the spacing table** ([`segmenter.md`](segmenter.md) § *The spacing table*): `wordBreaks` takes a `SpacingReader` and, for a display with no break of its own, uses the reader's `best` reading — the reading Space out's One shows and Initialisms keys on — so `at` spans `DATATABLE` and `cat` is a whole word in `catfood` on a bare list exactly as they would be on a spaced one.
 It is `best`, not Rhymes' `guess`: the gates exist to reproduce authored spacing, and the compound tier answers a different question (how to split a word that is one word), which would make `roll` a whole word in `rickroll` on a bare list but not on a spaced one.
-Authored spacing always wins: an entry written with a space or hyphen is never re-read, since the guess can disagree with it and a gate built on the guess would contradict the spacing on the row.
+Authored spacing always wins: an entry written with a break is never re-read, since the guess can disagree with it and a gate built on the guess would contradict the spacing on the row.
 Search and Regex build the table in `prepare` whenever a word-relative mode is on (`matchModeSpacing`, `tools/shared.js`) — eagerly, because a short pattern's candidates run to hundreds of thousands and reading each on the spot would cost seconds per keystroke; Hidden anagram reads on demand, since its anagram window leaves few candidates.
 All three declare the unigram asset only while such a mode is on (`assets` is a function of params, read through `toolAssets`), because the Search bar never leaves the stack and a flat declaration would pin the corpus for the session; the worker reaps assets whenever the *set* its stack needs changes, so the bar's mode toggling frees and reloads the corpus like any other row.
 Each declares a sync `replay` ([`pipeline.md`](pipeline.md) § *A highlight re-derived at render time gets a `ctx`*), since its `prepare` is async.
@@ -325,15 +327,15 @@ Clearing the word hides the column too, and the Split sort returns with it once 
 
 The first tool to operate on word structure rather than letter sequence.
 Pattern is a literal initialism; matches displays whose word-initial letters spell the pattern (case-insensitive).
-Word boundaries: spaces always, hyphens optional (the matcher tries both interpretations, so `CO` matches `co-op` via the split and `C` matches via the join), apostrophes/periods/commas/slashes never (`don't` is one word; `DT` does not match it).
-A display with no space or hyphen is read through the spacing table's `best` reading ([`segmenter.md`](segmenter.md) § *The spacing table*), its initials taken from each part's norm because a guessed part can carry an override's apostrophe or capital.
+Words break where Search's do (§ *Match modes*): at whitespace, dashes and slashes, so `CO` matches `co-op` and `AD` matches `AC/DC`, but never at apostrophes or periods (`don't` is one word; `DT` does not match it).
+A display with no break is read through the spacing table's `best` reading ([`segmenter.md`](segmenter.md) § *The spacing table*), its initials taken from each part's norm because a guessed part can carry an override's apostrophe or capital.
 The filter rules an entry out on first letter and length before asking for its reading, which leaves a few percent of a merge to segment on a cold keystroke.
 So `HOT` also finds `HANGONTIGHT` and `HATSOFFTO`; an entry the reading leaves as one word stays one word, and offline, before the corpus has been fetched, run-together entries go unread.
 A match on a guessed reading **marks its initials**, in norm coordinates so the renderer projects them onto a display carrying punctuation.
 A spaced entry is never marked: its own spelling already shows where the words are, so a mark would only restate it.
 That is also why the marks are worth carrying — on a run-together entry nothing else on the row says where the tool read the boundaries.
-No wildcards, no minimum pattern length — a single-letter pattern matches every display whose first word starts with that letter.
-All-mode buckets every multi-word entry by its initialism — a spaced display as written (spaces only — the hyphen-optional branching would scatter an entry across clusters), an unspaced one as read — and builds the spacing table to do it.
+No wildcards, no minimum pattern length — a single-letter pattern matches every one-word display that starts with that letter.
+All-mode buckets every multi-word entry by its initialism — a spaced display as written, an unspaced one as read — and builds the spacing table to do it.
 The first all-mode run on a large list takes a few seconds to read every run-together entry; the table then lasts until the wordlists change, and Rhymes shares it.
 A `keepGroup` demands two distinct norms, since a phrase the merge carries both spaced and unspaced is one member.
 Members are marked by the same rule, through `group.memberHighlights`, which re-derives the reading at render time and **checks it against the cluster key** — an edit since the run can change a reading, and a stale mark would point at the wrong letters.
@@ -449,6 +451,7 @@ If a word still can't be read, or it contains a digit, it reads as a **hole**: o
 A run of sounds can't be heard across a hole, and a hole keeps its place in the entry, so Whole entry can't match an entry with an unreadable word (Starts entry can, when the hole comes after the sounds).
 An entry's readings are the product of its words' pronunciations, capped at 16.
 The match-mode control sets where the sounds sit: **Whole entry** finds homophones (`KNIGHT` finds `NIGHT`), **Starts entry** and **Ends entry** pin one end (`KNEE` finds `NEON` and `HONEY` respectively), **Whole word** needs word breaks at both ends (`TEA` finds `TEE` but not `ARTY`), and **Spans words** needs a break inside (`TEA` finds `NOT EVEN`).
+The breaks are Search's (`WORD_BREAK_RE`) plus the splits inside a word read through the spacing table: the entry is read aloud in pieces split at every punctuation mark, so `U.S.A.` is three letter names, but `R&R` is one word to Whole word, as it is to Search.
 
 **The query is whole words.**
 The input must read as whole words; it can't be a fragment like `pho` meaning "starts with the letters PHO", because only whole words have pronunciations.

@@ -41,6 +41,9 @@ test('lastWordKey canonicalizes the last word — uppercase, letters-only', () =
   assert.equal(lastWordKey('Aunt Agatha'), 'AGATHA');
   assert.equal(lastWordKey('agatha'), 'AGATHA');
   assert.equal(lastWordKey('scaredy-cat'), 'CAT');
+  assert.equal(lastWordKey('rock \u2013 roll'), 'ROLL');
+  assert.equal(lastWordKey('either/or'), 'OR');
+  assert.equal(lastWordKey("rock 'n' roll"), 'ROLL');
 });
 
 test('rhymingPartsOf collects every pronunciation’s part and bridges the last word', () => {

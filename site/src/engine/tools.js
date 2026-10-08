@@ -33,7 +33,7 @@ import space_out from './tools/space_out.js';
 import search from './tools/search.js';
 import regex from './tools/regex.js';
 import umiaq, { configureUmiaq } from './tools/umiaq.js';
-import initialisms, { wordSplits } from './tools/initialisms.js';
+import initialisms from './tools/initialisms.js';
 import head_off from './tools/head_off.js';
 import back_off from './tools/back_off.js';
 import dead_center from './tools/dead_center.js';
@@ -43,7 +43,7 @@ import remove from './tools/remove.js';
 import optional_letters from './tools/optional_letters.js';
 import { reverseString, sortLetters } from './tools/shared.js';
 
-export { reverseString, sortLetters, consonantSkeleton, vowelSkeleton, wordSplits, caesarKey, caesarShift, patternKey, configureUmiaq, configureWeave };
+export { reverseString, sortLetters, consonantSkeleton, vowelSkeleton, caesarKey, caesarShift, patternKey, configureUmiaq, configureWeave };
 
 export const TOOL_CATEGORIES = [
   { id: 'anagram',    label: 'Anagram' },
