@@ -24,6 +24,15 @@ export function setTrashScore(score) {
   Storage.writeMergedSettings({ ...Storage.readMergedSettings(), trashScore: score });
 }
 
+export function getMergeMode() {
+  const mode = Storage.readMergedSettings().mergeMode;
+  return mode === 'highest' || mode === 'lowest' ? mode : 'first';
+}
+
+export function setMergeMode(mode) {
+  Storage.writeMergedSettings({ ...Storage.readMergedSettings(), mergeMode: mode });
+}
+
 export function defaultScoreRange() {
   return `${getTrashScore() + 1}+`;
 }

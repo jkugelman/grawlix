@@ -18,7 +18,7 @@ import { findOccurrences, findEntryOccurrences, buildFindMatcher, FIND_MATCH_CAP
 import { matchesRange, parseViewFilter } from './range.js';
 import { compileRescoreRules } from './rescore.js';
 import { sourceAccessor, invalidateSourceAccessor, parseWordlistColumns, columnsFromEntries } from './sources.js';
-import { buildCorpus, assignFamilies, scopeSourceIds, mergedContributors, resolveEditSeedWinner, mergeKey, bestRowForNorm, mergedNormLowerBound, computeMergedBucket, diffWordlistEntries, isDistinguishing, concreteDisplay } from './corpus.js';
+import { buildCorpus, assignFamilies, scopeSourceIds, mergedContributors, resolveEditSeedWinner, mergeKey, bestRowForNorm, mergedNormLowerBound, mergedRowsForNorm, computeMergedBucket, diffWordlistEntries, isDistinguishing, concreteDisplay, winsMergedRow } from './corpus.js';
 import { familyKey, generateRelativeNorms, configureCommonWords,
          nameParts, nameAnchorRun, NAME_RELATIVE_CAP } from './morphology.js';
 import { COMMON_WORDS, LEMMA_BASES } from './common-words-data.js';
@@ -150,6 +150,7 @@ let diffCounter = 0;
 const retainedDiffs = new Map();
 let lastNeededAssetsSig = null;
 let selfConfig = null;
+const mergeMode = () => selfConfig?.mergeMode ?? 'first';
 let ownedBuilt = null;      // the retained per-source rich wordlists from the last syncConfig
 let ownedMerged = null;     // eager self-built MERGED corpus; feeds the config summaries regardless of active scope
 let ownedCorpus = null;     // eager self-built ACTIVE-scope corpus; the run-path corpus when fresh + scope-matched, else enrichment-only
@@ -1424,7 +1425,7 @@ const FIRST_WINDOW = 60;
 
 function shipContributors(e) {
   return ownedCorpus === ownedMerged
-    ? mergedContributors(e.norm, e.display, ownedBuilt)
+    ? mergedContributors(e.norm, e.display, ownedBuilt, mergeMode())
     : { sourceIds: scopeSourceIds(e.norm, ownedBuilt, ownedScope), activeIds: [e.wordlist.dbKey] };
 }
 
@@ -1896,6 +1897,7 @@ function handleFetchProvenance({ requestId, typedRaw, previewRaw, clickedNorm, c
 
   const rows = [];
   if (targetNorm != null) {
+    const mergedRows = mergedRowsForNorm(ownedMerged, targetNorm);
     for (const wl of ownedBuilt) {
       const group = sourceAccessor(wl).rescoredForNorm(targetNorm);
       if (group === undefined) continue;
@@ -1908,6 +1910,7 @@ function handleFetchProvenance({ requestId, typedRaw, previewRaw, clickedNorm, c
         rows.push({
           sourceId: wl.dbKey,
           enabled: wl.enabled !== false,
+          winner: winsMergedRow(mergedRows, wl, d, targetDisplay),
           entry: { norm: e.norm, display: e.display ?? null, score: e.score, rawScore: e.rawScore, comment: e.comment || '' },
         });
       }
@@ -1928,7 +1931,7 @@ function handleFetchProvenance({ requestId, typedRaw, previewRaw, clickedNorm, c
 // syncConfig gap — so a null plan means only the genuine pre-first-sync window.
 function handlePlanEdit({ requestId, mode, clicked, typed, trashScore }) {
   if (!ownedBuilt) { postMessage({ type: 'editPlan', requestId, plan: null }); return; }
-  const plan = planEntryWrite({ mode, clicked, typed, sources: ownedBuilt, trashScore });
+  const plan = planEntryWrite({ mode, clicked, typed, sources: ownedBuilt, trashScore, mergeMode: mergeMode() });
   postMessage({ type: 'editPlan', requestId, plan });
 }
 
@@ -2344,7 +2347,7 @@ function applyOwnedEdit(source, affectedNorms) {
   // the in-place splice must drop it to stay byte-identical to a rebuild.
   const norms = [...affectedNorms];
   const wasInMerge = norms.map(n => ownedMerged.norms.has(n));
-  const merged = spliceOwnedCorpus(ownedMerged, norms, norm => withFamilies(computeMergedBucket(norm, ownedBuilt), ownedMerged.vocab));
+  const merged = spliceOwnedCorpus(ownedMerged, norms, norm => withFamilies(computeMergedBucket(norm, ownedBuilt, mergeMode()), ownedMerged.vocab));
   patchArtifacts(norms.filter((n, i) => ownedMerged.norms.has(n) !== wasInMerge[i]));
   // replaced===true strands a retained join's indices/refs on the swapped-out rows;
   // replaced===false only mutated scores in place, so the entry stays valid and its
@@ -2742,7 +2745,7 @@ function buildScopeCorpus(built, scope) {
   const list = scope === MERGED_ID
     ? built.filter(w => w.enabled)
     : built.filter(w => w.dbKey === scope);
-  const corpus = buildCorpus(list);
+  const corpus = buildCorpus(list, mergeMode());
   assignFamilies(corpus);
   return corpus;
 }

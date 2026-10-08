@@ -65,14 +65,14 @@ function heldBySibling(edits, norm, origDisplay, display) {
 // Shared by create and rename so the two gestures stay symmetric: a typed entry
 // that would hide under (or absorb) a foreign spelling of its norm copies the other
 // form in. A My Edits sibling already at this norm is distinguishing — no copy.
-function keepCopies(newNorm, newDisplay, sources, edits, upserts, notes) {
+function keepCopies(newNorm, newDisplay, bucket, edits, upserts, notes) {
   const editsRows = edits ? (sourceAccessor(edits).rescoredForNorm(newNorm) ?? []) : [];
   if (newDisplay != null) {
     // keep-bare: a bare shown as the plain spelling vanishes once the typed rich absorbs
     // it, so copy it in. Match the merged plain row, not any raw bare — a bare already
     // hidden under a foreign rich spelling has no row to preserve and must not resurface.
     if (editsRows.length === 0) {
-      const plain = computeMergedBucket(newNorm, sources).rows.find(r => r.display == null);
+      const plain = bucket(newNorm).rows.find(r => r.display == null);
       if (plain) {
         upserts.push({ norm: newNorm, display: null, score: plain.score, comment: plain.comment || '' });
         notes.push({ kind: 'keep-bare', norm: newNorm, display: null, score: plain.score, comment: plain.comment || '' });
@@ -83,7 +83,7 @@ function keepCopies(newNorm, newDisplay, sources, edits, upserts, notes) {
   if (editsRows.some(r => r.display && r.display !== newNorm)) return;
   // keep-rich: the typed bare folds into a foreign spelling; copy each shown one at
   // the displayed winner's score (a bare can win a spelling — not the speller's score).
-  for (const r of computeMergedBucket(newNorm, sources).rows) {
+  for (const r of bucket(newNorm).rows) {
     // Skip a row the bare primary already renders: copying its display === norm
     // would re-bare on reload and clobber the typed score via the upsert dedup.
     if (r.display == null || r.display === newNorm) continue;
@@ -108,7 +108,8 @@ function existingRow(rows, rendered) {
     : null;
 }
 
-export function planEntryWrite({ mode, clicked, typed, sources, trashScore = 0 }) {
+export function planEntryWrite({ mode, clicked, typed, sources, trashScore = 0, mergeMode = 'first' }) {
+  const bucket = norm => computeMergedBucket(norm, sources, mergeMode);
   const newNorm = toNorm(typed.raw);
   const edits = editsOf(sources);
   const newDisplay = typedDisplay(typed.raw, edits);
@@ -121,7 +122,7 @@ export function planEntryWrite({ mode, clicked, typed, sources, trashScore = 0 }
   const notes = [];
 
   if (mode === 'create') {
-    const shown = computeMergedBucket(newNorm, sources).rows;
+    const shown = bucket(newNorm).rows;
     // Block only a spelling My Edits already SHOWS. A bare hidden under a foreign
     // spelling shows as that spelling, so typing the bare splits it out via keepCopies.
     if (shown.some(r => r.wordlist === edits && displayOf(r) === newRendered)) {
@@ -129,7 +130,7 @@ export function planEntryWrite({ mode, clicked, typed, sources, trashScore = 0 }
     }
     // Rescores an existing hidden bare (matched by displayOf), else adds fresh.
     upserts.push({ norm: newNorm, display: newDisplay, score, comment });
-    keepCopies(newNorm, newDisplay, sources, edits, upserts, notes);
+    keepCopies(newNorm, newDisplay, bucket, edits, upserts, notes);
     // Advisory, never a block: laying a My Edits row over a foreign one is the normal
     // way to rescore. It exists because typing a name to *find* an entry is a real
     // gesture, and without it the only click-through was a My Edits collision.
@@ -145,7 +146,7 @@ export function planEntryWrite({ mode, clicked, typed, sources, trashScore = 0 }
   upserts.push({ norm: newNorm, display: newDisplay, score, comment });
   // A rename to a new norm lands like a fresh create there — keep it distinguishing
   // against any foreign spelling of that norm, exactly as create does.
-  if (newNorm !== origNorm) keepCopies(newNorm, newDisplay, sources, edits, upserts, notes);
+  if (newNorm !== origNorm) keepCopies(newNorm, newDisplay, bucket, edits, upserts, notes);
   // A rename should replace the old spelling, not sit beside a foreign copy of it.
   if (renamed && foreignHasNorm(sources, origNorm)) {
     const junk = (display, noted = display) => {
@@ -163,7 +164,7 @@ export function planEntryWrite({ mode, clicked, typed, sources, trashScore = 0 }
       // re-emerge — so junk every concrete foreign sibling this respelling orphans.
       const spellings = new Set();
       if (origDisplay !== newRendered && foreignHasSpelling(sources, origNorm, origDisplay)) spellings.add(origDisplay);
-      for (const r of computeMergedBucket(origNorm, sources).rows) {
+      for (const r of bucket(origNorm).rows) {
         if (r.wordlist === edits && r.display != null && r.display !== newRendered && foreignHasSpelling(sources, origNorm, r.display)) {
           spellings.add(r.display);
         }

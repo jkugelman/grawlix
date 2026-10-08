@@ -122,14 +122,14 @@ const SECTIONS = [
         a: () => `
           <p>It's the headline view: every wordlist you've enabled, rescored onto the common scale and merged into one deduped list. It's what you're looking at by default, and it's what you download or sync and hand to your construction software.</p>
           ${mergeDiagram()}
-          <p>When the same word shows up in several lists, the highest-priority list that has it wins. Priority is just the order your lists sit in, which you set under <strong>Manage wordlists</strong>. Search, the tools, the histogram, all of it runs against this merged view unless you deliberately switch to a single list.</p>`,
+          <p>When the same word shows up in several lists, the highest-priority list that has it wins. Priority is just the order your lists sit in, which you set under <strong>Manage wordlists</strong>. You can switch that to <strong>Highest score wins</strong> or <strong>Lowest score wins</strong> there, which only makes sense once all your lists are rescored onto the same scale. Either way, your edits always win. Search, the tools, the histogram, all of it runs against this merged view unless you deliberately switch to a single list.</p>`,
       },
       {
         slug: 'sources-column',
         q: `What's the Sources column?`,
         a: `
           <p>Over on the right of the table, each row shows little icons for the wordlists that have that entry: one slot per list, with a gap where a list doesn't have it. A single icon means the entry is unique to that list; several mean it's shared.</p>
-          <p>The lists in full color are the ones whose spelling, score, or comment you're actually seeing; any dimmed ones have the entry too, but a higher-priority list won. Click the entry for the full rundown.</p>`,
+          <p>The lists in full color are the ones whose spelling, score, or comment you're actually seeing; any dimmed ones have the entry too, but another list won. Click the entry for the full rundown.</p>`,
       },
       {
         slug: 'my-edits',

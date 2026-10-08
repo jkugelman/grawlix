@@ -161,7 +161,7 @@ The flat tier ships a scalar `count` (the survivor total main sizes the scroller
 
 Every rich row/atom carries `sourceId` (the **winning** source's `dbKey`), `sourceIds` (the **set** of every source that contributes the entry, winner included — the entries table's Sources presence-matrix), and `activeIds` (`⊆ sourceIds`, the subset whose values the row actually *shows* — the matrix colors these and mutes the rest).
 All three are computed **per shipped row** at encode time (`shipContributors`), *not* stored on every corpus entry — eagerly attaching them made load O(corpus) when only the windowed ~hundreds of rendered rows ever need them.
-The resolver is scope-specific: `mergedContributors` for a merged row (display-aware, in lockstep with the merge's `eligible`; `activeIds` = the score winner + the list supplying the shown spelling + the comment fall-through source, each the single highest-priority source (a same-value duplicate is muted) — so a bare winner and the rich list that spells it both light up, but a redundant copy does not), `scopeSourceIds` for a scoped row (`sourceIds` = norm-level cross-list over enabled sources plus the scoped source, like the provenance panel; `activeIds` = the scoped source alone, since the row shows only its own values).
+The resolver is scope-specific: `mergedContributors` for a merged row (display-aware, in lockstep with the merge's `eligible`; `activeIds` = the score winner (the merge mode's pick, `pickWinner`) + the list supplying the shown spelling + the comment fall-through source, the last two each the single highest-priority holder (a same-value duplicate is muted) — so a bare winner and the rich list that spells it both light up, but a redundant copy does not), `scopeSourceIds` for a scoped row (`sourceIds` = norm-level cross-list over enabled sources plus the scoped source, like the provenance panel; `activeIds` = the scoped source alone, since the row shows only its own values).
 A synthetic `{ s }` atom has no source, so no `sourceIds`/`activeIds`; main defaults them to `[]`.
 
 **All three tiers are windowed, identically in shape.**
@@ -689,12 +689,13 @@ The two targets the worker holds: `ownedMerged` for the preview (the merge winne
   - **provenance target**: norm = `(preview-for-typedRaw)?.norm ?? (typedRaw.trim() ? toNorm(typedRaw) : clickedNorm)`; display = `typedRaw.trim() ? null : clickedDisplay` — a concrete click scopes to its spelling; a bare click (`clickedDisplay` null) and a rename/new-entry typing case both leave display `null`, keeping the whole norm.
   - **rows**: for each source in `ownedBuilt` order (= `state.sources` order), each entry in `sourceAccessor(wl).rescoredForNorm(targetNorm)` whose spelling matches the target — mirroring the merge's display eligibility (`concreteDisplay`/`isDistinguishing`, § corpus.js `mergedContributors`): a bare entry (null display) unifies with any spelling, a concrete one must equal `targetDisplay`; a `null` `targetDisplay` (a bare click, or the typed case) keeps the whole norm.
     When a concrete click scopes the walk, the differently-spelled siblings it drops surface in the panel's Related entries (`fetchFamily`).
-    Each row is `{ sourceId: wl.dbKey, enabled: wl.enabled !== false, entry: { norm, display, score, rawScore, comment } }`.
+    Each row is `{ sourceId: wl.dbKey, enabled: wl.enabled !== false, winner, entry: { norm, display, score, rawScore, comment } }`.
+    `winner` is true when the row is the one All Wordlists takes its score from (`winsMergedRow` against `ownedMerged`'s rows for the norm); the panel marks it with a triangle.
     Main resolves `sourceId → state.sources` and renders through the same body builder, so the table HTML is byte-identical to a local build.
 
 #### `provenance` (entry-panel provenance + preview reply)
 `{ type: 'provenance', requestId, preview, rows }` — reply to `fetchProvenance`.
-`preview` is `{ norm, display, score, comment, sourceId } | null`; `rows` is the ordered provenance array `[{ sourceId, enabled, entry: { norm, display, score, rawScore, comment } }]` (`rawScore` is the source's pre-rescore score, `undefined` when that source's rules didn't remap it — the panel's provenance table always renders a raw → rescored arrow from it, unlike the entries table whose arrow is gated on the open rescore editor), or `null` when the worker wasn't fresh.
+`preview` is `{ norm, display, score, comment, sourceId } | null`; `rows` is the ordered provenance array `[{ sourceId, enabled, winner, entry: { norm, display, score, rawScore, comment } }]` (`rawScore` is the source's pre-rescore score, `undefined` when that source's rules didn't remap it — the panel's provenance table always renders a raw → rescored arrow from it, unlike the entries table whose arrow is gated on the open rescore editor), or `null` when the worker wasn't fresh.
 A `null` `rows` means "worker didn't answer" — distinct from `[]`, a real table with nothing in it — so main **awaits the next committed build (`whenWorkerCommitted`) and retries the query once**, then falls back to keeping its last-good render.
 The retry is what makes the last-good rule safe at OPEN, where there is no last-good: the panel nulls its shipped rows per target and nothing else re-fires provenance when the rebuild commits, so a null answer alone left the Appears-in table blank until the panel was reopened.
 Both attempts ride the same monotonic token, so a straggling retry can never overwrite a newer query's answer.
@@ -710,7 +711,7 @@ The edit gesture brackets itself `beginPendingEdit()` → `endPendingEdit()` (in
 
 #### `planEdit` (entry-edit planner)
 `{ type: 'planEdit', requestId, mode, clicked, typed, trashScore }` — **plan a My Edits write-set for the entry panel / a save**, so main needs no resident foreign rescore indexes.
-`planEntryWrite` ([`engine/edit-plan.js`](../site/src/engine/edit-plan.js)) walks every enabled source's `getRescoredByNorm`/`computeMergedBucket` to decide deletes / keep-copies / foreign-downscore / the "already exists" block — data only the worker holds.
+`planEntryWrite` ([`engine/edit-plan.js`](../site/src/engine/edit-plan.js)) walks every enabled source's `getRescoredByNorm`/`computeMergedBucket` (under the synced merge mode) to decide deletes / keep-copies / foreign-downscore / the "already exists" block — data only the worker holds.
 Modeled on `fetchProvenance` with its own request-id lane; a client timeout resolves `null` so the panel keeps its last-good plan and a save retries then bails.
 - `requestId` — monotonic per client, in its **own request-id space**, echoed on the `editPlan` reply for stale-drop matching.
 - `mode` — `'create'` or `'edit'` (rename/override/adopt/rescore all plan through `'edit'`).
@@ -925,13 +926,16 @@ Deleting an absent key is a no-op, so a duplicate/stale free is harmless.
 This is the **only** way `retainedDiffs` shrinks besides worker respawn (which drops it whole) — runs and `syncConfig` never touch it.
 
 #### `syncConfig` (self-build)
-`{ type: 'syncConfig', configId, scope, sources }` — hand the worker the config it needs to **independently load+parse+rescore+merge** its own corpus.
+`{ type: 'syncConfig', configId, scope, mergeMode, sources }` — hand the worker the config it needs to **independently load+parse+rescore+merge** its own corpus.
 This is how the worker gets its corpus — it never receives the corpus as bulk data.
 - `configId` — monotonic per client; echoed verbatim on the `selfReady` reply so each in-flight `syncConfig` awaits **its own** reply (correlation, below).
   Multiple syncs are routinely concurrent — the completeness hook fires one and a post-write re-sync fires another before either build settles.
 - `sources` — an array in **merge-priority order** (`sources[0]` highest).
   Each: `{ sourceId, enabled, type, rescoreRules }`, where `sourceId` is the wordlist's `dbKey`, `type` is `'edits'` for My Edits (else `null` — carried so the `editEntry` handler can find the My Edits source in `ownedBuilt`), and `rescoreRules` are stripped to the **four editor fields** (`input`, `length`, `output`, `note`) — the worker recompiles them.
   No display name rides along: the worker keys every source by `dbKey` and never needs the human label.
+- `mergeMode` — `'first'`, `'highest'` or `'lowest'` (`getMergeMode`), the merge's winner rule ([`wordlists.md`](wordlists.md) § *The wordlist bar*).
+  The worker reads it from the latest config (`mergeMode()`) wherever it picks a merged winner: the corpus build, the edit splice (`computeMergedBucket`), the Sources matrix (`mergedContributors`), and the edit planner.
+  Changing it goes through `repaintAfterCacheChange`, so it re-sends `syncConfig` like any config change.
 - `scope` — the **active scope** at sync time (`MERGED_ID` or the scoped wordlist's `dbKey`).
   It determines which corpus the worker builds into `ownedCorpus`; the merged build (`ownedMerged`) is built unconditionally and feeds the config summaries regardless of `scope`.
 - **Sent:** from production boot (`init()`, after `propagateDefaults` but **before** the main-thread wordlist parse, so the worker's build overlaps it); **re-sent on every config change** (`resyncWorkerConfig`); and by the test bridge (`syncWorkerConfig`).

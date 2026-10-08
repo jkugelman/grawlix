@@ -204,6 +204,17 @@ test('the table columns are Entry · Score · Comment · Source in that order, r
   ]);
 });
 
+test('a triangle marks the row All Wordlists takes its score from', async ({ page }) => {
+  await gotoApp(page);
+  await page.evaluate(() => window.__grawlixTest.addCustomWordlist({ name: 'Hi', entries: ['ocean'], scores: [60] }));
+  await page.evaluate(() => window.__grawlixTest.addCustomWordlist({ name: 'Lo', entries: ['ocean'], scores: [90] }));
+  await openPanelOnEntry(page, 'ocean');
+
+  const marks = () => page.evaluate(() => [...document.querySelectorAll('.entry-panel-prov tbody tr')]
+    .map(tr => tr.querySelector('.entry-panel-prov-winner')?.title ?? null));
+  await expect.poll(marks).toEqual(['Used in All Wordlists: first list with this entry', null]);
+});
+
 test('an edit made through the panel still lands in My Edits', async ({ page }) => {
   await gotoApp(page);
 

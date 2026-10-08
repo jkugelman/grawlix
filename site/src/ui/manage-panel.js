@@ -7,8 +7,9 @@ import { effect } from '../core/signals.js';
 import { state, cacheVersion$, configSummary$ } from '../data/state.js';
 import { persistMeta, batchUpdate, repaintAfterCacheChange } from '../data/persist.js';
 import { sourceTotal } from '../data/merge.js';
+import { getMergeMode, setMergeMode } from '../data/serialize.js';
 import { getWordlistIcon } from './icons.js';
-import { makeReorderable, buildMoreMenuHTML, buildTrashIconHTML, closeMenus } from './components.js';
+import { makeReorderable, buildMoreMenuHTML, buildTrashIconHTML, closeMenus, buildChoiceArrowHTML, toggleChoiceMenu } from './components.js';
 import { createDialog, showDialog } from './dialogs/dialog.js';
 import { ConfigureWordlistDialog } from './dialogs/configure-wordlist.js';
 import { buildWordlistCardHTML } from './scope-selector.js';
@@ -21,8 +22,14 @@ export function configureManagePanel({ deleteWordlist }) {
   if (deleteWordlist) _deleteWordlist = deleteWordlist;
 }
 
+const MERGE_MODES = [
+  { value: 'first',   label: 'First wins' },
+  { value: 'highest', label: 'Highest score wins' },
+  { value: 'lowest',  label: 'Lowest score wins' },
+];
+
 export const ManagePanel = (() => {
-  let el, listEl, applyBtn, addRow;
+  let el, listEl, applyBtn, addRow, modeEl;
   let shadow = null;
 
   function rowHTML(wl) {
@@ -31,20 +38,25 @@ export const ManagePanel = (() => {
     // staged disable here, in isDirty, and in apply.
     const enabled = shadow.enabled.get(wl) ?? wl.enabled;
     const total = sourceTotal(wl);
+    const pinned = wl.type === 'edits';
     return buildWordlistCardHTML(
       getWordlistIcon(wl),
       wl.name,
       total == null ? '…' : pluralize(total, 'entry', 'entries'),
-      { enabled, populated: wl.populated, extraActions: rowMenuHTML(wl) },
+      { enabled, populated: wl.populated, pinned, extraActions: pinned ? '' : rowMenuHTML(wl) },
     );
   }
 
   function rowMenuHTML(wl) {
-    if (wl.type === 'edits') return '<span class="manage-row-menu-spacer"></span>';
     return buildMoreMenuHTML([
       ['Configure', '', { className: 'manage-row-configure', icon: '<svg aria-hidden="true"><use href="#icon-settings"/></svg>' }],
       ['Delete',    '', { className: 'manage-row-delete',    icon: buildTrashIconHTML() }],
     ], { className: 'manage-row-kebab', title: `More options for ${esc(wl.name)}` });
+  }
+
+  function renderMode() {
+    modeEl.querySelector('.choice-label').textContent = MERGE_MODES.find(m => m.value === shadow.mergeMode).label;
+    modeEl.querySelector('.manage-merge-note').classList.toggle('off', shadow.mergeMode === 'first');
   }
 
   function render() {
@@ -70,6 +82,7 @@ export const ManagePanel = (() => {
   }
 
   function isDirty() {
+    if (shadow.mergeMode !== getMergeMode()) return true;
     if (shadow.order.length !== state.sources.length) return true;
     if (shadow.order.some((wl, i) => wl !== state.sources[i])) return true;
     return shadow.order.some(wl => (shadow.enabled.get(wl) ?? wl.enabled) !== wl.enabled);
@@ -84,6 +97,7 @@ export const ManagePanel = (() => {
       batchUpdate(() => {
         state.sources.splice(0, state.sources.length, ...shadow.order);
         for (const wl of state.sources) wl.enabled = shadow.enabled.get(wl) ?? wl.enabled;
+        setMergeMode(shadow.mergeMode);
         persistMeta();
         repaintAfterCacheChange();
       });
@@ -97,6 +111,13 @@ export const ManagePanel = (() => {
     body.innerHTML = `
       <button type="button" class="dialog-close-btn" aria-label="Close">✕</button>
       <h2 id="manage-dialog-title">Manage wordlists</h2>
+      <div class="manage-merge">
+        <div class="dialog-row">
+          <span class="dialog-row-label">When lists share an entry</span>
+          <span class="tool-row-param tool-row-match manage-merge-choice"><span class="match-mode-toggle choice-label"></span>${buildChoiceArrowHTML('Change merge mode')}</span>
+        </div>
+        <div class="dialog-row-sub manage-merge-note">(My Edits always wins)</div>
+      </div>
       <div class="manage-list"></div>
       <button type="button" class="manage-add-row"><span class="add-wordlist-icon">＋</span>Add wordlist</button>
       <div class="dialog-footer">
@@ -107,6 +128,15 @@ export const ManagePanel = (() => {
     listEl   = el.querySelector('.manage-list');
     applyBtn = el.querySelector('.manage-apply-btn');
     addRow   = el.querySelector('.manage-add-row');
+    modeEl   = el.querySelector('.manage-merge');
+
+    modeEl.querySelector('.manage-merge-choice').addEventListener('click', e => {
+      e.stopPropagation();
+      toggleChoiceMenu(modeEl.querySelector('.choice-arrow'), {
+        choices: MERGE_MODES, current: shadow.mergeMode, anchor: e.currentTarget,
+        onPick: mode => { shadow.mergeMode = mode; renderMode(); syncApplyDisabled(); },
+      });
+    });
 
     listEl.addEventListener('change', e => {
       const input = e.target.closest('.toggle input[type="checkbox"]');
@@ -126,6 +156,7 @@ export const ManagePanel = (() => {
     makeReorderable(listEl, {
       handleSelector: '.drag-handle:not([aria-hidden])',
       itemSelector:   '.wordlist-card',
+      canDrop: (fromEl, beforeEl) => beforeEl?._wordlist.type !== 'edits',
       onReorder: (fromEl, beforeEl) => {
         const from = shadow.order.indexOf(fromEl._wordlist);
         let to = beforeEl ? shadow.order.indexOf(beforeEl._wordlist) : shadow.order.length;
@@ -162,7 +193,12 @@ export const ManagePanel = (() => {
   }
 
   function open() {
-    shadow = { order: [...state.sources], enabled: new Map(state.sources.map(wl => [wl, wl.enabled])) };
+    shadow = {
+      order: [...state.sources],
+      enabled: new Map(state.sources.map(wl => [wl, wl.enabled])),
+      mergeMode: getMergeMode(),
+    };
+    renderMode();
     render();
     showDialog(el, () => { shadow = null; });
   }

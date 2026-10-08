@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildCorpus, assignFamilies, scopeSourceIds, mergedContributors, bestRowForNorm } from '../../site/src/engine/corpus.js';
+import { buildCorpus, assignFamilies, scopeSourceIds, mergedContributors, bestRowForNorm, computeMergedBucket } from '../../site/src/engine/corpus.js';
 import { compileRescoreRules } from '../../site/src/engine/rescore.js';
 
 // rawScore is absent from raw entries; bucketContributors carries it through, so
@@ -11,8 +11,8 @@ const wlEntry = (norm, score, { display = null, comment = '' } = {}) =>
 
 // Snapshots assert winner identity via `wordlist.name`; the source objects
 // themselves aren't deep-equalled.
-const src = (name, rawEntries, { enabled = true, rescoreRules = [] } = {}) =>
-  ({ name, dbKey: name, enabled, rescoreRules, rawEntries });
+const src = (name, rawEntries, { enabled = true, rescoreRules = [], type } = {}) =>
+  ({ name, dbKey: name, enabled, rescoreRules, rawEntries, ...(type && { type }) });
 
 const project = entries => entries.map(e => ({
   norm: e.norm, display: e.display, score: e.score,
@@ -307,4 +307,76 @@ test('bestRowForNorm: a worse-scored shorter spelling still loses to score', () 
 
 test('bestRowForNorm: an absent norm yields null', () => {
   assert.equal(bestRowForNorm(buildCorpus([]), 'nope'), null);
+});
+
+// ─── Merge modes ─────────────────────────────────────────────────────────────
+
+test('highest score wins: the highest rescored score wins, the comment falls through as usual', () => {
+  const A = src('A', [wlEntry('crane', 10), wlEntry('bird', 40, { comment: 'a-bird' })]);
+  const B = src('B', [wlEntry('crane', 88, { comment: 'b-crane' }), wlEntry('bird', 20)]);
+  const { entries, sourceCounts } = buildCorpus([A, B], 'highest');
+  assert.deepStrictEqual(project(entries).map(e => [e.norm, e.score, e.comment, e.source]), [
+    ['bird',  40, 'a-bird',  'A'],
+    ['crane', 88, 'b-crane', 'B'],
+  ]);
+  assert.deepStrictEqual(counts(sourceCounts), [['A', 1], ['B', 1]]);
+});
+
+test('lowest score wins: the lowest rescored score wins, a tie to the first-listed list', () => {
+  const A = src('A', [wlEntry('crane', 50), wlEntry('bird', 20)]);
+  const B = src('B', [wlEntry('crane', 30), wlEntry('bird', 20)]);
+  assert.deepStrictEqual(project(buildCorpus([A, B], 'lowest').entries).map(e => [e.norm, e.score, e.source]),
+    [['bird', 20, 'A'], ['crane', 30, 'B']]);
+});
+
+test('highest score wins: a tie goes to the first-listed list', () => {
+  const A = src('A', [wlEntry('crane', 50, { comment: 'a' })]);
+  const B = src('B', [wlEntry('crane', 50, { comment: 'b' })]);
+  assert.equal(buildCorpus([A, B], 'highest').entries[0].wordlist, A);
+});
+
+test('My Edits wins whenever eligible, even with the lower score, wherever it is listed', () => {
+  const E = src('My Edits', [wlEntry('cassian', 30)], { type: 'edits' });
+  const N = src('N', [wlEntry('cassian', 50)]);
+  for (const mode of ['first', 'highest', 'lowest']) {
+    assert.equal(buildCorpus([E, N], mode).entries[0].score, 30);
+    assert.equal(buildCorpus([N, E], mode).entries[0].score, 30);
+  }
+});
+
+test('display variants: a bare entry competes for each spelling under highest score wins', () => {
+  const Rich  = src('Rich',  [wlEntry('theirs', 60, { display: 'the IRS' })]);
+  const Plain = src('Plain', [wlEntry('theirs', 90)]);
+  const shape = mode => project(buildCorpus([Rich, Plain], mode).entries).map(e => [e.display, e.score, e.source]);
+  assert.deepStrictEqual(shape('first'),   [['the IRS', 60, 'Rich']]);
+  assert.deepStrictEqual(shape('highest'), [['the IRS', 90, 'Plain']]);
+  assert.deepStrictEqual(shape('lowest'),  [['the IRS', 60, 'Rich']]);
+});
+
+test('computeMergedBucket matches a rebuild under highest score wins', () => {
+  const A = src('A', [wlEntry('theirs', 60, { display: 'the IRS' }), wlEntry('theirs', 20, { display: 'Theirs' })]);
+  const B = src('B', [wlEntry('theirs', 90)]);
+  const E = src('My Edits', [wlEntry('theirs', 10, { display: 'Theirs' })], { type: 'edits' });
+  const sources = [E, A, B];
+  const rebuilt = buildCorpus(sources, 'highest').entries;
+  const spliced = computeMergedBucket('theirs', sources, 'highest').rows;
+  assert.deepStrictEqual(project(spliced).map(({ rawScore, ...r }) => r), project(rebuilt).map(({ rawScore, ...r }) => r));
+  assert.deepStrictEqual(project(rebuilt).map(e => [e.display, e.score, e.source]), [
+    ['the IRS', 90, 'B'],
+    ['Theirs', 10, 'My Edits'],
+  ]);
+});
+
+test('mergedContributors: the active winner follows the mode', () => {
+  const A = src('A', [wlEntry('crane', 10, { comment: 'a-crane' })]);
+  const B = src('B', [wlEntry('crane', 88, { comment: 'b-crane' })]);
+  assert.deepStrictEqual(mergedContributors('crane', null, [A, B], 'first').activeIds, ['A']);
+  assert.deepStrictEqual(mergedContributors('crane', null, [A, B], 'highest').activeIds, ['A', 'B']);
+});
+
+test('a single-list corpus is the same under either mode', () => {
+  const W = src('W', [
+    wlEntry('eta', 40), wlEntry('eta', 70, { display: 'ETA' }), wlEntry('crane', 10),
+  ]);
+  assert.deepStrictEqual(project(buildCorpus([W], 'highest').entries), project(buildCorpus([W], 'first').entries));
 });

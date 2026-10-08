@@ -48,7 +48,7 @@ import { resetPipelineProgress } from './entries-table.js';
 import { bumpPipelineVersion, setResultsStale } from '../data/state.js';
 import {
   buildTextInputHTML, buildParamHTML, syncClearButton, setSegCtrlActive,
-  buildDragHandleHTML, makeReorderable, positionPopover, openMenu, closeMenus, isMenuOpen,
+  buildDragHandleHTML, makeReorderable, toggleChoiceMenu, positionPopover,
 } from './components.js';
 
 // Router (URL persistence), the tool-row error popover, and help-popup
@@ -274,7 +274,7 @@ export function buildSearchBarHTML() {
   const solo = ToolStack.getUserStack().length === 0 ? ' solo' : '';
   const inverted = row.inverted() ? ' inverted' : '';
   return `<div class="search-bar${solo}${inverted}">
-      <span class="drag-handle" aria-hidden="true">≡</span>
+      ${buildDragHandleHTML({ hidden: true })}
       ${label}
       ${parts.caret}
       ${parts.main}
@@ -361,58 +361,26 @@ export const ToolStack = (() => {
     return !!row && isReplacing(row.params);
   }
 
-  const MatchModeMenu = (() => {
-    let el = null, anchor = null;
-
-    function ensure() {
-      if (el) return el;
-      el = document.createElement('div');
-      el.className = 'split-btn-menu match-mode-menu';
-      el.setAttribute('popover', 'manual');
-      el.setAttribute('role', 'menu');
-      el.addEventListener('click', (e) => {
-        const opt = e.target.closest('button[data-mode]');
-        if (opt) pick(opt.dataset.mode);
-      });
-      document.body.appendChild(el);
-      return el;
-    }
-
-    function pick(mode) {
-      const wrap = anchor.closest('.tool-row-match');
-      const box = wrap.querySelector('input[type="checkbox"]');
-      const token = box.dataset.row;
-      const row = token === 'bar' ? getSearchBarRow() : stack[parseInt(token, 10)];
-      const choice = MATCH_PARAM.choices.find(c => c.value === mode);
-      closeMenus();
-      if (!row || !choice) return;
-      wrap.dataset.mode = mode;
-      wrap.querySelector('.match-mode-label').textContent = choice.label;
-      box.checked = true;
-      row.params.mode = mode;
-      row._error = null;
-      bumpPipelineVersion();
-      _navigate();
-    }
-
-    function open(btn) {
-      anchor = btn;
-      const wrap = btn.closest('.tool-row-match');
-      ensure().innerHTML = MATCH_PARAM.choices.map(c =>
-        `<button type="button" role="menuitemradio" aria-checked="${c.value === wrap.dataset.mode}"`
-        + ` data-mode="${esc(c.value)}">${esc(c.label)}</button>`).join('');
-      // Under the whole match control, not the narrow arrow it sprang from, so
-      // it reads as the control's dropdown rather than the caret's.
-      openMenu(el, btn, { anchor: wrap, align: 'left', offset: 4 });
-    }
-
-    return {
-      toggle(btn) {
-        if (isMenuOpen(el) && anchor === btn) closeMenus();
-        else open(btn);
+  function toggleMatchModeMenu(btn) {
+    const wrap = btn.closest('.tool-row-match');
+    toggleChoiceMenu(btn, {
+      choices: MATCH_PARAM.choices, current: wrap.dataset.mode, anchor: wrap,
+      onPick: mode => {
+        const box = wrap.querySelector('input[type="checkbox"]');
+        const token = box.dataset.row;
+        const row = token === 'bar' ? getSearchBarRow() : stack[parseInt(token, 10)];
+        const choice = MATCH_PARAM.choices.find(c => c.value === mode);
+        if (!row || !choice) return;
+        wrap.dataset.mode = mode;
+        wrap.querySelector('.choice-label').textContent = choice.label;
+        box.checked = true;
+        row.params.mode = mode;
+        row._error = null;
+        bumpPipelineVersion();
+        _navigate();
       },
-    };
-  })();
+    });
+  }
 
   function buildRowHTML(idx, row) {
     // The last row is the permanent Search bar — its own chrome, no remove
@@ -801,10 +769,10 @@ export const ToolStack = (() => {
 
     const p = panelEl();
     p?.addEventListener('click', (e) => {
-      const modeBtn = e.target.closest('.match-mode-arrow');
+      const modeBtn = e.target.closest('.tool-row-match .choice-arrow');
       if (modeBtn) {
         e.stopPropagation();
-        MatchModeMenu.toggle(modeBtn);
+        toggleMatchModeMenu(modeBtn);
         return;
       }
       const errBtn = e.target.closest('.tool-row-error-btn[data-error-row]');

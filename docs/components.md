@@ -46,11 +46,12 @@ This table is exhaustive — [`tests/unit/components-doc.test.js`](../tests/unit
 | `buildMoreMenuHTML(menuItems, opts)` | A menu with no primary action — trigger is a ⋮, a named icon, or a text label with a caret. Each item is `[label, onclick, opts]`; `opts.icon` prepends an icon, and an empty `onclick` plus `opts.className` leaves the item to a delegated listener. |
 | `toggleSplitMenu(event)` | The open/close handler both of the above wire up. |
 | `openMenu(menu, trigger, opts)`, `toggleMenu(…)`, `closeMenus()`, `isMenuOpen(menu)` | **Every dropdown menu floats through these.** The menu is a `popover="manual"` element in the top layer, so no scrolling or overflow-clipped ancestor (a dialog, a list, a tool row) can cut it off; it's positioned under `opts.anchor` (default: the trigger) and repositioned on scroll/resize. One menu is open at a time. A menu built outside the two builders above (e.g. the tool stack's match-mode menu) calls these directly instead of rolling its own open/dismiss logic. |
+| `buildChoiceArrowHTML(title)`, `toggleChoiceMenu(trigger, { choices, current, anchor, onPick })` | **A dropdown of mutually exclusive choices**, ✓ on the current one: Search's match mode and Manage's merge mode. The caret button opens one shared menu under `anchor`; a pick closes it and calls `onPick(value)`. The menu moves into the trigger's `<dialog>` when there is one, since a modal dialog makes everything outside it inert. |
 | `mountMenus()` | Installs the document-level dismissal: any click outside the trigger, or Escape (which closes only the menu, never a dialog under it). Called once from `boot()`. |
 | `buildUrlInputHTML(id, placeholder)` | A URL field with a leading globe icon. |
 | `buildEditHintHTML(extraClass, onclick)` | The ✏️ that fades in on hover to mean "click to edit". |
 | `buildTrashIconHTML()` | The trash `<svg>`. |
-| `buildDragHandleHTML()` | The ≡ drag grip. |
+| `buildDragHandleHTML({ hidden })` | The ≡ drag grip. `hidden` renders an `aria-hidden` placeholder that holds the grip's space, for a row that can't move (the Search bar, My Edits' pinned card). |
 | `makeReorderable(container, opts)` | Pointer-based drag-to-reorder: ghost, drop line, and edge auto-scroll, working on touch as well as mouse. Pair with `buildDragHandleHTML`. |
 
 ## Shared helpers elsewhere
@@ -78,6 +79,7 @@ If you're styling one of these, the rule already exists — extend it rather tha
 | `.seg-ctrl`, `.seg-btn` | `buildSegCtrlHTML` |
 | `.split-btn`, `.split-btn-main`, `.split-btn-arrow`, `.split-btn-menu`, `.split-btn-menu-header` | `buildSplitBtn`, `buildMoreMenuHTML` |
 | `.more-menu-btn`, `.more-menu-caret` | `buildMoreMenuHTML` |
+| `.choice-arrow`, `.choice-menu` | `buildChoiceArrowHTML`, `toggleChoiceMenu` |
 | `.badge` | `buildBadgeHTML` |
 | `.clearable-input`, `.clear-btn` | `buildClearableInputHTML` |
 | `.range-filter`, `.length-range-off` | `buildScoreRangeInputHTML`, `buildLengthRangeInputHTML` (`main.js`) — the stats bar's two range boxes. `.range-filter` carries the shared width/mono/invalid styling **and** is what the stats-bar overflow guard measures, so a third range box must have it or it will overlap the Share control instead of collapsing the histogram. Each box also carries an unstyled per-box hook (`.score-range-label`, `.length-range-label`) that JS and the specs select on. |

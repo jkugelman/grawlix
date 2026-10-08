@@ -74,8 +74,8 @@ test('URL search/sort/match-mode state applies on boot and updates as the UI cha
 
   // UI reflects the URL.
   await expect(page.locator('input[data-key="pattern"]')).toHaveValue('BAGEL');
-  await expect(page.locator('.tool-row-match input[type="checkbox"]')).toBeChecked();
-  await expect(page.locator('.tool-row-match .match-mode-label')).toHaveText('Whole entry');
+  await expect(page.locator('.search-bar .tool-row-match input[type="checkbox"]')).toBeChecked();
+  await expect(page.locator('.search-bar .tool-row-match .choice-label')).toHaveText('Whole entry');
   await expect(page.locator('.col-len .col-sort')).toHaveAttribute('aria-label', 'Sort by Length, ascending');
 
   // The other half of the round-trip: drive the UI, watch the URL update.
@@ -86,9 +86,9 @@ test('URL search/sort/match-mode state applies on boot and updates as the UI cha
   await page.locator('.col-score .col-sort').click();
   await expect.poll(async () => page.evaluate(() => location.search)).toContain('sort=score');
 
-  await page.locator('.search-bar .match-mode-arrow').click();
-  await page.locator('.match-mode-menu button[data-mode="span"]').click();
-  await expect(page.locator('.search-bar .match-mode-label')).toHaveText('Spans words');
+  await page.locator('.search-bar .choice-arrow').click();
+  await page.locator('.choice-menu button[data-value="span"]').click();
+  await expect(page.locator('.search-bar .choice-label')).toHaveText('Spans words');
   await expect.poll(async () => page.evaluate(() => location.search)).toContain('mode=span');
   await page.locator('.search-bar .tool-row-match input[type="checkbox"]').uncheck();
   await expect.poll(async () => page.evaluate(() => location.search)).not.toContain('mode=');

@@ -47,8 +47,10 @@ A **bare** click carries no fixed spelling — it's a wildcard that unifies with
 So clicking a bare `hardscience` whose merged form is spelled `hard science` (from another list) shows that spelled contributor, revealing where the spelling came from.
 Collapsing a bare click to its norm spelling would silently drop exactly those concrete siblings.
 The walk is O(sources) over each wordlist's `_rescoredByNorm` index and includes disabled/non-winning contributors, so it can't reuse the enabled-only merge resolver — the panel is its own component.
-Layout matches the entries table — Entry · Score · Comment · Source, priority order top-down, disabled rows dimmed, no winner markup; the Entry cell shows each wordlist's *actual text* so the casing distinction is visible without exposing norm/display jargon.
+Layout matches the entries table — Entry · Score · Comment · Source, priority order top-down, disabled rows dimmed; the Entry cell shows each wordlist's *actual text* so the casing distinction is visible without exposing norm/display jargon.
 Scores are effective (rescored) only — per-wordlist raw scores are on incomparable scales.
+A small triangle left of a row marks the one All Wordlists takes its score from, with a tooltip saying why: *your edit*, *highest score*, or *first list with this entry* (the worker flags it with `winsMergedRow` against the resolved merge, so it can't disagree with the table).
+The triangles hide while an unsaved edit previews its changes, since they describe the saved merge.
 
 ## Editing
 

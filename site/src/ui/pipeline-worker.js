@@ -11,6 +11,7 @@ import { anyAssetAutoUpdates } from '../engine/assets.js';
 import { state, bumpErrorMarks } from '../data/state.js';
 import { setShippedAllSourcesAxis, setShippedScopedLayout } from '../data/derived.js';
 import { setShippedConfigCounts, setShippedRescoreInputs } from '../data/merge.js';
+import { getMergeMode } from '../data/serialize.js';
 import { MERGED_ID, TUPLE_CAP_MOBILE, TUPLE_CAP_DESKTOP, WEAVE_CAP_MOBILE, WEAVE_CAP_DESKTOP } from '../core/constants.js';
 import { isMobile } from '../core/platform.js';
 import { AppView, activeScoreRange, activeLengthRange } from './app-view.js';
@@ -635,6 +636,7 @@ export function syncWorkerConfig(sources) {
     type: 'syncConfig',
     configId,
     scope,
+    mergeMode: getMergeMode(),
     sources: sources.map(wl => ({
       sourceId: wl.dbKey,
       enabled: wl.enabled,

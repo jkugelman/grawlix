@@ -7,7 +7,7 @@
 // entries table, downloads).
 
 import { test, expect } from '@playwright/test';
-import { stubPublisherFetches, gotoApp, openManagePanel, expectVisible } from './helpers.js';
+import { stubPublisherFetches, gotoApp, reloadApp, openManagePanel, expectVisible } from './helpers.js';
 
 test.beforeEach(async ({ page }) => {
   await stubPublisherFetches(page);
@@ -69,6 +69,64 @@ test('disabling a wordlist excludes its entries from All Wordlists; re-enabling 
   await page.locator('#manage-dialog .manage-apply-btn').click();
   await expect(page.locator('#manage-dialog')).toBeHidden();
   expect(await page.evaluate(() => window.__grawlixTest.getMergedEntry('BLUEBERRY'))).not.toBeNull();
+});
+
+async function setMergeMode(page, label) {
+  await openManagePanel(page);
+  await page.locator('#manage-dialog .manage-merge-choice').click();
+  await page.locator('.choice-menu button', { hasText: label }).click();
+  await expect(page.locator('#manage-dialog .manage-merge-note')).toBeVisible({ visible: label !== 'First wins' });
+  await page.locator('#manage-dialog .manage-apply-btn').click();
+  await expect(page.locator('#manage-dialog')).toBeHidden();
+}
+
+const mergedScore = (page, entry) =>
+  page.evaluate(e => window.__grawlixTest.getMergedEntry(e), entry).then(r => r && [r.score, r.wordlist]);
+
+test('the score modes in Manage pick the winner by score, whatever the order', async ({ page }) => {
+  await gotoApp(page);
+  await page.evaluate(() => window.__grawlixTest.addCustomWordlist({ name: 'First', entries: ['BAGEL'], scores: [50] }));
+  await page.evaluate(() => window.__grawlixTest.addCustomWordlist({ name: 'Second', entries: ['BAGEL'], scores: [90] }));
+  expect(await mergedScore(page, 'BAGEL')).toEqual([50, 'First']);
+
+  await setMergeMode(page, 'Highest score wins');
+  await expect.poll(() => mergedScore(page, 'BAGEL')).toEqual([90, 'Second']);
+
+  await setMergeMode(page, 'Lowest score wins');
+  await expect.poll(() => mergedScore(page, 'BAGEL')).toEqual([50, 'First']);
+  await page.evaluate(() => window.__grawlixTest.moveBefore('Second', 'First'));
+  await expect.poll(() => mergedScore(page, 'BAGEL')).toEqual([50, 'First']);
+
+  await setMergeMode(page, 'First wins');
+  await expect.poll(() => mergedScore(page, 'BAGEL')).toEqual([90, 'Second']);
+});
+
+test('under Highest score wins an edit can still lower a score', async ({ page }) => {
+  await gotoApp(page);
+  await page.evaluate(() => window.__grawlixTest.addCustomWordlist({ name: 'Lister', entries: ['CASSIAN'], scores: [50] }));
+  await setMergeMode(page, 'Highest score wins');
+  await page.evaluate(() => window.__grawlixTest.createMyEntry('CASSIAN', 30));
+  await expect.poll(() => mergedScore(page, 'CASSIAN')).toEqual([30, 'My Edits']);
+});
+
+test('My Edits is pinned in Manage, and a demoted or disabled one is restored at load', async ({ page }) => {
+  await gotoApp(page);
+  await page.evaluate(() => window.__grawlixTest.addCustomWordlist({ name: 'Lister', entries: ['BAGEL'], scores: [50] }));
+  await openManagePanel(page);
+  const editsCard = page.locator('#manage-dialog .wordlist-card').first();
+  await expect(editsCard).toContainText('My Edits');
+  await expect(editsCard.locator('.drag-handle:not([aria-hidden])')).toHaveCount(0);
+  await expect(editsCard.locator('.toggle')).toHaveCount(0);
+  await page.locator('#manage-dialog .dialog-close-btn').click();
+
+  // Only an older version could store this order; the test API reaches past the UI.
+  await page.evaluate(() => window.__grawlixTest.moveBefore('Lister', 'My Edits'));
+  await page.evaluate(() => window.__grawlixTest.setEnabled('My Edits', false));
+  await reloadApp(page);
+  await page.evaluate(() => window.__grawlixTest.createMyEntry('BAGEL', 30));
+  await expect.poll(() => mergedScore(page, 'BAGEL')).toEqual([30, 'My Edits']);
+  await openManagePanel(page);
+  await expect(page.locator('#manage-dialog .wordlist-card').first()).toContainText('My Edits');
 });
 
 // A search keystroke changes only the filter, not the sources, so it must reuse

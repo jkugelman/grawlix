@@ -215,13 +215,13 @@ For My Edits (as for any non-`All Wordlists` scope) the inline editor slot on th
 It gets the same split Download / Download original as other sources.
 Clicking a score cell in the entries table opens an inline editor — `ScorePicker` when quick-pick options are configured, otherwise `EntryPanel` focused on the score (a comment click selects the row); saving routes the edit into My Edits regardless of which wordlist sourced the row.
 From the My Edits scope the user can also add new entries and delete entries (with undo).
-It is reorderable and can be disabled like any other wordlist (position sets merge priority on ties); it's created on top and enabled, but neither is pinned — edits still route into it from any scope regardless of where it sits or whether it's enabled.
-The only special rule the UI enforces is that it's not deletable.
+It is pinned on top of the list and always enabled (Manage gives it no drag handle or toggle, and boot restores either if an older version changed them), and it can't be deleted.
+It wins the merge whenever it's eligible, under every merge mode (`pickWinner`, `engine/corpus.js`).
 
 **Merged wordlist** — `MERGED_ID = '__merged__'` selects a union of all enabled sources, deduped by entry.
-The highest-priority enabled source that contributes wins, not the highest score.
+A global merge mode, set in Manage wordlists, picks the winner: **First wins** (the default, the highest-priority enabled source that contributes), **Highest score wins** (the highest rescored score, ties to the higher-priority list), or **Lowest score wins**; My Edits wins in every mode.
 Displayed as `All Wordlists` (the value of `MERGED_NAME`) at the top of the scope selector dropdown (`WordlistSelector`).
-The worker builds the merge (`buildCorpus`/`resolveCorpus`, `engine/corpus.js`), resolving the winner per `(norm, display)` while bucketing all enabled sources' rescored entries (highest-priority eligible contributor wins); main holds no merged corpus, only the already-resolved rows the worker ships, so the entries scroller has no raw-vs-effective distinction of its own.
+The worker builds the merge (`buildCorpus`/`resolveCorpus`, `engine/corpus.js`), resolving the winner per `(norm, display)` with `pickWinner` while bucketing all enabled sources' rescored entries; main holds no merged corpus, only the already-resolved rows the worker ships, so the entries scroller has no raw-vs-effective distinction of its own.
 My Edits edits apply optimistically via `applyEditsChange` (write-set into `rawEntries` + cache invalidation) and drive an `editEntry`/`deleteEntry` worker command that splices the worker's owned corpus in O(affected norms); the merged view then refreshes by re-running the pipeline (`refreshMergedScroller`), not by patching a cached main-side merge.
 
 **One spelling per norm** — a norm can carry several spellings (`eta`/`ETA`, `theirs`/`the IRS`), each with its own score and comment.

@@ -5,6 +5,7 @@
 Grawlix is live with real users, so **stored data is migrated forward on every schema change — never wiped.**
 When you change the shape of anything in localStorage (the `meta` blob or a standalone key) or an IndexedDB record, bump `SCHEMA_VERSION` (in `site/src/data/migrations.js`) *and* register a `MIGRATIONS[v]` entry — an `ls` step (localStorage) and/or an `idb` step (IDB records) — that upgrades existing data in place.
 A bump with no migration is a bug.
+Adding a field that the reader defaults when it's absent (`mergeMode` and `trashScore` in the merged-settings blob) isn't a shape change and needs no bump: old data reads as the default.
 
 Wiping on a bump — a confirm dialog offering to clear all local data — suits an app whose users have nothing worth keeping, where migration code costs more than a wipe.
 Grawlix's users have data they'd be upset to lose (a custom-rescored wordlist, hand-edited entries, a personalized rule set).

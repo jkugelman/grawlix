@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildCorpus, isDistinguishing, concreteDisplay } from '../../site/src/engine/corpus.js';
+import { buildCorpus, isDistinguishing, concreteDisplay, computeMergedBucket, mergedRowsForNorm, winsMergedRow } from '../../site/src/engine/corpus.js';
 import { compileRescoreRules, getRescoredByNorm, groupEntries } from '../../site/src/engine/rescore.js';
 import { bestRowForNorm } from '../../site/src/engine/corpus.js';
 import { toNorm } from '../../site/src/engine/norm.js';
@@ -45,14 +45,16 @@ const displayEligible = (d, targetDisplay) =>
 
 function localGatherProvenance(sources, norm, targetDisplay) {
   const rows = [];
+  const mergedRows = computeMergedBucket(norm, sources).rows;
   for (const wl of sources) {
     const group = getRescoredByNorm(wl).get(norm);
     if (group === undefined) continue;
     const entries = groupEntries(group);
     const distinguishing = isDistinguishing(entries);
     for (const e of entries) {
-      if (!displayEligible(concreteDisplay(e, norm, distinguishing), targetDisplay)) continue;
-      rows.push({ wordlist: wl, entry: e });
+      const d = concreteDisplay(e, norm, distinguishing);
+      if (!displayEligible(d, targetDisplay)) continue;
+      rows.push({ wordlist: wl, entry: e, winner: winsMergedRow(mergedRows, wl, d, targetDisplay) });
     }
   }
   return rows;
@@ -81,15 +83,18 @@ function workerFetchProvenance(ownedBuilt, ownedMerged, { typedRaw, previewRaw, 
 
   const rows = [];
   if (targetNorm != null) {
+    const mergedRows = mergedRowsForNorm(ownedMerged, targetNorm);
     for (const wl of ownedBuilt) {
       const group = getRescoredByNorm(wl).get(targetNorm);
       if (group === undefined) continue;
       const entries = groupEntries(group);
       const distinguishing = isDistinguishing(entries);
       for (const e of entries) {
-        if (!displayEligible(concreteDisplay(e, targetNorm, distinguishing), targetDisplay)) continue;
+        const d = concreteDisplay(e, targetNorm, distinguishing);
+        if (!displayEligible(d, targetDisplay)) continue;
         rows.push({
           sourceId: wl.dbKey, enabled: wl.enabled !== false,
+          winner: winsMergedRow(mergedRows, wl, d, targetDisplay),
           entry: { norm: e.norm, display: e.display ?? null, score: e.score, rawScore: e.rawScore, comment: e.comment || '' },
         });
       }
@@ -109,8 +114,8 @@ function localToWire(localRows, localPrev) {
       norm: localPrev.norm, display: localPrev.display ?? null,
       score: localPrev.score, comment: localPrev.comment || '', sourceId: localPrev.wordlist.dbKey,
     } || null,
-    rows: localRows.map(({ wordlist, entry }) => ({
-      sourceId: wordlist.dbKey, enabled: wordlist.enabled !== false,
+    rows: localRows.map(({ wordlist, entry, winner }) => ({
+      sourceId: wordlist.dbKey, enabled: wordlist.enabled !== false, winner,
       entry: { norm: entry.norm, display: entry.display ?? null, score: entry.score, rawScore: entry.rawScore, comment: entry.comment || '' },
     })),
   };
@@ -143,8 +148,8 @@ test('per-keystroke: typed OCEAN — preview is the Hi winner, provenance spans 
   });
   // Typing scopes to the whole norm: the disabled Off source is present, Hi wins.
   assert.equal(worker.preview.sourceId, 'db_Hi');
-  assert.deepStrictEqual(worker.rows.map(r => [r.sourceId, r.enabled]),
-    [['db_Hi', true], ['db_Lo', true], ['db_Off', false]]);
+  assert.deepStrictEqual(worker.rows.map(r => [r.sourceId, r.enabled, r.winner]),
+    [['db_Hi', true, true], ['db_Lo', true, false], ['db_Off', false, false]]);
 });
 
 test('initial open of a spelled variant (the IRS): provenance scopes to that spelling + the cross-source bare', () => {
@@ -164,8 +169,8 @@ test('initial open of the bare/norm spelling: a bare click is a wildcard, so pro
   });
   // A bare entry unifies with every spelling, so all of Rich's rows (both spellings
   // plus its own bare) and Plain's bare row show — nothing is held back for Related.
-  assert.deepStrictEqual(worker.rows.map(r => [r.sourceId, r.entry.display]),
-    [['db_Rich', 'the IRS'], ['db_Rich', 'Theirs'], ['db_Rich', null], ['db_Plain', null]]);
+  assert.deepStrictEqual(worker.rows.map(r => [r.sourceId, r.entry.display, r.winner]),
+    [['db_Rich', 'the IRS', true], ['db_Rich', 'Theirs', true], ['db_Rich', null, true], ['db_Plain', null, false]]);
 });
 
 test('My Edits norm: provenance carries the edits source row, preview wins from it', () => {

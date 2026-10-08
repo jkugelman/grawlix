@@ -66,7 +66,7 @@ It lists All Wordlists (top) then the sources as icon+label rows — no checkbox
 Rendered via the shared `buildIconHTML` / `getWordlistIcon` (never stored HTML), it is the one control on every viewport.
 A click sets scope.
 A disabled wordlist renders grayed out (a disabled-select-option look, a modifier class — *not* `aria-disabled`/`disabled`, which would block the click) but stays selectable: disabling means "exclude from the All Wordlists merge," not "can't look at it," and the disabled state reads straight off the control with no separate note.
-The closed trigger is a borderless title (the selector doubles as the screen's title); the open menu lists the same rows plus two signals — each row's **"X of Y entries used"** contribution count (`wordlistCardMeta` — how many of a list's entries survive dedup/priority in the merge, not its raw count), and an update dot per row, with an aggregate update dot on the collapsed trigger so a folded selector still flags it.
+The closed trigger is a borderless title (the selector doubles as the screen's title); the open menu lists the same rows plus two signals — each row's **"X of Y entries used"** contribution count (`wordlistCardMeta` — how many of a list's entries win in the merge (dedup and the merge mode), not its raw count), and an update dot per row, with an aggregate update dot on the collapsed trigger so a folded selector still flags it.
 
 **The manage panel lives inside the dropdown.**
 Every change to the set of wordlists or to one wordlist's setup — reorder, enable/disable, add, configure, delete — is reached from a **Manage wordlists** footer below the scope rows, because the picker and the manager operate on the same object (the set of wordlists): the picker is the read view (scope to one), the manage panel its edit view.
@@ -79,7 +79,7 @@ The discoverability trade — a dropdown footer advertises less than a visible b
 A visible adjustments button next to the selector was the original plan; it was demoted into the dropdown, and the bar slot it would have taken went to the rescore trigger instead.
 
 **The panel is Save-gated, and that is the performance strategy.**
-Reorder and toggle operate on a **staged shadow** of order + enabled flags — a model the panel mutates and renders from, separate from `state.sources` — so no merge is touched while staging and the table behind the panel keeps showing the pre-change state.
+Reorder, toggle and the merge mode operate on a **staged shadow** of order + enabled flags + mode — a model the panel mutates and renders from, separate from `state.sources` — so no merge is touched while staging and the table behind the panel keeps showing the pre-change state.
 **Save** commits the whole batch in one `batchUpdate` (replay the staged order + enabled onto the real state, persist, one rebuild) behind the modal, where a brief pause is exactly what a user expects after clicking Save; **Cancel** discards.
 **Save** is disabled whenever the staged shadow matches canonical, so there's no no-op commit — and because an add commits immediately, adding a list alone leaves the shadow clean and Save dimmed.
 This converts what was a freeze on *every* drag and *every* toggle into one expected pause on a deliberate confirm.
@@ -87,13 +87,22 @@ This converts what was a freeze on *every* drag and *every* toggle into one expe
 Configure and Delete work the same way: each commits immediately through its own dialog, the row re-renders (or drops out of the shadow), and staged reorders/toggles of the other rows survive.
 Closing follows the app-wide dialog rule (`createDialog`'s `isDirty` option): the ✕, a backdrop click, and Escape close a clean panel at once and ask "Discard changes?" when something is staged; **Cancel** is an explicit discard and never asks.
 
-**My Edits isn't pinned — reorder and disable apply to it like any list.**
-The panel treats My Edits as an ordinary row: drag it anywhere, toggle it off; only delete is blocked.
-It's *created* on top and enabled — so edits win in All Wordlists by default — but neither is enforced.
-Demote it below another list, or disable it, and edits still route into My Edits; they just stop winning the affected norms (or drop from the merge while disabled).
-This is coherent, not broken: the worker's in-place edit-patch re-merges each affected norm from *all* enabled sources (`computeMergedBucket` over `ownedBuilt`, not the edited source alone — [`pipeline.md`](pipeline.md) § *The worker owns the corpus*), so the cached corpus stays byte-identical to a full rebuild at any position or enabled state; no path assumes My Edits wins.
-The cost is a footgun — an edit can silently fail to surface — accepted for now on the Ingrid model: you reordered or disabled it deliberately, so you own the result.
-Pinning it on top and always-enabled (the search bar's permanence pattern — [`design.md`](design.md) § *Search is a tool*) is a deliberate future option, not yet taken.
+**My Edits is pinned on top and always enabled.**
+Its card has no drag handle and no toggle (`pinned` on `buildWordlistCardHTML`), nothing can be dropped above it, and it can't be deleted.
+A demoted or disabled My Edits silently swallowed edits: the save toast confirmed, but the merge skipped the list, and the edit planner couldn't see its rows.
+Older versions allowed both, so boot (`ensureEdits`) moves a stored My Edits back to the top and re-enables it.
+
+**The merge mode picks the winner.**
+A dropdown above the list (the shared choice dropdown, `toggleChoiceMenu`, styled like Search's match mode) chooses which eligible contributor supplies a merged row's score, spelling and source:
+- **First wins** (the default): the highest-priority one.
+- **Highest score wins**: the highest rescored score, ties going to the higher-priority list.
+- **Lowest score wins**: the lowest, likewise.
+
+My Edits wins whenever it's eligible, in every mode (`pickWinner`, `engine/corpus.js`), or a score mode would stop an edit from lowering (or raising) a score, and the edit planner's downscore rows ([`entry-panel.md`](entry-panel.md) § *Editing*) would hide nothing.
+Picking either score mode reveals a line under the dropdown, *(My Edits always wins)*, so the exception is visible rather than tucked into a tooltip; the line keeps its space while hidden, so the dialog never resizes.
+The score modes assume every list is rescored onto the common scale; a list left on its raw scale (0–100, or an auto-seeded list with blank outputs) takes over.
+The mode is stored as `mergeMode` in the merged-settings blob beside `trashScore` (read as `first` when absent), staged with the rest of the panel, and sent to the worker in every `syncConfig`.
+A single-list corpus is the same under every mode, since a list has at most one entry eligible for each spelling.
 
 **Per-source actions.**
 When a source is scoped the bar's right cluster is **Download + a `Rescoring` text button + a slim `⋮` kebab** (**Fetch** for a URL-backed list, **Import**).
@@ -272,7 +281,7 @@ The spelled form is the proof the bare one is the literal word, not an ambiguous
 Without the carve-out the bare entry's wildcard absorbs the sibling's spelling and the two genuinely-distinct words collapse to one row — `bucketContributors` and the worker's per-norm `computeMergedBucket` apply the rule in lockstep so a full rebuild and an in-place edit splice agree.
 
 **Comment falls through blanks.**
-Score, display, and source attribution come from the highest-priority eligible contributor, but `comment` walks the eligibility chain for the first non-blank value.
+Score, display, and source attribution come from the winning eligible contributor (§ *The wordlist bar*, merge mode), but `comment` walks the eligibility chain, in priority order, for the first non-blank value.
 A high-priority entry without a comment doesn't shadow a lower-priority entry's curated note — a common case once a plain personal wordlist sits above a rich annotated one to override scoring.
 The split means a row can show one wordlist as its source while displaying another's comment; the UI doesn't flag the split (no per-field source attribution).
 
@@ -603,7 +612,7 @@ People don't need to be cajoled into adopting the unified scale; the app is full
 The only thing that surfaces in the selector is an available **update** — see § *Fetching & updates*.
 
 **Repeated entries collapse at parse.**
-Two lines sharing a `(norm, display)` dedupe to the first at parse time (`parseWordlist` and the columnar `gatherColumns`), ignoring the later copy's score/comment — the same first-wins resolution the merge already applies to a same-norm bucket.
+Two lines sharing a `(norm, display)` dedupe to the first at parse time (`parseWordlist` and the columnar `gatherColumns`), ignoring the later copy's score/comment — the same resolution **First wins** applies across lists.
 Enforcing it at the parse boundary is what makes the entries table, the counts, and the provenance panel agree; before, only the provenance table diverged, listing the redundant row twice (the reported "same word shows up twice").
 Distinct spellings (`eta`/`ETA`, a bare `theirs` beside a spelled `the IRS`) differ in the key and survive — the deliberate rich-list split, not a duplicate.
 The dedupe is in-memory over the untouched stored file, so **Download original** stays verbatim while the rescored **Download** and the disk mirror reflect it.

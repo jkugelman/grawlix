@@ -29,7 +29,7 @@ import {
   isMultiLaneTier, rowMinScore, rowMaxScore, rowMinLength, rowMaxLength,
 } from '../engine/sort.js';
 import { state, getEditsWordlist } from '../data/state.js';
-import { getTrashScore } from '../data/serialize.js';
+import { getTrashScore, getMergeMode } from '../data/serialize.js';
 import { mergedEntryCount, mergedWidthBound } from '../data/merge.js';
 import { rescoreEntry, getRescoredByNorm, groupEntries } from '../engine/rescore.js';
 import { buildScoreBadgeHTML, buildScoreCellHTML } from '../model/score-display.js';
@@ -3413,10 +3413,10 @@ export const EntryPanel = (() => {
   function buildBaseRows() {
     const edits = getEditsWordlist();
     const rows = [];
-    for (const { sourceId, enabled, entry } of (shippedProvRows ?? [])) {
+    for (const { sourceId, enabled, winner, entry } of (shippedProvRows ?? [])) {
       const wordlist = state.sources.find(s => s.dbKey === sourceId);
       if (!wordlist) continue;
-      rows.push({ wordlist, entry, enabled, isEdits: wordlist === edits, saved: true });
+      rows.push({ wordlist, entry, enabled, winner, isEdits: wordlist === edits, saved: true });
     }
     return rows;
   }
@@ -3550,10 +3550,19 @@ export const EntryPanel = (() => {
       && base.score === score && (base.comment ?? '') === comment);
   }
 
+  function winnerTitle(wordlist) {
+    const why = wordlist.type === 'edits' ? 'your edit'
+      : getMergeMode() !== 'first' ? `${getMergeMode()} score`
+      : 'first list with this entry';
+    return `Used in ${MERGED_NAME}: ${why}`;
+  }
+
   function renderProvenanceRowsHTML(rows) {
     if (!rows.length) return '';
     const adoptLabel = `Don't ${adoptWillReplace() ? 'update' : 'add to'} My Edits`;
-    const body = rows.map(({ wordlist, entry, enabled, diff, saved, isEdits, isStaged, adoptStaged }) => {
+    // The flags describe the saved merge, which a pending edit is about to change.
+    const markWinners = !rows.some(r => r.diff);
+    const body = rows.map(({ wordlist, entry, enabled, winner, diff, saved, isEdits, isStaged, adoptStaged }) => {
       const isScopedRow = activeReadOnly && wordlist === state.selected;
       const disabled = wordlist ? wordlist.enabled === false : enabled === false;
       const cls = ['entry-panel-prov-row'];
@@ -3574,7 +3583,11 @@ export const EntryPanel = (() => {
           + ` data-norm="${esc(entry.norm)}" data-display="${esc(displayOf(entry))}"`
           + ` title="${label}" aria-label="${label}">${buildTrashIconHTML()}</button>`
         : '';
+      const mark = markWinners && winner
+        ? `<span class="entry-panel-prov-winner" title="${esc(winnerTitle(wordlist))}" aria-label="${esc(winnerTitle(wordlist))}">▸</span>`
+        : '';
       return `<tr class="${cls.join(' ')}">`
+        + `<td class="entry-panel-prov-mark">${mark}</td>`
         + `<td class="entry-panel-prov-entry">${esc(displayOf(entry))}</td>`
         + `<td class="entry-panel-prov-score">${buildScoreCellHTML(entry, true)}</td>`
         + `<td class="entry-panel-prov-comment"${comment ? ` title="${esc(comment)}"` : ''}>${esc(comment)}</td>`
@@ -3584,6 +3597,7 @@ export const EntryPanel = (() => {
     }).join('');
     return `<table class="entry-panel-prov">`
       + `<thead><tr>`
+      + `<th class="entry-panel-prov-mark"></th>`
       + `<th class="entry-panel-prov-entry">Entry</th>`
       + `<th class="entry-panel-prov-score">Score</th>`
       + `<th class="entry-panel-prov-comment">Comment</th>`

@@ -39,7 +39,23 @@ export function bucketContributors(sourceList) {
   return buckets;
 }
 
-export function resolveCorpus(buckets, sourceList) {
+// Contributors must arrive in priority order: ties go to the first.
+// My Edits wins whenever it's eligible, in every mode: a score mode would otherwise
+// stop an edit from lowering (or raising) a score, and the edit planner's
+// trash-score rows only hide a foreign spelling if they win.
+export function pickWinner(contributors, eligible, mode) {
+  let winner = null;
+  for (const c of contributors) {
+    if (!eligible(c)) continue;
+    if (c.wordlist.type === 'edits') return c;
+    if (!winner
+      || (mode === 'highest' && c.score > winner.score)
+      || (mode === 'lowest' && c.score < winner.score)) winner = c;
+  }
+  return winner;
+}
+
+export function resolveCorpus(buckets, sourceList, mode = 'first') {
   const entries = [];
   const byKey = new Map();
   const sourceCountMap = new Map();
@@ -63,7 +79,7 @@ export function resolveCorpus(buckets, sourceList) {
     const countedContributors = new Set();
     for (const variant of variants) {
       const eligible = c => c.display === variant || c.display === null;
-      const winner = contributors.find(eligible);
+      const winner = pickWinner(contributors, eligible, mode);
       if (!winner) continue;
       const commenter = contributors.find(c => eligible(c) && c.comment) ?? winner;
       const row = { norm, display: variant, score: winner.score, rawScore: winner.rawScore, comment: commenter.comment, wordlist: winner.wordlist, family: '', _i: -1 };
@@ -88,8 +104,8 @@ export function resolveCorpus(buckets, sourceList) {
   return { entries, sourceCounts, norms: new Set(entries.map(e => e.norm)), byKey };
 }
 
-export function buildCorpus(sourceList) {
-  return resolveCorpus(bucketContributors(sourceList), sourceList);
+export function buildCorpus(sourceList, mode = 'first') {
+  return resolveCorpus(bucketContributors(sourceList), sourceList, mode);
 }
 
 // Assigned after resolution, not in the row literal: the key anchors against the
@@ -115,33 +131,44 @@ export function scopeSourceIds(norm, built, scopeKey) {
 
 // Merged: display-aware, kept in lockstep with resolveCorpus's `eligible` (drift and
 // the matrix silently mis-lists). `activeIds` are the lists *sourcing* a shown value —
-// the score winner, the displayed spelling, the comment — each the ONE highest-priority
-// holder, so a duplicate with the same value is muted. Spelling source and winner differ
+// the score winner (the merge mode's pick), the displayed spelling and the comment, the
+// last two each the ONE highest-priority holder, so a duplicate with the same value is
+// muted. Spelling source and winner differ
 // only when a bare winner takes the score while a richer list supplies the spelling.
-export function mergedContributors(norm, display, built) {
+export function mergedContributors(norm, display, built, mode) {
   const sourceIds = [];
-  let winner = null, commentWl = null, displayWl = null;
+  const eligibles = [];
+  let commentWl = null, displayWl = null;
   for (const wl of built) {
     if (!wl.enabled) continue;
     const group = sourceAccessor(wl).rescoredForNorm(norm);
     if (group === undefined) continue;
     const distinguishing = isDistinguishing(group);
-    let contributes = false;
+    let eligibleEntry = null;
     for (const e of group) {
       const d = concreteDisplay(e, norm, distinguishing);
       if (d !== display && d !== null) continue;
-      contributes = true;
+      eligibleEntry = e;
       if (!displayWl && display !== null && d === display) displayWl = wl;
       if (!commentWl && e.comment) commentWl = wl;
     }
-    if (contributes) {
+    if (eligibleEntry) {
       sourceIds.push(wl.dbKey);
-      if (!winner) winner = wl;
+      eligibles.push({ wordlist: wl, score: eligibleEntry.score });
     }
   }
+  const winner = pickWinner(eligibles, () => true, mode)?.wordlist;
   const active = new Set([winner, displayWl, commentWl].filter(Boolean).map(wl => wl.dbKey));
   const activeIds = sourceIds.filter(id => active.has(id));
   return { sourceIds, activeIds };
+}
+
+// Matching a merged row by list alone is sound only because a list has at most one
+// entry eligible for a spelling (isDistinguishing concretizes a bare beside a sibling).
+export function winsMergedRow(rows, wordlist, d, targetDisplay) {
+  return rows.some(r => r.wordlist === wordlist
+    && (targetDisplay == null || r.display === targetDisplay)
+    && (d === null || d === r.display));
 }
 
 export function mergeKey(norm, display) {
@@ -189,7 +216,7 @@ export function diffWordlistEntries(oldEntries, newEntries) {
 // Must reproduce buildCorpus's per-bucket logic exactly — including deduping
 // winners by contributor, not wordlist — or the worker's in-place owned-corpus
 // splice (which calls this per affected norm) drifts from a full rebuild.
-export function computeMergedBucket(norm, sources) {
+export function computeMergedBucket(norm, sources, mode = 'first') {
   const contributors = [];
   const displays = new Set();
   for (const wl of sources) {
@@ -209,7 +236,7 @@ export function computeMergedBucket(norm, sources) {
   const variants = displays.size > 0 ? [...displays].sort() : [null];
   for (const variant of variants) {
     const eligible = c => c.display === variant || c.display === null;
-    const winner = contributors.find(eligible);
+    const winner = pickWinner(contributors, eligible, mode);
     if (!winner) continue;
     const commenter = contributors.find(c => eligible(c) && c.comment) ?? winner;
     rows.push({ norm, display: variant, score: winner.score, comment: commenter.comment, wordlist: winner.wordlist, family: '', _i: -1 });

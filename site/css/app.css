@@ -662,6 +662,8 @@ mark.find-hit:last-child,
 .entry-panel-prov th { text-align: left; font-weight: 600; color: var(--muted); padding: 2px 8px 4px 0; border-bottom: 1px solid var(--border3); white-space: nowrap; }
 .entry-panel-prov td { padding: 3px 8px 3px 0; vertical-align: top; border-bottom: 1px solid var(--border3); }
 .entry-panel-prov tr:last-child td { border-bottom: none; }
+.entry-panel-prov .entry-panel-prov-mark { width: 1%; padding-right: 4px; }
+.entry-panel-prov-winner { color: var(--accent); font-size: 11px; cursor: default; }
 .entry-panel-prov-entry { color: var(--text); overflow-wrap: anywhere; }
 td.entry-panel-prov-entry { font-family: var(--font-mono); }
 .entry-panel-prov-score { width: 1%; white-space: nowrap; text-align: right; }
@@ -1019,13 +1021,16 @@ dialog h2 { font-size: 16px; margin-bottom: 14px; padding-right: 24px; }
 }
 
 #manage-dialog { --dialog-w: 400px; }
+.manage-merge > .dialog-row { margin-bottom: 0; }
+.manage-merge-note { text-align: right; }
+.manage-merge-note.off { visibility: hidden; }
+.manage-merge-choice { cursor: pointer; user-select: none; }
 .manage-list { max-height: 50vh; overflow-y: auto; margin: 4px 0; background: var(--surface); border: 1px solid var(--border2); border-radius: 6px; }
 .manage-list .wordlist-card:last-child { border-bottom: none; }
 .manage-row-kebab .more-menu-btn { width: 28px; height: 28px; padding: 0; border: none; border-radius: 50%; background: none; color: var(--text); font-size: 18px; font-weight: 700; }
 .manage-row-kebab .more-menu-btn:hover:not(:disabled), .manage-row-kebab.open .more-menu-btn { background: var(--border); }
 .manage-row-kebab .split-btn-menu { min-width: 130px; }
 .manage-row-kebab .split-btn-menu .manage-row-delete { color: var(--err-fg); }
-.manage-row-menu-spacer { width: 28px; flex-shrink: 0; }
 .manage-add-row { width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 8px; padding: 8px 10px; border: 1px dashed var(--border3); border-radius: 6px; background: none; color: var(--muted); font-size: 13px; font-weight: 600; cursor: pointer; transition: background 0.1s, color 0.1s, border-color 0.1s; }
 .manage-add-row:hover { background: var(--hover); color: var(--accent); border-color: var(--accent); }
 .manage-add-row .add-wordlist-icon { font-size: 15px; line-height: 1; }
@@ -1396,12 +1401,12 @@ body.picker-expanded #picker-backdrop { opacity: 1; }
 .match-mode-toggle { font-size: 12px; }
 .match-mode-toggle:hover { color: var(--text); }
 .match-mode-toggle:focus-within { color: var(--text); }
-.match-mode-arrow { display: inline-flex; align-items: center; justify-content: center; padding: 3px 4px; background: none; border: none; cursor: pointer; color: var(--muted); }
-.match-mode-arrow:hover:not(:disabled) { color: var(--text); }
-.match-mode-arrow:focus-visible { outline: 1px solid var(--accent); outline-offset: 1px; border-radius: 3px; }
-.match-mode-arrow .more-menu-caret { width: 8px; height: 5px; display: block; }
-.match-mode-menu button::before { content: ""; display: inline-block; width: 1.2em; }
-.match-mode-menu button[aria-checked="true"]::before { content: "✓"; }
+.choice-arrow { display: inline-flex; align-items: center; justify-content: center; padding: 3px 4px; background: none; border: none; cursor: pointer; color: var(--muted); }
+.choice-arrow:hover:not(:disabled) { color: var(--text); }
+.choice-arrow:focus-visible { outline: 1px solid var(--accent); outline-offset: 1px; border-radius: 3px; }
+.choice-arrow .more-menu-caret { width: 8px; height: 5px; display: block; }
+.choice-menu button::before { content: ""; display: inline-block; width: 1.2em; }
+.choice-menu button[aria-checked="true"]::before { content: "✓"; }
 .tool-row-param-text { width: 200px; max-width: 100%; min-width: 0; justify-self: start; }
 .tool-row-param-text .clearable-input { flex: 1 1 auto; }
 /* Must be an explicit width, not a max-width bump: the grid column is content-sized,

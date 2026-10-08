@@ -102,10 +102,8 @@ export function buildParamHTML(param, value, toolKey, wiring) {
     return `<span class="tool-row-param tool-row-match" data-mode="${esc(current.value)}">`
       + `<label class="match-mode-toggle"${titleAttr}>`
       + `<input type="checkbox"${value ? ' checked' : ''}${wiring} aria-label="${esc(param.label)}">`
-      + `<span class="match-mode-label">${esc(current.label)}</span></label>`
-      + `<button type="button" class="match-mode-arrow" title="Change match mode"`
-      + ` aria-haspopup="menu" aria-expanded="false" aria-label="Change match mode">`
-      + `<svg class="more-menu-caret" aria-hidden="true" viewBox="0 0 8 5"><use href="#icon-arrow"/></svg></button></span>`;
+      + `<span class="choice-label">${esc(current.label)}</span></label>`
+      + `${buildChoiceArrowHTML('Change match mode')}</span>`;
   }
   if (param.type === 'segmented') {
     const cur = String(value ?? param.default ?? param.choices[0].value);
@@ -278,6 +276,40 @@ function placeOpenMenu() {
   positionPopover(menu, anchor, { placement, align, offset });
 }
 
+// ─── Choice menu ─────────────────────────────────────────────────────────────
+
+export function buildChoiceArrowHTML(title) {
+  return `<button type="button" class="choice-arrow" title="${esc(title)}"`
+    + ` aria-haspopup="menu" aria-expanded="false" aria-label="${esc(title)}">`
+    + `<svg class="more-menu-caret" aria-hidden="true" viewBox="0 0 8 5"><use href="#icon-arrow"/></svg></button>`;
+}
+
+let _choiceMenu = null, _choicePick = null;
+
+export function toggleChoiceMenu(trigger, { choices, current, anchor = trigger, onPick }) {
+  if (!_choiceMenu) {
+    _choiceMenu = document.createElement('div');
+    _choiceMenu.className = 'split-btn-menu choice-menu';
+    _choiceMenu.setAttribute('popover', 'manual');
+    _choiceMenu.setAttribute('role', 'menu');
+    _choiceMenu.addEventListener('click', e => {
+      const opt = e.target.closest('button[data-value]');
+      if (!opt) return;
+      const pick = _choicePick;
+      closeMenus();
+      pick(opt.dataset.value);
+    });
+  }
+  if (isMenuOpen(_choiceMenu) && _openMenu.trigger === trigger) { closeMenus(); return; }
+  _choicePick = onPick;
+  // A modal dialog makes everything outside it inert, top layer or not.
+  (trigger.closest('dialog') ?? document.body).appendChild(_choiceMenu);
+  _choiceMenu.innerHTML = choices.map(c =>
+    `<button type="button" role="menuitemradio" aria-checked="${c.value === current}"`
+    + ` data-value="${esc(c.value)}">${esc(c.label)}</button>`).join('');
+  openMenu(_choiceMenu, trigger, { anchor, align: 'left', offset: 4 });
+}
+
 export function openMenu(menu, trigger, { anchor = trigger, placement = 'below', align = 'right', offset = 3, onClose = null } = {}) {
   closeMenus();
   _openMenu = { menu, trigger, anchor, placement, align, offset, onClose };
@@ -340,8 +372,10 @@ export function buildTrashIconHTML() {
   return `<svg class="icon-trash"><use href="#icon-trash"/></svg>`;
 }
 
-export function buildDragHandleHTML() {
-  return `<span class="drag-handle" title="Drag to reorder" aria-label="Drag to reorder">≡</span>`;
+export function buildDragHandleHTML({ hidden = false } = {}) {
+  return hidden
+    ? `<span class="drag-handle" aria-hidden="true">≡</span>`
+    : `<span class="drag-handle" title="Drag to reorder" aria-label="Drag to reorder">≡</span>`;
 }
 
 let _dragGhostLayer = null;

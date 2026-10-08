@@ -40,7 +40,7 @@ test('the match mode anchors the sounds', async ({ page }) => {
   }));
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'phone_search', params: { entry: 'are' } }]));
   await expectVisible(page, ['zarbiter', 'arty']);
-  await page.locator('.tool-row .match-mode-arrow').click();
-  await page.locator('.split-btn-menu button[data-mode="start"]').click();
+  await page.locator('.tool-row .choice-arrow').click();
+  await page.locator('.split-btn-menu button[data-value="start"]').click();
   await expectVisible(page, ['arty']);
 });

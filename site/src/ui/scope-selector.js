@@ -36,6 +36,7 @@ export function buildWordlistCardHTML(icon, name, meta, opts = {}) {
     severityTitle = '',
     draggable     = true,
     toggle        = true,
+    pinned        = false,
     extraActions  = '',
   } = opts;
 
@@ -44,7 +45,7 @@ export function buildWordlistCardHTML(icon, name, meta, opts = {}) {
   if (!enabled)   classes.push('disabled');
   if (!populated) classes.push('no-data');
 
-  const dragHandle = draggable ? buildDragHandleHTML() : '';
+  const dragHandle = pinned ? buildDragHandleHTML({ hidden: true }) : draggable ? buildDragHandleHTML() : '';
 
   const badge = buildBadgeHTML(severity, { title: severityTitle });
 
@@ -55,7 +56,7 @@ export function buildWordlistCardHTML(icon, name, meta, opts = {}) {
 
   const toggleTitle = !populated ? 'Click to import'
     : enabled ? 'Enabled — click to disable' : 'Disabled — click to enable';
-  const cardActions = toggle ? `<div class="card-actions">
+  const cardActions = toggle && !pinned ? `<div class="card-actions">
     <label class="toggle" title="${toggleTitle}" aria-label="Toggle ${esc(name)}">
       <input type="checkbox"${populated && enabled ? ' checked' : ''}${populated ? '' : ' disabled'}>
       <span class="toggle-slider"></span>

@@ -333,6 +333,15 @@ export function ensureEdits() {
   const edits = getEditsWordlist();
   if (edits) {
     if (!edits.icon) edits.icon = EDITS_ICON;
+    // Older versions let My Edits be demoted or disabled, which silently drops edits
+    // from the merge.
+    if (state.sources[0] !== edits || !edits.enabled) {
+      state.sources.splice(state.sources.indexOf(edits), 1);
+      state.sources.unshift(edits);
+      edits.enabled = true;
+      sources$.bump();
+      persistMeta();
+    }
   } else {
     const newEdits = wrapWordlist({
       type: 'edits',
