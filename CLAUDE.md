@@ -76,6 +76,7 @@ Plans (forward-looking, not yet shipped).
 
 Future (longer-horizon ideas, not actively planned):
 - [`docs/future/puz-to-pdf.md`](docs/future/puz-to-pdf.md) — feasibility sketch for in-browser .PUZ → printable PDF rendering.
+- [`docs/future/query-language.md`](docs/future/query-language.md) — searching with the rescore rules' `field: value` query language: which tools it could absorb, where it rubs, and four options from a new tool to replacing the stack.
 
 When a plan ships, run the `distill-design-doc` skill to fold it into the doc that owns its area.
 (The header `?` button opens the in-app Help dialog (`HelpDialog`) — an FAQ with a folded-in Acknowledgements section, deep-linkable at `#/help`, that renders its diagrams and credits from the live catalog.)
