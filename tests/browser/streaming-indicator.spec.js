@@ -57,7 +57,7 @@ test('the panel marks streaming and the stats bar tracks the streamed-so-far set
       runId: 'syn', version: 1, total: 10,
       scores: Array(10).fill(10),
       firstRows: rows(0, 10, 'SHORT', 10),
-      widthHints: { maxDisplayLen: 6, maxLenDigits: 1, maxScoreDigits: 2, maxRawDigits: 0 },
+      widthHints: { maxDisplayLen: 6, maxLenDigits: 1, maxScoreDigits: 2 },
     });
     await frame();
     const b1 = read();
@@ -67,7 +67,7 @@ test('the panel marks streaming and the stats bar tracks the streamed-so-far set
       runId: 'syn', version: 2, total: 20,
       scores: [...Array(10).fill(10), ...Array(10).fill(69)],
       firstRows: rows(10, 20, 'WIDE', 69),
-      widthHints: { maxDisplayLen: 6, maxLenDigits: 1, maxScoreDigits: 2, maxRawDigits: 0 },
+      widthHints: { maxDisplayLen: 6, maxLenDigits: 1, maxScoreDigits: 2 },
     });
     await frame();
     const b2 = read();

@@ -360,7 +360,7 @@ export function mountMenus() {
 export function buildUrlInputHTML(id, placeholder) {
   return `<div class="url-input-wrap">` +
     `<svg class="url-input-icon" width="14" height="14" aria-hidden="true"><use href="#icon-globe"/></svg>` +
-    `<input class="url-input" id="${id}" type="url" placeholder="${placeholder}" spellcheck="false" autocomplete="off">` +
+    `<input class="url-input"${id ? ` id="${id}"` : ''} type="url" placeholder="${placeholder}" spellcheck="false" autocomplete="off">` +
     `</div>`;
 }
 

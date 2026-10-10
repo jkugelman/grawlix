@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { stubPublisherFetches, gotoApp, scopeTo, expectVisible } from './helpers.js';
+import { stubPublisherFetches, gotoApp, scopeTo, expectVisible, setTrashScore } from './helpers.js';
 
 test.beforeEach(async ({ page }) => {
   await stubPublisherFetches(page);
@@ -446,10 +446,7 @@ test('adopt shows an undo toast that restores the prior My Edits state', async (
 test('the trash score setting drives the downscore amount', async ({ page }) => {
   await gotoApp(page);
   await addList(page, { name: 'W', entries: ['oceam'], scores: [40] });
-  await page.locator('#btn-settings').click();
-  await page.locator('#trash-score-input').fill('7');
-  await page.locator('#trash-score-input').blur();
-  await page.locator('#settings-dialog .dialog-close-btn').click();
+  await setTrashScore(page, 7);
   await openPanelOnEntry(page, 'oceam');
   await page.locator('#entry-panel-entry').fill('ocean');
   await page.locator('#entry-panel .entry-panel-save').click();

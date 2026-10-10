@@ -176,7 +176,7 @@ test('each streamed snapshot renders its sorted top window, reshuffling as bette
     await T.pipelineIdle();
 
     const mk = d => ({ norm: d, display: d, score: 50, atoms: [{}] });
-    const wh = { maxDisplayLen: 2, maxLenDigits: 1, maxScoreDigits: 2, maxRawDigits: 0 };
+    const wh = { maxDisplayLen: 2, maxLenDigits: 1, maxScoreDigits: 2 };
 
     T.streamSyntheticBatch({
       runId: 'reshuffle', version: 1, total: 5,
@@ -213,7 +213,7 @@ test('family brackets render mid-stream and grow as members arrive', async ({ pa
     await T.pipelineIdle();
 
     const mk = (d, runStart) => ({ norm: d, display: d, score: 50, runStart, atoms: [{}] });
-    const wh = { maxDisplayLen: 2, maxLenDigits: 1, maxScoreDigits: 2, maxRawDigits: 0 };
+    const wh = { maxDisplayLen: 2, maxLenDigits: 1, maxScoreDigits: 2 };
     const readFam = () => [...document.querySelectorAll('#vs-host .entry-row')].map(r => ({
       text: (r.querySelector('.atom-entry')?.textContent || '').trim(),
       start: r.classList.contains('run-start'),

@@ -4,8 +4,8 @@ Wordlists are the data Grawlix works on: each one a parsed file of entries with 
 This doc covers how they are stored, displayed, managed, synced to disk, fetched, and rescored: what the user sees, and why it is built that way.
 Two surfaces share the one screen:
 
-- **The wordlist bar** — selector (left) + the **Rescoring** / **Scoring** editor trigger and per-scope actions (right).
-  The selector scopes the screen; the manage panel (reached from inside the selector dropdown) owns cross-list operations.
+- **The wordlist bar** — selector (left) + per-scope actions (right).
+  The selector scopes the screen; the manage panel (reached from inside the selector dropdown) owns every list's setup, rescore rules included.
 - **Disk sync** — which file each list keeps in sync, re-granted from a non-blocking boot splash when a handle's permission lapses.
   Configured from the scoped list's sync button on the wordlist bar; there's no global storage surface (see § *Disk sync*).
 
@@ -49,7 +49,7 @@ The score-range filter is a **single global range** held in the standalone `scor
 The key is **three-state**: absent means the default `defaultScoreRange()` — one above the trash score, so `1+` out of the box (the trash tier is hidden for anyone arriving on a shared link); an explicit `''` means the user deliberately cleared the filter and is stored — not deleted — so it survives reload; any other value is their range.
 The default tracks the trash score rather than a fixed threshold: it hides exactly the tier the trash score defines as junk, so there's no arbitrary cutoff to justify and nothing that stops making sense when the user relabels their tiers.
 The box's trailing control is a **↺ reset** at any off-default value (empty included, so there's always a path back) that restores the default **and drops the key** — returning the user to untouched/follows-default, distinct from the **×** at the default value that persists `''`.
-Changing the trash score in Settings moves the default, so `setTrashScore` re-syncs the control through `refreshScoreRangeButtons` (the score box persists across stats-bar refreshes rather than being rebuilt).
+Changing the trash score (Manage wordlists, All Wordlists' page) moves the default, so `setTrashScore` re-syncs the control through `refreshScoreRangeButtons` (the score box persists across stats-bar refreshes rather than being rebuilt).
 Both keys are standalone read-time-default keys — the same pattern as `darkMode` / `autoUpdate` — so neither needs a `SCHEMA_VERSION` bump: an unparseable entry just resets that one preference.
 **A change to the default reaches existing users with no migration precisely because blank is stored as key-absence** — moving the absent-key default upgrades every user who never set a range (new or long-standing) in one code change, while the always-store-on-edit rule keeps a deliberate clear distinct from never-touched.
 The filter being global rests on a bet that, with the default wordlists each rescored onto the one common scale, a given threshold means the same thing in every scope; a scoped list still on its own raw scale is the accepted cost, since the dominant annoyance was the filter vanishing the moment you changed scope.
@@ -58,8 +58,8 @@ Neither scope nor the score range rides in the URL ([`design.md`](design.md) § 
 ## The wordlist bar
 
 The bar sits between the brand header and the tool gallery.
-Its left is the selector (which doubles as the screen title); its right is the active chrome — the rescore trigger and the per-source actions.
-It reads as a swap of passive chrome for active chrome rather than a new bar stacked on everything: the default state stays calm (selector + a small adjustments cluster), and curation controls appear only when summoned.
+Its left is the selector (which doubles as the screen title); its right is the scoped list's actions.
+The default state stays calm (selector, Download, a `⋮` kebab), and setup lives one step away in Manage wordlists.
 
 **The selector is a pure picker.**
 It lists All Wordlists (top) then the sources as icon+label rows — no checkboxes.
@@ -68,24 +68,65 @@ A click sets scope.
 A disabled wordlist renders grayed out (a disabled-select-option look, a modifier class — *not* `aria-disabled`/`disabled`, which would block the click) but stays selectable: disabling means "exclude from the All Wordlists merge," not "can't look at it," and the disabled state reads straight off the control with no separate note.
 The closed trigger is a borderless title (the selector doubles as the screen's title); the open menu lists the same rows plus two signals — each row's **"X of Y entries used"** contribution count (`wordlistCardMeta` — how many of a list's entries win in the merge (dedup and the merge mode), not its raw count), and an update dot per row, with an aggregate update dot on the collapsed trigger so a folded selector still flags it.
 
-**The manage panel lives inside the dropdown.**
-Every change to the set of wordlists or to one wordlist's setup — reorder, enable/disable, add, configure, delete — is reached from a **Manage wordlists** footer below the scope rows, because the picker and the manager operate on the same object (the set of wordlists): the picker is the read view (scope to one), the manage panel its edit view.
-Each row carries a drag handle, its enable toggle, and a `⋮` menu with **⚙ Configure** (the Configure dialog — rename, icon, publisher, URL, import, rules) and **🗑 Delete** (red, confirm-gated) — the switch-plus-overflow-menu row of Firefox's add-on manager, which keeps the destructive action one step away from the frequently clicked toggle.
-My Edits has no menu — it has no Configure and can't be deleted — and a spacer keeps its toggle aligned.
-The menu floats in the top layer like every dropdown ([`components.md`](components.md) § `openMenu`), so the scrolling list can't clip it.
-Configure and delete live only here: users looking to delete or configure a list went to Manage first, and a single path keeps the answer to "where is it?" unambiguous.
-This keeps the bar calm and reserves its right edge for working on the scoped list's data.
-The discoverability trade — a dropdown footer advertises less than a visible button — is accepted because list management is infrequent and the selector is exactly where one goes when thinking about wordlists.
-A visible adjustments button next to the selector was the original plan; it was demoted into the dropdown, and the bar slot it would have taken went to the rescore trigger instead.
+**Per-scope actions.**
+The bar's right cluster is **Download + a slim `⋮` kebab**:
+- A source's kebab has **Fetch** (URL-backed lists), **Import** and **Rescoring rules…**.
+- My Edits' kebab has **Import**, **Clear** (confirm-gated) and **Rescoring rules…**.
+- All Wordlists' kebab has **Scoring tiers…**.
+
+**Rescoring rules…** and **Scoring tiers…** open Manage wordlists on that list's page.
+The **sync button** (§ *Disk sync*) sits in that right cluster, by Download, in every scope.
+Responsive behavior is **measure-and-fold**: a ResizeObserver folds **Download** into the kebab (its split becomes explicit Download-rescored/original items) as soon as the scope name would otherwise ellipsize, so the button collapses *before* the name truncates.
+It re-renders one copy per fold level (not duplicated-inline-and-hidden), and keys the measurement on `#app` (overflow-clipped, viewport-bounded) so an overflowing bar can't hide the squeeze.
+The one exception: a name longer than the trigger's max-width is already ellipsized, so it doesn't force-fold the row.
+"Last updated" still hides ≤759px (and on My Edits, a two-way user-edited list where a single freshness stamp misleads); the **sync pill never folds** (status, and desktop-only).
+The bar's **Download** (the whole list as an asset) and the stats-bar Share control's downloads (the current filtered/sorted *view*) overlap only in appearance; the fix is sharper labels by scope, not removal — each stays where it's contextually right.
+
+**Why one copy, not toggled twins.**
+Folding re-renders a *single* copy of each control per level rather than rendering both an inline button and a hidden menu twin and toggling visibility (the tempting pure-CSS/container-query approach).
+Twins would put a second `#download-btn`/`#sync-sign` in the DOM — and the test suite reads DOM *presence* (`toHaveCount`, `allTextContents`), not visibility, so hidden twins silently corrupt it; duplicate `#sync-sign` would also break `refreshSyncSign`'s in-place patch.
+Two contracts keep the single-copy approach honest: the trigger truncates (rather than the bar overflowing) only because `min-width: 0` propagates the whole flex chain down — `.wls` is itself a flex container so the `<button>` inside can shrink; and the **sync pill stays inline in every level**, since `refreshSyncSign` patches a unique `#sync-sign` in place and a folded twin would break that.
+
+## The manage panel
+
+Every change to the set of wordlists or to one list's setup happens in **Manage wordlists**, reached from a footer below the selector's rows and from the kebab's **Rescoring rules…** / **Scoring tiers…**.
+The picker and the manager operate on the same object (the set of wordlists): the picker is the read view (scope to one), the manage panel its edit view.
+Keeping setup off the bar leaves the bar calm, and one home for it keeps the answer to "where is it?" unambiguous; users looking to configure or delete a list went to Manage first.
+The discoverability trade — a dropdown footer advertises less than a visible button — is accepted because setup is infrequent and the selector is exactly where one goes when thinking about wordlists.
+
+**A list that slides over to each list's page.**
+The dialog shows All Wordlists, the merge-mode dropdown, the sources (each with a drag handle, its enable toggle, its entry total and a `›` caret), and **Add wordlist**.
+Clicking a row slides the list aside for that row's page; the dialog title becomes the list's name, with a back button:
+- a source: its details (publisher, icon, name, auto-update URL) and its rescore rules (§ *Rescore and scoring*), with **Delete** (red, confirm-gated) at the footer's bottom left
+- My Edits: its rescore rules; it can't be renamed or deleted
+- All Wordlists: the tier labels and the trash score
+
+The trash score is a non-negative number, default 0 (`DEFAULT_TRASH_SCORE`), sub-labelled *Score given to deleted and unlisted entries*.
+It scores the downscore a norm-changing rename leaves behind ([`entry-panel.md`](entry-panel.md) § *Editing*) and a coined Replace entry in a wordlist download ([`pipeline.md`](pipeline.md) § *The chain-row model*), and sets the default score filter one above it (§ *Scope: the selected wordlist is the corpus*).
+
+Most visits are passing through to reorder or toggle, so the list carries only those, and the rarer setup stays one click away rather than on screen; the same layout serves desktop and phone.
+The off-screen view is inert, so Tab never lands on a control slid out of view.
+Rows show each list's entry total, not the selector's *X of Y entries used*: a used count depends on the staged order, toggles and merge mode, so keeping it live would cost a full re-merge per drag or toggle, and showing it only while nothing is staged would make it come and go.
+The details are the form the Add wordlist dialog uses (`WordlistForm`, `ui/wordlist-form.js`), which is why neither carries element ids: Add opens over Manage, so two forms coexist.
 
 **The panel is Save-gated, and that is the performance strategy.**
-Reorder, toggle and the merge mode operate on a **staged shadow** of order + enabled flags + mode — a model the panel mutates and renders from, separate from `state.sources` — so no merge is touched while staging and the table behind the panel keeps showing the pre-change state.
-**Save** commits the whole batch in one `batchUpdate` (replay the staged order + enabled onto the real state, persist, one rebuild) behind the modal, where a brief pause is exactly what a user expects after clicking Save; **Cancel** discards.
-**Save** is disabled whenever the staged shadow matches canonical, so there's no no-op commit — and because an add commits immediately, adding a list alone leaves the shadow clean and Save dimmed.
-This converts what was a freeze on *every* drag and *every* toggle into one expected pause on a deliberate confirm.
-**Add wordlist** launches the real import/fetch flow immediately as a sub-dialog (you can't stage a fetch); on completion the new list is absorbed into the shadow and the user keeps arranging — so Cancel discards staged reorders/toggles but does *not* undo an add.
-Configure and Delete work the same way: each commits immediately through its own dialog, the row re-renders (or drops out of the shadow), and staged reorders/toggles of the other rows survive.
+Order, enabled flags, the merge mode, every list's rules and General fields, the tiers and the trash score are staged in a **shadow** — a model the panel mutates and renders from, separate from `state.sources` — so no merge is touched while staging and the table behind the panel keeps showing the pre-change state.
+**Save** commits the whole batch in one `batchUpdate` (one rebuild, one worker resync) behind the modal, where a brief pause is exactly what a user expects after clicking Save; **Cancel** discards.
+This converts what would be a freeze on *every* drag, toggle and rule edit into one expected pause on a deliberate confirm.
+A list with staged changes carries an accent dot (`.badge[data-severity="pending"]`), and the footer names everything pending ("Unsaved changes: All Wordlists, list order, JK"); **Save** is disabled while nothing is, so there's no no-op commit.
+Save with a blank name opens that list's page and flags the field instead of committing.
+Tiers commit last: `propagateDefaults` pushes them onto a My Edits that follows them, and run before My Edits' rules it would leave them marked dirty.
+
+**Adding and deleting commit immediately.**
+**Add wordlist** launches the real import/fetch flow as a sub-dialog (you can't stage a fetch); the new list joins the shadow, so Cancel discards staged changes but does *not* undo an add.
+**Delete** is confirm-gated and drops the list from the shadow; staged changes to the other lists survive.
+Each staged rules draft remembers the committed rules it was copied from, so a clean draft follows rules committed under the open dialog — an added list's auto-seeded rules — instead of Save writing a stale copy back.
 Closing follows the app-wide dialog rule (`createDialog`'s `isDirty` option): the ✕, a backdrop click, and Escape close a clean panel at once and ask "Discard changes?" when something is staged; **Cancel** is an explicit discard and never asks.
+
+**A publisher's rules come through the rule editor.**
+The Add wordlist dialog asks which of a publisher's rules to start with (*Use recommended rules*, *Use scoring levels only*, *None*), but a list's page has no such picker: the rule editor below already covers it.
+Picking a publisher moves the defaults that the editor's **Reset** restores (and that the dirty flag is measured against), and the menu item reads *Use {publisher}'s rules* until Save; *scoring levels only* is that followed by **Disable rescoring**.
+One control per job keeps the page from offering two ways to replace the same rules.
 
 **My Edits is pinned on top and always enabled.**
 Its card has no drag handle and no toggle (`pinned` on `buildWordlistCardHTML`), nothing can be dropped above it, and it can't be deleted.
@@ -93,7 +134,7 @@ A demoted or disabled My Edits silently swallowed edits: the save toast confirme
 Older versions allowed both, so boot (`ensureEdits`) moves a stored My Edits back to the top and re-enables it.
 
 **The merge mode picks the winner.**
-A dropdown above the list (the shared choice dropdown, `toggleChoiceMenu`, styled like Search's match mode) chooses which eligible contributor supplies a merged row's score, spelling and source:
+A dropdown above the sources (the shared choice dropdown, `toggleChoiceMenu`, styled like Search's match mode) chooses which eligible contributor supplies a merged row's score, spelling and source:
 - **First wins** (the default): the highest-priority one.
 - **Highest score wins**: the highest rescored score, ties going to the higher-priority list.
 - **Lowest score wins**: the lowest, likewise.
@@ -104,55 +145,33 @@ The score modes assume every list is rescored onto the common scale; a list left
 The mode is stored as `mergeMode` in the merged-settings blob beside `trashScore` (read as `first` when absent), staged with the rest of the panel, and sent to the worker in every `syncConfig`.
 A single-list corpus is the same under every mode, since a list has at most one entry eligible for each spelling.
 
-**Per-source actions.**
-When a source is scoped the bar's right cluster is **Download + a `Rescoring` text button + a slim `⋮` kebab** (**Fetch** for a URL-backed list, **Import**).
-**My Edits** gets the same Download and `Rescoring` button, with **Import** and **Clear** (confirm-gated) in its kebab.
-On **All Wordlists** it's just Download (the merged product) + a `Scoring` text button (the tier editor), no kebab.
-The **sync button** (§ *Disk sync*) sits in that right cluster, by Download, in every scope.
-Responsive behavior is **measure-and-fold**: the `⋮` kebab is an overflow bucket, and a ResizeObserver folds **Download** into the kebab (its split becomes explicit Download-rescored/original items) as soon as the scope name would otherwise ellipsize, then **Rescoring** — so buttons collapse *before* the name truncates, and the name only ellipsizes once everything's folded.
-It re-renders one copy per fold level (not duplicated-inline-and-hidden), and keys the measurement on `#app` (overflow-clipped, viewport-bounded) so an overflowing bar can't hide the squeeze.
-The one exception: a name longer than the trigger's max-width is already ellipsized, so it doesn't force-fold the row.
-"Last updated" still hides ≤759px (and on My Edits, a two-way user-edited list where a single freshness stamp misleads); the **sync pill never folds** (status, and desktop-only).
-All Wordlists — two short controls, no kebab — never folds.
-The bar's **Download** (the whole list as an asset) and the stats-bar Share control's downloads (the current filtered/sorted *view*) overlap only in appearance; the fix is sharper labels by scope, not removal — each stays where it's contextually right.
+## Rescore and scoring: one editor, polymorphic by page
 
-**Why one copy, not toggled twins.**
-Folding re-renders a *single* copy of each control per level rather than rendering both an inline button and a hidden menu twin and toggling visibility (the tempting pure-CSS/container-query approach).
-Twins would put a second `#download-btn`/`#sync-sign` in the DOM and a present-but-hidden All-Wordlists kebab — and the test suite reads DOM *presence* (`toHaveCount`, `allTextContents`), not visibility, so hidden twins silently corrupt it; duplicate `#sync-sign` would also break `refreshSyncSign`'s in-place patch.
-Two contracts keep the single-copy approach honest: the trigger truncates (rather than the bar overflowing) only because `min-width: 0` propagates the whole flex chain down — `.wls` is itself a flex container so the `<button>` inside can shrink; and the **sync pill stays inline in every level**, since `refreshSyncSign` patches a unique `#sync-sign` in place and a folded twin would break that.
-The rescore toggle is wired by delegation on `.wls-actions` so it survives being re-rendered at a different fold level.
-
-## Rescore and scoring: one inline editor, polymorphic by scope
-
-Rescore-rule authoring is an **inline-expandable area** on the wordlist bar, default-collapsed; expanding it pushes the gallery and table down.
-Its trigger is a text button with a chevron in the bar's right cluster — **Rescoring** on a source, **Scoring** on All Wordlists — titled "Rescoring rules" / "Scoring tiers", with an accent fill when open.
-The editor is polymorphic by scope, one slot whose content differs by panel:
-
-- On a **source** (and My Edits), it edits that source's **rescore rules**.
-- On **All Wordlists**, it edits the **tier labels** (`state.scoring`) — the unified scale's names.
+The rule editor (`ui/rescore-editor.js`) edits one draft that Manage wordlists owns:
+- On a source's page (My Edits' included), that source's **rescore rules**.
+- On All Wordlists' page, the **tier labels** (`state.scoring`) — the unified scale's names.
   There is no separate home for the tier editor; it is the All Wordlists version of the rescore editor.
 
 A rescore rule maps an input score range, plus an optional entry-length filter, to an output score; focusing any of the three fields pops up a syntax cheat sheet (`data-help="rule/…"`).
 
-**Edits batch into a draft; Save commits.**
-Opening the editor snapshots the scope's rules into a draft the editor mutates in place; the footer's **Save** runs the single heavy commit (worker rebuild, persist, mirror write) and **Cancel** discards it; both collapse the editor.
-Authoring a rule therefore doesn't pay a full re-rescore of the source per keystroke, as committing on every field blur would.
-Closing the editor any other way confirms first when the draft is dirty, and switching scope mid-edit does the same; a clean close just collapses.
-The All Wordlists tier editor batches identically — tier edits are cheap, so this buys no performance there, but it keeps one commit model (and one Cancel/Save footer) across both scopes rather than splitting the polymorphic editor.
+**Edits stage into the draft; Manage's Save commits.**
+`bindDraft` hands the editor the shadow's array for the selected list, and every edit mutates that array in place, so Manage's Save sees it; switching pages keeps each list's draft, and one Save commits them all with one worker rebuild.
+Authoring a rule therefore doesn't pay a full re-rescore of the source per keystroke, and drafting rules on several lists costs one rebuild.
+Leaving a rule field updates the draft without re-rendering the rules: the field already shows its value, and rebuilding the list would replace the field the user is clicking into.
 
-**The table is the live preview.**
-While the editor is open and scoped to a source, rule-changed rows render the **rule arrow** `350 → 80`, computed per-paint from the *uncommitted draft* rather than the committed corpus: each visible row carries its pre-rescore raw (`rawScore ?? score`) and the score cell re-derives `raw → rescored` through `rescoreEntry(draft)` at render time, so the arrows track the draft as you type with no worker round-trip, and newly-scrolled rows pick the draft up through the same windowed render path (the worker corpus stays on the committed rules until Save).
-It's render-only: sort, the score-range filter, and the stats/histogram keep reading committed values until Save — reshuffling the sort on every keystroke would be worse than the staleness.
-Gated on scoped-to-a-source AND editor-open (plain badge otherwise, never on All Wordlists or group rows); the score column widens to fit the arrow while preview is active.
-So the editor needs no separate preview list of its own — the main table *is* its feedback.
+**No preview in the table.**
+The entries table shows committed scores only; a draft takes effect on Save.
+The entry panel's provenance still shows `raw → rescored` for each list's committed rules.
 
-**The footer.**
-`+ Add rule` is a trailing row in the rules list; the footer below carries the rare lifecycle actions as quiet **text-links** on the left — **Reset to defaults** (only when the draft diverges from defaults, confirm-gated), **Disable rescoring** (no confirm — it only stages into the draft), **Make permanent** (confirm-gated) — and the prominent **Cancel** / **Save** commit pair on the right, wrapping to a second row on mobile.
-The rare actions are demoted by *weight*, not hidden in a menu: the screen already carries two dropdown triggers (the bar's per-source `⋮` kebab and the stats-bar Share control), and a third would bury them.
-Each is conditional, so the cluster is usually one or two links — only a dirty My Edits ever shows all three.
-**Save** is disabled whenever the draft equals the committed rules, so there's no no-op commit.
-The footer reacts to the draft live — rebuilt on each keystroke, not only on blur — so Save's enabled state, whether **Make permanent** lights up, and which rare links appear all stay current as you type.
-(The footer holds no inputs, so rebuilding it never disturbs the rule field in focus.)
+**The lifecycle actions sit in a `⋮` menu.**
+`+ Add rule` is a trailing row in the rules list; the rarer actions go in a `⋮` just after the section's header ("Rescoring rules", "Scoring tiers") to keep the page uncluttered:
+- **Reset to defaults** (only when the draft diverges from defaults, confirm-gated)
+- **Disable rescoring** (only when it would change something; no confirm, since it only stages into the draft)
+- **Make permanent** (confirm-gated; always listed, disabled with its reason when it can't run)
+
+The tier editor's menu has only Reset, and it's omitted while there's nothing to reset.
+The menu tracks the draft live — rebuilt on each keystroke, not only on blur — so which items appear and whether **Make permanent** is enabled stay current as you type; it's rebuilt only when its contents change, since replacing an open menu would close it under the pointer.
+**Make permanent** rewrites IDB at once, so it can't be staged: it's disabled with a "Save first" tooltip while Manage has anything pending, and the draft then equals the committed rules it bakes.
 
 **Order is the user's, not the app's.**
 Rules — and tier labels — evaluate **first-match-wins in their stored order**, which the user owns: each row carries a `≡` drag handle (the shared `makeReorderable`, the same primitive the manage panel and tool stack use) and rows are never auto-sorted.
@@ -164,16 +183,16 @@ Because order carries meaning, `rescoreRulesEqual` is **order-sensitive**: a reo
 **No persistent legend.**
 The scoring tiers get no always-visible legend block; every score badge already carries a hover tooltip naming its tier, which serves the once-in-a-while "what does 50 mean again?" lookup at zero permanent vertical cost.
 The *display* of tiers is the tooltip; only the *editor* needs a home, and it has one.
-The editor lives on All Wordlists and the data anchors on top-level `state.scoring` because the tier labels describe the merged scale — what every wordlist gets translated *into* — not any one wordlist.
+The editor hangs off All Wordlists and the data anchors on top-level `state.scoring` because the tier labels describe the merged scale — what every wordlist gets translated *into* — not any one wordlist.
 See § *Rescore rules* for the rule/legend mechanics.
 
 **Disable rescoring — neutralize, don't delete.**
-For the user who wants a list's raw scores and notes but not Grawlix's remapping, **Disable rescoring** (a source-scoped action in the rescore editor) *neutralizes* the rules rather than clearing them: it blanks every rule's `output` and drops the `scoring:false` rows (pure-rescore special cases with no place in the scale's documentation).
+For the user who wants a list's raw scores and notes but not Grawlix's remapping, **Disable rescoring** *neutralizes* the rules rather than clearing them: it blanks every rule's `output` and drops the `scoring:false` rows (pure-rescore special cases with no place in the scale's documentation).
 What survives is the input ranges and notes as a documenting legend, remapping nothing.
 It coexists with Reset — neutralizing makes the list dirty, so Reset stays available to undo it.
 On All Wordlists it's absent (tier labels are already blank-output).
 The internal name is still `neutralize*`; the user-facing label is "Disable rescoring."
-**Make permanent** (bake) sits beside it as another footer text-link — both are rescoring-lifecycle actions — rather than in the kebab; because baking reads committed rules it applies the draft first, and its mechanics are in § *Rescore rules*.
+**Make permanent** (bake) sits beside it in the menu, and its mechanics are in § *Rescore rules*.
 
 ## Discovery banners
 
@@ -281,7 +300,7 @@ The spelled form is the proof the bare one is the literal word, not an ambiguous
 Without the carve-out the bare entry's wildcard absorbs the sibling's spelling and the two genuinely-distinct words collapse to one row — `bucketContributors` and the worker's per-norm `computeMergedBucket` apply the rule in lockstep so a full rebuild and an in-place edit splice agree.
 
 **Comment falls through blanks.**
-Score, display, and source attribution come from the winning eligible contributor (§ *The wordlist bar*, merge mode), but `comment` walks the eligibility chain, in priority order, for the first non-blank value.
+Score, display, and source attribution come from the winning eligible contributor (§ *The manage panel*, merge mode), but `comment` walks the eligibility chain, in priority order, for the first non-blank value.
 A high-priority entry without a comment doesn't shadow a lower-priority entry's curated note — a common case once a plain personal wordlist sits above a rich annotated one to override scoring.
 The split means a row can show one wordlist as its source while displaying another's comment; the UI doesn't flag the split (no per-field source attribution).
 
@@ -653,7 +672,7 @@ Above the threshold the seeding is skipped and the editor opens empty; the user 
 A wizard-style "rescore on import" was considered and rejected as speed-bump UX; an auto-suggested mapping based on score distribution was rejected because low-confidence guesses would mostly be wrong.
 
 **Baking rescoring into the scores.**
-"Make permanent" (a rescore-editor footer action beside Disable rescoring, `bakeRescoring`) rewrites each `rawEntry.score` to its rescored value, then resets the rule layer the same way an import does — `editsLegend()` + reconcile for My Edits, clear + auto-seed for a custom list.
+"Make permanent" (a rule-editor menu action beside Disable rescoring, `bakeRescoring`) rewrites each `rawEntry.score` to its rescored value, then resets the rule layer the same way an import does — `editsLegend()` + reconcile for My Edits, clear + auto-seed for a custom list.
 Because it reads committed rules, it commits the open draft first (so it bakes exactly what the preview shows); unlike Save it leaves the editor open, reseeding the draft from the reset rules so the user can keep working.
 It's the in-place form of Download-rescored → re-import → reset rules, and it exists for the user who translated a personal list onto the unified scale via rules: afterward raw-score edits in the table would otherwise be re-transformed by those rules, so baking ends the dual-scale split.
 Gated to `!publisherId && !url`: a fetch URL would re-pull original-scale data and undo the bake, and a publisher's `defaultRules` are a live transform, so resetting a baked publisher list to them would re-rescore already-baked scores — the action disables (not hides) outside that gate, and when no rule changes any score.
@@ -673,7 +692,7 @@ A seed-fingerprint snapshot was considered as an alternative to the dirty flag a
 A code-side history of past `defaultRules` per publisher was considered and rejected as heavier.
 
 **Reset button scoped to the editor.**
-"Reset to defaults" is a footer text-link, shown whenever the *draft* diverges from the wordlist's defaults — it tracks the draft, so it appears the moment an edit diverges and vanishes when one lands back on them, rather than waiting on the committed `dirty` flag.
+"Reset to defaults" is a rule-editor menu action, listed whenever the *draft* diverges from the wordlist's defaults — it tracks the draft, so it appears the moment an edit diverges and vanishes when one lands back on them, rather than waiting on the committed `dirty` flag.
 It confirms before wiping customizations, then stages the defaults into the draft like any other edit (Save commits).
 Visible only inside the editor and only when there's something to undo — a reset button shown anywhere rules differ from defaults would feel nudgy.
 Per-rule revert was considered and rejected: any rule-matching algorithm is fragile, and the editor itself is the granular tool (a user wanting to revert one rule can manually retype its value).
@@ -694,3 +713,8 @@ Known limitations to address as the need surfaces:
   The dropped `grawlix.json` settings mirror has no live replacement yet; a manual export/import is the planned successor ([`planned/settings-backup.md`](planned/settings-backup.md)), config-only vs. full-backup scope still open.
 - **Folder→per-file migration.**
   Deliberately not built — old folder-mode users re-attach manually (see [`migration.md`](migration.md)).
+
+### Manage wordlists
+
+- **Keyboard reordering.**
+  `makeReorderable` handles pointer and touch only, so the Manage rows and the rule rows can't be reordered from the keyboard.

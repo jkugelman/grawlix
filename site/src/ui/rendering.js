@@ -59,11 +59,6 @@ export function getEntriesScroller() {
   return entriesScroller;
 }
 
-// Scoped-source-only: on All Wordlists the open editor edits tier labels, which
-// don't remap scores, so a raw → rescored arrow would be meaningless there.
-export function rescorePreviewActive() {
-  return state.selected !== MERGED_ID && WordlistSelector.isEditorOpen();
-}
 
 function buildStatItemHTML(label, value, title, extraClass) {
   const cls = 'stat' + (extraClass ? ' ' + extraClass : '');

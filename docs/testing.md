@@ -354,14 +354,12 @@ For an "assert empty / assert absent" check, poll a *positive* settle signal fir
 Auto-retrying assertions are safe, but *what* you wait for still matters.
 Never gate a test on a state the app reaches only when a CSS transition completes — under load a transition may never run at all (style changes coalesced into one frame, a dropped frame), so its `transitionend` never fires and the wait hangs for the full timeout.
 
-The rescore editor is the worked example.
-`collapseEditor` removes the open class immediately, but `editor.hidden` lands from a `transitionend` handler.
-Gating `applyRescoreEditor` on `toBeHidden()` strands it under a suppressed transition *with the commit already done* — and the failure reports as whatever the caller was asserting about the commit (`dirty-flag.spec.js` "clicking reset restores defaults and clears the dirty flag", with `dirty` in fact already `false`).
-Reproduce it deterministically by injecting `#rescore-editor { transition: none !important; }` before the click.
+Such a gate strands the test *with the real work already done*, and the failure reports as whatever the caller was asserting about that work.
+Reproduce one deterministically by injecting `transition: none !important` on the element before the interaction.
 
-Gate on the state the interaction sets **synchronously** instead — here the toggle's `aria-expanded="false"`, flipped in the same handler that commits.
-Presentational teardown deserves its own test rather than riding along as every caller's implicit gate; that one lives in `wordlist-selector.spec.js`.
-The app also bounds the wait so a dropped `transitionend` can't leave the collapsed editor mounted and tabbable.
+Gate on the state the interaction sets **synchronously** instead, such as an attribute flipped in the same handler that commits.
+Presentational teardown deserves its own test rather than riding along as every caller's implicit gate.
+On the app side, `afterTransition` bounds every such wait, so a dropped `transitionend` can't leave a hidden element mounted and tabbable.
 
 And don't test the animation *itself*.
 Purely visual behavior stays manual (*What earns a test* above), and CI cannot see it anyway: headless WebKit never advances the transition clock — it holds the start value, then jumps to the end, firing `transitionstart` and `transitionend` at the same instant.
@@ -515,6 +513,6 @@ Two worked examples:
   The trace's click `point` sat 35px above the button's settled box.
   Second, any editor rebuild between press and release detaches the pressed button, and the browser never fires `click`; a rule field's blur-commit does exactly that on every first click after typing.
   A `page.mouse.down()` / refresh / `mouse.up()` sequence reproduced it deterministically.
-  The fixes are `overflow: clip` and holding editor renders during a press.
+  The fixes: the editor isn't a scroll container, and a field's commit updates the draft without rebuilding the rules (`afterFieldCommit`).
   The tests' re-click retry loops had been masking the second bug, so they came out too.
-  (`rescore-preview.spec.js` "a background refresh mid-click…")
+  (`rescore-editor.spec.js` "a background refresh mid-click…", "leaving one rule field for another…")

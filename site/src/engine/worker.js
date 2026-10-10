@@ -2192,7 +2192,7 @@ function computeTransformWidthHints(unfiltered, filtered) {
       if (a.glyph != null && dl > maxGlyphDisplayLen) maxGlyphDisplayLen = dl;
     }
   }
-  let maxLenDigits = 1, maxScoreDigits = 1, maxRawDigits = 0;
+  let maxLenDigits = 1, maxScoreDigits = 1;
   for (const row of filtered) {
     for (const a of row.atoms) {
       const e = a.wlEntry;
@@ -2200,12 +2200,9 @@ function computeTransformWidthHints(unfiltered, filtered) {
       if (ld > maxLenDigits) maxLenDigits = ld;
       const sd = String(e.score).length;
       if (sd > maxScoreDigits) maxScoreDigits = sd;
-      if (e.rawScore != null && e.rawScore !== e.score) {
-        maxRawDigits = Math.max(maxRawDigits, String(e.rawScore).length);
-      }
     }
   }
-  return { maxDisplayLen, maxGlyphDisplayLen, maxLenDigits, maxScoreDigits, maxRawDigits };
+  return { maxDisplayLen, maxGlyphDisplayLen, maxLenDigits, maxScoreDigits };
 }
 
 function rowIsRich(row) {
@@ -2229,8 +2226,8 @@ function invalidateRescoredCacheFor(wl) {
 
 // The scoped (single-source) bucket recompute. Unlike computeMergedBucket it
 // ignores enabled (a scoped corpus shows its source regardless) and carries
-// `rawScore` — the scoped corpus keeps rawScore for the rescore-preview arrow, so
-// omitting it would silently diverge on rescored norms.
+// `rawScore`, as a rebuild of the scoped corpus does, so omitting it would
+// silently diverge on rescored norms.
 function recomputeScopedBucket(norm, source) {
   const arr = sourceAccessor(source).rescoredForNorm(norm) ?? [];
   const displays = new Set();

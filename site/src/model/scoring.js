@@ -38,6 +38,14 @@ export function propagateDefaults() {
   }
 }
 
+// No cache bump, since tiers don't touch data, so the caller must re-render the
+// visible rows or their tier tooltips (`title=`) stay stale.
+export function applyScoringChange() {
+  updateScoringDirty();
+  persistScoring();
+  propagateDefaults();
+}
+
 export function makeScoringRowStub(input = '') { return { input, note: '' }; }
 
 // Returns a `score → tier label` function. First matching rule wins; an

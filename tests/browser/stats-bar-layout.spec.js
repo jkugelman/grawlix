@@ -127,7 +127,7 @@ test.describe('Stats bar layout', () => {
         runId: 'syn', version: 1, total: 10,
         scores: Array(10).fill(50),
         firstRows: rows,
-        widthHints: { maxDisplayLen: 5, maxLenDigits: 1, maxScoreDigits: 2, maxRawDigits: 0 },
+        widthHints: { maxDisplayLen: 5, maxLenDigits: 1, maxScoreDigits: 2 },
       });
     });
     await expect.poll(async () => (await statsBarBoxes(page)).streamDots !== null).toBe(true);

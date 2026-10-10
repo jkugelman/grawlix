@@ -255,23 +255,24 @@ test('a disabled row reorders just like an enabled one', async ({ page }) => {
 // Population is async and force-enables on first data. Cancel keeps added lists.
 async function addViaPanelDialog(page, { name, entries }) {
   await page.locator('#manage-dialog .manage-add-row').click();
-  await expect(page.locator('#configure-wordlist-dialog')).toBeVisible();
+  const dialog = page.locator('#add-wordlist-dialog');
+  await expect(dialog).toBeVisible();
 
-  await page.locator('#config-name-input').fill(name);
-  await page.locator('#cfg-file-input').setInputFiles({
+  await dialog.locator('.config-name-input').fill(name);
+  await dialog.locator('.cfg-file-input').setInputFiles({
     name: `${name}.txt`,
     mimeType: 'text/plain',
     buffer: Buffer.from(entries.map(e => `${e};50`).join('\n')),
   });
-  await page.locator('#btn-cfg-save').click();
-  await expect(page.locator('#configure-wordlist-dialog')).toBeHidden();
+  await dialog.locator('.add-wordlist-btn').click();
+  await expect(dialog).toBeHidden();
 
   await page.evaluate(() => window.__grawlixTest.loadIdle());
 }
 
 function panelRowNames(page) {
   return page.evaluate(() =>
-    [...document.querySelectorAll('#manage-dialog .wordlist-card .card-name')].map(n => n.textContent));
+    [...document.querySelectorAll('#manage-dialog .manage-list .wordlist-card .card-name')].map(n => n.textContent));
 }
 
 test('adding via the panel commits immediately; the list stays after closing', async ({ page }) => {
@@ -355,140 +356,251 @@ test('a source added while the panel is open is absorbed via the cacheVersion ef
   expect(await page.evaluate(() => window.__grawlixTest.getMergedEntry('OAT'))).not.toBeNull();
 });
 
-// ─── Per-row Configure and Delete ───────────────────────────────────────────
+// ─── Each list's page ───────────────────────────────────────────────────────
 //
-// Like an add, both commit immediately through their own dialogs; staged
-// reorders and toggles of the other lists survive them.
-function rowMenuBtn(page, name) {
-  return page.locator(`#manage-dialog .manage-row-kebab .more-menu-btn[title="More options for ${name}"]`);
+// Clicking a row slides over to its page: a source's details and rescore rules,
+// My Edits' rules, or All Wordlists' tiers and trash score. All of it stages
+// into the one Save except Delete (the footer's bottom-left link), which
+// commits at once like an add.
+const detail = page => page.locator('#manage-dialog .manage-detail');
+const home   = page => page.locator('#manage-dialog .manage-home');
+const title  = page => page.locator('#manage-dialog-title .manage-title');
+
+function rowCard(page, name) {
+  return home(page).locator('.wordlist-card', { hasText: name }).first();
 }
 
-function rowMenu(page, name) {
-  return page.locator('#manage-dialog .wordlist-card', { hasText: name }).locator('.split-btn-menu');
+async function openRowPage(page, name) {
+  await rowCard(page, name).locator('.card-name').click();
+  await expect(title(page)).toContainText(name);
+  await expect(detail(page)).toBeInViewport();
 }
 
-async function rowAction(page, action, name) {
-  await rowMenuBtn(page, name).click();
-  await rowMenu(page, name).locator(`.manage-row-${action}`).click();
+async function back(page) {
+  await page.locator('#manage-dialog .dialog-back-btn').click();
+  await expect(title(page)).toHaveText('Manage wordlists');
 }
 
-test('My Edits has no row menu; another row\'s menu offers Configure and Delete', async ({ page }) => {
+async function deleteViaPage(page, name) {
+  await openRowPage(page, name);
+  await page.locator('#manage-dialog .manage-delete-btn').click();
+}
+
+async function editFirstTierNote(page, note) {
+  await detail(page).locator('#scoring-rules .rule-row').first().locator('.rule-note-wrap').click();
+  await detail(page).locator('.rule-note-input').fill(note);
+  await detail(page).locator('.rule-note-input').press('Enter');
+}
+
+async function save(page) {
+  await page.locator('#manage-dialog .manage-apply-btn').click();
+  await expect(page.locator('#manage-dialog')).toBeHidden();
+}
+
+test('clicking a row slides to its page, and Back returns to the list', async ({ page }) => {
   await gotoApp(page);
   await addTwoLists(page);
-
   await openManagePanel(page);
-  const edits = page.locator('#manage-dialog .wordlist-card', { hasText: 'My Edits' });
-  await expect(edits.locator('.manage-row-kebab')).toHaveCount(0);
+  await expect(page.locator('#manage-dialog .dialog-back-btn')).toBeHidden();
 
-  const menu = rowMenu(page, 'TestFruits');
-  await expect(menu).toBeHidden();
-  await rowMenuBtn(page, 'TestFruits').click();
-  await expect(menu).toBeVisible();
-  expect(await menu.locator('button').allTextContents()).toEqual(['Configure', 'Delete']);
+  await openRowPage(page, 'TestFruits');
+  await expect(detail(page).locator('.config-name-input')).toHaveValue('TestFruits');
+  await expect(detail(page).locator('#rescore-rules')).toBeVisible();
+  await expect(detail(page).locator('.rules-select')).toBeHidden();
+  await expect(page.locator('#manage-dialog .manage-delete-btn')).toBeVisible();
+  await back(page);
+  await expect(page.locator('#manage-dialog .manage-delete-btn')).toBeHidden();
 
-  await rowMenuBtn(page, 'TestFruits').click();   // the trigger toggles it shut
-  await expect(menu).toBeHidden();
+  await openRowPage(page, 'My Edits');
+  await expect(detail(page).locator('.config-name-input')).toHaveCount(0);
+  await expect(detail(page).locator('#rescore-rules')).toBeVisible();
+  await expect(page.locator('#manage-dialog .manage-delete-btn')).toBeHidden();
+  await back(page);
+
+  await openRowPage(page, 'All Wordlists');
+  await expect(detail(page).locator('#scoring-rules .rule-row').first()).toBeVisible();
+  await expect(detail(page).locator('.trash-score-input')).toBeVisible();
 });
 
-test('the row menu closes on Escape without closing the panel', async ({ page }) => {
+test('clicking a row\'s toggle stages it without opening the page', async ({ page }) => {
   await gotoApp(page);
   await addTwoLists(page);
-
   await openManagePanel(page);
-  const menu = rowMenu(page, 'TestFruits');
-  await rowMenuBtn(page, 'TestFruits').click();
-  await expect(menu).toBeVisible();
-  await page.keyboard.press('Escape');
-  await expect(menu).toBeHidden();
-  await expect(page.locator('#manage-dialog')).toBeVisible();
+  await rowToggle(page, 'TestFruits').click();
+  await expect(title(page)).toHaveText('Manage wordlists');
 });
 
-test('Configure from a row saves immediately and the row shows the new name', async ({ page }) => {
+test('a rename stages until Save, badging the row and naming it in the footer', async ({ page }) => {
   await gotoApp(page);
   await addTwoLists(page);
-
   await openManagePanel(page);
-  await rowAction(page, 'configure', 'TestFruits');
-  const dialog = page.locator('#configure-wordlist-dialog');
-  await expect(dialog).toBeVisible();
-  await expect(dialog.getByRole('button', { name: 'Delete', exact: true })).toHaveCount(0);
-  await dialog.locator('#config-name-input').fill('TestOrchard');
-  await dialog.locator('#btn-cfg-save').click();
-  await expect(dialog).toBeHidden();
 
-  await expect(page.locator('#manage-dialog')).toBeVisible();
-  await expect.poll(() => panelRowNames(page)).toContain('TestOrchard');
+  await openRowPage(page, 'TestFruits');
+  await detail(page).locator('.config-name-input').fill('TestOrchard');
+  await expect(title(page)).toContainText('TestOrchard');
+  await expect(page.locator('#manage-dialog .manage-status')).toHaveText('Unsaved changes: TestOrchard');
+  await back(page);
+  await expect(rowCard(page, 'TestOrchard').locator('.badge[data-severity="pending"]')).toHaveCount(1);
+  expect(await page.evaluate(() => window.__grawlixTest.getWordlist('TestOrchard'))).toBeNull();
+
+  await save(page);
   expect(await page.evaluate(() => window.__grawlixTest.getWordlist('TestOrchard'))).not.toBeNull();
-  await expect(page.locator('#manage-dialog .manage-apply-btn')).toBeDisabled();
 });
 
-test('Configure: a clean X closes at once; an edited one prompts before discarding', async ({ page }) => {
+test('Save with a blank name opens that list\'s page instead', async ({ page }) => {
   await gotoApp(page);
   await addTwoLists(page);
-
   await openManagePanel(page);
-  const dialog = page.locator('#configure-wordlist-dialog');
-  await rowAction(page, 'configure', 'TestFruits');
-  await dialog.locator('.dialog-close-btn').click();
-  await expect(dialog).toBeHidden();
-  await expect(page.locator('#confirm-dialog')).toBeHidden();
 
-  await rowAction(page, 'configure', 'TestFruits');
-  await dialog.locator('#config-name-input').fill('TestOrchard');
-  await dialog.locator('.dialog-close-btn').click();
-  await expect(page.locator('#confirm-dialog')).toBeVisible();
-  await page.locator('#confirm-dialog #btn-confirm-cancel').click();
-  await expect(dialog).toBeVisible();
-  await expect(dialog.locator('#config-name-input')).toHaveValue('TestOrchard');
+  await openRowPage(page, 'TestFruits');
+  await detail(page).locator('.config-name-input').fill('');
+  await back(page);
+  await page.locator('#manage-dialog .manage-apply-btn').click();
 
-  await clickBackdrop(page);
-  await page.locator('#confirm-dialog #btn-confirm-ok').click();
-  await expect(dialog).toBeHidden();
+  await expect(page.locator('#manage-dialog')).toBeVisible();
+  await expect(detail(page).locator('.config-name-input')).toHaveClass(/invalid/);
   expect(await page.evaluate(() => window.__grawlixTest.getWordlist('TestFruits'))).not.toBeNull();
 });
 
-test('Configure: Cancel discards edits without a prompt', async ({ page }) => {
+test('a staged rename: X prompts, Cancel discards without a prompt', async ({ page }) => {
   await gotoApp(page);
   await addTwoLists(page);
 
   await openManagePanel(page);
-  const dialog = page.locator('#configure-wordlist-dialog');
-  await rowAction(page, 'configure', 'TestFruits');
-  await dialog.locator('#config-name-input').fill('TestOrchard');
-  await dialog.locator('#btn-cfg-cancel').click();
-  await expect(dialog).toBeHidden();
+  await openRowPage(page, 'TestFruits');
+  await detail(page).locator('.config-name-input').fill('TestOrchard');
+  await page.locator('#manage-dialog .dialog-close-btn').click();
+  await expect(page.locator('#confirm-dialog')).toBeVisible();
+  await page.locator('#confirm-dialog #btn-confirm-cancel').click();
+  await expect(detail(page).locator('.config-name-input')).toHaveValue('TestOrchard');
+
+  await page.locator('#manage-dialog .manage-cancel-btn').click();
+  await expect(page.locator('#manage-dialog')).toBeHidden();
   await expect(page.locator('#confirm-dialog')).toBeHidden();
   expect(await page.evaluate(() => window.__grawlixTest.getWordlist('TestOrchard'))).toBeNull();
 });
 
-test('Configure: Escape with the icon picker open closes only the picker', async ({ page }) => {
+test('Escape with the icon picker open closes only the picker', async ({ page }) => {
   await gotoApp(page);
   await addTwoLists(page);
 
   await openManagePanel(page);
-  const dialog = page.locator('#configure-wordlist-dialog');
-  await rowAction(page, 'configure', 'TestFruits');
-  await dialog.locator('#config-name-input').fill('TestOrchard');
-  await dialog.locator('#icon-picker-trigger').click();
-  await expect(dialog.locator('#icon-picker-popup')).toBeVisible();
+  await openRowPage(page, 'TestFruits');
+  await detail(page).locator('.config-name-input').fill('TestOrchard');
+  await detail(page).locator('.icon-picker-trigger').click();
+  const picker = detail(page).locator('.icon-picker-popup');
+  await expect(picker).toBeVisible();
 
   await page.keyboard.press('Escape');
-  await expect(dialog.locator('#icon-picker-popup')).toBeHidden();
+  await expect(picker).toBeHidden();
   await expect(page.locator('#confirm-dialog')).toBeHidden();
-  await expect(dialog).toBeVisible();
+  await expect(page.locator('#manage-dialog')).toBeVisible();
 });
 
-test('Delete from a row removes the list and falls back to All Wordlists when it was scoped', async ({ page }) => {
+test("picking a publisher offers its rules through the editor's reset link, and Save commits both", async ({ page }) => {
+  await gotoApp(page);
+  await addTwoLists(page);
+
+  await openManagePanel(page);
+  await openRowPage(page, 'TestFruits');
+  await detail(page).locator('.publisher-chip', { hasText: 'Nediger' }).click();
+  const reset = detail(page).locator('.rule-reset-btn');
+  await expect(reset).toHaveText("Use Will Nediger's rules");
+  await detail(page).locator('.rescore-kebab .more-menu-btn').click();
+  await reset.click();
+  await page.locator('#confirm-dialog #btn-confirm-ok').click();
+  const ruleCount = await detail(page).locator('#rescore-rules .rule-row').count();
+  expect(ruleCount).toBeGreaterThan(0);
+  await expect(reset).toHaveCount(0);
+
+  await save(page);
+  const wl = await page.evaluate(() => window.__grawlixTest.getWordlist('TestFruits'));
+  expect(wl.publisherId).toBe('nediger');
+  expect(wl.rescoreRules.length).toBe(ruleCount);
+});
+
+test('rules and tiers edited on different pages commit in one Save', async ({ page }) => {
+  await gotoApp(page);
+  await addTwoLists(page);
+
+  await openManagePanel(page);
+  await openRowPage(page, 'All Wordlists');
+  await editFirstTierNote(page, 'Gold');
+  await back(page);
+  await openRowPage(page, 'TestFruits');
+  await detail(page).locator('#rescore-rules .rule-add-btn').click();
+  const row = detail(page).locator('#rescore-rules .rule-row').last();
+  await row.locator('.rule-in').fill('50');
+  await row.locator('.rule-out').fill('40');
+  await row.locator('.rule-out').blur();
+  await expect(page.locator('#manage-dialog .manage-status')).toHaveText('Unsaved changes: All Wordlists, TestFruits');
+
+  await save(page);
+  expect(await page.evaluate(() => state.scoring[0].note)).toBe('Gold');
+  expect((await page.evaluate(() => window.__grawlixTest.getWordlist('TestFruits'))).rescoreRules)
+    .toContainEqual({ input: '50', length: '', output: '40' });
+});
+
+test('a tier change leaves an untouched My Edits clean and following the tiers', async ({ page }) => {
+  await gotoApp(page);
+  await openManagePanel(page);
+  await openRowPage(page, 'All Wordlists');
+  await editFirstTierNote(page, 'Gold');
+  await save(page);
+
+  const edits = await page.evaluate(() => {
+    const wl = state.sources.find(w => w.type === 'edits');
+    return { dirty: !!wl.dirty, note: wl.rescoreRules[0].note };
+  });
+  expect(edits).toEqual({ dirty: false, note: 'Gold' });
+});
+
+test('the trash score is staged on the All Wordlists page', async ({ page }) => {
+  await gotoApp(page);
+  await openManagePanel(page);
+  await openRowPage(page, 'All Wordlists');
+  await detail(page).locator('.trash-score-input').fill('7');
+  await detail(page).locator('.trash-score-input').blur();
+  await expect(page.locator('#manage-dialog .manage-status')).toHaveText('Unsaved changes: All Wordlists');
+  expect(await page.evaluate(() => Storage.readMergedSettings().trashScore)).not.toBe(7);
+
+  await save(page);
+  expect(await page.evaluate(() => Storage.readMergedSettings().trashScore)).toBe(7);
+});
+
+test("the bar's ⋮ › Rescoring rules… opens Manage on that list's page", async ({ page }) => {
+  await gotoApp(page);
+  await addTwoLists(page);
+  await scopeTo(page, 'TestBerries');
+  await page.locator('#wordlist-bar .wls-kebab .more-menu-btn').click();
+  await page.locator('#wordlist-bar .wls-kebab .split-btn-menu button', { hasText: 'Rescoring rules…' }).click();
+  await expect(title(page)).toContainText('TestBerries');
+  await expect(detail(page).locator('#rescore-rules')).toBeVisible();
+  await back(page);
+  await expect(rowCard(page, 'TestBerries')).toBeVisible();
+});
+
+test('Make permanent is blocked while anything is staged', async ({ page }) => {
+  await gotoApp(page);
+  await addTwoLists(page);
+  await openManagePanel(page);
+  await openRowPage(page, 'TestFruits');
+  await detail(page).locator('#rescore-rules .rule-add-btn').click();
+  await expect(detail(page).locator('.rescore-menu .rule-bake-btn')).toBeDisabled();
+  await expect(detail(page).locator('.rescore-menu .rule-bake-btn')).toHaveAttribute('title', 'Save first');
+});
+
+test('Delete removes the list, returns to the list, and falls back to All Wordlists when it was scoped', async ({ page }) => {
   await gotoApp(page);
   await addTwoLists(page);
   await scopeTo(page, 'TestBerries');
 
   await openManagePanel(page);
-  await rowAction(page, 'delete', 'TestBerries');
+  await deleteViaPage(page, 'TestBerries');
   await page.locator('#confirm-dialog #btn-confirm-ok').click();
 
   await expect.poll(() => panelRowNames(page)).not.toContain('TestBerries');
-  await expect(page.locator('#manage-dialog')).toBeVisible();
+  await expect(title(page)).toHaveText('Manage wordlists');
   await expect(page.locator('#manage-dialog .manage-apply-btn')).toBeDisabled();
   expect(await page.evaluate(() => state.sources.some(w => w.name === 'TestBerries'))).toBe(false);
   await expect(page.locator('#wordlist-bar .wls-trigger-label')).toHaveText('All Wordlists');
@@ -499,10 +611,10 @@ test('cancelling the delete confirm keeps the list', async ({ page }) => {
   await addTwoLists(page);
 
   await openManagePanel(page);
-  await rowAction(page, 'delete', 'TestBerries');
+  await deleteViaPage(page, 'TestBerries');
   await page.locator('#confirm-dialog #btn-confirm-cancel').click();
 
-  await expect(page.locator('#manage-dialog')).toBeVisible();
+  await expect(title(page)).toContainText('TestBerries');
   expect(await panelRowNames(page)).toContain('TestBerries');
   expect(await page.evaluate(() => state.sources.some(w => w.name === 'TestBerries'))).toBe(true);
 });
@@ -513,12 +625,11 @@ test('a staged toggle survives deleting another row and still commits on Save', 
 
   await openManagePanel(page);
   await rowToggle(page, 'TestFruits').click();
-  await rowAction(page, 'delete', 'TestBerries');
+  await deleteViaPage(page, 'TestBerries');
   await page.locator('#confirm-dialog #btn-confirm-ok').click();
   await expect.poll(() => panelRowNames(page)).not.toContain('TestBerries');
 
   expect(await page.evaluate(() => window.__grawlixTest.getWordlist('TestFruits').enabled)).toBe(true);
-  await page.locator('#manage-dialog .manage-apply-btn').click();
-  await expect(page.locator('#manage-dialog')).toBeHidden();
+  await save(page);
   expect(await page.evaluate(() => window.__grawlixTest.getWordlist('TestFruits').enabled)).toBe(false);
 });

@@ -9,7 +9,7 @@
 // Wordlists.
 
 import { test, expect } from '@playwright/test';
-import { stubPublisherFetches, gotoApp, scopeTo, scopeViaSelector } from './helpers.js';
+import { stubPublisherFetches, gotoApp, scopeTo, scopeViaSelector, setTrashScore } from './helpers.js';
 
 test.beforeEach(async ({ page }) => {
   await stubPublisherFetches(page);
@@ -155,10 +155,7 @@ test('the default filter tracks the trash score', async ({ page }) => {
   await gotoApp(page, '/', { seedScoreRange: false });
   await expect(rangeInput(page)).toHaveValue('1+');
 
-  await page.locator('#btn-settings').click();
-  await page.locator('#trash-score-input').fill('7');
-  await page.locator('#trash-score-input').blur();
-  await page.locator('#settings-dialog .dialog-close-btn').click();
+  await setTrashScore(page, 7);
 
   // The box keeps showing `1+` — its value isn't rewritten — but that's now off
   // the moved default (7 + 1), so the button retargets as a reset to 8+.

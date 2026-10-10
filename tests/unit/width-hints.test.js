@@ -33,17 +33,12 @@ test('whole-set hints are independent of survivor order', () => {
 
 test('an empty result yields the zero-width floor', () => {
   assert.deepStrictEqual(computeWidthHints([], { entries: [] }), {
-    maxDisplayLen: 0, maxLenDigits: 1, maxScoreDigits: 1, maxRawDigits: 0,
+    maxDisplayLen: 0, maxLenDigits: 1, maxScoreDigits: 1,
   });
 });
 
 test('a negative score widens the score column by its sign digit', () => {
   assert.strictEqual(computeWidthHints([0], { entries: [e('X', -25)] }).maxScoreDigits, 3);
-});
-
-test('maxRawDigits tracks only entries whose raw score differs from the rescored score', () => {
-  const corpus = { entries: [e('X', 5, 1234), e('Y', 7, 7)] };
-  assert.strictEqual(computeWidthHints([0, 1], corpus).maxRawDigits, 4);
 });
 
 test('display length falls back to norm when an entry has no display', () => {
@@ -61,7 +56,6 @@ test('computeCorpusWidthBound takes the maxes over every corpus entry', () => {
     maxDisplayLen: 11,   // ELEPHANTINE
     maxLenDigits: 2,     // 11 → two digits
     maxScoreDigits: 3,   // 120
-    maxRawDigits: 0,
   });
 });
 

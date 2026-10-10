@@ -3,7 +3,7 @@
 // ─── Dark mode ────────────────────────────────────────────────────────────────
 
 import { lsSave, lsLoad, resetAllDataAndReload } from '../../data/storage.js';
-import { getOutputFormat, setOutputFormat, getTrashScore, setTrashScore } from '../../data/serialize.js';
+import { getOutputFormat, setOutputFormat } from '../../data/serialize.js';
 import { showToast } from '../toasts.js';
 import {
   buildSegCtrlHTML, setSegCtrlActive, buildOutputFormatControlsHTML,
@@ -11,7 +11,6 @@ import {
 } from '../components.js';
 import { createDialog, showDialog } from './dialog.js';
 import { showConfirm } from './confirm.js';
-import { refreshScoreRangeButtons } from '../app-view.js';
 
 const OUTPUT_FORMAT_REGEN_DELAY = 1000;
 
@@ -68,13 +67,6 @@ export const SettingsDialog = (() => {
         </div>
         <div id="auto-update-seg"></div>
       </div>
-      <div class="dialog-row">
-        <div>
-          <div class="dialog-row-label">Trash score</div>
-          <div class="dialog-row-sub">Score given to deleted and unlisted entries</div>
-        </div>
-        <input id="trash-score-input" class="trash-score-input" type="number" min="0">
-      </div>
       <div class="of-section">
         <div class="dialog-row-label">Output format</div>
         <div class="dialog-row-sub">How entries are written in wordlists and CSV files.</div>
@@ -129,16 +121,6 @@ export const SettingsDialog = (() => {
       if (!await showConfirm('Reset all wordlists and settings? This cannot be undone.', { confirmText: 'Reset' })) return;
       await resetAllDataAndReload();
     };
-
-    const trashInp = el.querySelector('#trash-score-input');
-    trashInp.onchange = () => {
-      const n = parseInt(trashInp.value, 10);
-      const v = Number.isFinite(n) && n >= 0 ? n : 0;
-      setTrashScore(v);
-      trashInp.value = v;
-      // The default filter is trash-score + 1, so the reset button's target moved.
-      refreshScoreRangeButtons();
-    };
   }
 
   let ofRegenTimer = null;
@@ -151,7 +133,6 @@ export const SettingsDialog = (() => {
 
   function open() {
     resetSub.textContent = 'Reset all wordlists and settings';
-    el.querySelector('#trash-score-input').value = getTrashScore();
     ofCtrls.innerHTML = buildOutputFormatControlsHTML(getOutputFormat());
     wireOutputFormatControls(ofCtrls, () => {
       setOutputFormat(readOutputFormatControls(ofCtrls));

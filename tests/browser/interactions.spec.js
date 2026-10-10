@@ -119,23 +119,21 @@ async function kebabAction(page, label) {
   await kebab.locator('.split-btn-menu button', { hasText: label }).click();
 }
 
-test('a Manage row\'s Configure menu item opens the ConfigureWordlist dialog and its icon picker', async ({ page }) => {
+test('clicking a Manage row opens its page and icon picker', async ({ page }) => {
   await gotoApp(page);
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
     name: 'Configurable', entries: ['cat'], scores: [50],
   }));
 
   await openManagePanel(page);
-  const row = page.locator('#manage-dialog .wordlist-card', { hasText: 'Configurable' });
-  await row.locator('.manage-row-kebab .more-menu-btn').click();
-  await row.locator('.manage-row-configure').click();
-  const dialog = page.locator('#configure-wordlist-dialog');
-  await expect(dialog).toBeVisible();
-  await expect(dialog.locator('#config-name-input')).toHaveValue('Configurable');
+  const row = page.locator('#manage-dialog .manage-list .wordlist-card', { hasText: 'Configurable' });
+  await row.locator('.card-name').click();
+  const pane = page.locator('#manage-dialog .manage-detail');
+  await expect(pane.locator('.config-name-input')).toHaveValue('Configurable');
 
-  const popup = dialog.locator('#icon-picker-popup');
+  const popup = pane.locator('.icon-picker-popup');
   await expect(popup).toBeHidden();
-  await dialog.locator('#icon-picker-trigger').click();
+  await pane.locator('.icon-picker-trigger').click();
   await expect(popup).toBeVisible();
   await expect(popup.locator('.icon-picker-tab', { hasText: 'Emoji' })).toBeVisible();
 });

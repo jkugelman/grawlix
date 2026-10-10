@@ -96,14 +96,14 @@ const SECTIONS = [
           <p>Different wordlists score on different scales. XWI is usable from 25-60 but STWL is dangerous below 50. Broda and Nediger run top out at 100. Mashing the lists together and sorting by score just gives you nonsense.</p>
           <p>Rescoring fixes that. For each list you write a few rules that translate its scores onto one shared scale, so a 50 is a 50 no matter which list it came from.</p>
           <p>The good news is you don't have to fiddle with any of this if you don't want to. Grawlix ships with opinionated defaults for the four big wordlists, so out of the box they're already aligned. You only crack open the rules when you import your own list, or you decide one of my defaults got something wrong. (And if you don't care about scores at all, you can skip rescoring entirely. See <em>Do I have to rescore anything?</em>)</p>
-          <p>Pop open the <strong>Rescoring</strong> panel on any wordlist if you want to change the rules.</p>`,
+          <p>To change the rules, open <strong>Manage wordlists</strong> and click the list.</p>`,
       },
       {
         slug: 'score-tiers',
         q: 'What do the score colors and tiers mean?',
         a: `
           <p>Scores show up as colored badges, and the color is the tier. Out of the box: <strong>great</strong> (60+), <strong>good</strong> (50+), <strong>fair</strong> (40+), <strong>meh</strong> (30+), <strong>bad</strong> (below 30). Hover any badge, whether in the table, the entry panel, or the tier picker, and it names the tier.</p>
-          <p>Don't like the cutoffs or the labels? They're yours. Switch to All Wordlists and open <strong>Scoring</strong> to rename a tier or move a line. It's optional decoration, though. Unlabeled scores still display fine, you just won't get a name on hover.</p>`,
+          <p>Don't like the cutoffs or the labels? They're yours. Open <strong>Manage wordlists</strong> and click All Wordlists to rename a tier or move a line. It's optional decoration, though. Unlabeled scores still display fine, you just won't get a name on hover.</p>`,
       },
       {
         slug: 'rescore-entries',

@@ -48,7 +48,7 @@ This table is exhaustive — [`tests/unit/components-doc.test.js`](../tests/unit
 | `openMenu(menu, trigger, opts)`, `toggleMenu(…)`, `closeMenus()`, `isMenuOpen(menu)` | **Every dropdown menu floats through these.** The menu is a `popover="manual"` element in the top layer, so no scrolling or overflow-clipped ancestor (a dialog, a list, a tool row) can cut it off; it's positioned under `opts.anchor` (default: the trigger) and repositioned on scroll/resize. One menu is open at a time. A menu built outside the two builders above (e.g. the tool stack's match-mode menu) calls these directly instead of rolling its own open/dismiss logic. |
 | `buildChoiceArrowHTML(title)`, `toggleChoiceMenu(trigger, { choices, current, anchor, onPick })` | **A dropdown of mutually exclusive choices**, ✓ on the current one: Search's match mode and Manage's merge mode. The caret button opens one shared menu under `anchor`; a pick closes it and calls `onPick(value)`. The menu moves into the trigger's `<dialog>` when there is one, since a modal dialog makes everything outside it inert. |
 | `mountMenus()` | Installs the document-level dismissal: any click outside the trigger, or Escape (which closes only the menu, never a dialog under it). Called once from `boot()`. |
-| `buildUrlInputHTML(id, placeholder)` | A URL field with a leading globe icon. |
+| `buildUrlInputHTML(id, placeholder)` | A URL field with a leading globe icon. Pass a null `id` where two copies can coexist (the wordlist form). |
 | `buildEditHintHTML(extraClass, onclick)` | The ✏️ that fades in on hover to mean "click to edit". |
 | `buildTrashIconHTML()` | The trash `<svg>`. |
 | `buildDragHandleHTML({ hidden })` | The ≡ drag grip. `hidden` renders an `aria-hidden` placeholder that holds the grip's space, for a row that can't move (the Search bar, My Edits' pinned card). |
@@ -65,7 +65,7 @@ Small, stable, cross-cutting — reuse rather than reimplement:
   The full contract, including promise-returning dialogs, is in [`CLAUDE.md`](../CLAUDE.md) § *Component architecture*.
 - **Icons** — [`ui/icons.js`](../site/src/ui/icons.js): `buildIconHTML(descriptor, name, seed)` renders a wordlist/publisher icon from its stored descriptor; `getWordlistIcon(wordlist)` is the usual call site.
   Never store the generated markup.
-- **Score badges** — [`model/score-display.js`](../site/src/model/score-display.js): `buildScoreBadgeHTML(score)` and `buildScoreCellHTML(wlEntry, preview)` — the cell builder draws a faint em dash (`.score-none`) in place of the badge for a coined entry, the table's one "no value" placeholder.
+- **Score badges** — [`model/score-display.js`](../site/src/model/score-display.js): `buildScoreBadgeHTML(score)` and `buildScoreCellHTML(wlEntry, showRaw)` — the cell builder draws `raw → rescored` when `showRaw` is set (the entry panel's provenance), and a faint em dash (`.score-none`) in place of the badge for a coined entry, the table's one "no value" placeholder.
 - **Toasts** — [`ui/toasts.js`](../site/src/ui/toasts.js): `showToast`, `showActionToast`, `showUndoToast`.
 - **Text** — [`core/util.js`](../site/src/core/util.js): `esc` (escape for interpolation into HTML — use it on every interpolated value), `pluralize`, `plural`, `timeAgo`, `formatBytes`, `buildHelpHTML`.
 

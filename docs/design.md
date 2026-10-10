@@ -59,8 +59,6 @@ The header gear opens the **Settings** dialog (`ui/dialogs/settings.js`), one ro
   Auto follows `prefers-color-scheme` and re-applies live when the OS setting flips.
   Alt-M cycles the three from anywhere and confirms with a toast (`Dark mode: Light`).
 - **Auto-update wordlists** — [`wordlists.md`](wordlists.md) § *Fetching & updates*.
-- **Trash score** — a non-negative number, default 0 (`DEFAULT_TRASH_SCORE`), sub-labelled *Score given to deleted and unlisted entries*.
-  It scores the downscore a norm-changing rename leaves behind ([`entry-panel.md`](entry-panel.md) § *Editing*), a coined Replace entry in a wordlist download ([`pipeline.md`](pipeline.md) § *The chain-row model*), and sets the default score filter one above it ([`wordlists.md`](wordlists.md) § *Scope: the selected wordlist is the corpus*).
 - **Output format** — [`wordlists.md`](wordlists.md) § *Output format*.
 - **Reset browser data** — a **Reset** button that, behind a confirm, wipes Grawlix's localStorage keys and IndexedDB and reloads (`resetAllDataAndReload`).
 
@@ -162,7 +160,7 @@ The entries table's own keys (arrows, Shift/Ctrl selection, Space, Enter, Esc, D
 
 ## Wordlists & setup
 
-Wordlist data and its management — scope, the wordlist bar and manage panel, the rescore editor, rich entries, disk sync, output format, fetching and updates, and rescore rules — have their own doc, [`wordlists.md`](wordlists.md).
+Wordlist data and its management — scope, the wordlist bar, the manage panel and its rescore editor, rich entries, disk sync, output format, fetching and updates, and rescore rules — have their own doc, [`wordlists.md`](wordlists.md).
 The entry panel, which edits single entries across wordlists, is in [`entry-panel.md`](entry-panel.md).
 
 ## Tool gallery & stack
@@ -291,7 +289,7 @@ It runs whenever the panel re-renders and an anchor may have been rebuilt — `m
 Search's `pattern` param carries the wildcard cheat sheet; Regex's `pattern` and `replace` params carry regex-syntax sheets (no cheat sheet covers all of regex, so both link out to regexone.com).
 Several **non-tool inputs** ride the same mechanism: the stats-bar score-range filter (`data-help="filter/score"`) and the rescore/scoring rule fields (`rule/score`, `rule/length`, `rule/output`).
 `PARAM_HELP` carries their content keyed to match each input builder's emitted `data-help` — `SCORE_RANGE_HELP` and `LENGTH_HELP` live beside `parseRange` (the parser whose `n` / `lo-hi` / `lo+` syntax they document), `OUTPUT_HELP` in `rescore.js`.
-The rescore editor isn't reached by `mountPanel`/`rerenderRows`, so `renderEditorContent` calls `attachHelpPopups` itself after writing the field DOM.
+The rescore editor isn't reached by `mountPanel`/`rerenderRows`, so its `renderDraft` calls `attachHelpPopups` itself after writing the field DOM.
 Each input keeps a short `title` — a field label, or the filter's `Alt-C` shortcut — and leaves the syntax to the cheat sheet, exactly as the search bar pairs its cheat sheet with a `Search (Alt-S)` title.
 The popover is interactive — a `mousedown`-preventDefault keeps the anchored input focused — so a click on the footer link lands instead of blurring the input and dismissing the popover first.
 
@@ -1255,7 +1253,7 @@ The worker-side seams are wired at the top of `engine/worker.js` or on its `conf
 |---|---|---|---|
 | `configurePipelineWorker` | `ui/pipeline-worker.js` | `baseURL: import.meta.url` (main.js's) | `null`: spawning the worker throws |
 | `configureSyncDialog` | `ui/dialogs/sync.js` | `WordlistActions` | no-op |
-| `configureConfigureWordlist` | `ui/dialogs/configure-wordlist.js` | `addNewWordlist`, `fetchWordlist`, `ingestFile` | no-op |
+| `configureAddWordlist` | `ui/dialogs/add-wordlist.js` | `addNewWordlist`, `fetchWordlist`, `ingestFile` | no-op |
 | `configureImportGuide` | `ui/dialogs/import-guide.js` | `ingestFile` | no-op |
 | `configureRendering` | `ui/rendering.js` | `refreshDerivedDisplays`, `deleteFromEdits`, `attachExternalEditHandlers`, the score-range, length-range, and Share HTML builders | no-op; builders return `''` |
 | `configureAppView` | `ui/app-view.js` | `navigate` (`Router.navigate`) | no-op |
@@ -1374,7 +1372,7 @@ The freeze a main-resident corpus left here — re-shipping or re-resolving a co
 
 **Hot path: editing rescore rules.**
 A rule commit clears the source's `_rescored*` and fires `resyncWorkerConfig`, so the worker rebuilds its corpus with the new mapping off-thread behind the busy indicator; `compileRescoreRules` compiles the rules into intervals once (in both realms) so the per-row `rescoreEntry` walk reads compiled intervals rather than re-parsing strings — for Broda-sized wordlists (~500K entries) millions of regex calls saved per build.
-While scoped to the edited source with the rescore editor open, the table itself is the live preview — rule-changed rows render the `raw → rescored` arrow ([`wordlists.md`](wordlists.md) § *Rescore and scoring*) — so there's no separate preview scroller to feed.
+Rule edits stage in Manage wordlists and reach the worker once, on Save, however many lists' rules changed ([`wordlists.md`](wordlists.md) § *Rescore and scoring*).
 
 **Hot path: editing My Edits.**
 A score/comment edit, a new-entry add, or a delete routes through `applyEditsChange(edits, mutate)`: it applies the mutation to My Edits' resident `rawEntries`, drops My Edits' own derived caches (`invalidateRescoredCache`), and refreshes the count/legend displays — main holds no merged corpus to patch (the worker's prefix cache is invalidated worker-side by the splice's corpus-identity purge, not from here).
@@ -1487,7 +1485,7 @@ Helper bodies come in two shapes:
 The alternative — sprinkling `invalidateX()` and `repaintY()` calls at every mutation site — concentrates the discipline of "what does changing X require?" at every caller.
 The helper-plus-effects shape concentrates that discipline in one place per field, and "forget to repaint" stops being a category of bug because the effect handles dispatch as long as the right signal got bumped.
 
-`batchUpdate(fn)` coalesces a multi-field save (the configure-wordlist dialog can change up to five fields at once, and `applyWordlistText` batches its prelude similarly) into one effect run per subscriber.
+`batchUpdate(fn)` coalesces a multi-field save (Manage wordlists' Save can change every list's fields, rules and order at once, and `applyWordlistText` batches its prelude similarly) into one effect run per subscriber.
 Signal writes inside a batch queue their subscribers in `_batchedEffects`; any `repaintAfterCacheChange` calls inside set a deferred bump flag, and `persistMeta()` calls set a deferred persist flag.
 At the end of the batch persistence runs once, the cache bump fires once, and the queued effects each run once.
 

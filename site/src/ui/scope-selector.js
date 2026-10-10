@@ -1,7 +1,7 @@
 'use strict';
 
 // ─── Scope selector ─────────────────────────────────────────────────────────
-// The scope dropdown + wordlist bar + inline editor slot. Pure-scope: clicking
+// The scope dropdown + wordlist bar. Pure-scope: clicking
 // a row drives setScope. Enable/disable toggling stays out of here on purpose —
 // it lives in the manage panel.
 
@@ -17,13 +17,8 @@ import {
   syncSignHTML, syncBusyKey, setSyncBusy, applySyncBusy,
   wordlistSeverity, sourcesSeverity, severityTitle,
 } from './sync-indicators.js';
-import {
-  buildRescoreSectionHTML, buildScoringSectionHTML,
-  beginEdit, discardDraft, isDraftDirty, draftScope, wireDraftReorder,
-} from './rescore-editor.js';
-import { showConfirm } from './dialogs/confirm.js';
 import { ManagePanel } from './manage-panel.js';
-import { setScope, refreshMergedScroller, getEntriesScroller, attachHelpPopups } from './rendering.js';
+import { setScope } from './rendering.js';
 
 // ─── Wordlist-card domain builders ──────────────────────────────────────────
 
@@ -56,12 +51,13 @@ export function buildWordlistCardHTML(icon, name, meta, opts = {}) {
 
   const toggleTitle = !populated ? 'Click to import'
     : enabled ? 'Enabled — click to disable' : 'Disabled — click to enable';
-  const cardActions = toggle && !pinned ? `<div class="card-actions">
+  const toggleHTML = toggle && !pinned ? `
     <label class="toggle" title="${toggleTitle}" aria-label="Toggle ${esc(name)}">
       <input type="checkbox"${populated && enabled ? ' checked' : ''}${populated ? '' : ' disabled'}>
       <span class="toggle-slider"></span>
-    </label>${extraActions}
-  </div>` : '';
+    </label>` : '';
+  const cardActions = toggleHTML || extraActions
+    ? `<div class="card-actions">${toggleHTML}${extraActions}</div>` : '';
 
   return `<div class="${classes.join(' ')}" data-wordlist tabindex="0" role="option">${dragHandle}${icon}${cardInfo}${cardActions}</div>`;
 }
@@ -103,13 +99,7 @@ export function renderSyncIndicators() {
 }
 
 export const WordlistSelector = (() => {
-  let bar, root, appEl, trigger, menu, actions, dlSlot, rescoreSlot, kebabSlot;
-  let editor, editorInner;
-  // A rebuild between press and release detaches the pressed button and the
-  // browser drops the click. Background refreshes and a rule field's blur-commit
-  // both land there, so a press inside the editor holds renders until release.
-  let pressHeld = false, renderPending = false;
-  let editorOpen = false;
+  let bar, root, appEl, trigger, menu, actions, dlSlot, kebabSlot;
   let triggerMax = 0;
 
   function scopeIcon(scope)  { return scope === MERGED_ID ? getMergedIcon() : getWordlistIcon(scope); }
@@ -142,6 +132,7 @@ export const WordlistSelector = (() => {
   }
 
   function downloadMenuItems(scope) {
+    if (scope === MERGED_ID) return [['Download', `WordlistActions.action('download')`, { disabled: mergedEntryCount() === 0 }]];
     if (!sourceTotal(scope)) return [['Download', `WordlistActions.action('download')`, { disabled: true }]];
     const hasRules = (scope.rescoreRules?.length ?? 0) > 0;
     return hasRules
@@ -150,27 +141,23 @@ export const WordlistSelector = (() => {
       : [['Download', `WordlistActions.action('download')`]];
   }
 
-  function rescoreLabel() { return state.selected === MERGED_ID ? 'Scoring' : 'Rescoring'; }
-  function rescoreBtnHTML() {
-    return `<button type="button" class="rescore-toggle" aria-expanded="${editorOpen}" aria-controls="rescore-editor" title="${editorLabel()}">${rescoreLabel()}<svg class="rescore-chevron" width="8" height="5" aria-hidden="true"><use href="#icon-arrow"/></svg></button>`;
-  }
-
   function kebabHTML(level) {
     const scope = state.selected;
-    if (scope === MERGED_ID) return '';
-    const folded = [];
-    if (level >= 2) folded.push([rescoreLabel(), `WordlistActions.action('rescore')`]);
-    if (level >= 1) folded.push(...downloadMenuItems(scope));
+    const folded = level >= 1 ? downloadMenuItems(scope) : [];
     let base;
-    if (scope.type === 'edits') {
+    if (scope === MERGED_ID) {
+      base = [['Scoring tiers…', `WordlistActions.action('rescore')`]];
+    } else if (scope.type === 'edits') {
       base = [
         ['Import', `WordlistActions.action('import')`],
         ['Clear',  `WordlistActions.action('clear')`],
+        ['Rescoring rules…', `WordlistActions.action('rescore')`],
       ];
     } else {
       base = [
         ...(scope.url ? [['Fetch', `WordlistActions.action('fetch')`]] : []),
         ['Import', `WordlistActions.action('import')`],
+        ['Rescoring rules…', `WordlistActions.action('rescore')`],
       ];
     }
     return buildMoreMenuHTML([...folded, ...base], { className: 'wls-kebab' });
@@ -186,7 +173,6 @@ export const WordlistSelector = (() => {
     dlSlot.innerHTML = `${dateSlot}${signHTML}${level === 0 ? downloadBtnHTML() : ''}`;
     stampSyncSign(signHTML);
     setSyncBusy(syncBusyKey());
-    rescoreSlot.innerHTML = level < 2 ? rescoreBtnHTML() : '';
     kebabSlot.innerHTML = kebabHTML(level);
     if (hasDate) {
       const setDate = () => {
@@ -212,7 +198,7 @@ export const WordlistSelector = (() => {
     if (!force && w === _fitWidth) return;
     _fitWidth = w;
     renderActions(0);
-    const max = w > 0 && state.selected !== MERGED_ID ? 2 : 0;
+    const max = w > 0 ? 1 : 0;
     let level = 0;
     while (level < max && nameSqueezed()) renderActions(++level);
   }
@@ -284,78 +270,10 @@ export const WordlistSelector = (() => {
   }
   function onOutsideClick(e) { if (!e.target.closest('.wls')) close(); }
 
-  function editorLabel() {
-    return state.selected === MERGED_ID ? 'Scoring tiers' : 'Rescoring rules';
-  }
-  function setToggleExpanded(open) {
-    rescoreSlot.querySelector('.rescore-toggle')?.setAttribute('aria-expanded', open ? 'true' : 'false');
-  }
-  function toggleEditor() { editorOpen ? attemptCloseEditor() : expandEditor(); }
-  function renderEditorContent() {
-    if (!editorOpen) return;
-    if (pressHeld) { renderPending = true; return; }
-    renderPending = false;
-    editorInner.innerHTML = state.selected === MERGED_ID
-      ? buildScoringSectionHTML()
-      : buildRescoreSectionHTML();
-    wireDraftReorder();
-    attachHelpPopups();
-  }
-  function refreshEditor() {
-    if (!editorOpen) return;
-    if (draftScope() !== state.selected) beginEdit(state.selected);
-    renderEditorContent();
-  }
-  // Like refreshEditor but reseeds the draft even when the scope is unchanged —
-  // for when committed rules are rewritten under an open editor (baking resets
-  // them), which refreshEditor's scope guard would otherwise leave stale.
-  function reseedEditor() {
-    if (!editorOpen) return;
-    beginEdit(state.selected);
-    renderEditorContent();
-  }
-  function expandEditor() {
-    editorOpen = true;
-    setToggleExpanded(true);
-    beginEdit(state.selected);
-    // Unhide before flipping .rescore-open so the grid-rows transition runs
-    // from 0fr; toggling both in one frame would skip the animation.
-    editor.hidden = false;
-    renderEditorContent();
-    requestAnimationFrame(() => bar.classList.add('rescore-open'));
-    // The raw → rescored preview lives in the scroller rows, gated on the
-    // editor's open state, so toggling it must repaint the table.
-    if (getEntriesScroller()) refreshMergedScroller();
-  }
-  function collapseEditor() {
-    if (!editorOpen) return;
-    editorOpen = false;
-    setToggleExpanded(false);
-    bar.classList.remove('rescore-open');
-    hideAfterCollapse();
-    if (getEntriesScroller()) refreshMergedScroller();
-  }
-  async function attemptCloseEditor() {
-    if (isDraftDirty() && !await showConfirm('Discard your changes?', { confirmText: 'Discard' })) return;
-    discardDraft();
-    collapseEditor();
-  }
-  function hideAfterCollapse() {
-    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    const finish = () => {
-      if (editorOpen) return; // reopened mid-transition
-      editor.hidden = true;
-      editorInner.innerHTML = '';
-    };
-    if (reduced) { finish(); return; }
-    afterTransition(editor, finish, { property: 'grid-template-rows', timeout: 400 });
-  }
-
   function refresh() {
     renderTrigger();
     fitActions(true);
     if (root.classList.contains('open')) renderMenu();
-    refreshEditor();
   }
 
   function refreshMeta() {
@@ -378,11 +296,9 @@ export const WordlistSelector = (() => {
         </div>
         <div class="wls-actions">
           <span class="wls-dl-slot"></span>
-          <span class="wls-rescore-slot"></span>
           <span class="wls-kebab-slot"></span>
         </div>
-      </div>
-      <div id="rescore-editor" hidden><div class="rescore-editor-inner"></div></div>`;
+      </div>`;
     document.getElementById('app').prepend(bar);
 
     root    = bar.querySelector('.wls');
@@ -391,25 +307,11 @@ export const WordlistSelector = (() => {
     triggerMax = parseFloat(getComputedStyle(trigger).maxWidth);
     menu    = bar.querySelector('.wls-menu');
     actions = bar.querySelector('.wls-actions');
-    dlSlot      = bar.querySelector('.wls-dl-slot');
-    rescoreSlot = bar.querySelector('.wls-rescore-slot');
-    kebabSlot   = bar.querySelector('.wls-kebab-slot');
-
-    editor       = bar.querySelector('#rescore-editor');
-    editorInner  = editor.querySelector('.rescore-editor-inner');
-    editorInner.addEventListener('pointerdown', () => { pressHeld = true; });
-    const releasePress = () => {
-      if (!pressHeld) return;
-      pressHeld = false;
-      // A mouse release dispatches its click in this same task; the timeout
-      // lands the held render after it.
-      setTimeout(() => { if (renderPending) renderEditorContent(); });
-    };
-    window.addEventListener('pointerup', releasePress, true);
-    window.addEventListener('pointercancel', releasePress, true);
+    dlSlot    = bar.querySelector('.wls-dl-slot');
+    kebabSlot = bar.querySelector('.wls-kebab-slot');
 
     trigger.addEventListener('click', () => root.classList.contains('open') ? close() : open());
-    menu.addEventListener('click', async e => {
+    menu.addEventListener('click', e => {
       if (e.target.closest('.wls-configure-footer')) {
         close();
         ManagePanel.open();
@@ -417,21 +319,14 @@ export const WordlistSelector = (() => {
       }
       const opt = e.target.closest('.wordlist-card');
       if (!opt) return;
-      if (opt._scope !== state.selected && editorOpen && isDraftDirty()) {
-        if (!await showConfirm('Discard your changes?', { confirmText: 'Discard' })) return;
-        discardDraft();
-      }
       close();
       setScope(opt._scope);
     });
     document.addEventListener('keydown', e => { if (e.key === 'Escape') close(); });
-    // Delegated so the rescore toggle survives renderActions re-rendering it at a
-    // different fold level (it can be an inline button or, deepest, a kebab item).
-    actions.addEventListener('click', e => { if (e.target.closest('.rescore-toggle')) toggleEditor(); });
     new ResizeObserver(() => fitActions()).observe(appEl);
 
     renderTrigger();
   }
 
-  return { mount, refresh, refreshEditor, reseedEditor, refreshSyncSign, refreshMeta, toggleEditor, isEditorOpen: () => editorOpen, collapseEditor };
+  return { mount, refresh, refreshSyncSign, refreshMeta };
 })();

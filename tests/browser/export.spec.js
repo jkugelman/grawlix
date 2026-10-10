@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { stubPublisherFetches, gotoApp } from './helpers.js';
+import { stubPublisherFetches, gotoApp, setTrashScore } from './helpers.js';
 
 test.beforeEach(async ({ page }) => {
   await stubPublisherFetches(page);
@@ -270,13 +270,10 @@ test('Wordlist writes a coined output at score 0, the usual mark for an unvetted
   expect(text).toBe('sxar;0\nxar;0\nxat;0\nxot;0\n');
 });
 
-test('Wordlist writes a coined output at the trash score set in Settings', async ({ page }) => {
+test('Wordlist writes a coined output at the trash score set in Manage', async ({ page }) => {
   await gotoApp(page);
   await addFixture(page);
-  await page.locator('#btn-settings').click();
-  await page.locator('#trash-score-input').fill('7');
-  await page.locator('#trash-score-input').blur();
-  await page.locator('#settings-dialog .dialog-close-btn').click();
+  await setTrashScore(page, 7);
   await setStack(page, COIN);
 
   const { text } = await getExport(page, 'wordlist');

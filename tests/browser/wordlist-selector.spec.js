@@ -4,7 +4,7 @@
 // source renders dimmed yet stays selectable (scope ≠ merge).
 
 import { test, expect } from '@playwright/test';
-import { stubPublisherFetches, gotoApp, scopeTo, scopeViaSelector, expectVisible, openRescoreEditor, setEnabledViaPanel } from './helpers.js';
+import { stubPublisherFetches, gotoApp, scopeTo, scopeViaSelector, expectVisible, openRescoreEditor, setEnabledViaPanel, openRescoreMenu } from './helpers.js';
 
 test.beforeEach(async ({ page }) => {
   await stubPublisherFetches(page);
@@ -151,12 +151,13 @@ test('a URL-backed source kebab offers Fetch and Import — Configure and Delete
   const items = await kebabItems(page);
   expect(items).toContain('Fetch');
   expect(items).toContain('Import');
+  expect(items).toContain('Rescoring rules…');
   expect(items).not.toContain('Configure');
   expect(items).not.toContain('Delete');
   expect(items).not.toContain('Make permanent');
 });
 
-test('an imported (file-based) source kebab offers only Import — no Configure, no Delete, no Fetch, no bake', async ({ page }) => {
+test('an imported (file-based) source kebab offers Import and its rules — no Configure, no Delete, no Fetch, no bake', async ({ page }) => {
   await gotoApp(page);
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
     name: 'Mine', entries: ['ocean'], scores: [70],
@@ -166,33 +167,29 @@ test('an imported (file-based) source kebab offers only Import — no Configure,
   const items = await kebabItems(page);
   expect(items).not.toContain('Fetch');
   expect(items).toContain('Import');
+  expect(items).toContain('Rescoring rules…');
   expect(items).not.toContain('Configure');
   expect(items).not.toContain('Delete');
   expect(items).not.toContain('Make permanent');
 });
 
-test('the My Edits kebab offers only Import and Clear — no Fetch, no Delete, no bake', async ({ page }) => {
+test('the My Edits kebab offers Import, Clear and its rules — no Fetch, no Delete, no bake', async ({ page }) => {
   await gotoApp(page);
   await scopeTo(page, 'My Edits');
 
   const items = await kebabItems(page);
   expect(items).toContain('Import');
   expect(items).toContain('Clear');
+  expect(items).toContain('Rescoring rules…');
   expect(items).not.toContain('Fetch');
   expect(items).not.toContain('Delete');
   expect(items).not.toContain('Make permanent');
 });
 
-test('All Wordlists shows no kebab — only its Download', async ({ page }) => {
+test('the All Wordlists kebab offers only Scoring tiers…', async ({ page }) => {
   await gotoApp(page);
-  await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
-    name: 'Mine', entries: ['ocean'], scores: [70],
-  }));
   await expect(page.locator('#wordlist-bar .wls-trigger-label')).toHaveText('All Wordlists');
-  await expect(page.locator('#wordlist-bar .wls-actions .wls-kebab')).toHaveCount(0);
-
-  await scopeTo(page, 'Mine');
-  await expect(page.locator('#wordlist-bar .wls-actions .wls-kebab')).toHaveCount(1);
+  expect(await kebabItems(page)).toEqual(['Scoring tiers…']);
 });
 
 test('the Download button is disabled, not hidden, for an empty wordlist', async ({ page }) => {
@@ -216,9 +213,10 @@ test('the rescore panel bake button is enabled for a bakeable source and applies
   ]));
 
   await openRescoreEditor(page);
-  const bakeBtn = page.locator('#rescore-editor .rule-bake-btn');
+  const bakeBtn = page.locator('#manage-dialog .rescore-menu .rule-bake-btn');
   await expect(bakeBtn).toBeEnabled();
 
+  await openRescoreMenu(page);
   await bakeBtn.click();
   await expect(page.locator('#confirm-dialog')).toBeVisible();
   await page.locator('#confirm-dialog #btn-confirm-ok').click();
@@ -232,23 +230,7 @@ test('the rescore panel bake button is disabled for a publisher source', async (
   await gotoApp(page);
   await scopeTo(page, 'John Kugelman');
   await openRescoreEditor(page);
-  await expect(page.locator('#rescore-editor .rule-bake-btn')).toBeDisabled();
-});
-
-test('collapsing the editor tears its content down even when no transition runs', async ({ page }) => {
-  await gotoApp(page);
-  await scopeTo(page, 'John Kugelman');
-  await openRescoreEditor(page);
-  await expect(page.locator('#rescore-editor .rescore-apply')).toHaveCount(1);
-
-  // The teardown hangs off a transitionend, which a suppressed transition never
-  // fires — and an unbounded wait leaves the collapsed editor mounted at 0fr,
-  // invisible but still tabbable, for the rest of the session.
-  await page.addStyleTag({ content: '#rescore-editor { transition: none !important; }' });
-  await page.locator('#rescore-editor .rescore-cancel').click();
-
-  await expect(page.locator('#rescore-editor')).toBeHidden();
-  await expect(page.locator('#rescore-editor .rescore-apply')).toHaveCount(0);
+  await expect(page.locator('#manage-dialog .rescore-menu .rule-bake-btn')).toBeDisabled();
 });
 
 test('All Wordlists has no bake button — its panel is the scoring/tier editor', async ({ page }) => {
@@ -258,5 +240,5 @@ test('All Wordlists has no bake button — its panel is the scoring/tier editor'
   }));
   await expect(page.locator('#wordlist-bar .wls-trigger-label')).toHaveText('All Wordlists');
   await openRescoreEditor(page);
-  await expect(page.locator('#rescore-editor .rule-bake-btn')).toHaveCount(0);
+  await expect(page.locator('#manage-dialog .rule-bake-btn')).toHaveCount(0);
 });

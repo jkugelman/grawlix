@@ -113,7 +113,7 @@ test('My Edits is pinned in Manage, and a demoted or disabled one is restored at
   await gotoApp(page);
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({ name: 'Lister', entries: ['BAGEL'], scores: [50] }));
   await openManagePanel(page);
-  const editsCard = page.locator('#manage-dialog .wordlist-card').first();
+  const editsCard = page.locator('#manage-dialog .manage-list .wordlist-card').first();
   await expect(editsCard).toContainText('My Edits');
   await expect(editsCard.locator('.drag-handle:not([aria-hidden])')).toHaveCount(0);
   await expect(editsCard.locator('.toggle')).toHaveCount(0);
@@ -126,7 +126,7 @@ test('My Edits is pinned in Manage, and a demoted or disabled one is restored at
   await page.evaluate(() => window.__grawlixTest.createMyEntry('BAGEL', 30));
   await expect.poll(() => mergedScore(page, 'BAGEL')).toEqual([30, 'My Edits']);
   await openManagePanel(page);
-  await expect(page.locator('#manage-dialog .wordlist-card').first()).toContainText('My Edits');
+  await expect(page.locator('#manage-dialog .manage-list .wordlist-card').first()).toContainText('My Edits');
 });
 
 // A search keystroke changes only the filter, not the sources, so it must reuse

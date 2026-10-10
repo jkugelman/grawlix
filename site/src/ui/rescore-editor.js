@@ -1,108 +1,108 @@
 'use strict';
 
 // ─── Rescore editor ─────────────────────────────────────────────────────────
-// The editor edits a *draft* copy of the scope's rules; Apply runs the single
-// heavy commit. Deferred so authoring a rule doesn't re-rescore the whole
-// source per keystroke — see docs/wordlists.md § Rescore and scoring.
+// Edits one draft — a list's rescore rules or the tier labels — that the
+// Manage wordlists dialog owns and commits on Save. See docs/wordlists.md
+// § Rescore and scoring.
 
 import { MERGED_ID, DEFAULT_SCORING } from '../core/constants.js';
 import { esc } from '../core/util.js';
 import { parseRange } from '../engine/range.js';
-import { state } from '../data/state.js';
-import { applyRescoreRulesChange, persistScoring } from '../data/persist.js';
 import {
   parseRuleOutput, makeRescoreRuleStub, rescoreRulesEqual, scoringRulesEqual, compileRule,
 } from '../engine/rescore.js';
-import { getWordlistDefaultRules } from '../data/rescoring.js';
-import {
-  updateScoringDirty, propagateDefaults, makeScoringRowStub,
-} from '../model/scoring.js';
+import { makeScoringRowStub } from '../model/scoring.js';
 import { showConfirm } from './dialogs/confirm.js';
-import { buildEditHintHTML, buildTrashIconHTML, buildDragHandleHTML, makeReorderable } from './components.js';
-import { WordlistSelector } from './scope-selector.js';
-import { getEntriesScroller } from './rendering.js';
+import { buildEditHintHTML, buildTrashIconHTML, buildDragHandleHTML, makeReorderable, buildMoreMenuHTML } from './components.js';
+import { attachHelpPopups } from './rendering.js';
 
 // Injected so this view imports nothing above ui (bake lives in the app layer).
 let _bakeMenuOpts = () => ({});
-let _bake         = () => {};
+let _bake         = async () => {};
 
 export function configureRescoreEditor({ bakeMenuOpts, bake }) {
   if (bakeMenuOpts) _bakeMenuOpts = bakeMenuOpts;
   if (bake)         _bake         = bake;
 }
 
-// ─── Draft buffer ──────────────────────────────────────────────────────────
+// ─── Draft binding ─────────────────────────────────────────────────────────
 
-let _draft = null;       // working copy: rescore rules (source) or tier labels (All Wordlists)
-let _draftScope = null;  // the scope the draft belongs to; null while the editor is closed
+// Every edit mutates _draft in place: Manage holds the same array, so a
+// reassignment would silently drop the edit from what Save commits.
+let _draft = null;
+let _scope = null;            // a source, or MERGED_ID for the tier labels
+let _host = null;
+let _menuHost = null;         // where the lifecycle actions' ⋮ menu goes
+let _onChange = () => {};
+let _defaults = () => null;   // what Reset restores, under the staged publisher
+let _resetLabel = () => 'Reset to defaults';
+let _bakeBlocked = () => false;
 
 function isScoringScope(scope) { return scope === MERGED_ID; }
 
-export function beginEdit(scope) {
-  _draftScope = scope;
-  const src = isScoringScope(scope) ? state.scoring : (scope.rescoreRules || []);
-  _draft = src.map(r => ({ ...r }));
+export function bindDraft({ scope, rules, host, menuHost = null, onChange, defaults = () => null, resetLabel = () => 'Reset to defaults', bakeBlocked = () => false }) {
+  _scope = scope;
+  _draft = rules;
+  _host = host;
+  _menuHost = menuHost;
+  _onChange = onChange;
+  _defaults = defaults;
+  _resetLabel = resetLabel;
+  _bakeBlocked = bakeBlocked;
   recompileDraft();
+  renderDraft();
+}
+
+export function unbindDraft() {
+  _draft = null; _scope = null; _host = null; _menuHost = null;
+  _onChange = () => {}; _defaults = () => null; _resetLabel = () => 'Reset to defaults'; _bakeBlocked = () => false;
 }
 
 function recompileDraft() {
-  if (_draft && !isScoringScope(_draftScope)) _draft.forEach(compileRule);
+  if (_draft && !isScoringScope(_scope)) _draft.forEach(compileRule);
 }
 
-export function discardDraft() { _draft = null; _draftScope = null; }
-export function draftScope() { return _draftScope; }
-
-export function getDraftRescoreRules() {
-  return (_draft && !isScoringScope(_draftScope)) ? _draft : null;
+function replaceDraft(rules) {
+  _draft.splice(0, _draft.length, ...rules.map(r => ({ ...r })));
 }
 
-export function isDraftDirty() {
-  if (!_draft) return false;
-  return isScoringScope(_draftScope)
-    ? !scoringRulesEqual(_draft, state.scoring)
-    : !rescoreRulesEqual(_draft, _draftScope.rescoreRules || []);
+function renderDraft() {
+  if (!_host?.isConnected) return;
+  _host.innerHTML = isScoringScope(_scope) ? buildScoringSectionHTML() : buildRescoreSectionHTML();
+  refreshEditorMenu();
+  makeReorderable(_host.querySelector('.rules-list'), {
+    handleSelector: '.drag-handle',
+    itemSelector: '.rule-row',
+    onReorder: onDraftReorder,
+  });
+  attachHelpPopups();
 }
 
-export function commitDraft() {
-  if (!_draft) return;
-  if (isScoringScope(_draftScope)) {
-    state.scoring = _draft.map(r => ({ ...r }));
-    discardDraft();
-    applyScoringChange();
-  } else {
-    const wl = _draftScope;
-    wl.rescoreRules = _draft.map(r => ({ ...r }));
-    discardDraft();
-    applyRescoreRulesChange(wl);
-  }
-}
-
-export function applyRescoreDraft() {
-  WordlistSelector.collapseEditor();
-  commitDraft();
-}
-export function cancelRescoreDraft() {
-  WordlistSelector.collapseEditor();
-  discardDraft();
-}
-
-// Bake reads committed rules, so commit the draft first or it bakes stale ones.
-export async function makeRescorePermanent() {
-  commitDraft();
-  await _bake();
-  WordlistSelector.reseedEditor();
-}
-
-// Local re-preview only — no worker round-trip, since only the preview rules
-// changed, not the corpus.
 function afterDraftChange() {
   recompileDraft();
-  WordlistSelector.refreshEditor();
-  if (getDraftRescoreRules()) getEntriesScroller()?.previewRescore?.();
+  renderDraft();
+  _onChange({ edited: true });
 }
 
-function focusNewRow(containerSelector) {
-  const inp = [...document.querySelectorAll(`${containerSelector} .rule-row .rule-in`)].find(i => !i.value);
+// No re-render: the field already shows its value (onRuleInput normalized it and
+// flagged it live), and rebuilding the list on a field's change would replace
+// the field the user is clicking into, dropping their focus.
+function afterFieldCommit() {
+  recompileDraft();
+  refreshEditorMenu();
+  _onChange({ edited: true });
+}
+
+// Bake reads committed rules; Manage blocks it while anything is staged, so
+// the draft equals them here.
+export async function makeRescorePermanent() {
+  if (!_draft || isScoringScope(_scope) || _bakeBlocked()) return;
+  await _bake(_scope);
+  _onChange({ reseed: true });
+}
+
+function focusNewRow() {
+  const inp = [...(_host?.querySelectorAll('.rule-row .rule-in') ?? [])].find(i => !i.value);
   inp?.focus();
 }
 
@@ -115,16 +115,6 @@ function onDraftReorder(fromEl, beforeEl) {
   if (toIdx > fromIdx) toIdx--;
   _draft.splice(toIdx, 0, moved);
   afterDraftChange();
-}
-
-// Wired after each editor render — renderEditorContent replaces the rules
-// container, so the listeners must re-attach to the fresh element.
-export function wireDraftReorder() {
-  makeReorderable(document.querySelector('#rescore-editor #rescore-rules, #rescore-editor #scoring-rules'), {
-    handleSelector: '.drag-handle',
-    itemSelector: '.rule-row',
-    onReorder: onDraftReorder,
-  });
 }
 
 // ─── Domain builders ──────────────────────────────────────────────────────────
@@ -146,7 +136,7 @@ export function buildRuleRowHTML(i, fieldsHTML, note, onDeleteFn, readOnly = fal
     </div>`;
 }
 
-export function buildRulesListHTML(rules, { rulesId, saveFn, deleteFn, addFn = '', rescore = false, readOnly = false }) {
+export function buildRulesListHTML(rules, { rulesId = '', saveFn, deleteFn, addFn = '', rescore = false, readOnly = false }) {
   let rulesHTML;
   if (!rules.length && rescore) {
     rulesHTML = '<div class="no-rules">No rules — entries kept as-is</div>';
@@ -174,134 +164,108 @@ export function buildRulesListHTML(rules, { rulesId, saveFn, deleteFn, addFn = '
     }).join('');
   }
   const addBtn = (!readOnly && addFn) ? `<button type="button" class="rule-add-btn" onclick="${addFn}()">+ Add rule</button>` : '';
-  return `<div id="${rulesId}">${rulesHTML}${addBtn}</div>`;
+  return `<div class="rules-list"${rulesId ? ` id="${rulesId}"` : ''}>${rulesHTML}${addBtn}</div>`;
 }
 
-function buildRareLinkHTML(cls, label, handler, { disabled = false, title = '' } = {}) {
-  return `<button type="button" class="rescore-link ${cls}"${disabled ? ' disabled' : ''}${title ? ` title="${esc(title)}"` : ''} onclick="${handler}">${label}</button>`;
-}
-
-function buildEditorFooterHTML(rareLinks) {
-  return `<div class="rescore-footer">
-      <div class="rescore-footer-rare">${rareLinks.join('')}</div>
-      <div class="rescore-footer-commit">
-        <button type="button" class="rescore-cancel" onclick="cancelRescoreDraft()">Cancel</button>
-        <button type="button" class="primary rescore-apply" onclick="applyRescoreDraft()"${isDraftDirty() ? '' : ' disabled'}>Save</button>
-      </div>
-    </div>`;
-}
-
-export function buildRescoreSectionHTML() {
-  const wl = _draftScope;
-  if (!wl || isScoringScope(wl)) return '';
-  const list = buildRulesListHTML(_draft, {
+function buildRescoreSectionHTML() {
+  return buildRulesListHTML(_draft, {
     rulesId: 'rescore-rules', saveFn: 'saveRuleField', deleteFn: 'deleteRule', addFn: 'addRule', rescore: true,
   });
-  return `${list}${buildRescoreFooterHTML()}`;
 }
 
-function buildRescoreFooterHTML() {
-  const wl = _draftScope;
-  const rules = _draft;
-  const defaults = getWordlistDefaultRules(wl);
-  const draftDirty = defaults !== null && !rescoreRulesEqual(rules, defaults);
-  const rare = [];
-  if (draftDirty) rare.push(buildRareLinkHTML('rule-reset-btn', 'Reset to defaults', 'resetRescoreRules()'));
-  if (rescoringIsNeutralizable(rules)) {
-    rare.push(buildRareLinkHTML('rule-neutralize-btn', 'Disable rescoring', 'neutralizeRescoreRules()',
-      { title: "Keep this list's raw scores and notes — drop only Grawlix's rescoring" }));
-  }
-  rare.push(buildRareLinkHTML('rule-bake-btn', 'Make permanent', 'makeRescorePermanent()', _bakeMenuOpts(wl, rules)));
-  return buildEditorFooterHTML(rare);
-}
-
-export function buildScoringSectionHTML() {
-  const list = buildRulesListHTML(_draft || [], {
+function buildScoringSectionHTML() {
+  return buildRulesListHTML(_draft, {
     rulesId: 'scoring-rules', saveFn: 'saveScoringField', deleteFn: 'deleteScoringRow', addFn: 'addScoringRow', rescore: false,
   });
-  return `${list}${buildScoringFooterHTML()}`;
 }
 
-function buildScoringFooterHTML() {
-  const rare = [];
-  if (!scoringRulesEqual(_draft || [], DEFAULT_SCORING)) {
-    rare.push(buildRareLinkHTML('rule-reset-btn', 'Reset to defaults', 'resetScoringRules()'));
+function menuItems() {
+  if (isScoringScope(_scope)) {
+    return scoringRulesEqual(_draft, DEFAULT_SCORING) ? []
+      : [['Reset to defaults', 'resetScoringRules()', { className: 'rule-reset-btn' }]];
   }
-  return buildEditorFooterHTML(rare);
+  const items = [];
+  const defaults = _defaults();
+  if (defaults !== null && !rescoreRulesEqual(_draft, defaults)) {
+    items.push([esc(_resetLabel()), 'resetRescoreRules()', { className: 'rule-reset-btn' }]);
+  }
+  if (rescoringIsNeutralizable(_draft)) {
+    items.push(['Disable rescoring', 'neutralizeRescoreRules()',
+      { className: 'rule-neutralize-btn', title: "Keep this list's raw scores and notes — drop only Grawlix's rescoring" }]);
+  }
+  const bakeOpts = _bakeBlocked() ? { disabled: true, title: 'Save first' } : _bakeMenuOpts(_scope, _draft);
+  items.push(['Make permanent', 'makeRescorePermanent()', { className: 'rule-bake-btn', ...bakeOpts }]);
+  return items;
+}
+
+// Rebuilt only when it changes: refreshes land on every keystroke and staged
+// change, and replacing an open menu would close it under the pointer.
+export function refreshEditorMenu() {
+  if (!_menuHost || !_draft) return;
+  const items = menuItems();
+  const html = items.length ? buildMoreMenuHTML(items, { className: 'rescore-kebab', title: 'More actions' }) : '';
+  if (_menuHost._html === html) return;
+  _menuHost._html = html;
+  _menuHost.innerHTML = html;
 }
 
 // ─── Scoring (tier labels) ────────────────────────────────────────────────────
 
-// Tier-label changes don't touch data, so a cheap re-render of the visible
-// rows (they carry the label as a `title=`) is enough — no full rebuild.
-export function renderScoringRules() {
-  WordlistSelector.refreshEditor();
-  getEntriesScroller()?._render?.();
-}
-
-export function applyScoringChange() {
-  updateScoringDirty();
-  persistScoring();
-  propagateDefaults();
-  renderScoringRules();
-}
-
 export function deleteScoringRow(i) {
-  if (!_draft || !isScoringScope(_draftScope)) return;
+  if (!_draft || !isScoringScope(_scope)) return;
   _draft.splice(i, 1);
   afterDraftChange();
 }
 
 export function saveScoringField(i, field, val) {
-  if (!_draft || !isScoringScope(_draftScope) || !_draft[i]) return;
+  if (!_draft || !isScoringScope(_scope) || !_draft[i]) return;
   _draft[i][field] = val;
-  afterDraftChange();
+  afterFieldCommit();
 }
 
 export function addScoringRow() {
-  if (!_draft || !isScoringScope(_draftScope)) return;
+  if (!_draft || !isScoringScope(_scope)) return;
   _draft.push(makeScoringRowStub());
   afterDraftChange();
-  focusNewRow('#scoring-rules');
+  focusNewRow();
 }
 
 export async function resetScoringRules() {
-  if (!_draft || !isScoringScope(_draftScope)) return;
+  if (!_draft || !isScoringScope(_scope)) return;
   if (!await showConfirm('Replace your tier labels with the defaults? Your customizations will be lost.', { confirmText: 'Reset' })) return;
-  _draft = DEFAULT_SCORING.map(r => ({ ...r }));
+  replaceDraft(DEFAULT_SCORING);
   afterDraftChange();
 }
 
 // ─── Rescore rule management ──────────────────────────────────────────────────
 
 export function deleteRule(idx) {
-  if (!_draft || isScoringScope(_draftScope)) return;
+  if (!_draft || isScoringScope(_scope)) return;
   _draft.splice(idx, 1);
   afterDraftChange();
 }
 
 export function saveRuleField(idx, field, value) {
-  if (!_draft || isScoringScope(_draftScope) || !_draft[idx]) return;
+  if (!_draft || isScoringScope(_scope) || !_draft[idx]) return;
   if (field === 'length' && value.trim().toLowerCase() === 'any') value = '';
   if (field === 'output' && value.trim().toLowerCase() === 'unchanged') value = '';
   _draft[idx][field] = value;
-  afterDraftChange();
+  afterFieldCommit();
 }
 
 export function addRule() {
-  if (!_draft || isScoringScope(_draftScope)) return;
+  if (!_draft || isScoringScope(_scope)) return;
   _draft.push(makeRescoreRuleStub());
   afterDraftChange();
-  // afterDraftChange re-sorts and re-renders, so find the new row by its empty input rather than by index.
-  focusNewRow('#rescore-rules');
+  focusNewRow();
 }
 
 export async function resetRescoreRules() {
-  if (!_draft || isScoringScope(_draftScope)) return;
-  const defaults = getWordlistDefaultRules(_draftScope);
+  if (!_draft || isScoringScope(_scope)) return;
+  const defaults = _defaults();
   if (defaults === null) return;
   if (!await showConfirm('Replace your rescore rules with the defaults? Your customizations will be lost.', { confirmText: 'Reset' })) return;
-  _draft = defaults.map(r => ({ ...r }));
+  replaceDraft(defaults);
   afterDraftChange();
 }
 
@@ -309,10 +273,10 @@ function rescoringIsNeutralizable(rules) {
   return (rules || []).some(r => r.scoring === false || (r.output ?? '').trim() !== '');
 }
 
-// No confirm: this only stages into the draft, which Cancel discards and Apply commits.
+// No confirm: this only stages into the draft, which Cancel discards and Save commits.
 export function neutralizeRescoreRules() {
-  if (!_draft || isScoringScope(_draftScope) || !_draft.length) return;
-  _draft = _draft.filter(r => r.scoring !== false).map(r => ({ ...r, output: '' }));
+  if (!_draft || isScoringScope(_scope) || !_draft.length) return;
+  replaceDraft(_draft.filter(r => r.scoring !== false).map(r => ({ ...r, output: '' })));
   afterDraftChange();
 }
 
@@ -327,7 +291,7 @@ export function startNoteEdit(wrapEl) {
   if (!_draft[i]) return;
 
   const currentNote = _draft[i].note || '';
-  const isScoring = isScoringScope(_draftScope);
+  const isScoring = isScoringScope(_scope);
   const onSave = note => (isScoring ? saveScoringField : saveRuleField)(i, 'note', note);
 
   wrapEl.innerHTML = `<input class="rule-note-input" value="${esc(currentNote)}" placeholder="note…">`;
@@ -350,6 +314,9 @@ export function startNoteEdit(wrapEl) {
   input.addEventListener('keydown', e => {
     if (e.key === 'Enter') { input.blur(); }
     if (e.key === 'Escape') {
+      // Escape cancels the note, not the Manage dialog around it.
+      e.preventDefault();
+      e.stopPropagation();
       committed = true;
       if (wrapEl.isConnected) {
         wrapEl.innerHTML = noteDisplayHTML(currentNote);
@@ -378,7 +345,6 @@ export function isRuleOutputInvalid(inputVal, outputVal) {
 }
 
 function validateRulesContainer(container) {
-  if (!container) return;
   container.querySelectorAll('.rule-in').forEach(inp => {
     inp.classList.toggle('invalid', parseRange(inp.value.trim()) === null);
   });
@@ -395,18 +361,10 @@ function validateRulesContainer(container) {
 export function onRuleInput(el) {
   if (el.classList.contains('rule-len') && el.value.trim().toLowerCase() === 'any') el.value = '';
   if (el.classList.contains('rule-out') && el.value.trim().toLowerCase() === 'unchanged') el.value = '';
-  const container = el.closest('#rescore-rules, #scoring-rules');
+  const container = el.closest('.rules-list');
   if (!container) return;
   validateRulesContainer(container);
   liveEditDraftField(el);
-}
-
-// Safe to swap on every keystroke only because the footer holds no inputs —
-// the focused rule field lives in the rules list, untouched by this.
-function refreshFooter() {
-  const footer = document.querySelector('#rescore-editor .rescore-footer');
-  if (!footer || !_draft) return;
-  footer.outerHTML = isScoringScope(_draftScope) ? buildScoringFooterHTML() : buildRescoreFooterHTML();
 }
 
 function liveEditDraftField(el) {
@@ -419,7 +377,7 @@ function liveEditDraftField(el) {
   const i = parseInt(row.dataset.i, 10);
   if (!_draft[i]) return;
   _draft[i][field] = el.value;
-  if (!isScoringScope(_draftScope)) compileRule(_draft[i]);
-  refreshFooter();
-  if (getDraftRescoreRules()) getEntriesScroller()?.previewRescore?.();
+  if (!isScoringScope(_scope)) compileRule(_draft[i]);
+  refreshEditorMenu();
+  _onChange({ edited: true, live: true });
 }

@@ -38,13 +38,12 @@ import { AppView, activeLengthRange } from './app-view.js';
 import { ToolStack } from './tool-stack.js';
 import { buildWordlistNameIconHTML } from './scope-selector.js';
 import { getWordlistIcon } from './icons.js';
-import { getDraftRescoreRules } from './rescore-editor.js';
 import { buildTrashIconHTML, positionPopover } from './components.js';
 import { LookupSection, STALE_GRACE_MS } from './lookup.js';
 import { resolveEntryCanonical } from './canonical.js';
 import { isRicher } from '../engine/canonical.js';
 import {
-  getEntriesScroller, rescorePreviewActive, refreshMergedScroller, reprojectMergedScroller, setScope,
+  getEntriesScroller, refreshMergedScroller, reprojectMergedScroller, setScope,
 } from './rendering.js';
 import { fetchWorkerRows, fetchWorkerGroups, fetchWorkerGroupChains, fetchWorkerAllRows, fetchWorkerAllGroups, fetchWorkerTransformRows, fetchWorkerAllTransformRows, lastCompletedRunId, fetchWorkerEditSeed, fetchWorkerFamily, fetchWorkerWinners, fetchWorkerProvenance, fetchWorkerEditPlan, fetchWorkerSpaceOut, whenWorkerCommitted, sendViewport, findInResult, locateInResult } from './pipeline-worker.js';
 
@@ -309,11 +308,6 @@ function measureAtomGlyphPx() {
   return Math.max(...['→ ', '↔ ', '⊃ '].map(g => measureTextWidth(g, 'entry-row-font')));
 }
 
-const SCORE_ARROW_PAD_PX = 8; // matches .atom-score-arrow horizontal padding
-function measureScoreArrowPx() {
-  return measureTextWidth('→', 'entry-row-font') + SCORE_ARROW_PAD_PX;
-}
-
 // Two sample widths separate the badge's per-char width from its fixed padding.
 function badgeWidthPx(chars) {
   const w1 = measureTextWidth('0', 'score-badge');
@@ -334,16 +328,6 @@ function sortableHeaderPx(label) {
 }
 
 const EMPTY_REVEAL_DELAY_MS = 450;
-
-// trueRaw is `rawScore ?? score`: rawScore is set only when a committed rule
-// moved the score (engine/rescore.js applyRescoring), else score is the raw.
-function previewedEntry(wlEntry, draftRules) {
-  const trueRaw = wlEntry.rawScore ?? wlEntry.score;
-  const ps = rescoreEntry({ norm: wlEntry.norm, score: trueRaw }, draftRules);
-  return ps === trueRaw
-    ? { ...wlEntry, score: trueRaw, rawScore: null }
-    : { ...wlEntry, score: ps, rawScore: trueRaw };
-}
 
 // Capture-mode scroll listener catches events from any ancestor — the page
 // scrolls the document, not the window, and scroll events don't bubble.
@@ -478,7 +462,7 @@ function buildGroupChainHTML(chain, ci, memberFind = null) {
     const entryCell = `<span class="atom-entry${noedit}"${truncTitle}>${glyphHTML}${text}</span>`;
     const scoreCell = isRepeat
       ? `<span class="atom-score"></span>`
-      : `<span class="atom-score${noedit}">${buildScoreCellHTML(wlEntry, false)}</span>`;
+      : `<span class="atom-score${noedit}">${buildScoreCellHTML(wlEntry)}</span>`;
     html.push(`<span class="atom" data-atom="${ai}">${entryCell}${scoreCell}</span>`);
   }
   return `<div class="group-chain" data-chain="${ci}">${html.join('')}</div>`;
@@ -2030,11 +2014,6 @@ export class EntriesScroller extends BaseVirtualScroller {
     }
   }
 
-  previewRescore() {
-    this._computeSlotWidths();
-    this._render();
-  }
-
   _getSortedSource() {
     const sig = sortSig(this.sortList);
     if (this._sortedSource
@@ -2106,10 +2085,6 @@ export class EntriesScroller extends BaseVirtualScroller {
     const maxDisplayLen = Math.max(h.maxDisplayLen, floor?.maxDisplayLen ?? 0);
     const maxLenDigits = Math.max(h.maxLenDigits, floor?.maxLenDigits ?? 1);
     const maxScoreDigits = Math.max(h.maxScoreDigits, floor?.maxScoreDigits ?? 1);
-    const rawHint = Math.max(h.maxRawDigits ?? 0, floor?.maxRawDigits ?? 0);
-    // rawHint is committed-only; a draft can show any row's true raw, up to
-    // maxScoreDigits wide, so take the max or a buffered arrow clips here.
-    const maxRawDigits = rescorePreviewActive() ? Math.max(rawHint, maxScoreDigits) : 0;
 
     // The +1 char is rounding slack: a <mark> splits a highlighted entry into
     // separately pixel-rounded text runs whose widths can overshoot the bare string
@@ -2120,8 +2095,7 @@ export class EntriesScroller extends BaseVirtualScroller {
     target.style.setProperty('--count-w', `${(countDigits + 1) * ch}px`);
     target.style.setProperty('--entry-w', `${Math.max(entryContentW, sortableHeaderPx('Entry'))}px`);
     target.style.setProperty('--len-w', `${Math.max(maxLenDigits * ch, sortableHeaderPx('Length'))}px`);
-    const arrowPrefixW = maxRawDigits ? maxRawDigits * ch + measureScoreArrowPx() : 0;
-    target.style.setProperty('--score-w', `${Math.max(badgeWidthPx(maxScoreDigits) + arrowPrefixW, sortableHeaderPx('Score'))}px`);
+    target.style.setProperty('--score-w', `${Math.max(badgeWidthPx(maxScoreDigits), sortableHeaderPx('Score'))}px`);
     target.style.setProperty('--source-max', `${sourceColMaxPx(sourceMatrixSlots().length)}px`);
   }
 
@@ -2135,12 +2109,10 @@ export class EntriesScroller extends BaseVirtualScroller {
     const maxDisplayLen = Math.max(h.maxDisplayLen, floor?.maxDisplayLen ?? 0);
     const maxLenDigits = Math.max(h.maxLenDigits, floor?.maxLenDigits ?? 1);
     const maxScoreDigits = Math.max(h.maxScoreDigits, floor?.maxScoreDigits ?? 1);
-    const rawHint = Math.max(h.maxRawDigits ?? 0, floor?.maxRawDigits ?? 0);
     // The worker ships the widest glyph atom's text length apart from the overall
     // widest (it can't measure the glyph prefix); add the measured glyph width back
     // and max the two, or a glyph row's prefix drops out of the entry slot.
     const maxLen = Math.max(maxDisplayLen, h.maxGlyphDisplayLen > 0 ? h.maxGlyphDisplayLen + glyphCh : 0);
-    const maxRawDigits = rescorePreviewActive() ? Math.max(rawHint, maxScoreDigits) : 0;
     // +1 char of rounding slack for a <mark>'s split text runs (see
     // _computeFlatSlotWidths), reserved unconditionally for a stable column width.
     const entryContentW = Math.ceil(
@@ -2150,8 +2122,7 @@ export class EntriesScroller extends BaseVirtualScroller {
     target.style.setProperty('--count-w', `${(countDigits + 1) * ch}px`);
     target.style.setProperty('--entry-w', `${Math.max(entryContentW, sortableHeaderPx('Entry'))}px`);
     target.style.setProperty('--len-w', `${Math.max(maxLenDigits * ch, sortableHeaderPx('Length'))}px`);
-    const arrowPrefixW = maxRawDigits ? maxRawDigits * ch + measureScoreArrowPx() : 0;
-    target.style.setProperty('--score-w', `${Math.max(badgeWidthPx(maxScoreDigits) + arrowPrefixW, sortableHeaderPx('Score'))}px`);
+    target.style.setProperty('--score-w', `${Math.max(badgeWidthPx(maxScoreDigits), sortableHeaderPx('Score'))}px`);
     target.style.setProperty('--source-max', `${sourceColMaxPx(sourceMatrixSlots().length)}px`);
   }
 
@@ -2296,8 +2267,6 @@ export class EntriesScroller extends BaseVirtualScroller {
   }
 
   _chainRenderPlan() {
-    const preview = rescorePreviewActive();
-    const draftRules = preview ? getDraftRescoreRules() : null;
     const activeNorm = EntryPanel.activeNorm(this);
     return {
       cache: this._winCache,
@@ -2306,10 +2275,10 @@ export class EntriesScroller extends BaseVirtualScroller {
       rowCount: () => this._renderRowCount(),
       buildRenderCtx: () => {
         this._sourceSlots = sourceMatrixSlots();
-        return { activeNorm, preview, draftRules };
+        return { activeNorm };
       },
       buildRow: (chainRow, i, ctx) =>
-        this._buildChainRow(chainRow, i, ctx.activeNorm, ctx.preview, ctx.draftRules),
+        this._buildChainRow(chainRow, i, ctx.activeNorm),
       skeletonHTML: i => `<span class="atom-count">${i + 1}.</span>`,
       decorateRow: (row, i) => {
         if (this._flat) { this._applyRunBracket(row, i); this._applyRowSelection(row, i); }
@@ -2541,14 +2510,14 @@ export class EntriesScroller extends BaseVirtualScroller {
     return map;
   }
 
-  _buildChainRow(chainRow, i, activeNorm, preview, draftRules) {
+  _buildChainRow(chainRow, i, activeNorm) {
     const atoms = chainRow.atoms;
     const rowMatches = this._find?.byRow.get(i) || null;
     let active = false;
     let html = `<span class="atom-count">${i + 1}.</span>`;
     atoms.forEach((atom, ai) => {
       const { highlights, glyph } = atom;
-      const wlEntry = draftRules ? previewedEntry(atom.wlEntry, draftRules) : atom.wlEntry;
+      const { wlEntry } = atom;
       const { norm } = wlEntry;
       if (activeNorm && norm === activeNorm) active = true;
       const displayed = displayOf(wlEntry);
@@ -2560,7 +2529,7 @@ export class EntriesScroller extends BaseVirtualScroller {
       const truncTitle = displayed.length > ENTRY_SLOT_CAP ? ` title="${esc(displayed)}"` : '';
       const entryCell =
         `<span class="atom-entry"${truncTitle}>${glyphHTML}${renderHighlightedText(displayed, entryFind ? [...(projected || []), ...entryFind] : projected)}</span>`;
-      const scoreInner = buildScoreCellHTML(wlEntry, preview);
+      const scoreInner = buildScoreCellHTML(wlEntry);
       const commentText = wlEntry.comment || '';
       const commentFind = this._findRanges(rowMatches, m => m.field === 'comment' && (this._flat || m.atom === ai));
       const commentInner = commentFind ? renderHighlightedText(commentText, commentFind) : esc(commentText);

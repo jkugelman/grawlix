@@ -39,7 +39,7 @@ Design (each doc holds both the user-visible behavior of its area and the whys b
 - [`docs/design.md`](docs/design.md) — present-tense design + whys: shell, the single-screen app view, the tool gallery and the per-tool designs (including the phonetic tools and their CMU core), entries table, URL state, code structure (the ES-module layering + dev/prod build), caches & reactivity, non-features.
 - [`docs/pipeline.md`](docs/pipeline.md) — how a tool stack runs: the executor and per-row tool API, the chain-row and group-row models, the length filter, inversion, the cooperative runtime (supersession, yielding), streaming results and the prefix/result caches, symmetric unification, row display, sort axes per tier (including the family key), and the highlights pipeline.
   Read before touching the executor or a tool's `run`/`prepare`.
-- [`docs/wordlists.md`](docs/wordlists.md) — wordlist data and its management: scope (the selected wordlist is the corpus), the wordlist bar and manage panel, the inline rescore/scoring editor, rich entries (`norm`/`display`) and merge semantics, disk sync, output format, fetching & updates, fetch status, rescore rules.
+- [`docs/wordlists.md`](docs/wordlists.md) — wordlist data and its management: scope (the selected wordlist is the corpus), the wordlist bar, the manage panel and its rescore/scoring editor, rich entries (`norm`/`display`) and merge semantics, disk sync, output format, fetching & updates, fetch status, rescore rules.
 - [`docs/style.md`](docs/style.md) — coding-style conventions: CSS, JS, Markdown, terminology, commit messages.
   Read before formatting changes.
 - [`docs/components.md`](docs/components.md) — **single source of truth for the shared UI vocabulary**: every export of `ui/components.js`, the cross-cutting helpers (dialogs, icons, toasts, score badges, text), and the CSS classes they emit.
@@ -170,7 +170,7 @@ First matching rule wins; rescoring is total — every raw entry maps to exactly
 Rescoring is optional: raw scores not matched by any rule pass through unchanged, and nothing nags the user about the gap.
 
 **Scoring rules** (`state.scoring`) are the user's tier labels for the unified score scale: single source of truth for what each score range means.
-Edited from the inline editor on the wordlist bar when the `All Wordlists` scope is selected (the same editor slot shows the rescore editor for any other scope).
+Edited on All Wordlists' page in Manage wordlists; each source's page there edits its rescore rules.
 Labeling is optional too — merged scores with no tier label still display, just without a tooltip name.
 
 ## Persistence
@@ -211,7 +211,7 @@ See [`docs/design.md`](docs/design.md) § *Stable links*.
 **My Edits** — a special wordlist created automatically on first boot, identified by `wordlist.type === 'edits'`.
 It carries rescore rules like any source (no special-casing in `compileRescoreRules` / `getRescoredEntries`); user-typed scores are stored raw in `rawEntries` and rescored into the merge.
 It ships seeded with `editsLegend()` (the blank-output tier legend, mirroring the live `state.scoring` tiers); `getWordlistDefaultRules` returns it so reset/dirty/propagation apply, and `reconcileEditsRulesAfterImport` swaps it for an auto-seed when an imported file's scores don't fit the tiers.
-For My Edits (as for any non-`All Wordlists` scope) the inline editor slot on the wordlist bar shows the ordinary rescore editor; the scoring (tier-label) editor appears in that same slot only when the `All Wordlists` scope is selected.
+Its rules are edited on its page in Manage wordlists, like any source's.
 It gets the same split Download / Download original as other sources.
 Clicking a score cell in the entries table opens an inline editor — `ScorePicker` when quick-pick options are configured, otherwise `EntryPanel` focused on the score (a comment click selects the row); saving routes the edit into My Edits regardless of which wordlist sourced the row.
 From the My Edits scope the user can also add new entries and delete entries (with undo).
@@ -233,7 +233,7 @@ Row height is fixed.
 
 **Event delegation** — wordlist-card interactions use delegated listeners, and the bound object is stashed on the DOM element at render time rather than encoded in HTML attributes; handlers retrieve it via `e.target.closest('.wordlist-card')`.
 No wordlist ID or `dbKey` appears in HTML attributes.
-Two surfaces use cards: the scope selector dropdown (`WordlistSelector`) stashes `card._scope` (a source or `MERGED_ID`) and dispatches clicks to `setScope`; the Manage wordlists dialog (`ManagePanel`) stashes `card._wordlist` and dispatches enable-toggle and drag-reorder against its staging shadow.
+Two surfaces use cards: the scope selector dropdown (`WordlistSelector`) stashes `card._scope` (a source or `MERGED_ID`) and dispatches clicks to `setScope`; the Manage wordlists dialog (`ManagePanel`) stashes `card._wordlist` and dispatches enable-toggle, drag-reorder and opening the row's page against its staging shadow.
 
 ## CSS custom properties
 

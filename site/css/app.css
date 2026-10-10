@@ -72,30 +72,9 @@ header h1 { font-size: 19px; font-weight: 600; letter-spacing: -0.01em; line-hei
 .wls-configure-footer:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .wls-configure-footer svg { width: 16px; height: 16px; flex-shrink: 0; }
 
-.rescore-toggle { transition: color 0.15s, background 0.15s, border-color 0.15s; }
-.rescore-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.rescore-chevron { flex-shrink: 0; margin-left: 4px; transition: transform 0.15s; }
-#wordlist-bar.rescore-open .rescore-toggle { color: var(--accent); background: var(--sel); border-color: var(--accent); }
-#wordlist-bar.rescore-open .rescore-chevron { transform: rotate(180deg); }
 .wls-actions, .wls-dl-slot { display: flex; align-items: center; gap: 8px; }
 .wls-actions { flex: 0 0 auto; margin-left: auto; flex-wrap: wrap; }
-.wls-actions:empty, .wls-dl-slot:empty, .wls-rescore-slot:empty, .wls-kebab-slot:empty { display: none; }
-/* grid 0fr is not display:none, so the collapsed editor stays in layout + the
-   a11y tree; the hidden attribute (set after the close transition) is what
-   actually removes it, keeping Playwright's toBeVisible/toBeHidden honest.
-   clip, not hidden: a scroll container gets scrolled to reveal a focused or
-   clicked control mid-expand, then snaps back as it grows, sliding the
-   control out from under the pointer. */
-#rescore-editor { display: grid; grid-template-rows: 0fr; opacity: 0; overflow: clip; transition: grid-template-rows 0.2s ease, opacity 0.2s ease; }
-#rescore-editor[hidden] { display: none; }
-#wordlist-bar.rescore-open #rescore-editor { grid-template-rows: 1fr; opacity: 1; }
-/* min-width:0 lets this grid item shrink to the editor's width instead of
-   growing to the rule rows' min-content, which would push the footer's Apply
-   button past the viewport on a phone (the editor's clip cuts it off). */
-.rescore-editor-inner { min-width: 0; min-height: 0; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border2); }
-@media (prefers-reduced-motion: reduce) {
-  #rescore-editor { transition: none; }
-}
+.wls-actions:empty, .wls-dl-slot:empty, .wls-kebab-slot:empty { display: none; }
 
 /* ─── Splash screen ─────────────────────────────────────────────────────────── */
 #splash-screen { position: fixed; inset: 0; z-index: 200; background: var(--bg); color: var(--accent); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 48px; transition: opacity 0.3s; will-change: opacity; }
@@ -960,6 +939,7 @@ button.header-icon-btn:hover:not(:disabled) { background: var(--hdr-bg-dark); co
 .card-name-row { display: flex; align-items: center; gap: 5px; min-width: 0; }
 .badge { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; display: inline-block; box-sizing: border-box; }
 .badge[data-severity="info"] { background: #7add9e; }
+.badge[data-severity="pending"] { background: var(--accent); }
 
 /* Import zone */
 .import-zone { border: 2px dashed var(--border); border-radius: 6px; padding: 24px 16px; text-align: center; color: var(--faint); cursor: pointer; transition: border-color 0.15s, color 0.15s; user-select: none; }
@@ -975,8 +955,11 @@ dialog:focus { outline: none; }
 .dialog-body { padding: 22px; }
 dialog::backdrop { background: var(--backdrop); }
 dialog h2 { font-size: 16px; margin-bottom: 14px; padding-right: 24px; }
-.dialog-close-btn { position: absolute; top: 10px; right: 12px; background: none; border: none; font-size: 18px; line-height: 1; color: var(--muted); cursor: pointer; padding: 2px 6px; border-radius: 4px; z-index: 1; }
-.dialog-close-btn:hover { background: var(--hover); color: var(--text); }
+.dialog-close-btn, .dialog-back-btn { background: none; border: none; font-size: 18px; line-height: 1; color: var(--muted); cursor: pointer; padding: 2px 6px; border-radius: 4px; }
+.dialog-close-btn:hover, .dialog-back-btn:hover { background: var(--hover); color: var(--text); }
+.dialog-close-btn { position: absolute; top: 10px; right: 12px; z-index: 1; }
+.dialog-back-btn { display: inline-flex; margin-left: -6px; }
+.dialog-back-btn svg { transform: scaleX(-1); }
 .dialog-footer { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--border2); display: flex; justify-content: flex-end; gap: 8px; }
 
 /* Mobile bottom sheets. dvh (not vh) keeps the sheet clear of the URL bar. */
@@ -1020,17 +1003,30 @@ dialog h2 { font-size: 16px; margin-bottom: 14px; padding-right: 24px; }
   #entry-panel, #entry-panel-backdrop { transition: none; }
 }
 
-#manage-dialog { --dialog-w: 400px; }
+#manage-dialog { --dialog-w: 520px; height: min(800px, 90vh); }
+#manage-dialog .dialog-body { height: 100%; box-sizing: border-box; display: flex; flex-direction: column; }
+#manage-dialog h2 { display: flex; align-items: center; gap: 4px; }
+.manage-views { flex: 1; min-height: 0; overflow: hidden; }
+.manage-track { display: flex; height: 100%; transition: transform 0.28s ease; }
+#manage-dialog.detail .manage-track { transform: translateX(-100%); }
+.manage-home, .manage-detail { flex: 0 0 100%; min-width: 0; overflow-y: auto; box-sizing: border-box; }
+@media (prefers-reduced-motion: reduce) {
+  .manage-track { transition: none; }
+}
+.manage-all, .manage-list { margin: 4px 0; background: var(--surface); border: 1px solid var(--border2); border-radius: 6px; }
+.manage-all .wordlist-card, .manage-list .wordlist-card:last-child { border-bottom: none; }
+.card-caret { flex-shrink: 0; color: var(--faint); }
+.manage-merge { padding: 10px 2px 6px; }
 .manage-merge > .dialog-row { margin-bottom: 0; }
 .manage-merge-note { text-align: right; }
 .manage-merge-note.off { visibility: hidden; }
 .manage-merge-choice { cursor: pointer; user-select: none; }
-.manage-list { max-height: 50vh; overflow-y: auto; margin: 4px 0; background: var(--surface); border: 1px solid var(--border2); border-radius: 6px; }
-.manage-list .wordlist-card:last-child { border-bottom: none; }
-.manage-row-kebab .more-menu-btn { width: 28px; height: 28px; padding: 0; border: none; border-radius: 50%; background: none; color: var(--text); font-size: 18px; font-weight: 700; }
-.manage-row-kebab .more-menu-btn:hover:not(:disabled), .manage-row-kebab.open .more-menu-btn { background: var(--border); }
-.manage-row-kebab .split-btn-menu { min-width: 130px; }
-.manage-row-kebab .split-btn-menu .manage-row-delete { color: var(--err-fg); }
+.manage-status { margin-left: auto; align-self: center; font-size: 12px; color: var(--muted); }
+.delete-link { margin-right: auto; padding: 3px 6px; border: none; background: none; color: var(--err-fg); font-size: 13px; font-family: inherit; cursor: pointer; border-radius: 4px; }
+.delete-link:hover { background: var(--del-hover); }
+@media (max-width: 759px) {
+  #manage-dialog { height: 90dvh; }
+}
 .manage-add-row { width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 8px; padding: 8px 10px; border: 1px dashed var(--border3); border-radius: 6px; background: none; color: var(--muted); font-size: 13px; font-weight: 600; cursor: pointer; transition: background 0.1s, color 0.1s, border-color 0.1s; }
 .manage-add-row:hover { background: var(--hover); color: var(--accent); border-color: var(--accent); }
 .manage-add-row .add-wordlist-icon { font-size: 15px; line-height: 1; }
@@ -1099,8 +1095,8 @@ dialog h2 { font-size: 16px; margin-bottom: 14px; padding-right: 24px; }
 .guide-step-body a { color: var(--accent); text-decoration: none; word-break: break-all; }
 .guide-step-body a:hover { text-decoration: underline; }
 
-/* Configure / Add wordlist dialog */
-#configure-wordlist-dialog { --dialog-w: 520px; }
+/* Wordlist form (Add wordlist, Manage's General tab) */
+#add-wordlist-dialog { --dialog-w: 520px; }
 .configure-section { margin-bottom: 18px; }
 .configure-section:last-child { margin-bottom: 0; }
 .configure-section-label { font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 8px; }
@@ -1117,11 +1113,11 @@ dialog h2 { font-size: 16px; margin-bottom: 14px; padding-right: 24px; }
 .rules-option-lbl { font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
 .rules-option-row select { padding: 5px 8px; font-size: 12px; cursor: pointer; }
 .rules-preview-wrap { margin-top: 10px; background: var(--surface); border: 1px solid var(--border2); border-radius: 6px; padding: 8px 14px; }
-#url-check-icon { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); font-size: 14px; line-height: 1; pointer-events: none; }
-#config-url-input { padding-right: 26px; }
+.url-check-icon { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); font-size: 14px; line-height: 1; pointer-events: none; }
+.url-input.config-url-input { padding-right: 26px; }
 .source-meta { font-size: 11px; color: var(--muted); margin-top: 6px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-#source-url-meta { max-height: 0; opacity: 0; overflow: hidden; margin-top: 0; transition: max-height 0.2s ease, opacity 0.2s ease, margin-top 0.2s ease; }
-#source-url-meta.visible { max-height: 40px; opacity: 1; margin-top: 6px; }
+.source-url-meta { max-height: 0; opacity: 0; overflow: hidden; margin-top: 0; transition: max-height 0.2s ease, opacity 0.2s ease, margin-top 0.2s ease; }
+.source-url-meta.visible { max-height: 40px; opacity: 1; margin-top: 6px; }
 .url-check-warn    { color: var(--warn-fg); }
 .url-check-error   { color: var(--err-fg); }
 .url-check-ok-icon  { color: var(--ok-fg);  font-weight: 700; }
@@ -1134,7 +1130,7 @@ dialog h2 { font-size: 16px; margin-bottom: 14px; padding-right: 24px; }
 .icon-picker-trigger:hover { background: var(--hover); }
 .icon-picker-trigger:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .icon-preview-box { width: 22px; height: 22px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
-#icon-picker-popup { position: fixed; inset: auto; margin: 0; padding: 0; width: 280px; color: var(--text); border: 1px solid var(--border); border-radius: 8px; background: var(--surface); box-shadow: 0 4px 20px rgba(0,0,0,0.18); overflow: hidden; }
+.icon-picker-popup { position: fixed; inset: auto; margin: 0; padding: 0; width: 280px; color: var(--text); border: 1px solid var(--border); border-radius: 8px; background: var(--surface); box-shadow: 0 4px 20px rgba(0,0,0,0.18); overflow: hidden; }
 .icon-picker-tabs { display: flex; border-bottom: 1px solid var(--border); }
 .icon-picker-tab { flex: 1; border: none; border-radius: 0; padding: 6px; font-size: 12px; font-weight: 600; color: var(--muted); background: var(--surface); cursor: pointer; font-family: inherit; }
 .icon-picker-tab.active { color: var(--accent); background: var(--sel); }
@@ -1247,13 +1243,10 @@ dialog h2 { font-size: 16px; margin-bottom: 14px; padding-right: 24px; }
 .rule-add-btn { margin-top: 4px; padding: 2px 10px; border: 1px dashed var(--border); background: transparent; color: var(--muted); border-radius: 3px; font-size: 12px; line-height: 1.4; cursor: pointer; font-family: inherit; }
 .rule-add-btn:hover { color: var(--text); border-color: var(--accent); }
 
-.rescore-footer { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 8px 14px; margin-top: 10px; }
-.rescore-footer-rare { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 14px; margin-right: auto; }
-.rescore-footer-commit { display: flex; align-items: center; gap: 8px; }
-.rescore-link { padding: 2px 0; border: none; background: none; color: var(--muted); font-size: 12px; font-family: inherit; cursor: pointer; }
-.rescore-link:hover:not(:disabled) { color: var(--text); text-decoration: underline; text-underline-offset: 2px; }
-.rescore-link:disabled { opacity: 0.5; cursor: not-allowed; }
-.rescore-cancel, .rescore-apply { font-size: 12px; padding: 5px 14px; }
+.manage-section-head { display: flex; align-items: center; gap: 4px; margin-bottom: 8px; }
+.manage-section-head .configure-section-label { margin-bottom: 0; }
+.rescore-kebab .more-menu-btn { width: 22px; height: 22px; padding: 0; border: none; border-radius: 50%; background: none; color: var(--text); font-size: 16px; font-weight: 700; letter-spacing: 0; }
+.rescore-kebab .more-menu-btn:hover:not(:disabled), .rescore-kebab.open .more-menu-btn { background: var(--border); }
 
 /* ─── Tool gallery ──────────────────────────────────────────────────────────── */
 #featured-row { padding: 32px; border-bottom: 1px solid var(--border3); position: relative; background: var(--bg); z-index: 60; }

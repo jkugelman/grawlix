@@ -52,8 +52,7 @@ import {
   getEntriesScroller, setScope, renderSources, renderMergedDetail, refreshMergedScroller,
 } from './ui/rendering.js';
 import { streamFlatBatchToScroller, windowedFlatDebug, workerSummariesDebug, workerGroupsDebug, workerGroupListDebug, existsInScopeDebug, entryPanelSeedDebug, entryPanelProvenanceDebug, entryPanelFamilyDebug, rebindAnswersConsumedDebug, resetRebindAnswersConsumedForTest, groupWindowUnderfillDebug, resetGroupWindowUnderfillForTest } from './ui/entries-table.js';
-import { applyScoringChange } from './ui/rescore-editor.js';
-import { propagateDefaults as _propagateDefaults } from './model/scoring.js';
+import { applyScoringChange, propagateDefaults as _propagateDefaults } from './model/scoring.js';
 import {
   addNewWordlist, applyWordlistText, bakeRescoring, saveEdit, saveEntry, deleteFromEdits, persistEdits,
   buildCopyLinkMarkdown, buildCopyResults, buildWordlistText, buildCSVText, buildExportJSONObject, exportFilename, _ready, loadIdle,
@@ -119,6 +118,7 @@ const __grawlixTest = {
   setScoring(rules) {
     state.scoring = rules;
     applyScoringChange();
+    getEntriesScroller()?._render?.();
   },
 
   propagateDefaults() { _propagateDefaults(); },

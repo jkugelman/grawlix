@@ -64,7 +64,6 @@ import {
   activeGroupColumns, EntryPanel, handleScoreDigitShortcut,
 } from '../ui/entries-table.js';
 import { ToolStack, ToolPicker } from '../ui/tool-stack.js';
-import { renderScoringRules } from '../ui/rescore-editor.js';
 import { WordlistSelector, buildWordlistNameHTML } from '../ui/scope-selector.js';
 import {
   getEntriesScroller, setScope, renderAll, renderSources, renderMergedDetail,
@@ -77,6 +76,7 @@ import {
   checkWorkerAssets, sendFreeDiff,
 } from '../ui/pipeline-worker.js';
 import { SyncDialog } from '../ui/dialogs/sync.js';
+import { ManagePanel } from '../ui/manage-panel.js';
 import { ImportGuideDialog } from '../ui/dialogs/import-guide.js';
 import { DiscoveryBanner } from '../ui/discovery-banner.js';
 import { ReconnectSplash } from '../ui/reconnect-splash.js';
@@ -93,8 +93,7 @@ export const WordlistActions = (() => {
     fetch:     () => fetchWordlist(getActionTargetWordlist()),
     import:    () => importToWordlist(getActionTargetWordlist()),
     clear:     () => clearEdits(),
-    rescore:   () => WordlistSelector.toggleEditor(),
-    bakeRescoring: () => bakeRescoring(getActionTargetWordlist()),
+    rescore:   () => ManagePanel.open(getActionTargetWordlist()),
     download:  () => {
       const target = getActionTargetWordlist();
       if (target === MERGED_ID) return downloadMergedWordlistFromPanel();
@@ -1145,7 +1144,7 @@ export function applyEditsChange(edits, mutate) {
 // repaints the bar.
 export function refreshDerivedDisplays() {
   WordlistSelector.refreshMeta();
-  renderScoringRules();
+  getEntriesScroller()?._render?.();
 }
 
 // The merged download has no main-side fallback, so never save empty: a retry reply

@@ -60,9 +60,9 @@ export function buildScoreBadgeHTML(score) {
   return `<span class="score-badge"${title}${aria} style="--score-bg:${bg}; --score-fg:${fg}">${score}</span>`;
 }
 
-export function buildScoreCellHTML(wlEntry, preview) {
+export function buildScoreCellHTML(wlEntry, showRaw = false) {
   if (wlEntry.coined) return `<span class="score-none" aria-label="no score">—</span>`;
-  if (preview && wlEntry.rawScore != null && wlEntry.rawScore !== wlEntry.score) {
+  if (showRaw && wlEntry.rawScore != null && wlEntry.rawScore !== wlEntry.score) {
     return `<span class="atom-score-raw">${wlEntry.rawScore}</span>`
       + `<span class="atom-score-arrow">→</span>`
       + buildScoreBadgeHTML(wlEntry.score);

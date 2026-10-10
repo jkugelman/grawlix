@@ -17,9 +17,9 @@ export function editsLegend() {
   return state.scoring.map(({ input, note }) => ({ input, length: '', output: '', note }));
 }
 
-export function getWordlistDefaultRules(wordlist) {
+export function getWordlistDefaultRules(wordlist, publisherId = wordlist.publisherId) {
   if (wordlist.type === 'edits') return editsLegend();
-  const publisher = getPublisher(wordlist);
+  const publisher = getPublisher({ publisherId });
   return publisher?.defaultRules ?? null;
 }
 

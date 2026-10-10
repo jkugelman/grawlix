@@ -17,7 +17,7 @@ import { SettingsDialog, configureSettings } from './ui/dialogs/settings.js';
 import { HelpDialog } from './ui/dialogs/help.js';
 import { NewToolsReveal } from './ui/new-tools-reveal.js';
 import { SyncDialog, configureSyncDialog } from './ui/dialogs/sync.js';
-import { ConfigureWordlistDialog, configureConfigureWordlist } from './ui/dialogs/configure-wordlist.js';
+import { AddWordlistDialog, configureAddWordlist } from './ui/dialogs/add-wordlist.js';
 import { ImportGuideDialog, configureImportGuide } from './ui/dialogs/import-guide.js';
 import { AppView, buildScoreRangeButtonHTML, mountScoreRangeControl, configureAppView, lengthFilterDisabled } from './ui/app-view.js';
 import { configureEntriesTable, GroupMorePopover, ErrorPopover } from './ui/entries-table.js';
@@ -25,7 +25,7 @@ import { ToolStack, ToolPicker, configureToolStack, mountGroupColumnStyle } from
 import { mountHistogramPointer, onHistogramPointerDown } from './ui/histogram-view.js';
 import {
   configureRescoreEditor, startNoteEdit, onRuleInput, saveRuleField, deleteRule, addRule, resetRescoreRules, neutralizeRescoreRules, saveScoringField, deleteScoringRow, addScoringRow, resetScoringRules,
-  applyRescoreDraft, cancelRescoreDraft, makeRescorePermanent,
+  makeRescorePermanent,
 } from './ui/rescore-editor.js';
 import { WordlistSelector, renderSyncIndicators } from './ui/scope-selector.js';
 import { renderFetchStatus } from './ui/fetch-status.js';
@@ -37,7 +37,7 @@ import {
 } from './ui/rendering.js';
 import { Router } from './app/router.js';
 import {
-  WordlistActions, init, regenerateFillOutputs, persistEdits, bakeMenuOpts, applyWordlistText, fetchWordlist, checkForUpdates, ingestFile, getAutoUpdate, addNewWordlist, deleteWordlist, deleteFromEdits, saveEdit, attachExternalEditHandlers, refreshDerivedDisplays, downloadSourceWordlist, downloadOriginalWordlist, downloadMergedWordlistFromPanel, buildShareControlHTML, buildWordlistText, openCopyPopover, exportWordlist, exportCSV, exportJSON,
+  WordlistActions, init, regenerateFillOutputs, persistEdits, bakeMenuOpts, bakeRescoring, applyWordlistText, fetchWordlist, checkForUpdates, ingestFile, getAutoUpdate, addNewWordlist, deleteWordlist, deleteFromEdits, saveEdit, attachExternalEditHandlers, refreshDerivedDisplays, downloadSourceWordlist, downloadOriginalWordlist, downloadMergedWordlistFromPanel, buildShareControlHTML, buildWordlistText, openCopyPopover, exportWordlist, exportCSV, exportJSON,
 } from './app/actions.js';
 
 // ─── Components ──────────────────────────────────────────────────────────────
@@ -72,7 +72,7 @@ function exposeWindowGlobals() {
     toggleSplitMenu, startNoteEdit, onRuleInput, onHistogramPointerDown,
     saveRuleField, deleteRule, addRule, resetRescoreRules, neutralizeRescoreRules,
     saveScoringField, deleteScoringRow, addScoringRow, resetScoringRules,
-    applyRescoreDraft, cancelRescoreDraft, makeRescorePermanent,
+    makeRescorePermanent,
     openCopyPopover, exportWordlist, exportCSV, exportJSON,
     state, Router, ToolStack, SettingsDialog, Storage, TOOLS,
     getOutputFormat, setOutputFormat, persistMeta, persistEdits,
@@ -106,7 +106,7 @@ function boot() {
   configurePipelineWorker({ baseURL: import.meta.url });
 
   configureSyncDialog({ WordlistActions });
-  configureConfigureWordlist({ addNewWordlist, fetchWordlist, ingestFile });
+  configureAddWordlist({ addNewWordlist, fetchWordlist, ingestFile });
   configureImportGuide({ ingestFile });
 
   // Inject the app-layer callees the extracted ui views can't import upward.
@@ -129,7 +129,7 @@ function boot() {
   });
   configureRescoreEditor({
     bakeMenuOpts,
-    bake: () => WordlistActions.action('bakeRescoring'),
+    bake: bakeRescoring,
   });
   configureManagePanel({ deleteWordlist });
   configureDiscoveryBanner({
@@ -159,7 +159,7 @@ function boot() {
   showMergeConflict.mount();
   openUpdateSummaryDialog.mount();
   SyncDialog.mount();
-  ConfigureWordlistDialog.mount();
+  AddWordlistDialog.mount();
   ImportGuideDialog.mount();
   GroupMorePopover.mount();
 

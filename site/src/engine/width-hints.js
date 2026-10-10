@@ -7,7 +7,7 @@
 // column jump.
 
 export function makeWidthHintAcc() {
-  let maxDisplayLen = 0, maxScore = 0, hasNeg = false, maxRawDigits = 0;
+  let maxDisplayLen = 0, maxScore = 0, hasNeg = false;
   return {
     add(e) {
       const dispLen = (e.display ?? e.norm).length;
@@ -15,19 +15,11 @@ export function makeWidthHintAcc() {
       if (e.score < 0) hasNeg = true;
       const s = e.score < 0 ? -e.score : e.score;
       if (s > maxScore) maxScore = s;
-      // Shipped because main can't scan the full result for the rescore-preview
-      // arrow's raw-score width post-flip (no corpus); main applies it only when
-      // the preview is active.
-      if (e.rawScore != null && e.rawScore !== e.score) {
-        const d = String(e.rawScore).length;
-        if (d > maxRawDigits) maxRawDigits = d;
-      }
     },
     hints: () => ({
       maxDisplayLen,
       maxLenDigits: maxDisplayLen > 0 ? String(maxDisplayLen).length : 1,
       maxScoreDigits: String(maxScore).length + (hasNeg ? 1 : 0),
-      maxRawDigits,
     }),
   };
 }

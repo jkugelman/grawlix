@@ -128,25 +128,20 @@ async function scopeViaSelector(page, name) {
   await awaitSettle(page, () => window.__grawlixTest.pipelineIdle());
 }
 
-// Expand the wordlist bar's inline rescore/scoring editor. Its content is keyed
-// to the current scope, so scope first, then open.
 async function openRescoreEditor(page) {
-  const toggle = page.locator('#wordlist-bar .rescore-toggle');
-  if ((await toggle.getAttribute('aria-expanded')) !== 'true') await toggle.click();
-  await expect(page.locator('#rescore-editor')).toBeVisible();
+  await barKebabAction(page, /^(Rescoring rules|Scoring tiers)…$/);
+  await expect(page.locator('#manage-dialog .manage-rules .rules-list')).toBeVisible();
 }
 
-// Edits in the rescore editor are batched into a draft; Apply commits them.
-// Gate on the toggle, which Apply flips in the same synchronous handler that
-// commits. Gating on the editor's `hidden` instead couples every caller to the
-// collapse animation — it lands from a transitionend, which a transition that
-// never runs never fires — and strands them with the commit long since done,
-// reporting as whatever the caller was asserting about the commit. The teardown
-// has its own test in wordlist-selector.spec.js.
+async function openRescoreMenu(page) {
+  const kebab = page.locator('#manage-dialog .rescore-kebab');
+  await kebab.locator('.more-menu-btn').click();
+  await expect(kebab).toHaveClass(/open/);
+}
+
 async function applyRescoreEditor(page) {
-  await page.locator('#rescore-editor .rescore-apply').click();
-  await expect(page.locator('#wordlist-bar .rescore-toggle'))
-    .toHaveAttribute('aria-expanded', 'false');
+  await page.locator('#manage-dialog .manage-apply-btn').click();
+  await expect(page.locator('#manage-dialog')).toBeHidden();
 }
 
 async function openManagePanel(page) {
@@ -163,6 +158,16 @@ async function setEnabledViaPanel(page, name, enabled) {
     `#manage-dialog .wordlist-card label.toggle[aria-label="Toggle ${name}"]`);
   const input = toggle.locator('input[type="checkbox"]');
   if ((await input.isChecked()) !== enabled) await toggle.click();
+  await page.locator('#manage-dialog .manage-apply-btn').click();
+  await expect(page.locator('#manage-dialog')).toBeHidden();
+}
+
+async function setTrashScore(page, score) {
+  await openManagePanel(page);
+  await page.locator('#manage-dialog .manage-all .wordlist-card .card-name').click();
+  const input = page.locator('#manage-dialog .manage-detail .trash-score-input');
+  await input.fill(String(score));
+  await input.blur();
   await page.locator('#manage-dialog .manage-apply-btn').click();
   await expect(page.locator('#manage-dialog')).toBeHidden();
 }
@@ -233,7 +238,9 @@ export {
   scopeViaSelector,
   openRescoreEditor,
   applyRescoreEditor,
+  openRescoreMenu,
   openManagePanel,
+  setTrashScore,
   setEnabledViaPanel,
   barKebabAction,
   addTool,

@@ -12,7 +12,7 @@
 // draft snapshots it), then drive the UI and Apply.
 
 import { test, expect } from '@playwright/test';
-import { awaitSettle, stubPublisherFetches, gotoApp, scopeViaSelector, openRescoreEditor, applyRescoreEditor } from './helpers.js';
+import { awaitSettle, stubPublisherFetches, gotoApp, scopeViaSelector, openRescoreEditor, applyRescoreEditor, openRescoreMenu } from './helpers.js';
 
 // Tiny JK fixture: scores that all fall within JK's default-rule coverage
 // (60, 50, 40, 30, 20, 10, 0), so rescoring is a clean passthrough and the
@@ -39,11 +39,12 @@ const readJK = page =>
 // reading. Without it a blank editor reads as "no reset button" and the test
 // goes green having checked nothing.
 const expectRuleRows = (page, n) =>
-  expect(page.locator('#rescore-editor .rule-row')).toHaveCount(n);
+  expect(page.locator('#manage-dialog .manage-rules .rule-row')).toHaveCount(n);
 
 async function clickResetAwaitingConfirm(page) {
   const dialog = page.locator('#confirm-dialog');
-  await page.locator('.rule-reset-btn').click();
+  await openRescoreMenu(page);
+  await page.locator('#manage-dialog .rule-reset-btn').click();
   await expect(dialog).toBeVisible();
   return dialog;
 }
@@ -60,7 +61,7 @@ test('publisher wordlist starts pristine — no reset button visible', async ({ 
   const wl = await readJK(page);
   expect(wl.dirty).toBe(false);
   await expectRuleRows(page, DEFAULT_INPUTS.length);
-  await expect(page.locator('.rule-reset-btn')).toHaveCount(0);
+  await expect(page.locator('#manage-dialog .rule-reset-btn')).toHaveCount(0);
 });
 
 test('diverging from defaults flips dirty and shows the reset button', async ({ page }) => {
@@ -72,7 +73,7 @@ test('diverging from defaults flips dirty and shows the reset button', async ({ 
 
   const wl = await readJK(page);
   expect(wl.dirty).toBe(true);
-  await expect(page.locator('.rule-reset-btn')).toBeVisible();
+  await expect(page.locator('#manage-dialog .rule-reset-btn')).toHaveCount(1);
 });
 
 test('clicking reset restores defaults and clears the dirty flag', async ({ page }) => {
@@ -80,12 +81,12 @@ test('clicking reset restores defaults and clears the dirty flag', async ({ page
   await populateJK(page);
   await setJKRules(page, ONE_RULE);
   await openRescoreEditor(page);
-  await expect(page.locator('.rule-reset-btn')).toBeVisible();
+  await expect(page.locator('#manage-dialog .rule-reset-btn')).toHaveCount(1);
 
   const confirmDialog = await clickResetAwaitingConfirm(page);
   await confirmDialog.locator('#btn-confirm-ok').click();
   await expectRuleRows(page, DEFAULT_INPUTS.length);
-  await expect(page.locator('.rule-reset-btn')).toHaveCount(0);
+  await expect(page.locator('#manage-dialog .rule-reset-btn')).toHaveCount(0);
   await applyRescoreEditor(page);
 
   const wl = await readJK(page);
@@ -98,7 +99,7 @@ test('cancel on reset keeps customizations intact', async ({ page }) => {
   await populateJK(page);
   await setJKRules(page, ONE_RULE);
   await openRescoreEditor(page);
-  await expect(page.locator('.rule-reset-btn')).toBeVisible();
+  await expect(page.locator('#manage-dialog .rule-reset-btn')).toHaveCount(1);
 
   const confirmDialog = await clickResetAwaitingConfirm(page);
   await confirmDialog.locator('#btn-confirm-cancel').click();
@@ -106,7 +107,7 @@ test('cancel on reset keeps customizations intact', async ({ page }) => {
   const wl = await readJK(page);
   expect(wl.dirty).toBe(true);
   expect(wl.rescoreRules).toHaveLength(1);
-  await expect(page.locator('.rule-reset-btn')).toBeVisible();
+  await expect(page.locator('#manage-dialog .rule-reset-btn')).toHaveCount(1);
 });
 
 // On a list with defaults, neutralize leaves rules that diverge from those
@@ -122,8 +123,9 @@ test('neutralize flips dirty, blanks every output, drops scoring:false, keeps Re
   ]);
   await openRescoreEditor(page);
 
-  const editor = page.locator('#rescore-editor');
-  await editor.locator('.rule-neutralize-btn').click();
+  const editor = page.locator('#manage-dialog .manage-rules');
+  await openRescoreMenu(page);
+  await page.locator('#manage-dialog .rescore-menu .rule-neutralize-btn').click();
   await applyRescoreEditor(page);
 
   const wl = await readJK(page);
@@ -132,7 +134,7 @@ test('neutralize flips dirty, blanks every output, drops scoring:false, keeps Re
 
   // Reopen: neutralized rules still diverge from JK's defaults, so Reset stays.
   await openRescoreEditor(page);
-  await expect(editor.locator('.rule-reset-btn')).toBeVisible();
+  await expect(page.locator('#manage-dialog .rule-reset-btn')).toHaveCount(1);
 });
 
 // The migration guard: a pre-existing user whose pristine rules were stored in

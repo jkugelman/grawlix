@@ -112,7 +112,7 @@ See [`worker-protocol.md`](worker-protocol.md) § `planEdit` / `editEntry`.
 *The panel previews the pending write.*
 While the user edits, the panel overlays the pending My Edits state onto the contributor list: a row synthesized at My Edits' top-priority slot when the norm isn't carried yet (an *added* row), or the existing My Edits row updated in place (a *changed* row) — both shown bold.
 A rename also strikes through the row it replaces, and the plan's side-writes — a downscore, a keep copy — appear as extra bold *added* rows, so the whole write-set is visible before Save.
-The effective score is computed client-side via the same `rescoreEntry` the table preview uses, so the overlay needs no worker round-trip; only an entry-text change (a new norm → different contributors) re-queries the worker, while score/comment edits just re-render the local overlay.
+The effective score is computed client-side via the same `rescoreEntry` the merge uses, so the overlay needs no worker round-trip; only an entry-text change (a new norm → different contributors) re-queries the worker, while score/comment edits just re-render the local overlay.
 The `raw → rescored` mapping rides the preview row's score cell, so the panel needs no standalone rescore note.
 **Delete is staged, not immediate.**
 Each saved My Edits contributor row carries a trash that *toggles* a pending deletion — the row strikes through, the trash gains a slash, the inputs disable — and **Save** commits it (then the usual undo toast), while **Cancel** or **Escape** discards it.
@@ -137,7 +137,7 @@ Back closes cleanly even though the navigation has already fired: the panel park
 *Adopt — claiming the winner into My Edits.*
 A save that merely re-states the merge winner is suppressed as a no-op (above), but the gesture is sometimes deliberate: the user wants My Edits to *own* the displayed entry — to upgrade a plain-imported bare (`aaabond`) to a richer same-norm spelling another list supplies (`AAA bond`), or to pull an entry only a foreign list carries into My Edits unchanged.
 Neither is reachable by editing, because the fields already show the winner.
-A quiet **Add to My Edits** text-link — bottom-left of the footer, the slot the rescore editor reserves for rare actions — appears whenever an unchanged save would be a no-op yet My Edits doesn't already hold that exact `(norm, display)`; it reads **Update My Edits** when a bare My Edits entry of the norm will be upgraded in place.
+A quiet **Add to My Edits** text-link — bottom-left of the footer — appears whenever an unchanged save would be a no-op yet My Edits doesn't already hold that exact `(norm, display)`; it reads **Update My Edits** when a bare My Edits entry of the norm will be upgraded in place.
 Clicking it *stages* the write: the link gives way to the previewed My Edits row (an *added* row, or the existing one struck-and-replaced for an upgrade), which carries a trash that toggles the stage back off — mirroring the delete-staging trash — and Save enables, keeping the preview-then-Save model rather than committing on click.
 Editing any field reverts it to an ordinary save.
 It commits through a dedicated `adopt` mode that skips the no-op guard but otherwise plans through the edit branch, so undo, the downscore, and the write-set machinery are unchanged.

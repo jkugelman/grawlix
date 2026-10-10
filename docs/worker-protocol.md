@@ -175,7 +175,7 @@ The grouped tier windows at **two** levels — the first window of group ROWS, e
 |---|---|---|
 | message envelope (`type`, `runId`, `stack`, `sort`, `scope`, `existsQuery`, `scoreRange`, `lengthRange`, `rebindQuery`) | plain object | structured clone (tiny) |
 | flat result: survivor `count` (the size main sizes the scroller from) — describes the **filtered** set when `filtered`, else the full set | number | structured clone (tiny) |
-| flat result: column width hints | small `{ maxDisplayLen, maxLenDigits, maxScoreDigits, maxRawDigits }` object | structured clone (tiny) |
+| flat result: column width hints | small `{ maxDisplayLen, maxLenDigits, maxScoreDigits }` object | structured clone (tiny) |
 | flat result: stats (scope-independent) + histogram counts (any scope, **always unfiltered**) + histogram layout (scoped runs only) + `filtered` flag | small `{ stats, histogramCounts, histogramLayout, filtered }` object | structured clone (small) |
 | flat result: `existsInScope` | boolean / `null` | structured clone (tiny) |
 | flat result: `rebindQuery` echo + `rebindEntry` (rich row / `null`) + `rebindExists` | small object | structured clone (tiny) |
@@ -695,7 +695,7 @@ The two targets the worker holds: `ownedMerged` for the preview (the merge winne
 
 #### `provenance` (entry-panel provenance + preview reply)
 `{ type: 'provenance', requestId, preview, rows }` — reply to `fetchProvenance`.
-`preview` is `{ norm, display, score, comment, sourceId } | null`; `rows` is the ordered provenance array `[{ sourceId, enabled, winner, entry: { norm, display, score, rawScore, comment } }]` (`rawScore` is the source's pre-rescore score, `undefined` when that source's rules didn't remap it — the panel's provenance table always renders a raw → rescored arrow from it, unlike the entries table whose arrow is gated on the open rescore editor), or `null` when the worker wasn't fresh.
+`preview` is `{ norm, display, score, comment, sourceId } | null`; `rows` is the ordered provenance array `[{ sourceId, enabled, winner, entry: { norm, display, score, rawScore, comment } }]` (`rawScore` is the source's pre-rescore score, `undefined` when that source's rules didn't remap it — the panel's provenance table renders a raw → rescored arrow from it), or `null` when the worker wasn't fresh.
 A `null` `rows` means "worker didn't answer" — distinct from `[]`, a real table with nothing in it — so main **awaits the next committed build (`whenWorkerCommitted`) and retries the query once**, then falls back to keeping its last-good render.
 The retry is what makes the last-good rule safe at OPEN, where there is no last-good: the panel nulls its shipped rows per target and nothing else re-fires provenance when the rebuild commits, so a null answer alone left the Appears-in table blank until the panel was reopened.
 Both attempts ride the same monotonic token, so a straggling retry can never overwrite a newer query's answer.
@@ -755,7 +755,7 @@ The worker also **writes the My Edits IDB itself** (main holds no `rawEntries`-t
      When the row count holds but spellings changed — a **respelling** (spacing, case, punctuation; same norm) — and `restyleKeepsResult` proves the displayed flat result keeps its membership, the splice instead **restyles**: it swaps the freshly built rows into the norm's existing slots (fresh objects, since `norm.js` caches spelling-derived values on a row; `_i` stamped per slot) so no position moves.
      The proof: no live run, no grouped/transform result, and — when this is the displayed corpus — a stack whose only active rows are non-inverted Search filters, with every swapped slot's verdict unchanged: before is the slot's membership in the retained `join`, after is the new row re-tested through the result's `highlighters`.
      A restyle purges the corpus's cache entries (a cached result for another query may have matched on the old spelling) but leaves `replaced` false.
-  4. **When scoped to My Edits** (`ownedScope === editsDbKey`, so `ownedCorpus !== ownedMerged`), splice `ownedCorpus` too — a single-source recompute (`recomputeScopedBucket`) that **ignores `enabled`** and **carries `rawScore`** (a scoped corpus keeps `rawScore` for the rescore-preview arrow).
+  4. **When scoped to My Edits** (`ownedScope === editsDbKey`, so `ownedCorpus !== ownedMerged`), splice `ownedCorpus` too — a single-source recompute (`recomputeScopedBucket`) that **ignores `enabled`** and **carries `rawScore`**, as a rebuild of the scoped corpus does.
      For MERGED scope `ownedCorpus === ownedMerged`, already spliced.
   5. **When any affected norm reshaped its variant set** — a *replacing* splice swaps row objects and shifts later indices — **restamp every entry's `_i`**; the replacing splice's `purgeCacheForCorpus` also drops the prefix tiles that held the old objects by reference.
      A run of pure in-place reconciles skips both, so the next run reuses the cached tool output (e.g. Umiaq's tuple search) instead of re-running the stack.
@@ -933,7 +933,7 @@ This is how the worker gets its corpus — it never receives the corpus as bulk 
 - `sources` — an array in **merge-priority order** (`sources[0]` highest).
   Each: `{ sourceId, enabled, type, rescoreRules }`, where `sourceId` is the wordlist's `dbKey`, `type` is `'edits'` for My Edits (else `null` — carried so the `editEntry` handler can find the My Edits source in `ownedBuilt`), and `rescoreRules` are stripped to the **four editor fields** (`input`, `length`, `output`, `note`) — the worker recompiles them.
   No display name rides along: the worker keys every source by `dbKey` and never needs the human label.
-- `mergeMode` — `'first'`, `'highest'` or `'lowest'` (`getMergeMode`), the merge's winner rule ([`wordlists.md`](wordlists.md) § *The wordlist bar*).
+- `mergeMode` — `'first'`, `'highest'` or `'lowest'` (`getMergeMode`), the merge's winner rule ([`wordlists.md`](wordlists.md) § *The manage panel*).
   The worker reads it from the latest config (`mergeMode()`) wherever it picks a merged winner: the corpus build, the edit splice (`computeMergedBucket`), the Sources matrix (`mergedContributors`), and the edit planner.
   Changing it goes through `repaintAfterCacheChange`, so it re-sends `syncConfig` like any config change.
 - `scope` — the **active scope** at sync time (`MERGED_ID` or the scoped wordlist's `dbKey`).
@@ -1044,8 +1044,7 @@ Always carries `ranAgainstOwned: true` (the worker always runs against its own c
       The worker owns the sorted survivor `indices` (into `ownedCorpus.entries`, **already sorted** by the run's `sort` axis/dir) and serves rich windows from them via `fetchRows`; main never receives the index list.
       `filtered` is `true` when the worker applied the score-range filter itself, in which case `count`/`widthHints`/`stats` describe the **filtered** survivor set (the windowed scroller fetches filtered positions directly); `false`/absent otherwise.
       `histogramCounts` is **always** the unfiltered distribution.
-    - `widthHints = { maxDisplayLen, maxLenDigits, maxScoreDigits, maxRawDigits }` — the one-pass column-width summary the scroller needs to size its grid tracks without scanning all rows.
-      `maxRawDigits` is the rescore-preview arrow's raw-score column width, which main can't scan the full result for; main applies it only when the preview is active.
+    - `widthHints = { maxDisplayLen, maxLenDigits, maxScoreDigits }` — the one-pass column-width summary the scroller needs to size its grid tracks without scanning all rows.
       The scroller takes the **max of these per-result hints and the per-config `mergedWidthBound` floor** (see `selfReady`), so a filter-only result — always a subset of the merge — renders at the stable floor width rather than resizing the columns to its own narrower set.
     - `firstRows` — the **first window's rich rows** (`buildFlatRows(0, min(FIRST_WINDOW, length))`), shipped inline with every flat result so main paints the above-the-fold rows instantly instead of flashing skeletons until a `fetchRows` round-trip lands.
       The scroller seeds its window cache from it.
@@ -1124,7 +1123,7 @@ A transform or group-cluster run never streams; a **tuple producer** streams via
   Rebuilt and shipped **every** `partial` (the window's contents change as better rows arrive).
   Same rich shape as the `result`'s inline `firstRows`.
   The client seeds these into its window cache **at `windowStart`** and **does not clear the cache** mid-stream (only on a new run), so the visible window is always current with zero flicker *and* a scroll between batches holds its prior rows (stale-while-revalidate) instead of blanking to a skeleton — see the render narrative below.
-- `widthHints` — the **cumulative** column-width summary (`{ maxDisplayLen, maxLenDigits, maxScoreDigits, maxRawDigits }`) over all survivors so far, via the shared `makeWidthHintAcc` (the same reductions the terminal `result` computes), so columns reach the completion widths by the final `partial` and never jump when the `result` settles.
+- `widthHints` — the **cumulative** column-width summary (`{ maxDisplayLen, maxLenDigits, maxScoreDigits }`) over all survivors so far, via the shared `makeWidthHintAcc` (the same reductions the terminal `result` computes), so columns reach the completion widths by the final `partial` and never jump when the `result` settles.
 - **`lastFlatResult` stays sorted during a stream.**
   The first `partial` seeds `lastFlatResult = { runId, version, indices, scope, highlighters }` (the sorted batch); each later `partial` **merges** its batch into the running sorted `indices` (two-pointer merge by the run's comparator) and bumps `version`.
   A mid-stream `fetchRows` serves a correctly-sorted window from it (guarded by `fetchResultFresh` as always).
@@ -1223,7 +1222,7 @@ Posted only when a transform is the **last non-inert tool**; a filter after a tr
 - `mergedCount` — `ownedMerged.entries.length`, the deduped merged total (the "All Wordlists" entry total, the download-button gate, the Help dialog's merge-diagram count — all reading `mergedEntryCount()`).
   `null` on a build failure.
   Per-config.
-- `mergedWidthBound` — `computeCorpusWidthBound(ownedMerged)` = `{ maxDisplayLen, maxLenDigits, maxScoreDigits, maxRawDigits }` over **every** merged entry.
+- `mergedWidthBound` — `computeCorpusWidthBound(ownedMerged)` = `{ maxDisplayLen, maxLenDigits, maxScoreDigits }` over **every** merged entry.
   The client (`mergedWidthBound()`) **floors** the flat and transform tiers' column widths against it (with `mergedCount` as the count-column floor), so the table holds one set of widths across every scope/filter/stream — a filter-only result is a subset of the merge, so its own hints never exceed the floor; only a result that genuinely exceeds it (a multiplying tool, a scope-to-a-disabled-list-bigger-than-the-merge) grows past it.
   `null` on a build failure / before the first build.
   Per-config.
