@@ -155,6 +155,19 @@ test('a clean backdrop click closes immediately, no confirm', async ({ page }) =
   await expect(page.locator('#confirm-dialog')).toBeHidden();
 });
 
+test('a press inside that ends on the backdrop does not close the panel', async ({ page }) => {
+  await gotoApp(page);
+  await addTwoLists(page);
+
+  await openManagePanel(page);
+  const box = await page.locator('#manage-dialog h2').boundingBox();
+  await page.mouse.move(box.x + 5, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(5, 5, { steps: 5 });
+  await page.mouse.up();
+  await expect(page.locator('#manage-dialog')).toBeVisible();
+});
+
 test('a dirty backdrop click prompts to discard; cancelling keeps the panel and its staging', async ({ page }) => {
   await gotoApp(page);
   await addTwoLists(page);

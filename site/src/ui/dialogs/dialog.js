@@ -12,9 +12,13 @@ export function enableDismissClicks(el, isDirty = null) {
     if (isDirty?.() && !await showConfirm('Discard changes?', { confirmText: 'Discard' })) return;
     el.close();
   };
+  // A press inside that ends outside (a text drag, or content shifting under
+  // the pointer) clicks the dialog itself, which isn't a backdrop click.
+  let pressedBackdrop = false;
+  el.addEventListener('pointerdown', e => { pressedBackdrop = e.target === el; });
   el.addEventListener('click', e => {
     if (e.target.closest('.dialog-cancel-btn')) el.close();
-    else if (e.target.closest('.dialog-close-btn') || e.target === el) requestClose();
+    else if (e.target.closest('.dialog-close-btn') || (e.target === el && pressedBackdrop)) requestClose();
   });
   el.addEventListener('cancel', e => {
     if (isDirty?.()) { e.preventDefault(); requestClose(); }
