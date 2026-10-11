@@ -82,7 +82,7 @@ test('axis recomputes (and version bumps) after a rules edit + re-sync', async (
   expect(before.max).toBe(350);
 
   await page.evaluate(() => window.__grawlixTest.setRescoreRules('Tides', [
-    { input: '350', length: '', output: '80', note: '' },
+    { query: 'score: 350', output: '80', note: '' },
   ]));
   await sync(page);
   // Poll, don't read once: the rule edit's own auto-re-sync supersedes this manual

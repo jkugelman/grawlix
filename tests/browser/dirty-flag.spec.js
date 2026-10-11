@@ -27,8 +27,8 @@ async function populateJK(page) {
   await scopeViaSelector(page, 'John Kugelman');
 }
 
-const ONE_RULE = [{ input: '60', length: '', output: '50', note: '' }];
-const DEFAULT_INPUTS = ['0', '10', '20', '30', '40', '50', '60'];
+const ONE_RULE = [{ query: 'score: 60', output: '50', note: '' }];
+const DEFAULT_QUERIES = ['score: 0', 'score: 10', 'score: 20', 'score: 30', 'score: 40', 'score: 50', 'score: 60'];
 const setJKRules = (page, rules) =>
   awaitSettle(page, r => window.__grawlixTest.setRescoreRules('John Kugelman', r), rules);
 const readJK = page =>
@@ -60,7 +60,7 @@ test('publisher wordlist starts pristine — no reset button visible', async ({ 
 
   const wl = await readJK(page);
   expect(wl.dirty).toBe(false);
-  await expectRuleRows(page, DEFAULT_INPUTS.length);
+  await expectRuleRows(page, DEFAULT_QUERIES.length);
   await expect(page.locator('#manage-dialog .rule-reset-btn')).toHaveCount(0);
 });
 
@@ -85,13 +85,13 @@ test('clicking reset restores defaults and clears the dirty flag', async ({ page
 
   const confirmDialog = await clickResetAwaitingConfirm(page);
   await confirmDialog.locator('#btn-confirm-ok').click();
-  await expectRuleRows(page, DEFAULT_INPUTS.length);
+  await expectRuleRows(page, DEFAULT_QUERIES.length);
   await expect(page.locator('#manage-dialog .rule-reset-btn')).toHaveCount(0);
   await applyRescoreEditor(page);
 
   const wl = await readJK(page);
   expect(wl.dirty).toBe(false);
-  expect(wl.rescoreRules.map(r => r.input).sort()).toEqual(DEFAULT_INPUTS);
+  expect(wl.rescoreRules.map(r => r.query).sort()).toEqual(DEFAULT_QUERIES);
 });
 
 test('cancel on reset keeps customizations intact', async ({ page }) => {
@@ -118,8 +118,8 @@ test('neutralize flips dirty, blanks every output, drops scoring:false, keeps Re
   await gotoApp(page);
   await populateJK(page);
   await setJKRules(page, [
-    { input: '60', length: '', output: '50', note: '' },
-    { input: '50', length: '1-2', output: '30', note: '', scoring: false },
+    { query: 'score: 60', output: '50', note: '' },
+    { query: 'score: 50 and length: 1-2', output: '30', note: '', scoring: false },
   ]);
   await openRescoreEditor(page);
 
@@ -130,7 +130,7 @@ test('neutralize flips dirty, blanks every output, drops scoring:false, keeps Re
 
   const wl = await readJK(page);
   expect(wl.dirty).toBe(true);
-  expect(wl.rescoreRules).toEqual([{ input: '60', length: '', output: '' }]);
+  expect(wl.rescoreRules).toEqual([{ query: 'score: 60', output: '' }]);
 
   // Reopen: neutralized rules still diverge from JK's defaults, so Reset stays.
   await openRescoreEditor(page);
@@ -150,9 +150,9 @@ test('a pristine list with rules in a non-default order is renormalized, staying
     wl.rescoreRules = [...wl.rescoreRules].reverse();   // a non-authored order, still pristine
     wl.dirty = false;
     window.__grawlixTest.propagateDefaults();
-    return { dirty: !!wl.dirty, inputs: wl.rescoreRules.map(r => r.input) };
+    return { dirty: !!wl.dirty, queries: wl.rescoreRules.map(r => r.query) };
   });
 
   expect(result.dirty).toBe(false);
-  expect(result.inputs).toEqual(['60', '50', '40', '30', '20', '10', '0']);
+  expect(result.queries).toEqual(['score: 60', 'score: 50', 'score: 40', 'score: 30', 'score: 20', 'score: 10', 'score: 0']);
 });

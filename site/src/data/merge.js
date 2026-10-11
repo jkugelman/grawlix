@@ -44,16 +44,24 @@ export function sourceTotal(wordlist) {
   return _shippedSourceTotals.get(wordlist.dbKey) ?? null;
 }
 
-// Distinct (rawScore, normLength) pairs per source, for the local bake gate. NOT
+// Which sources' committed rules move a score, for the bake gate. NOT
 // version-gated like the counts: it rides only full-content events (selfReady /
 // fetchApplied), never the per-edit editAck, so "update when present" can't be a
-// stale overwrite — and an editAck omitting it must keep the last-good map.
-let _shippedRescoreInputs = null;   // Map(dbKey → [[score, len], …])
-export function setShippedRescoreInputs(inputs) {
-  if (inputs) _shippedRescoreInputs = new Map(inputs.map(s => [s.sourceId, s.pairs]));
+// stale overwrite — and an editAck omitting it must keep the last-good set. A
+// source whose rules changed since reads unknown until the next build answers.
+let _shippedRescoreChanges = null;   // Set(dbKey)
+const _rescoreChangesStale = new Set();
+export function setShippedRescoreChanges(ids) {
+  if (!ids) return;
+  _shippedRescoreChanges = new Set(ids);
+  _rescoreChangesStale.clear();
 }
-export function sourceRescoreInputs(wordlist) {
-  return _shippedRescoreInputs?.get(wordlist.dbKey) ?? null;
+export function forgetRescoreChanges(wordlist) {
+  _rescoreChangesStale.add(wordlist.dbKey);
+}
+export function sourceRescoreChanges(wordlist) {
+  if (!_shippedRescoreChanges || _rescoreChangesStale.has(wordlist.dbKey)) return null;
+  return _shippedRescoreChanges.has(wordlist.dbKey);
 }
 
 export function mergedEntryCount() {

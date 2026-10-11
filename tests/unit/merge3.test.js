@@ -192,7 +192,7 @@ test('serializeMetaEntry: a regular populated wordlist serializes to its meta sh
     populated: true,
     lastUpdated: 1700000000000,
     fetchedSize: 12345,
-    rescoreRules: [{ from: 0, to: 50 }],
+    rescoreRules: [{ query: 'score: 50+', output: '50', note: 'Clean', _output: 50, _match: () => true }],
     originalFilename: 'stwl.txt',
   };
   assert.deepEqual(serializeMetaEntry(l), {
@@ -203,7 +203,7 @@ test('serializeMetaEntry: a regular populated wordlist serializes to its meta sh
     populated: true,
     lastUpdated: 1700000000000,
     fetchedSize: 12345,
-    rescoreRules: [{ from: 0, to: 50 }],
+    rescoreRules: [{ query: 'score: 50+', output: '50', note: 'Clean' }],
     originalFilename: 'stwl.txt',
   });
 });

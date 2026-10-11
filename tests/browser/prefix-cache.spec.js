@@ -158,7 +158,7 @@ test('a rescore rebuild invalidates prefix tiles — the edit serves fresh score
   // Remap every raw score to 42 — a syncConfig rebuild that swaps the corpus object. A tile
   // bound to the OLD corpus fails cacheEntryValid's identity test and is dropped, so the run
   // below can only reflect the new corpus: all-42 is the proof a stale tile is never seeded.
-  await page.evaluate(() => window.__grawlixTest.setRescoreRules('Birds', [{ input: '0-1000', length: '', output: '42' }]));
+  await page.evaluate(() => window.__grawlixTest.setRescoreRules('Birds', [{ query: 'score: 0-1000', output: '42' }]));
   await page.evaluate(() => window.__grawlixTest.pipelineIdle());
 
   await runStack(page, [F0, F1b, BAR]);

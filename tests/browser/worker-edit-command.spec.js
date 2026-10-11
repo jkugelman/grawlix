@@ -142,7 +142,7 @@ test('edit — moving a My Edits entry to a new norm junks the vacated norm, sup
   // Alpha rescores CRANE (60 → 85), but moving My Edits' own CRANE away junks the vacated
   // norm, so My Edits' highest-priority trash entry wins the crane bucket at 0 — not Alpha.
   await page.evaluate(() => window.__grawlixTest.setRescoreRules('Alpha', [
-    { input: '60', length: '', output: '85', note: '' },
+    { query: 'score: 60', output: '85', note: '' },
   ]));
   await page.evaluate(() => window.__grawlixTest.reimport('My Edits',
     ['CRANE;50;mine', 'GULL;95;seabird'].join('\n')));

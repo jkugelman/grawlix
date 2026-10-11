@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { canMigrate, migrateLs, remapStoredUrls, splitSyncRecord, MIGRATIONS, SCHEMA_VERSION } from '../../site/src/data/migrations.js';
 import { WORDLIST_PUBLISHERS } from '../../site/src/core/constants.js';
+import { rescoreRulesEqual } from '../../site/src/engine/rescore.js';
 
 // Migrations can touch localStorage (the v11 `ls` step renames a key), and a
 // settings fixture runs the whole chain from its version — so the node env needs
@@ -240,4 +241,88 @@ test('v13 → v14 tolerates a missing mergedSettings', () => {
   const blob = {};
   migrateLs(blob, 13);
   assert.equal(blob.mergedSettings, undefined);
+});
+
+// Frozen verbatim from v17's core/constants.js. If these stopped migrating to
+// today's defaults, propagateDefaults would mark every publisher list dirty.
+const V17_DEFAULT_RULES = {
+  jkugelman: [
+    { input:'60', length:'', output:'', note:'Good (colorful phrases, interesting full names)' },
+    { input:'50', length:'', output:'', note:'Average (dictionary words)' },
+    { input:'40', length:'', output:'', note:'Okay in moderation (proper names, abbreviations, prepositional phrases)' },
+    { input:'30', length:'', output:'', note:'Not good (crosswordese, plural names, contrived inflections)' },
+    { input:'20', length:'', output:'', note:'Junk (partials, variant spellings, Roman numerals)' },
+    { input:'10', length:'', output:'', note:'Offensive' },
+    { input:'0',  length:'', output:'', note:'Gibberish' },
+  ],
+  xwi: [
+    { input:'60', length:'', output:'',   note:'Entries considered "assets" to a puzzle' },
+    { input:'50', length:'', output:'',   note:'Fine entries' },
+    { input:'30', length:'', output:'',   note:'' },
+    { input:'25', length:'', output:'30', note:'Partials, odd abbreviations, very esoteric names, short Roman numerals, etc.' },
+    { input:'20', length:'', output:'20', note:'Five-letter entries that would be hard to defend as fine' },
+    { input:'15', length:'', output:'20', note:'Random Roman numerals that are longer than three letters' },
+    { input:'10', length:'', output:'20', note:'' },
+    { input:'5',  length:'', output:'20', note:'Entries that Will Shortz or other editors have identified as "puzzle-killers"' },
+  ],
+  nediger: [
+    { input:'99', length:'1-2', output:'40', note:'Short fill', scoring:false },
+    { input:'51', length:'1-2', output:'30', note:'Short fill', scoring:false },
+    { input:'25', length:'1-2', output:'20', note:'Short fill', scoring:false },
+    { input:'99', length:'8+',  output:'60', note:'Asset' },
+    { input:'99', length:'',    output:'50', note:'Good for any venue' },
+    { input:'51', length:'',    output:'50', note:'Decent to good' },
+    { input:'49', length:'',    output:'10', note:'Racy' },
+    { input:'25', length:'',    output:'40', note:'Not great' },
+  ],
+  stwl: [
+    { input:'50+',   length:'', output:'50', note:'Clean' },
+    { input:'40-49', length:'', output:'30', note:'Decent' },
+    { input:'30-39', length:'', output:'20', note:'Dubious' },
+    { input:'1-29',  length:'', output:'0',  note:'Dubious' },
+    { input:'0',     length:'', output:'10', note:'Offensive' },
+  ],
+  broda: [
+    { input:'76-100', length:'7+', output:'60',     scoring:false },
+    { input:'0-100',  length:'',   output:'20' },
+  ],
+};
+
+test('v17 → v18: every publisher\'s v17 default rules migrate to its current defaults', () => {
+  for (const p of WORDLIST_PUBLISHERS) {
+    const blob = { sources: [{ publisherId: p.id, rescoreRules: structuredClone(V17_DEFAULT_RULES[p.id]) }] };
+    migrateLs(blob, 17);
+    const migrated = blob.sources[0].rescoreRules;
+    assert.equal(rescoreRulesEqual(migrated, p.defaultRules), true, p.id);
+    assert.deepEqual(migrated.map(r => r.scoring !== false), p.defaultRules.map(r => r.scoring !== false), p.id);
+  }
+});
+
+test('v17 → v18 folds score and length into one query, keeping output, note and scoring:false', () => {
+  const blob = { sources: [{ rescoreRules: [
+    { input: ' 50+ ', length: '', output: '60+', note: 'shift' },
+    { input: '30-49', length: '4-6', output: '20-39', note: '', scoring: false },
+    { input: '10', output: '0' },
+  ] }] };
+  migrateLs(blob, 17);
+  assert.deepEqual(blob.sources[0].rescoreRules, [
+    { query: 'score: 50+', output: '60+', note: 'shift' },
+    { query: 'score: 30-49 and length: 4-6', output: '20-39', note: '', scoring: false },
+    { query: 'score: 10', output: '0', note: '' },
+  ]);
+});
+
+test('v17 → v18 drops rules that could never match and the compiled fields v17 persisted', () => {
+  const blob = { sources: [{ rescoreRules: [
+    { input: '50,60', length: '', output: '10', note: 'comma' },
+    { input: '', length: '', output: '10', note: 'blank' },
+    { input: '60-50', length: '', output: '10', note: 'backward' },
+    { input: '50', length: 'any', output: '10', note: 'bad length' },
+    { input: '50', length: '', output: 'lots', note: 'bad output' },
+    { input: '50', length: '', output: '0-100', note: 'degenerate range' },
+    { input: '50-60', length: '', output: '70+', note: 'shape mismatch' },
+    { input: '40', length: '', output: '30', note: 'kept', _scoreIntervals: [{ min: 40, max: 40 }], _lenIntervals: null, _output: 30 },
+  ] }] };
+  migrateLs(blob, 17);
+  assert.deepEqual(blob.sources[0].rescoreRules, [{ query: 'score: 40', output: '30', note: 'kept' }]);
 });

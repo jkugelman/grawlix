@@ -12,7 +12,7 @@
 // over its members, so a per-entry callback couldn't reconstruct that whole-group
 // property.
 
-import { getRescoredEntries, getRescoredByNorm, groupEntries, rescoreScore } from './rescore.js';
+import { getRescoredEntries, getRescoredByNorm, groupEntries, rescoreFields } from './rescore.js';
 import { parseWordlistLine, toNorm, displayForRaw, caseOfRaw, caseFromCounts } from './norm.js';
 
 export function sourceAccessor(wl) {
@@ -284,7 +284,8 @@ function gatherColumns(norms, displays, comments, rawScoresArr, rules) {
   const scores = new Int32Array(n);
   let changed = false;
   for (let k = 0; k < n; k++) {
-    const s = rescoreScore(rawScores[k], normOffsets[k + 1] - normOffsets[k], rules);
+    const src = kept[k];
+    const s = rescoreFields(rawScores[k], norms[src], displays[src] ?? null, rules);
     scores[k] = s;
     if (s !== rawScores[k]) changed = true;
   }

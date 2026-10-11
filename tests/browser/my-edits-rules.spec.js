@@ -16,7 +16,7 @@ const importIntoEdits = (page, text) =>
 test('My Edits ships with the default tier legend — passthrough rules, not dirty', async ({ page }) => {
   await gotoApp(page);
   const wl = await myEdits(page);
-  expect(wl.rescoreRules.map(r => r.input)).toEqual(['60', '50', '40', '30', '20', '10', '0']);
+  expect(wl.rescoreRules.map(r => r.query)).toEqual(['score: 60', 'score: 50', 'score: 40', 'score: 30', 'score: 20', 'score: 10', 'score: 0']);
   expect(wl.rescoreRules.every(r => r.output === '')).toBe(true);  // documents tiers, remaps nothing
   expect(wl.dirty).toBe(false);
 });
@@ -25,7 +25,7 @@ test('importing a foreign-scaled list into My Edits drops the legend and auto-se
   await gotoApp(page);
   await importIntoEdits(page, 'CAT;5\nDOG;7\nFOX;9\n');
   const wl = await myEdits(page);
-  expect(wl.rescoreRules.map(r => r.input).sort()).toEqual(['5', '7', '9']);
+  expect(wl.rescoreRules.map(r => r.query).sort()).toEqual(['score: 5', 'score: 7', 'score: 9']);
   expect(wl.rescoreRules.every(r => r.output === '')).toBe(true);
   expect(wl.dirty).toBe(true);
 });
@@ -34,7 +34,7 @@ test('importing a list already on Grawlix tiers keeps the legend', async ({ page
   await gotoApp(page);
   await importIntoEdits(page, 'CAT;60\nDOG;50\nFOX;40\n');
   const wl = await myEdits(page);
-  expect(wl.rescoreRules.map(r => r.input)).toEqual(['60', '50', '40', '30', '20', '10', '0']);
+  expect(wl.rescoreRules.map(r => r.query)).toEqual(['score: 60', 'score: 50', 'score: 40', 'score: 30', 'score: 20', 'score: 10', 'score: 0']);
   expect(wl.dirty).toBe(false);
 });
 
@@ -45,8 +45,8 @@ test("customizing an All Wordlists tier propagates into a non-dirty My Edits leg
     window.__grawlixTest.setScoring(rules);
   });
   const wl = await myEdits(page);
-  expect(wl.rescoreRules.map(r => r.input)).toContain('65');
-  expect(wl.rescoreRules.map(r => r.input)).not.toContain('60');
+  expect(wl.rescoreRules.map(r => r.query)).toContain('score: 65');
+  expect(wl.rescoreRules.map(r => r.query)).not.toContain('score: 60');
   expect(wl.dirty).toBe(false);
 });
 
@@ -54,8 +54,8 @@ test('baking My Edits writes rescored scores into the raw data and resets the ru
   await gotoApp(page);
   await importIntoEdits(page, 'CAT;5\nDOG;7\n');
   await page.evaluate(() => window.__grawlixTest.setRescoreRules('My Edits', [
-    { input: '5', length: '', output: '50', note: '' },
-    { input: '7', length: '', output: '60', note: '' },
+    { query: 'score: 5', output: '50', note: '' },
+    { query: 'score: 7', output: '60', note: '' },
   ]));
 
   await page.evaluate(() => { window.__grawlixTest.bakeRescoring('My Edits'); });
@@ -66,7 +66,7 @@ test('baking My Edits writes rescored scores into the raw data and resets the ru
   ).toEqual([50, 60]);
 
   const wl = await myEdits(page);
-  expect(wl.rescoreRules.map(r => r.input)).toEqual(['60', '50', '40', '30', '20', '10', '0']);
+  expect(wl.rescoreRules.map(r => r.query)).toEqual(['score: 60', 'score: 50', 'score: 40', 'score: 30', 'score: 20', 'score: 10', 'score: 0']);
   expect(wl.rescoreRules.every(r => r.output === '')).toBe(true);
   expect(wl.dirty).toBe(false);
 

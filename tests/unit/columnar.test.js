@@ -55,7 +55,7 @@ test('columnar buildCorpus matches object across a multi-source priority merge',
 });
 
 test('columnar merge matches object merge with a rescore rule (rawScore carried)', () => {
-  const E = pair('E', 'DELTA;5\nECHO;5;note\nFOXTROT;77\n', { rescoreRules: [{ input: '0-9', output: '80' }] });
+  const E = pair('E', 'DELTA;5\nECHO;5;note\nFOXTROT;77\n', { rescoreRules: [{ query: 'score: 0-9', output: '80' }] });
   const F = pair('F', 'DELTA;50\n');
   assert.deepStrictEqual(
     project(buildCorpus([E.col, F.col]).entries),
@@ -70,7 +70,7 @@ test('columnar scoped (single-source, disabled) build matches object', () => {
 
 test('rawScore reads undefined exactly when a rule left the score unchanged', () => {
   const { col } = pair('G', 'CRANE;90;corvid\nDELTA;50\nEAGLE;50;raptor\n', {
-    rescoreRules: [{ input: '50', length: '', output: '75', note: '' }],
+    rescoreRules: [{ query: 'score: 50', output: '75', note: '' }],
   });
   const acc = sourceAccessor(col);
   const byNorm = new Map();
@@ -113,14 +113,14 @@ test('sparse display/comment round-trip: null stays null, present decodes', () =
 });
 
 test('collectRaw yields RAW (file) scores; scores() yields rescored', () => {
-  const { col } = pair('R', 'ALPHA;5\nBETA;5\n', { rescoreRules: [{ input: '5', output: '80' }] });
+  const { col } = pair('R', 'ALPHA;5\nBETA;5\n', { rescoreRules: [{ query: 'score: 5', output: '80' }] });
   const acc = sourceAccessor(col);
   assert.deepStrictEqual(acc.collectRaw().map(v => v.score).sort(), [5, 5]);
   assert.deepStrictEqual([...acc.scores()].sort(), [80, 80]);
 });
 
 test('columnsFromEntries equals parseWordlistColumns over the same text', () => {
-  const rules = [{ input: '0-9', output: '80' }];
+  const rules = [{ query: 'score: 0-9', output: '80' }];
   const compiled = rules.map(r => ({ ...r }));
   compileRescoreRules({ rescoreRules: compiled });
   const fromText = parseWordlistColumns(FIXTURE, compiled);

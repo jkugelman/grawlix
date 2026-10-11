@@ -530,7 +530,7 @@ test('rules and tiers edited on different pages commit in one Save', async ({ pa
   await openRowPage(page, 'TestFruits');
   await detail(page).locator('#rescore-rules .rule-add-btn').click();
   const row = detail(page).locator('#rescore-rules .rule-row').last();
-  await row.locator('.rule-in').fill('50');
+  await row.locator('.rule-query').fill('score: 50');
   await row.locator('.rule-out').fill('40');
   await row.locator('.rule-out').blur();
   await expect(page.locator('#manage-dialog .manage-status')).toHaveText('Unsaved changes: All Wordlists, TestFruits');
@@ -538,7 +538,7 @@ test('rules and tiers edited on different pages commit in one Save', async ({ pa
   await save(page);
   expect(await page.evaluate(() => state.scoring[0].note)).toBe('Gold');
   expect((await page.evaluate(() => window.__grawlixTest.getWordlist('TestFruits'))).rescoreRules)
-    .toContainEqual({ input: '50', length: '', output: '40' });
+    .toContainEqual({ query: 'score: 50', output: '40' });
 });
 
 test('a tier change leaves an untouched My Edits clean and following the tiers', async ({ page }) => {

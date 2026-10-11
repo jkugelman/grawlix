@@ -96,7 +96,7 @@ test('a non-pass-through My Edits entry seeds the raw score and shows the rescor
   // Give My Edits a remapping rule: a raw 5 rescores to 90. Save BAGEL into My
   // Edits at raw 5 so My Edits wins the merge with effective 90.
   await page.evaluate(() => window.__grawlixTest.setRescoreRules('My Edits', [
-    { input: '5', length: '', output: '90', note: '' },
+    { query: 'score: 5', output: '90', note: '' },
   ]));
   await page.evaluate(() => window.__grawlixTest.saveMyEdit('bagel', 'bagel', 5));
   expect(await page.evaluate(() => window.__grawlixTest.getMergedEntry('BAGEL')))

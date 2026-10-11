@@ -3,6 +3,7 @@
 // ─── Tool catalog & tool helpers ─────────────────────────────────────────────
 
 import { SCORE_RANGE_HELP, LENGTH_HELP } from './range.js';
+import { RULE_QUERY_HELP } from './rule-query.js';
 import { OUTPUT_HELP } from './rescore.js';
 import { isReplacing } from './tools/shared.js';
 import anagrams from './tools/anagrams.js';
@@ -143,7 +144,7 @@ for (const [toolKey, tool] of Object.entries(TOOLS)) {
 PARAM_HELP['filter/score']  = SCORE_RANGE_HELP;
 PARAM_HELP['filter/length'] = LENGTH_HELP;
 PARAM_HELP['rule/score']    = SCORE_RANGE_HELP;
-PARAM_HELP['rule/length']   = LENGTH_HELP;
+PARAM_HELP['rule/query']    = RULE_QUERY_HELP;
 PARAM_HELP['rule/output']   = OUTPUT_HELP;
 
 // Normalize tool param strings: lowercase only. Same rule as wlEntry.norm —

@@ -108,7 +108,7 @@ test('a rescore-rule edit invalidates the entry — the re-run misses and serves
   // Remap every raw score to 42 — a rebuild (syncConfig), so the retained entry must
   // miss and re-derive. The re-run below is exactly where a broken invalidation would
   // serve the stale pre-rescore scores instead.
-  await page.evaluate(() => window.__grawlixTest.setRescoreRules('Birds', [{ input: '0-1000', length: '', output: '42' }]));
+  await page.evaluate(() => window.__grawlixTest.setRescoreRules('Birds', [{ query: 'score: 0-1000', output: '42' }]));
   await runSearch(page, '[aeiou]');
 
   const after = await allRows(page);

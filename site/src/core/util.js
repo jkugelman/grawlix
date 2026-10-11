@@ -49,6 +49,14 @@ export function formatBytes(n) {
   return `${(n / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+// The one spelling of a score tier as a rule query, shared by the stored-rule
+// migration, the defaults and the My Edits legend: rescoreRulesEqual compares
+// queries as text, so two spellings of one tier would read as a user change.
+export function scoreQuery(input, length = '') {
+  const lengthPart = (length ?? '').trim() ? ` and length: ${length.trim()}` : '';
+  return `score: ${(input ?? '').trim()}${lengthPart}`;
+}
+
 export function buildHelpHTML(rows, opts = {}) {
   const items = rows.map(([code, desc, rowOpts]) => {
     const token = rowOpts?.ghost

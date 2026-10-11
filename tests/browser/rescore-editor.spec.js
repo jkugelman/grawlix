@@ -16,7 +16,7 @@ async function seedRemappedSource(page) {
     name: 'Src', entries: ['ocean', 'tide'], scores: [350, 40],
   }));
   await page.evaluate(() => window.__grawlixTest.setRescoreRules('Src', [
-    { input: '350', length: '', output: '80', note: '' },
+    { query: 'score: 350', output: '80', note: '' },
   ]));
   await scopeViaSelector(page, 'Src');
 }
@@ -86,14 +86,14 @@ test('leaving one rule field for another keeps the typed value and the new focus
   await openRescoreEditor(page);
 
   const row = editor(page).locator('#rescore-rules .rule-row').first();
-  await row.locator('.rule-in').fill('300+');
+  await row.locator('.rule-query').fill('score: 300+');
   await row.locator('.rule-out').click();
   await expect(row.locator('.rule-out')).toBeFocused();
   // macOS firefox and webkit don't bind End to the end of an input.
   await row.locator('.rule-out').evaluate(el => el.setSelectionRange(el.value.length, el.value.length));
   await page.keyboard.type('5');
   await expect(row.locator('.rule-out')).toHaveValue('805');
-  await expect(row.locator('.rule-in')).toHaveValue('300+');
+  await expect(row.locator('.rule-query')).toHaveValue('score: 300+');
 });
 
 // Same gesture as manage-panel's dragRowBefore: the +10px nudge clears
@@ -116,8 +116,8 @@ test('dragging a rule to reorder it changes which rule wins (no auto-sort)', asy
     name: 'Zinc', entries: ['wave'], scores: [50],
   }));
   await page.evaluate(() => window.__grawlixTest.setRescoreRules('Zinc', [
-    { input: '40-60', length: '', output: '30', note: '' },
-    { input: '50',    length: '', output: '70', note: '' },
+    { query: 'score: 40-60', output: '30', note: '' },
+    { query: 'score: 50', output: '70', note: '' },
   ]));
   await scopeViaSelector(page, 'Zinc');
   const waveScore = page.locator('.entry-row[data-entry="wave"] .atom-score');
@@ -125,12 +125,12 @@ test('dragging a rule to reorder it changes which rule wins (no auto-sort)', asy
 
   await openRescoreEditor(page);
   await dragRuleBefore(page, 1, 0);   // move the exact 50→70 rule above the broad one
-  await expect(editor(page).locator('#rescore-rules .rule-row .rule-in').first()).toHaveValue('50');
+  await expect(editor(page).locator('#rescore-rules .rule-row .rule-query').first()).toHaveValue('score: 50');
 
   await applyRescoreEditor(page);
   await page.evaluate(() => window.__grawlixTest.pipelineIdle());
-  expect(await page.evaluate(() => window.__grawlixTest.getWordlist('Zinc').rescoreRules.map(r => r.input)))
-    .toEqual(['50', '40-60']);
+  expect(await page.evaluate(() => window.__grawlixTest.getWordlist('Zinc').rescoreRules.map(r => r.query)))
+    .toEqual(['score: 50', 'score: 40-60']);
   await expect(waveScore.locator('.score-badge')).toHaveText('70');
 });
 
@@ -185,8 +185,8 @@ test('Disable rescoring blanks rule outputs and drops scoring:false rows on Save
     name: 'Src', entries: ['ocean', 'tide'], scores: [350, 40],
   }));
   await page.evaluate(() => window.__grawlixTest.setRescoreRules('Src', [
-    { input: '350', length: '', output: '80', note: 'top tier' },
-    { input: '40', length: '', output: '10', note: '', scoring: false },
+    { query: 'score: 350', output: '80', note: 'top tier' },
+    { query: 'score: 40', output: '10', note: '', scoring: false },
   ]));
   await scopeViaSelector(page, 'Src');
   await openRescoreEditor(page);
@@ -200,7 +200,7 @@ test('Disable rescoring blanks rule outputs and drops scoring:false rows on Save
   // The test API's getWordlist projection drops note/scoring, so the surviving
   // input + the 2→1 count carry the scoring:false-dropped assertion.
   const rules = await page.evaluate(() => window.__grawlixTest.getWordlist('Src').rescoreRules);
-  expect(rules).toEqual([{ input: '350', length: '', output: '' }]);
+  expect(rules).toEqual([{ query: 'score: 350', output: '' }]);
   await expect(oceanScore(page).locator('.score-badge')).toHaveText('350');
 });
 
@@ -236,8 +236,8 @@ test('Disable rescoring is hidden when every rule is already pass-through (a no-
     name: 'Inert', entries: ['ocean', 'tide'], scores: [50, 40],
   }));
   await page.evaluate(() => window.__grawlixTest.setRescoreRules('Inert', [
-    { input: '50', length: '', output: '', note: '' },
-    { input: '40', length: '', output: '', note: '' },
+    { query: 'score: 50', output: '', note: '' },
+    { query: 'score: 40', output: '', note: '' },
   ]));
   await scopeViaSelector(page, 'Inert');
   await openRescoreEditor(page);
@@ -253,7 +253,7 @@ test('Make permanent bakes the saved rules and stays on the page', async ({ page
     name: 'Mine', entries: ['ocean'], scores: [350],
   }));
   await page.evaluate(() => window.__grawlixTest.setRescoreRules('Mine', [
-    { input: '350', length: '', output: '80', note: '' },
+    { query: 'score: 350', output: '80', note: '' },
   ]));
   await scopeViaSelector(page, 'Mine');
   await openRescoreEditor(page);

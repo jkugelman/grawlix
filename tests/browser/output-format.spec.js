@@ -59,7 +59,7 @@ test.describe('output format UI', () => {
   test('a source downloads immediately, applying the global output format with no dialog', async ({ page }) => {
     await gotoApp(page);
     await page.evaluate(() => window.__grawlixTest.addCustomWordlist({ name: 'Src', entries: ['BLUE JAY'], scores: [50] }));
-    await page.evaluate(() => window.__grawlixTest.setRescoreRules('Src', [{ input: '50', length: '', output: '80' }]));
+    await page.evaluate(() => window.__grawlixTest.setRescoreRules('Src', [{ query: 'score: 50', output: '80' }]));
 
     const richDl = page.waitForEvent('download');
     await page.evaluate(() => downloadSourceWordlist(state.sources.find(w => w.name === 'Src')));
@@ -95,7 +95,7 @@ test.describe('output format UI', () => {
   test('a source with rules gets a split Download with Download-rescored and Download-original doors; one without is a plain button', async ({ page }) => {
     await gotoApp(page);
     await page.evaluate(() => window.__grawlixTest.addCustomWordlist({ name: 'Ruled', entries: ['cat'], scores: [50] }));
-    await page.evaluate(() => window.__grawlixTest.setRescoreRules('Ruled', [{ input: '50', length: '', output: '80' }]));
+    await page.evaluate(() => window.__grawlixTest.setRescoreRules('Ruled', [{ query: 'score: 50', output: '80' }]));
     await page.evaluate(() => window.__grawlixTest.addCustomWordlist({ name: 'Plain', entries: ['dog'], scores: [50] }));
     await page.evaluate(() => window.__grawlixTest.setRescoreRules('Plain', []));  // custom lists auto-seed rules; clear them
 
@@ -116,7 +116,7 @@ test.describe('output format UI', () => {
   test('Download original saves the imported file verbatim, not the rule output', async ({ page }) => {
     await gotoApp(page);
     await page.evaluate(() => window.__grawlixTest.addCustomWordlist({ name: 'Src', entries: ['ALPHA', 'BETA'], scores: [50, 50] }));
-    await page.evaluate(() => window.__grawlixTest.setRescoreRules('Src', [{ input: '50', length: '', output: '80' }]));
+    await page.evaluate(() => window.__grawlixTest.setRescoreRules('Src', [{ query: 'score: 50', output: '80' }]));
 
     const originalDl = page.waitForEvent('download');
     await page.evaluate(() => downloadOriginalWordlist(state.sources.find(w => w.name === 'Src')));

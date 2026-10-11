@@ -208,8 +208,8 @@ test('the rescore panel bake button is enabled for a bakeable source and applies
   }));
   await scopeTo(page, 'Mine');
   await page.evaluate(() => window.__grawlixTest.setRescoreRules('Mine', [
-    { input: '5', length: '', output: '50', note: '' },
-    { input: '7', length: '', output: '60', note: '' },
+    { query: 'score: 5', output: '50', note: '' },
+    { query: 'score: 7', output: '60', note: '' },
   ]));
 
   await openRescoreEditor(page);

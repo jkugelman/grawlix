@@ -75,7 +75,7 @@ test('a synced source mirrors its rescored output and rewrites on rule change', 
 
   expect(await readFile(page, 'Src.txt')).toBe('ALPHA;50\nBETA;50\n');
 
-  await page.evaluate(() => window.__grawlixTest.setRescoreRules('Src', [{ input: '50', length: '', output: '80' }]));
+  await page.evaluate(() => window.__grawlixTest.setRescoreRules('Src', [{ query: 'score: 50', output: '80' }]));
   await page.evaluate(() => window.__grawlixTest.sync.flushWrites());
 
   expect(await readFile(page, 'Src.txt')).toBe('ALPHA;80\nBETA;80\n');

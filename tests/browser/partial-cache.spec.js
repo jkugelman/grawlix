@@ -414,7 +414,7 @@ test('a rescore rebuild drops the stashed partial — the re-entry runs cold wit
 
   // Remap every score to 42 — a syncConfig rebuild that swaps the corpus object and calls
   // clearResultCache. The stash is dropped, so the re-entry can only reflect the new corpus.
-  await page.evaluate(() => window.__grawlixTest.setRescoreRules('Big', [{ input: '0-1000', length: '', output: '42' }]));
+  await page.evaluate(() => window.__grawlixTest.setRescoreRules('Big', [{ query: 'score: 0-1000', output: '42' }]));
   await page.evaluate(() => window.__grawlixTest.pipelineIdle());
   expect((await partialState(page)).size).toBe(0);                     // cleared
 

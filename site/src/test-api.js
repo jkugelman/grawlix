@@ -558,7 +558,7 @@ const __grawlixTest = {
       // Resident only for My Edits; a non-Edits source's rawEntries aren't held on
       // main — read its entries via the async dumpSourceEntries instead.
       entries: wl.rawEntries.map(e => ({ entry: e.norm, display: e.display, score: e.score, comment: e.comment || '' })),
-      rescoreRules: wl.rescoreRules.map(r => ({ input: r.input, length: r.length || '', output: r.output })),
+      rescoreRules: wl.rescoreRules.map(r => ({ query: r.query, output: r.output })),
       dirty: !!wl.dirty,
       updateAvailable: !!wl._updateAvailable,
     };

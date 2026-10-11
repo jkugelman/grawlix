@@ -24,19 +24,14 @@ test('the rescore editor fields each show their own cheat sheet', async ({ page 
     name: 'Src', entries: ['ocean'], scores: [50],
   }));
   await page.evaluate(() => window.__grawlixTest.setRescoreRules('Src', [
-    { input: '50', length: '', output: '60', note: '' },
+    { query: 'score: 50', output: '60', note: '' },
   ]));
   await scopeViaSelector(page, 'Src');
   await openRescoreEditor(page);
 
-  await page.locator('#rescore-rules .rule-in').first().focus();
-  await expect(page.locator('.popup-help.open')).toContainText('score range');
-
-  await page.locator('#rescore-rules .rule-len').first().focus();
-  await expect(page.locator('.popup-help.open')).toContainText('any length');
-  await expect(page.locator('.popup-help.open .help-grid > span').first()).toContainText('blank');
-  await expect(page.locator('.popup-help.open .help-ghost')).toHaveText('blank');
-  await expect(page.locator('.popup-help.open kbd', { hasText: 'blank' })).toHaveCount(0);
+  await page.locator('#rescore-rules .rule-query').first().focus();
+  await expect(page.locator('.popup-help.open')).toContainText('score in this list');
+  await expect(page.locator('.popup-help.open')).toContainText('combine conditions');
 
   await page.locator('#rescore-rules .rule-out').first().focus();
   await expect(page.locator('.popup-help.open')).toContainText('unchanged');

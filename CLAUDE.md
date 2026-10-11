@@ -165,7 +165,7 @@ Parsing dedupes exact `(norm, display)` repeats, keeping the first (`parseWordli
 Enforced at the parse boundary, so the merge, entries table, counts, and provenance panel all see one entry with no special-casing.
 The stored IDB text is untouched, so **Download original** still emits the file verbatim; the rescored **Download** and disk mirror reflect the dedupe.
 
-**Rescore rules** (every wordlist, including My Edits) map an input score range + optional entry-length filter to an output score.
+**Rescore rules** (every wordlist, including My Edits) map a condition, a `field: value` query over the list's own entries (`score: 50 and is: proper`), to an output score.
 First matching rule wins; rescoring is total — every raw entry maps to exactly one rescored entry, never dropped.
 Rescoring is optional: raw scores not matched by any rule pass through unchanged, and nothing nags the user about the gap.
 

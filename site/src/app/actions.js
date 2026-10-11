@@ -37,7 +37,7 @@ import {
   editsLegend, reconcileEditsRulesAfterImport, invalidateRescoredCache,
 } from '../data/rescoring.js';
 import {
-  mergedEntryCount, invalidateSourceCounts,   setShippedConfigCounts, setShippedRescoreInputs, sourceTotal, sourceRescoreInputs,
+  mergedEntryCount, invalidateSourceCounts,   setShippedConfigCounts, setShippedRescoreChanges, sourceTotal, sourceRescoreChanges, forgetRescoreChanges,
 } from '../data/merge.js';
 import { setShippedAllSourcesAxis } from '../data/derived.js';
 import { mergeKey } from '../engine/corpus.js';
@@ -130,7 +130,7 @@ export function wordlistFromMeta(m) {
     populated: false,
     lastUpdated: m.lastUpdated || null,
     fetchedSize: m.fetchedSize || null,
-    rescoreRules: (m.rescoreRules || []).map(r => ({ length: '', ...r })),
+    rescoreRules: m.rescoreRules || [],
     dirty: !!m.dirty,
     originalFilename: m.originalFilename || null,
     rawEntries: [],
@@ -419,7 +419,7 @@ function applyConfigAck(ack) {
   if (!ack) return;
   setShippedAllSourcesAxis(ack.axis, ack.counts?.version);
   if (ack.counts) setShippedConfigCounts(ack.counts.sourceCounts, ack.counts.sourceTotals, ack.counts.mergedCount, ack.counts.mergedWidthBound, ack.counts.version);
-  setShippedRescoreInputs(ack.rescoreInputs);   // present on fetchApplied, absent on editAck (kept)
+  setShippedRescoreChanges(ack.rescoreChanges);   // present on fetchApplied, absent on editAck (kept)
   refreshDerivedDisplays();
 }
 
@@ -427,21 +427,20 @@ function applyConfigAck(ack) {
 // original-scale data and clobber the bake, and a publisher's defaultRules are a
 // live transform, so resetting a baked publisher list to them would re-rescore
 // the already-baked scores.
-export function canBakeRescoring(wordlist, rules = wordlist.rescoreRules) {
-  return !wordlist.publisherId && !wordlist.url && rescoringChangesScores(wordlist, rules);
+export function canBakeRescoring(wordlist) {
+  return !wordlist.publisherId && !wordlist.url && rescoringChangesScores(wordlist);
 }
 
-export function rescoringChangesScores(wordlist, rules = wordlist.rescoreRules) {
-  // My Edits is main-resident; every other source applies `rules` to the worker-shipped
-  // distinct (score, length) pairs — the only inputs rescoreEntry reads — so this stays
-  // synchronous against the live editor draft. Null pairs (pre-selfReady) close the gate.
-  if (wordlist.type === 'edits') return wordlist.rawEntries.some(e => rescoreEntry(e, rules) !== e.score);
-  const pairs = sourceRescoreInputs(wordlist);
-  return !!pairs && pairs.some(([score, len]) => rescoreEntry({ score, norm: { length: len } }, rules) !== score);
+// Reads the committed rules: Manage blocks baking while any draft is unsaved.
+// Only My Edits' entries are resident, so other sources ask the worker's last
+// build; an unknown answer (pre-selfReady, or rules changed since) closes the gate.
+export function rescoringChangesScores(wordlist) {
+  if (wordlist.type === 'edits') return wordlist.rawEntries.some(e => rescoreEntry(e, wordlist.rescoreRules) !== e.score);
+  return !!sourceRescoreChanges(wordlist);
 }
 
-export function bakeMenuOpts(wordlist, rules = wordlist.rescoreRules) {
-  if (canBakeRescoring(wordlist, rules)) return {};
+export function bakeMenuOpts(wordlist) {
+  if (canBakeRescoring(wordlist)) return {};
   const reason = (wordlist.publisherId || wordlist.url)
     ? 'Only available for My Edits and imported lists'
     : 'No rescoring to apply';
@@ -477,6 +476,7 @@ export async function bakeRescoring(wordlist) {
     invalidateWordlistCaches(wordlist);
     if (wordlist.type === 'edits') wordlist.rawEntries = baked;   // only My Edits retains entries
     resetRescoreRulesAfterBake(wordlist, baked);
+    forgetRescoreChanges(wordlist);
     compileRescoreRules(wordlist);
     repaintAfterCacheChange();
   });

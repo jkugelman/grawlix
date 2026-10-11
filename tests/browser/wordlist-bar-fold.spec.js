@@ -24,7 +24,7 @@ async function settledDownloadInline(page) {
 test('Download folds into the kebab as the bar narrows, and unfolds on widening', async ({ page }) => {
   await gotoApp(page);
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({ name: 'A Very Long Wordlist Name', entries: ['cat'], scores: [50] }));
-  await page.evaluate(() => window.__grawlixTest.setRescoreRules('A Very Long Wordlist Name', [{ input: '50', length: '', output: '80' }]));
+  await page.evaluate(() => window.__grawlixTest.setRescoreRules('A Very Long Wordlist Name', [{ query: 'score: 50', output: '80' }]));
   await scopeTo(page, 'A Very Long Wordlist Name');
 
   // Fold widths are font-metric-dependent — they shift between rendering

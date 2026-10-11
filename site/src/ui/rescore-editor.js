@@ -9,7 +9,7 @@ import { MERGED_ID, DEFAULT_SCORING } from '../core/constants.js';
 import { esc } from '../core/util.js';
 import { parseRange } from '../engine/range.js';
 import {
-  parseRuleOutput, makeRescoreRuleStub, rescoreRulesEqual, scoringRulesEqual, compileRule,
+  makeRescoreRuleStub, rescoreRulesEqual, scoringRulesEqual, compileRule,
 } from '../engine/rescore.js';
 import { makeScoringRowStub } from '../model/scoring.js';
 import { showConfirm } from './dialogs/confirm.js';
@@ -102,7 +102,7 @@ export async function makeRescorePermanent() {
 }
 
 function focusNewRow() {
-  const inp = [...(_host?.querySelectorAll('.rule-row .rule-in') ?? [])].find(i => !i.value);
+  const inp = [...(_host?.querySelectorAll('.rule-row :is(.rule-in, .rule-query)') ?? [])].find(i => !i.value);
   inp?.focus();
 }
 
@@ -142,23 +142,20 @@ export function buildRulesListHTML(rules, { rulesId = '', saveFn, deleteFn, addF
     rulesHTML = '<div class="no-rules">No rules — entries kept as-is</div>';
   } else {
     rulesHTML = rules.map((r, i) => {
-      const inputInvalid = !readOnly && parseRange((r.input || '').trim()) === null;
       const disabled = readOnly ? ' disabled' : '';
-      const inputHandlers = readOnly ? '' : ` oninput="onRuleInput(this)" onchange="${saveFn}(${i},'input',this.value)"`;
-      let fieldsHTML = `<input class="rule-in${inputInvalid ? ' invalid' : ''}" autocapitalize="off" autocorrect="off" spellcheck="false" value="${esc(r.input)}"
-            data-help="rule/score" title="Score range"${disabled}${inputHandlers}>`;
+      const handlers = field => (readOnly ? '' : ` oninput="onRuleInput(this)" onchange="${saveFn}(${i},'${field}',this.value)"`);
+      let fieldsHTML;
       if (rescore) {
-        const lenVal = (r.length || '').trim();
-        const lenInvalid = !readOnly && lenVal !== '' && parseRange(lenVal) === null;
-        const outInvalid = !readOnly && isRuleOutputInvalid(r.input, r.output);
-        const lenHandlers = readOnly ? '' : ` oninput="onRuleInput(this)" onchange="${saveFn}(${i},'length',this.value)"`;
-        const outHandlers = readOnly ? '' : ` oninput="onRuleInput(this)" onchange="${saveFn}(${i},'output',this.value)"`;
-        fieldsHTML += `
-          <span class="rule-field-lbl">length</span><input class="rule-len${lenInvalid ? ' invalid' : ''}" autocapitalize="off" autocorrect="off" spellcheck="false" value="${esc(r.length||'')}" placeholder="any"
-            data-help="rule/length" title="Entry length filter"${disabled}${lenHandlers}>
+        const v = readOnly ? null : ruleValidity(r);
+        fieldsHTML = `<input class="rule-query${v?.query ? ' invalid' : ''}" autocapitalize="off" autocorrect="off" spellcheck="false" value="${esc(r.query)}" placeholder="score: 50"
+            data-help="rule/query" title="${esc(v?.query || 'Which entries this rule rescores')}"${disabled}${handlers('query')}>
           <span class="rule-arrow">→</span>
-          <input class="rule-out${outInvalid ? ' invalid' : ''}" autocapitalize="off" autocorrect="off" spellcheck="false" value="${esc(r.output)}" placeholder="unchanged"
-            data-help="rule/output" title="Output score"${disabled}${outHandlers}>`;
+          <input class="rule-out${v?.output ? ' invalid' : ''}" autocapitalize="off" autocorrect="off" spellcheck="false" value="${esc(r.output)}" placeholder="unchanged"
+            data-help="rule/output" title="${esc(v?.output || 'Output score')}"${disabled}${handlers('output')}>`;
+      } else {
+        const inputInvalid = !readOnly && parseRange((r.input || '').trim()) === null;
+        fieldsHTML = `<input class="rule-in${inputInvalid ? ' invalid' : ''}" autocapitalize="off" autocorrect="off" spellcheck="false" value="${esc(r.input)}"
+            data-help="rule/score" title="Score range"${disabled}${handlers('input')}>`;
       }
       return buildRuleRowHTML(i, fieldsHTML, r.note, deleteFn, readOnly);
     }).join('');
@@ -193,7 +190,7 @@ function menuItems() {
     items.push(['Disable rescoring', 'neutralizeRescoreRules()',
       { className: 'rule-neutralize-btn', title: "Keep this list's raw scores and notes — drop only Grawlix's rescoring" }]);
   }
-  const bakeOpts = _bakeBlocked() ? { disabled: true, title: 'Save first' } : _bakeMenuOpts(_scope, _draft);
+  const bakeOpts = _bakeBlocked() ? { disabled: true, title: 'Save first' } : _bakeMenuOpts(_scope);
   items.push(['Make permanent', 'makeRescorePermanent()', { className: 'rule-bake-btn', ...bakeOpts }]);
   return items;
 }
@@ -247,7 +244,6 @@ export function deleteRule(idx) {
 
 export function saveRuleField(idx, field, value) {
   if (!_draft || isScoringScope(_scope) || !_draft[idx]) return;
-  if (field === 'length' && value.trim().toLowerCase() === 'any') value = '';
   if (field === 'output' && value.trim().toLowerCase() === 'unchanged') value = '';
   _draft[idx][field] = value;
   afterFieldCommit();
@@ -326,40 +322,31 @@ export function startNoteEdit(wrapEl) {
   });
 }
 
-export function isRuleOutputInvalid(inputVal, outputVal) {
-  const v = (outputVal || '').trim();
-  if (!v) return false;
-  const parsed = parseRuleOutput(v);
-  if (parsed === null) return true;
-  if (parsed && typeof parsed === 'object') {
-    const iv = parseRange((inputVal || '').trim())?.[0];
-    if (parsed.max === null) {
-      // N+ output requires N+ input
-      if (!iv || iv.max !== null) return true;
-    } else {
-      // Bounded range output requires bounded non-degenerate input range
-      if (!iv || iv.min === null || iv.max === null || iv.min === iv.max) return true;
-    }
-  }
-  return false;
+function ruleValidity(rule) {
+  const r = { query: rule.query, output: rule.output };
+  compileRule(r);
+  return { query: r._errors[0]?.msg ?? null, output: r._outputError };
+}
+
+function flagField(inp, msg, fallbackTitle) {
+  if (!inp) return;
+  inp.classList.toggle('invalid', !!msg);
+  inp.title = msg || fallbackTitle;
 }
 
 function validateRulesContainer(container) {
   container.querySelectorAll('.rule-in').forEach(inp => {
     inp.classList.toggle('invalid', parseRange(inp.value.trim()) === null);
   });
-  container.querySelectorAll('.rule-len').forEach(inp => {
-    const v = inp.value.trim();
-    inp.classList.toggle('invalid', v !== '' && parseRange(v) === null);
-  });
-  container.querySelectorAll('.rule-out').forEach(inp => {
-    const inEl = inp.closest('.rule-row')?.querySelector('.rule-in');
-    inp.classList.toggle('invalid', isRuleOutputInvalid(inEl?.value, inp.value));
+  container.querySelectorAll('.rule-query').forEach(inp => {
+    const row = inp.closest('.rule-row');
+    const v = ruleValidity({ query: inp.value, output: row.querySelector('.rule-out')?.value });
+    flagField(inp, v.query, 'Which entries this rule rescores');
+    flagField(row.querySelector('.rule-out'), v.output, 'Output score');
   });
 }
 
 export function onRuleInput(el) {
-  if (el.classList.contains('rule-len') && el.value.trim().toLowerCase() === 'any') el.value = '';
   if (el.classList.contains('rule-out') && el.value.trim().toLowerCase() === 'unchanged') el.value = '';
   const container = el.closest('.rules-list');
   if (!container) return;
@@ -371,7 +358,7 @@ function liveEditDraftField(el) {
   if (!_draft) return;
   const row = el.closest('.rule-row');
   const field = el.classList.contains('rule-in') ? 'input'
-    : el.classList.contains('rule-len') ? 'length'
+    : el.classList.contains('rule-query') ? 'query'
     : el.classList.contains('rule-out') ? 'output' : null;
   if (!row || field === null) return;
   const i = parseInt(row.dataset.i, 10);

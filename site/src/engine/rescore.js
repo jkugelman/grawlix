@@ -2,8 +2,8 @@
 
 // ─── Rescoring ────────────────────────────────────────────────────────────────
 
-import { parseRange, matchesRange } from './range.js';
-import { buildHelpHTML } from '../core/util.js';
+import { buildHelpHTML, scoreQuery } from '../core/util.js';
+import { compileQuery, ruleSubject } from './rule-query.js';
 
 export const OUTPUT_HELP = buildHelpHTML([
   ['blank', 'unchanged', { ghost: true }],
@@ -18,8 +18,7 @@ export function rescoreRulesEqual(a, b) {
   if (au.length !== bu.length) return false;
   return au.every((r, i) => {
     const o = bu[i];
-    return r.input === o.input
-      && (r.length || '') === (o.length || '')
+    return (r.query || '').trim() === (o.query || '').trim()
       && (r.output || '') === (o.output || '')
       && (r.note   || '') === (o.note   || '');
   });
@@ -43,7 +42,7 @@ export function scoringRulesEqual(a, b) {
 // See docs/wordlists.md § Rescore rules.
 const AUTO_SEED_SCORE_LIMIT = 10;
 
-export function makeRescoreRuleStub(input = '') { return { input, length: '', output: '', note: '' }; }
+export function makeRescoreRuleStub(query = '') { return { query, output: '', note: '' }; }
 
 // Takes the entries explicitly (not wordlist.rawEntries): main doesn't retain a
 // non-Edits source's rawEntries, so the caller passes its transient parse.
@@ -53,7 +52,7 @@ export function maybeAutoSeedRescoreRules(wordlist, entries) {
   const scores = [...new Set(entries.map(e => e.score))];
   if (!scores.length || scores.length > AUTO_SEED_SCORE_LIMIT) return;
   scores.sort((a, b) => a - b);
-  wordlist.rescoreRules = scores.map(s => makeRescoreRuleStub(String(s)));
+  wordlist.rescoreRules = scores.map(s => makeRescoreRuleStub(scoreQuery(String(s))));
 }
 
 export function compileRescoreRules(wordlist) {
@@ -72,9 +71,25 @@ export function parseRuleOutput(str) {
 }
 
 export function compileRule(rule) {
-  rule._scoreIntervals = parseRange(rule.input);
-  rule._lenIntervals   = (rule.length && rule.length.trim()) ? parseRange(rule.length) : null;
-  rule._output         = parseRuleOutput(rule.output);
+  const { match, errors, scoreInterval } = compileQuery(rule.query);
+  rule._match = match;
+  rule._errors = errors;
+  rule._scoreInterval = scoreInterval;
+  rule._output = parseRuleOutput(rule.output);
+  rule._outputError = ruleOutputError(rule);
+}
+
+export function ruleOutputError(rule) {
+  const out = rule._output;
+  if (out === null) return 'Use a score like 50, or leave it blank to keep the score.';
+  if (!out || typeof out !== 'object') return null;
+  const iv = rule._scoreInterval;
+  if (out.max === null) {
+    if (!iv || iv.max !== null) return 'A score like 60+ needs the condition to have one score like 50+.';
+  } else if (!iv || iv.max === null || iv.min === iv.max) {
+    return 'A score like 20-39 needs the condition to have one score range like 30-49.';
+  }
+  return null;
 }
 
 export function applyRescoring(entries, rules) {
@@ -116,28 +131,19 @@ export function groupEntries(group) {
 }
 
 export function rescoreEntry(wlEntry, rules) {
-  return rescoreScore(wlEntry.score, wlEntry.norm.length, rules);
+  return rescoreFields(wlEntry.score, wlEntry.norm, wlEntry.display, rules);
 }
 
-export function rescoreScore(score, normLen, rules) {
+export function rescoreFields(score, norm, display, rules) {
+  const subject = ruleSubject(score, norm, display);
   for (const rule of rules) {
-    const scoreIntervals = rule._scoreIntervals !== undefined ? rule._scoreIntervals : parseRange(rule.input);
-    if (!scoreIntervals || !matchesRange(score, scoreIntervals)) continue;
-    if (rule.length && rule.length.trim()) {
-      const lenIntervals = rule._lenIntervals !== undefined ? rule._lenIntervals : parseRange(rule.length);
-      if (!lenIntervals || !matchesRange(normLen, lenIntervals)) continue;
-    }
-    const s = rule._output !== undefined ? rule._output : parseRuleOutput(rule.output);
-    if (s === null) continue;
+    if (rule._match === undefined) compileRule(rule);
+    if (!rule._match || rule._outputError || !rule._match(subject)) continue;
+    const s = rule._output;
     if (s === 'unchanged') return score;
-    if (s && typeof s === 'object') {
-      const iv = scoreIntervals[0];
-      if (iv.max === null && s.max === null) {
-        // Both N+: shift by the difference
-        return score + (s.min - iv.min);
-      }
-      // Bounded range: linearly scale; skip if shapes don't match or input is degenerate
-      if (iv.min === null || iv.max === null || s.max === null || iv.min === iv.max) continue;
+    if (typeof s === 'object') {
+      const iv = rule._scoreInterval;
+      if (s.max === null) return score + (s.min - iv.min);
       const t = (score - iv.min) / (iv.max - iv.min);
       return Math.round(s.min + t * (s.max - s.min));
     }

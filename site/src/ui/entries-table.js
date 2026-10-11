@@ -3453,19 +3453,19 @@ export const EntryPanel = (() => {
       if (i >= 0) { rows[i] = { ...rows[i], diff: 'deleted' }; continue; }
       const orig = edits.rawEntries.find(e => e.norm === d.norm && displayOf(e) === d.display);
       if (orig) {
-        const eff = rescoreEntry({ norm: orig.norm, score: orig.score }, edits.rescoreRules);
+        const eff = rescoreEntry(orig, edits.rescoreRules);
         extras.push({ wordlist: edits, entry: { norm: orig.norm, display: orig.display ?? null, score: eff, rawScore: orig.score, comment: orig.comment || '' }, enabled: true, isEdits: true, saved: true, diff: 'deleted' });
       }
     }
     const p = plan.primary;
-    const effective = rescoreEntry({ norm: p.norm, score: vals.score }, edits.rescoreRules);
+    const effective = rescoreEntry({ norm: p.norm, display: p.display, score: vals.score }, edits.rescoreRules);
     const entry = { norm: p.norm, display: p.display, score: effective, rawScore: vals.score, comment: vals.comment };
     const i = rows.findIndex(r => r.isEdits && r.entry.norm === p.norm && displayOf(r.entry) === (p.display ?? p.norm) && r.diff !== 'deleted');
     let primaryIdx;
     if (i >= 0) { rows[i] = { wordlist: edits, entry, enabled: true, isEdits: true, saved: true, diff: 'changed', adoptStaged: stagedAdopt }; primaryIdx = i; }
     else { rows.unshift({ wordlist: edits, entry, enabled: true, isEdits: true, saved: false, diff: 'added', adoptStaged: stagedAdopt }); primaryIdx = 0; }
     for (const n of plan.notes) {
-      const eff = rescoreEntry({ norm: n.norm, score: n.score }, edits.rescoreRules);
+      const eff = rescoreEntry(n, edits.rescoreRules);
       extras.push({ wordlist: edits, entry: { norm: n.norm, display: n.display, score: eff, rawScore: n.score, comment: n.comment || '' }, enabled: true, isEdits: true, saved: false, diff: 'added' });
     }
     if (extras.length) rows.splice(primaryIdx + 1, 0, ...extras);

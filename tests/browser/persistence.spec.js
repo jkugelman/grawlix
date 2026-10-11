@@ -29,8 +29,8 @@ test('a custom wordlist survives a page reload with its entries and rules intact
     name: 'Persist', entries: ['aardvark', 'bagel', 'carrot'], scores: [10, 50, 90],
   }));
   await page.evaluate(() => window.__grawlixTest.setRescoreRules('Persist', [
-    { input: '10-50', length: '',  output: '40', note: 'compress' },
-    { input: '90',    length: '5', output: '95', note: 'long-bonus' },
+    { query: 'score: 10-50', output: '40', note: 'compress' },
+    { query: 'score: 90 and length: 5', output: '95', note: 'long-bonus' },
   ]));
 
   // Reload. The page.route stub set up in beforeEach persists across the
@@ -51,8 +51,8 @@ test('a custom wordlist survives a page reload with its entries and rules intact
   // the length filter, which lives in localStorage's meta. A pre-bump
   // SCHEMA_VERSION change that broke the rule shape would corrupt this.
   expect(wl.rescoreRules).toEqual([
-    { input: '10-50', length: '',  output: '40' },
-    { input: '90',    length: '5', output: '95' },
+    { query: 'score: 10-50', output: '40' },
+    { query: 'score: 90 and length: 5', output: '95' },
   ]);
 
   // Merged view still resolves the entries with the persisted rescore

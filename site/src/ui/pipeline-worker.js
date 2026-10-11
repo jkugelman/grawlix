@@ -10,7 +10,7 @@ import { currentAtomCount } from '../engine/executor.js';
 import { anyAssetAutoUpdates } from '../engine/assets.js';
 import { state, bumpErrorMarks } from '../data/state.js';
 import { setShippedAllSourcesAxis, setShippedScopedLayout } from '../data/derived.js';
-import { setShippedConfigCounts, setShippedRescoreInputs } from '../data/merge.js';
+import { setShippedConfigCounts, setShippedRescoreChanges } from '../data/merge.js';
 import { getMergeMode } from '../data/serialize.js';
 import { MERGED_ID, TUPLE_CAP_MOBILE, TUPLE_CAP_DESKTOP, WEAVE_CAP_MOBILE, WEAVE_CAP_DESKTOP } from '../core/constants.js';
 import { isMobile } from '../core/platform.js';
@@ -642,7 +642,7 @@ export function syncWorkerConfig(sources) {
       enabled: wl.enabled,
       type: wl.type ?? null,
       rescoreRules: (wl.rescoreRules || []).map(r => ({
-        input: r.input, length: r.length, output: r.output, note: r.note,
+        query: r.query, output: r.output, note: r.note,
       })),
     })),
   };
@@ -655,7 +655,7 @@ export function syncWorkerConfig(sources) {
 function handleSelfReady(data) {
   setShippedAllSourcesAxis(data.axis, data.version);
   setShippedConfigCounts(data.sourceCounts ?? null, data.sourceTotals ?? null, data.mergedCount ?? null, data.mergedWidthBound ?? null, data.version);
-  setShippedRescoreInputs(data.rescoreInputs);
+  setShippedRescoreChanges(data.rescoreChanges);
   applySelfReadyFreshness(data);
   const resolve = _configWaiters.get(data.configId);
   if (resolve) { _configWaiters.delete(data.configId); resolve(data.count); }
@@ -1114,7 +1114,7 @@ export function sendApplyFetched(sourceId, text, background = false, timeout = 1
       if (settled) { sendFreeDiff(data.diffId); return; }
       lastFetchAppliedMode = data.mode ?? null;
       // Forward the whole ack: applyWordlistText/applyConfigAck read wasEmpty, the
-      // capped diff + true counts, and rescoreInputs off it (main holds no old entries).
+      // capped diff + true counts, and rescoreChanges off it (main holds no old entries).
       resolve(data);
     }
     w.addEventListener('message', onMessage);

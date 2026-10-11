@@ -2656,7 +2656,7 @@ function applyFetchedNow({ requestId, sourceId, text, background }) {
     const { stale, repatch } = refreshFork(background && scopeAffected, preSplice);
     postMessage({
       type: 'fetchApplied', requestId, applied: true, mode: 'rebuild', stale, repatch,
-      axis: ack.axis, counts: ack.counts, rescoreInputs: sourceRescoreInputsFrom(ownedBuilt),
+      axis: ack.axis, counts: ack.counts, rescoreChanges: rescoreChangesFrom(ownedBuilt),
       wasEmpty: true, oldCount: 0, newCount: newEntries.length, diffId: null,
     });
     return;
@@ -2684,7 +2684,7 @@ function applyFetchedNow({ requestId, sourceId, text, background }) {
 
   postMessage({
     type: 'fetchApplied', requestId, applied: true, mode: rebuild ? 'rebuild' : 'splice', stale, repatch,
-    axis: ack.axis, counts: ack.counts, rescoreInputs: sourceRescoreInputsFrom(ownedBuilt),
+    axis: ack.axis, counts: ack.counts, rescoreChanges: rescoreChangesFrom(ownedBuilt),
     wasEmpty: false, oldCount: oldEntries.length, newCount: newEntries.length, diffId,
     added: diff.added.slice(0, DIFF_SHIP_CAP),
     deleted: diff.deleted.slice(0, DIFF_SHIP_CAP),
@@ -2805,22 +2805,12 @@ function sourceTotalsFrom(built) {
   return built ? built.map(wl => ({ sourceId: wl.dbKey, total: sourceAccessor(wl).count })) : null;
 }
 
-// Distinct (rawScore, normLength) pairs per source — the minimal sufficient input
-// for main's rescoringChangesScores (rescoreEntry reads only score + norm length).
-// Main applies the LIVE editor draft to these locally, so the bake gate stays correct
-// while the user edits rules the worker hasn't been re-synced with. Shipped only on
-// config builds / content fetches (never per-edit), so the O(corpus) pass is cheap.
-function sourceRescoreInputsFrom(built) {
+// The columnar sources whose committed rules move any score, for main's bake
+// gate (My Edits is resident on main, which checks it there). The columns share
+// rawScores as scores exactly when no rule moved one (gatherColumns).
+function rescoreChangesFrom(built) {
   if (!built) return null;
-  return built.map(wl => {
-    const seen = new Set();
-    const pairs = [];
-    for (const e of sourceAccessor(wl).collectRaw()) {
-      const key = e.score + ':' + e.norm.length;
-      if (!seen.has(key)) { seen.add(key); pairs.push([e.score, e.norm.length]); }
-    }
-    return { sourceId: wl.dbKey, pairs };
-  });
+  return built.filter(wl => wl.cols && wl.cols.scores !== wl.cols.rawScores).map(wl => wl.dbKey);
 }
 
 function corpusForScope(scope) {
@@ -3077,7 +3067,7 @@ onmessage = ({ data }) => {
             ? ownedMerged.sourceCounts.map(s => ({ sourceId: s.wordlist.dbKey, count: s.count }))
             : null,
           sourceTotals: sourceTotalsFrom(ownedBuilt),
-          rescoreInputs: sourceRescoreInputsFrom(ownedBuilt),
+          rescoreChanges: rescoreChangesFrom(ownedBuilt),
           mergedCount: ownedMerged ? ownedMerged.entries.length : null,
           mergedWidthBound: ownedMerged ? computeCorpusWidthBound(ownedMerged) : null,
         }));

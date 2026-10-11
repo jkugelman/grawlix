@@ -4,6 +4,7 @@
 
 import { Storage, lsLoad, lsSave, lsDel, idbGet, idbPut, idbDel, idbGetAllKeys } from './storage.js';
 import { URL_REMAPS } from '../core/constants.js';
+import { scoreQuery } from '../core/util.js';
 
 // Bump when the shape of stored data (anything in localStorage, or an IDB
 // record) changes, and register a step in the same commit — a MIGRATIONS[N]
@@ -31,7 +32,11 @@ import { URL_REMAPS } from '../core/constants.js';
 //   v16 (2026-09-13): the output format gained a digits axis, stored kept.
 //   v17 (2026-09-18): the output format's unicode axis became symbols, so the
 //                     stored outputFormat renames the key, value verbatim.
-export const SCHEMA_VERSION = 17;
+//   v18 (2026-10-11): a rescore rule's score range and length filter became
+//                     one query string, {input, length} → {query}; rules that
+//                     never matched are dropped, and so are the compiled
+//                     fields v17 persisted alongside.
+export const SCHEMA_VERSION = 18;
 
 // MIGRATIONS[v] upgrades stored data from schema v to v+1 via an optional `ls`
 // step and/or `idb` step. The two run in separate boot phases (the array is
@@ -42,6 +47,18 @@ export const SCHEMA_VERSION = 17;
 // migrateLocalStorage assembles): it reshapes the blob, touches other standalone
 // keys via lsLoad/lsSave/lsDel, or both.
 export const MIGRATIONS = {
+  17: {
+    ls: blob => {                               // rule {input, length} → {query}
+      for (const w of blob.sources || []) {
+        w.rescoreRules = (w.rescoreRules || []).filter(isLiveV17Rule).map(r => ({
+          query: scoreQuery(r.input, r.length),
+          output: r.output ?? '',
+          note: r.note ?? '',
+          ...(r.scoring === false ? { scoring: false } : {}),
+        }));
+      }
+    },
+  },
   16: {
     ls: blob => {                               // outputFormat.unicode → outputFormat.symbols
       const fmt = blob.mergedSettings?.outputFormat;
@@ -130,6 +147,39 @@ export const MIGRATIONS = {
     },
   },
 };
+
+// v17's own parsers, frozen here: a rule they rejected never matched, and
+// carrying it over could revive it (a dead `50,60` would read as "50 or 60").
+function v17Range(str) {
+  str = (str || '').trim();
+  if (!str) return null;
+  let m = str.match(/^(\d+)\+$/);        if (m) return { min: +m[1], max: null };
+  m = str.match(/^(\d+)[-–](\d+)$/);    if (m) return { min: +m[1], max: +m[2] };
+  m = str.match(/^(\d+)$/);              if (m) return { min: +m[1], max: +m[1] };
+  return null;
+}
+
+function v17Output(str) {
+  str = (str || '').trim().toLowerCase();
+  if (!str) return 'unchanged';
+  let m = str.match(/^(\d+)[-–](\d+)$/); if (m) return { min: +m[1], max: +m[2] };
+  m = str.match(/^(\d+)\+$/);            if (m) return { min: +m[1], max: null };
+  m = str.match(/^(\d+)$/);
+  return m ? +m[1] : null;
+}
+
+const v17Matchable = iv => iv && (iv.max === null || iv.min <= iv.max);
+
+function isLiveV17Rule(r) {
+  const iv = v17Range(r.input);
+  if (!v17Matchable(iv)) return false;
+  if ((r.length || '').trim() && !v17Matchable(v17Range(r.length))) return false;
+  const out = v17Output(r.output);
+  if (out === null) return false;
+  if (typeof out !== 'object') return true;
+  if (iv.max === null && out.max === null) return true;
+  return iv.max !== null && out.max !== null && iv.min !== iv.max;
+}
 
 // IDB-free so the frozen fixture can target it. A null worker value means write no
 // sync_worker_ record — mirror lists carry no baseline; My Edits' '' is real, so

@@ -5,6 +5,17 @@ import { HL_COLORS, SEARCH_KINDS, groupSpansToRanges, matchModeOk } from './sear
 
 // ─── Regex tool helpers ─────────────────────────────────────────────────────
 
+// The SyntaxError prefix is engine-specific: V8 echoes the pattern ("Invalid
+// regular expression: /<src>/<flags>: "), JSC bares it ("Invalid regular
+// expression: "), SpiderMonkey omits it. Strip the prefix and its optional
+// echo so the ⚠ shows just the reason, whatever the engine.
+export function regexError(pattern) {
+  const src = pattern || '';
+  if (!src) return null;
+  try { new RegExp(src); return null; }
+  catch (e) { return String(e.message).replace(/^Invalid regular expression:\s*(?:\/.*\/[a-z]*:\s*)?/, ''); }
+}
+
 // Splits the pattern into literal runs — maximal stretches of verbatim literal
 // characters — and the wildcards between them: `.`, classes (`[…]`, `\d`…),
 // quantified atoms, groups, alternation, anchors. The Regex tool colors each

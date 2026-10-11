@@ -287,8 +287,8 @@ At load time `PARAM_HELP` is built from every param that declares `help`, keyed 
 `buildParamHTML` emits a matching `data-help` attribute for any param that declares `help`, and `attachHelpPopups` binds a `PopupHelp` popover to *every* `data-help` input found by a document-wide scan, resolving its content through `PARAM_HELP`.
 It runs whenever the panel re-renders and an anchor may have been rebuilt — `mountPanel` and `rerenderRows` — destroying the prior popovers and rebinding from scratch each time.
 Search's `pattern` param carries the wildcard cheat sheet; Regex's `pattern` and `replace` params carry regex-syntax sheets (no cheat sheet covers all of regex, so both link out to regexone.com).
-Several **non-tool inputs** ride the same mechanism: the stats-bar score-range filter (`data-help="filter/score"`) and the rescore/scoring rule fields (`rule/score`, `rule/length`, `rule/output`).
-`PARAM_HELP` carries their content keyed to match each input builder's emitted `data-help` — `SCORE_RANGE_HELP` and `LENGTH_HELP` live beside `parseRange` (the parser whose `n` / `lo-hi` / `lo+` syntax they document), `OUTPUT_HELP` in `rescore.js`.
+Several **non-tool inputs** ride the same mechanism: the stats-bar score-range filter (`data-help="filter/score"`) and the rescore/scoring rule fields (`rule/query`, `rule/score`, `rule/output`).
+`PARAM_HELP` carries their content keyed to match each input builder's emitted `data-help` — `SCORE_RANGE_HELP` and `LENGTH_HELP` live beside `parseRange` (the parser whose `n` / `lo-hi` / `lo+` syntax they document), `RULE_QUERY_HELP` beside the query parser in `rule-query.js`, `OUTPUT_HELP` in `rescore.js`.
 The rescore editor isn't reached by `mountPanel`/`rerenderRows`, so its `renderDraft` calls `attachHelpPopups` itself after writing the field DOM.
 Each input keeps a short `title` — a field label, or the filter's `Alt-C` shortcut — and leaves the syntax to the cheat sheet, exactly as the search bar pairs its cheat sheet with a `Search (Alt-S)` title.
 The popover is interactive — a `mousedown`-preventDefault keeps the anchored input focused — so a click on the footer link lands instead of blurring the input and dismissing the popover first.
@@ -1371,7 +1371,7 @@ A scope switch posts `setScope`; the worker rebuilds `ownedCorpus` from its resi
 The freeze a main-resident corpus left here — re-shipping or re-resolving a corpus on the main thread — is gone because the corpus never leaves the worker.
 
 **Hot path: editing rescore rules.**
-A rule commit clears the source's `_rescored*` and fires `resyncWorkerConfig`, so the worker rebuilds its corpus with the new mapping off-thread behind the busy indicator; `compileRescoreRules` compiles the rules into intervals once (in both realms) so the per-row `rescoreEntry` walk reads compiled intervals rather than re-parsing strings — for Broda-sized wordlists (~500K entries) millions of regex calls saved per build.
+A rule commit clears the source's `_rescored*` and fires `resyncWorkerConfig`, so the worker rebuilds its corpus with the new mapping off-thread behind the busy indicator; `compileRescoreRules` compiles each rule's query into a predicate once (in both realms), so the per-row `rescoreEntry` walk never re-parses a query — for Broda-sized wordlists (~500K entries) that's millions of parses saved per build — and category tests read the list's `FactsCache` (§ *Rescore rules* in [`wordlists.md`](wordlists.md)).
 Rule edits stage in Manage wordlists and reach the worker once, on Save, however many lists' rules changed ([`wordlists.md`](wordlists.md) § *Rescore and scoring*).
 
 **Hot path: editing My Edits.**

@@ -2,7 +2,7 @@
 
 import {
   analyzeRegexPattern, wrapRuns, parseReplacement,
-  regexExecAll, runReplace, replacementMarksOutput,
+  regexExecAll, runReplace, replacementMarksOutput, regexError,
 } from '../regex.js';
 import { buildHelpHTML } from '../../core/util.js';
 import { matchModeOk, anchorPattern } from '../search.js';
@@ -10,17 +10,6 @@ import {
   MATCH_PARAM, matchModeOf, ALLOW_UNLISTED_PARAM, isReplacing,
   matchModeAssets, matchModePasses, matchModeSpacing, matchModeSpacingLazy,
 } from './shared.js';
-
-// The SyntaxError prefix is engine-specific: V8 echoes the pattern ("Invalid
-// regular expression: /<src>/<flags>: "), JSC bares it ("Invalid regular
-// expression: "), SpiderMonkey omits it. Strip the prefix and its optional
-// echo so the ⚠ shows just the reason, whatever the engine.
-function regexError(pattern) {
-  const src = pattern || '';
-  if (!src) return null;
-  try { new RegExp(src); return null; }
-  catch (e) { return String(e.message).replace(/^Invalid regular expression:\s*(?:\/.*\/[a-z]*:\s*)?/, ''); }
-}
 
 function build(params, spacing) {
   // Don't trim: in a regex a leading/trailing space is a literal that must

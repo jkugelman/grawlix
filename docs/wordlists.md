@@ -152,7 +152,9 @@ The rule editor (`ui/rescore-editor.js`) edits one draft that Manage wordlists o
 - On All Wordlists' page, the **tier labels** (`state.scoring`) — the unified scale's names.
   There is no separate home for the tier editor; it is the All Wordlists version of the rescore editor.
 
-A rescore rule maps an input score range, plus an optional entry-length filter, to an output score; focusing any of the three fields pops up a syntax cheat sheet (`data-help="rule/…"`).
+A rescore rule pairs a **condition**, a query over the list's own entries (§ *Rescore rules*), with an output score; a tier row pairs a score range with its label.
+Focusing a field pops up a syntax cheat sheet (`data-help="rule/…"`).
+A condition or output with an error turns the field red with the message in its tooltip, and the rule does nothing until it's fixed; Save isn't blocked.
 
 **Edits stage into the draft; Manage's Save commits.**
 `bindDraft` hands the editor the shadow's array for the selected list, and every edit mutates that array in place, so Manage's Save sees it; switching pages keeps each list's draft, and one Save commits them all with one worker rebuild.
@@ -623,6 +625,49 @@ The panel is a keyed reconciler rather than an innerHTML rebuild: signal repaint
 
 ## Rescore rules
 
+**A rule is a condition and an output.**
+A rule is stored as `{ query, output, note, scoring? }`.
+The query names which of the list's entries the rule rescores; the output is a score, blank for unchanged, or a range (below).
+Rules run in order and the first match wins; an entry no rule matches keeps its score.
+Rules see only their own list's entries, never another list's scores.
+
+**The query language** (`engine/rule-query.js`) is `field: value` clauses.
+The colon ends the field name, so names can be words with spaces:
+
+| Field | Checks | Values |
+|---|---|---|
+| `score` | the list's raw score | `50`, `50+`, `30-49` |
+| `length` | letters in the norm | same range syntax |
+| `words` | words in the entry, split at the shared word breaks (`splitWords`) | same range syntax |
+| `is` / `is not` | what the whole entry is | a category |
+| `contains` / `starts with` / `ends with` | a word or character of that kind there, or text | a category or text |
+| `pattern` | search-box wildcards against the whole entry | `*ing`, `?@?@?` |
+| `regex` | a regular expression, case ignored, unanchored | `ing$`, `"(.)\1\1"` |
+
+- Commas mean any of the values, in every field.
+  Clauses side by side must all match; `and`, `or`, `not` and parentheses combine them, and `not is: x` reads the same as `is not: x`.
+- A bare value runs to the next space, comma or parenthesis; anything else goes in `"…"` (curly quotes work).
+  Inside quotes the only escapes are `\"` and `\\`, so any other backslash reaches `RegExp` as typed.
+- Text, `pattern` and `regex` match the norm or the lowercased display, the search box's two arms (§ *Rich wordlists*, *Dual-arm search*), so `contains: theirs` finds *the IRS*.
+  A quoted value with a space can only match the display, which is how `ends with: " up"` means the word *up*.
+- The parser is strict: anything the grammar doesn't define is an error, never a literal, so new syntax can't change what a saved rule means.
+  An empty query or one with an error matches nothing, so a new blank rule dragged above others shadows none of them.
+
+**Categories** classify a display (or the norm, on a bare list) word by word: `proper` (a capitalized name word: *Obama*, *iPhone*, *McDonald*), `initialism` (*NASA*, *MRIs*, *U.S.*), `abbreviation` (ends in a period: *Mt.*, *pts.*), `roman numeral`, plus the character kinds `digits`, `punctuation` and `symbols`.
+`is: plain` means no capitals and no categorized word; `contains: spaces` means more than one word.
+Only content words count: *I* and its contractions and lowercase function words (*of*, *the*, *de*…) don't, so *I don't like to brag* is plain and *Bay of Pigs* proper.
+`is: proper` needs every content word capitalized and at least one a name word, so *Pius VII* is proper; `is: initialism`, `abbreviation` and `roman numeral` need every content word to be one.
+A one-letter capital (*Plan B*) counts as capitalized but names no category, and surrounding quotes, parentheses and trailing punctuation are stripped before a word is classified.
+Two misreads are accepted: a sentence-case catchphrase (about a dozen in STWL) is neither plain nor proper, and Nediger writes no periods, so its abbreviations read as plain.
+Numeral-shaped capitals follow how the lists use them, measured on JK, Nediger and STWL: *CD*, *MD* and other two-letter shapes are initialisms, *II*, *VI*, *IX*, *XI*, *XV*, *XX* and longer shapes are numerals, and *IV*, *XL*, *XXX*, *MCL*, *CLI* are both.
+Rescoring stays unaware of list casing: an all-caps bare file already loads its one-word entries with a null display, so they read as plain (an entry with a space or punctuation keeps its display; see § *Open questions*).
+
+**Range outputs** shift or rescale: `50+ → 60+` adds 10, `30-49 → 20-39` maps the range linearly.
+They need an interval to map from, so they apply only when the query's top level ANDs exactly one `score:` clause holding a single range.
+
+**Word kinds are computed lazily.**
+The columnar build rescores every raw entry of every list, and the default rules test only score and length, so classifying words up front would cost a 350k-entry list for nothing.
+
 The unified scale is an *optional* mapping, not an enforced contract: the tier labels on **All Wordlists** (`state.scoring`) define what each score range means, and every wordlist's rescore rules describe how its raw scores map onto that scale.
 **Grawlix does not nag when they don't line up.**
 A constructor importing a personal wordlist scored on its own scale may not care about alignment at all — the score column is ignorable, and search/filter/tools all work regardless — so unmapped raw scores and unlabeled merged scores pass through silently.
@@ -643,10 +688,11 @@ The collapsed selector trigger carries an **aggregate** dot when any source has 
 `info` is the only severity in play today, but `maxSeverity(...)` / `SEVERITY_PRIORITY` still resolve a winner when badges aggregate, leaving room for a second cause without reworking the plumbing.
 
 **Tier labels live on `state.scoring`, not on any wordlist.**
-The default tiers (`DEFAULT_SCORING`) are JK's default rules, derived rather than duplicated: 60 Good, 50 Average, 40 Okay in moderation, 30 Not good, 20 Junk, 10 Offensive, 0 Gibberish.
+The default tiers (`DEFAULT_SCORING`) are JK's scoring scheme, and JK's default rules are those tiers as `score:` queries: 60 Good, 50 Average, 40 Okay in moderation, 30 Not good, 20 Junk, 10 Offensive, 0 Gibberish.
 Every score badge (`buildScoreBadgeHTML` — the entries table and the update-summary dialog) carries its tier label as a hover tooltip and in its `aria-label`; a score no tier covers gets no tier name.
 The unified scale belongs to the merged output (All Wordlists) — what every wordlist gets translated *into* — not to any single wordlist.
 A top-level `state.scoring` lets a user customize the unified scale without it living on a "wordlist" data field; the editor that edits it sits on All Wordlists' panel alone.
+Tiers keep their own `{ input, note }` shape, a score range and a label, since they're only ever read as ranges (tier lookup, the score picker, import reconciliation); JK's default rules are built from them with `scoreQuery`.
 
 **My Edits is an ordinary ruled source.**
 It carries rescore rules like any other wordlist.
@@ -660,7 +706,7 @@ The synced on-disk file holds raw scores, so external editing and rescoring coex
 **Import reconciles the legend.**
 The legend documents the default tiers, which would mislabel a personal list scored on some other scale.
 So on import into a non-dirty My Edits, if the file's scores don't *all* land on documented tiers, `reconcileEditsRulesAfterImport` drops the legend and auto-seeds the file's actual scale instead; an import already on the tiers keeps it, and a user who has edited the rules (dirty) is left alone.
-"Lines up" is a deterministic membership check — every distinct score matches a legend input — not a confidence guess, so it sidesteps the same objection that killed auto-suggested mappings.
+"Lines up" is a deterministic membership check — every distinct score falls in a tier's range — not a confidence guess, so it sidesteps the same objection that killed auto-suggested mappings.
 Propagation to *existing* users is deliberately **unguarded**: every non-dirty My Edits gets the legend on the next boot, even one already holding a foreign-scaled list.
 That injection is inert (blank outputs re-grade nothing) and deletable, so the cost is a one-time possibly-wrong legend for the rare pre-existing foreign-scale list — accepted to keep `propagateDefaults` free of entry inspection.
 
@@ -673,10 +719,10 @@ A wizard-style "rescore on import" was considered and rejected as speed-bump UX;
 
 **Baking rescoring into the scores.**
 "Make permanent" (a rule-editor menu action beside Disable rescoring, `bakeRescoring`) rewrites each `rawEntry.score` to its rescored value, then resets the rule layer the same way an import does — `editsLegend()` + reconcile for My Edits, clear + auto-seed for a custom list.
-Because it reads committed rules, it commits the open draft first (so it bakes exactly what the preview shows); unlike Save it leaves the editor open, reseeding the draft from the reset rules so the user can keep working.
+It reads committed rules, so Manage disables it ("Save first") while the dialog has unsaved changes; unlike Save it leaves the editor open, reseeding the draft from the reset rules so the user can keep working.
 It's the in-place form of Download-rescored → re-import → reset rules, and it exists for the user who translated a personal list onto the unified scale via rules: afterward raw-score edits in the table would otherwise be re-transformed by those rules, so baking ends the dual-scale split.
 Gated to `!publisherId && !url`: a fetch URL would re-pull original-scale data and undo the bake, and a publisher's `defaultRules` are a live transform, so resetting a baked publisher list to them would re-rescore already-baked scores — the action disables (not hides) outside that gate, and when no rule changes any score.
-That last gate scores the *live draft*, not just the committed rules, so the action lights up on unsaved rescoring without a Save round-trip — the commit-first sequence then bakes exactly what is on screen.
+That last gate reads the committed rules: My Edits checks its resident entries on main, and every other list asks the worker's last build (`rescoreChanges`), which reads unknown, keeping the action disabled, from a rule change until the next build answers.
 Rescoring is total (there is no `ignore` output), so baking only ever shuffles scores; it never drops entries.
 
 **Default-rule propagation via a `dirty` flag.**
@@ -718,3 +764,19 @@ Known limitations to address as the need surfaces:
 
 - **Keyboard reordering.**
   `makeReorderable` handles pointer and touch only, so the Manage rows and the rule rows can't be reordered from the keyboard.
+
+### Rescore rules
+
+- **A Skip output.**
+  Skip would take an entry out of one list's contribution to the merge, so lower lists decide it; under **Highest score wins** it's how a list near the top steps aside.
+  Today a user sets an output of 0 instead, and rescoring stays total.
+  Building it has traps:
+  - Dropping skipped entries at parse breaks the store's shared index space: every update check would report them as added (possibly forcing a rebuild past `ADD_DELETE_REBUILD_CAP`), list totals would shift, and provenance couldn't badge them.
+    They'd stay in the columns with a skip bitmap, filtered only by the rescored-facing accessors.
+  - Skipping `ETA` from a list that also holds a bare `eta` leaves `eta` alone in its group, no longer distinguishing, so it turns into a wildcard and wins every other list's `ETA`: the list wins *more*.
+    Displays would be made concrete before filtering.
+  - It can't be offered on My Edits, where a skipped edit would silently do nothing and the edit planner's checks wouldn't see it.
+  - **Make permanent** would delete skipped entries from the list for good.
+- **All-caps lists with spaces.**
+  An all-caps file keeps the display of an entry with a space or punctuation, so `ROGER EBERT` reads as two initialisms and `is: proper` misses it.
+  None of the bundled lists is written that way; the fix belongs in load-time norm/display handling, not the classifier.

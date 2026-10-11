@@ -1,5 +1,7 @@
 'use strict';
 
+import { scoreQuery } from './util.js';
+
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 export const ROW_HEIGHT   = 24;
@@ -37,6 +39,18 @@ export const EMOJI_LIST = [
   '❤️','💜','💙','💚','💛','🧡','🖤','🤍',
 ];
 
+// The unified score scale, which is JK's scoring scheme: JK's default rules are
+// these tiers verbatim. Plain {input, note} tiers, since core can't parse queries.
+export const DEFAULT_SCORING = [
+  { input: '60', note: 'Good (colorful phrases, interesting full names)' },
+  { input: '50', note: 'Average (dictionary words)' },
+  { input: '40', note: 'Okay in moderation (proper names, abbreviations, prepositional phrases)' },
+  { input: '30', note: 'Not good (crosswordese, plural names, contrived inflections)' },
+  { input: '20', note: 'Junk (partials, variant spellings, Roman numerals)' },
+  { input: '10', note: 'Offensive' },
+  { input: '0', note: 'Gibberish' },
+];
+
 export const WORDLIST_PUBLISHERS = [
   {
     id: 'jkugelman',
@@ -44,15 +58,7 @@ export const WORDLIST_PUBLISHERS = [
     name: 'John Kugelman',
     url: 'https://raw.githubusercontent.com/jkugelman/wordlist/refs/heads/main/jkugelman-wordlist.txt',
     icon: null,
-    defaultRules: [
-      { input:'60', length:'', output:'', note:'Good (colorful phrases, interesting full names)' },
-      { input:'50', length:'', output:'', note:'Average (dictionary words)' },
-      { input:'40', length:'', output:'', note:'Okay in moderation (proper names, abbreviations, prepositional phrases)' },
-      { input:'30', length:'', output:'', note:'Not good (crosswordese, plural names, contrived inflections)' },
-      { input:'20', length:'', output:'', note:'Junk (partials, variant spellings, Roman numerals)' },
-      { input:'10', length:'', output:'', note:'Offensive' },
-      { input:'0',  length:'', output:'', note:'Gibberish' },
-    ],
+    defaultRules: DEFAULT_SCORING.map(({ input, note }) => ({ query: scoreQuery(input), output: '', note })),
   },
   {
     id: 'xwi',
@@ -66,14 +72,14 @@ export const WORDLIST_PUBLISHERS = [
     homepage: 'https://www.xwordinfo.com/WordList',
     icon: { type: 'img', url: 'https://www.xwordinfo.com/favicon.ico' },
     defaultRules: [
-      { input:'60', length:'', output:'',   note:'Entries considered "assets" to a puzzle' },
-      { input:'50', length:'', output:'',   note:'Fine entries' },
-      { input:'30', length:'', output:'',   note:'' },
-      { input:'25', length:'', output:'30', note:'Partials, odd abbreviations, very esoteric names, short Roman numerals, etc.' },
-      { input:'20', length:'', output:'20', note:'Five-letter entries that would be hard to defend as fine' },
-      { input:'15', length:'', output:'20', note:'Random Roman numerals that are longer than three letters' },
-      { input:'10', length:'', output:'20', note:'' },
-      { input:'5',  length:'', output:'20', note:'Entries that Will Shortz or other editors have identified as "puzzle-killers"' },
+      { query:'score: 60', output:'',   note:'Entries considered "assets" to a puzzle' },
+      { query:'score: 50', output:'',   note:'Fine entries' },
+      { query:'score: 30', output:'',   note:'' },
+      { query:'score: 25', output:'30', note:'Partials, odd abbreviations, very esoteric names, short Roman numerals, etc.' },
+      { query:'score: 20', output:'20', note:'Five-letter entries that would be hard to defend as fine' },
+      { query:'score: 15', output:'20', note:'Random Roman numerals that are longer than three letters' },
+      { query:'score: 10', output:'20', note:'' },
+      { query:'score: 5',  output:'20', note:'Entries that Will Shortz or other editors have identified as "puzzle-killers"' },
     ],
   },
   {
@@ -84,14 +90,14 @@ export const WORDLIST_PUBLISHERS = [
     homepage: 'https://github.com/bewilderingly/Nediger-list/',
     icon: null,
     defaultRules: [
-      { input:'99', length:'1-2', output:'40', note:'Short fill', scoring:false },
-      { input:'51', length:'1-2', output:'30', note:'Short fill', scoring:false },
-      { input:'25', length:'1-2', output:'20', note:'Short fill', scoring:false },
-      { input:'99', length:'8+',  output:'60', note:'Asset' },
-      { input:'99', length:'',    output:'50', note:'Good for any venue' },
-      { input:'51', length:'',    output:'50', note:'Decent to good' },
-      { input:'49', length:'',    output:'10', note:'Racy' },
-      { input:'25', length:'',    output:'40', note:'Not great' },
+      { query:'score: 99 and length: 1-2', output:'40', note:'Short fill', scoring:false },
+      { query:'score: 51 and length: 1-2', output:'30', note:'Short fill', scoring:false },
+      { query:'score: 25 and length: 1-2', output:'20', note:'Short fill', scoring:false },
+      { query:'score: 99 and length: 8+',  output:'60', note:'Asset' },
+      { query:'score: 99',                 output:'50', note:'Good for any venue' },
+      { query:'score: 51',                 output:'50', note:'Decent to good' },
+      { query:'score: 49',                 output:'10', note:'Racy' },
+      { query:'score: 25',                 output:'40', note:'Not great' },
     ],
   },
   {
@@ -103,11 +109,11 @@ export const WORDLIST_PUBLISHERS = [
     homepage: 'https://www.spreadthewordlist.com',
     icon: { type: 'img', url: 'https://www.spreadthewordlist.com/assets/favicon.png' },
     defaultRules: [
-      { input:'50+',   length:'', output:'50', note:'Clean' },
-      { input:'40-49', length:'', output:'30', note:'Decent' },
-      { input:'30-39', length:'', output:'20', note:'Dubious' },
-      { input:'1-29',  length:'', output:'0',  note:'Dubious' },
-      { input:'0',     length:'', output:'10', note:'Offensive' },
+      { query:'score: 50+',   output:'50', note:'Clean' },
+      { query:'score: 40-49', output:'30', note:'Decent' },
+      { query:'score: 30-39', output:'20', note:'Dubious' },
+      { query:'score: 1-29',  output:'0',  note:'Dubious' },
+      { query:'score: 0',     output:'10', note:'Offensive' },
     ],
   },
   {
@@ -118,8 +124,8 @@ export const WORDLIST_PUBLISHERS = [
     homepage: 'http://www.peterbroda.me/crosswords/wordlist/',
     icon: null,
     defaultRules: [
-      { input:'76-100', length:'7+', output:'60',     scoring:false },
-      { input:'0-100',  length:'',   output:'20' },
+      { query:'score: 76-100 and length: 7+', output:'60', scoring:false },
+      { query:'score: 0-100',                 output:'20' },
     ],
   },
 ];
@@ -164,13 +170,5 @@ export const URL_REMAPS = [
 // them in place of a HEAD. On an unverified host that GET would silently
 // re-download the whole file every hour.
 export const REVALIDATING_HOSTS = ['www.spreadthewordlist.com'];
-
-// Derived from JK's rules, not duplicated: the unified scale IS JK's scoring
-// scheme (its rescore rules are canonical).
-export const DEFAULT_SCORING = WORDLIST_PUBLISHERS
-  .find(p => p.id === 'jkugelman')
-  .defaultRules
-  .filter(r => r.scoring !== false)
-  .map(({ input, note }) => ({ input, note }));
 
 export const SEVERITY_PRIORITY = { info: 1 };

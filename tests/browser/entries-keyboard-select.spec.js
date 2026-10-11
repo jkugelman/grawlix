@@ -336,7 +336,7 @@ test('a rescore-rule edit clears the selection, even rows it keeps', async ({ pa
 
   // 50->80 keeps every row visible, so an empty selection is the clear, not a 0-row view.
   await page.evaluate(() =>
-    window.__grawlixTest.setRescoreRules('Src', [{ input: '50', length: '', output: '80' }]));
+    window.__grawlixTest.setRescoreRules('Src', [{ query: 'score: 50', output: '80' }]));
   await page.evaluate(() => window.__grawlixTest.pipelineIdle());
   await expect(row(page, 'alpha')).toHaveCount(1);
   await expect.poll(() => selection(page)).toEqual([]);

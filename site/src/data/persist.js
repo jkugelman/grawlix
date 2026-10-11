@@ -9,10 +9,19 @@ import { invalidateWordlistCaches } from './invalidate.js';
 import { compileRescoreRules } from '../engine/rescore.js';
 import { updateWordlistDirty } from './rescoring.js';
 import { MirrorSync } from './disk-sync.js';
+import { forgetRescoreChanges } from './merge.js';
 
 function persistMeta() {
   if (_batchDepth > 0) { _persistPending = true; return; }
   _persistMetaNow();
+}
+
+// A whitelist, so compileRule's derived fields (predicates, errors) never reach storage.
+function serializeRule(r) {
+  return {
+    query: r.query, output: r.output, note: r.note,
+    ...(r.scoring === false ? { scoring: false } : {}),
+  };
 }
 
 function serializeMetaEntry(l) {
@@ -24,7 +33,7 @@ function serializeMetaEntry(l) {
     name: l.name, url: l.url || null,
     enabled: l.enabled, populated: l.populated, lastUpdated: l.lastUpdated || null,
     fetchedSize: l.fetchedSize || null,
-    rescoreRules: l.rescoreRules || [],
+    rescoreRules: (l.rescoreRules || []).map(serializeRule),
     ...(l.dirty ? { dirty: true } : {}),
     originalFilename: l.originalFilename || null,
   };
@@ -126,6 +135,7 @@ function setWordlistRescoreRules(wordlist, rules) {
 // and the histogram layout depends on the union of every source's rescored set.
 function applyRescoreRulesChange(wordlist) {
   compileRescoreRules(wordlist);
+  forgetRescoreChanges(wordlist);
   updateWordlistDirty(wordlist);
   invalidateWordlistCaches(wordlist);
   persistMeta();

@@ -133,7 +133,7 @@ test('buildCorpus: a deliberate lowercase entry (display === norm) keeps its own
 });
 
 test('buildCorpus: a rescored score feeds the merge and wins; rawScore keeps the original', () => {
-  const E = src('E', [wlEntry('delta', 5)], { rescoreRules: [{ input: '0-9', output: '80' }] });
+  const E = src('E', [wlEntry('delta', 5)], { rescoreRules: [{ query: 'score: 0-9', output: '80' }] });
   compileRescoreRules(E);
   const F = src('F', [wlEntry('delta', 50)]);
 
@@ -150,7 +150,7 @@ test('buildCorpus: a scoped single source mixes rescored (rawScore kept) and unm
     wlEntry('crane', 90, { display: 'CRANE', comment: 'corvid' }),
     wlEntry('delta', 50, { display: 'DELTA' }),
     wlEntry('eagle', 50, { display: 'EAGLE', comment: 'raptor' }),
-  ], { rescoreRules: [{ input: '50', length: '', output: '75', note: '' }] });
+  ], { rescoreRules: [{ query: 'score: 50', output: '75', note: '' }] });
   compileRescoreRules(G);
 
   const { entries } = buildCorpus([G]);

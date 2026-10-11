@@ -5,9 +5,10 @@ import {
   parseRuleOutput, compileRescoreRules, rescoreEntry,
   rescoreRulesEqual, scoringRulesEqual,
 } from '../../site/src/engine/rescore.js';
+import { scoreQuery } from '../../site/src/core/util.js';
 
-const rule = (input, output, length = '') => ({ input, length, output, note: '' });
-const ruleN = (input, output = '', length = '', note = '') => ({ input, length, output, note });
+const rule = (input, output, length = '') => ({ query: scoreQuery(input, length), output, note: '' });
+const ruleN = (input, output = '', length = '', note = '') => ({ query: scoreQuery(input, length), output, note });
 const entry = (score, norm = 'xxxxx') => ({ score, norm });
 
 test('parseRange reads exact, range, N+, and rejects junk', () => {
@@ -49,7 +50,7 @@ test('rescoreEntry skips a degenerate range output (exact input maps to a range)
 test('compileRescoreRules preserves order and compiles; rescoreEntry is first-match in that order', () => {
   const wl = { rescoreRules: [rule('40-100', '90'), rule('0-100', '10')] };
   compileRescoreRules(wl);
-  assert.deepEqual(wl.rescoreRules.map(r => r.input), ['40-100', '0-100']);
+  assert.deepEqual(wl.rescoreRules.map(r => r.query), ['score: 40-100', 'score: 0-100']);
   assert.equal(rescoreEntry(entry(50), wl.rescoreRules), 90);  // narrow rule, listed first, wins
   assert.equal(rescoreEntry(entry(20), wl.rescoreRules), 10);  // only the broad rule matches
 });
@@ -98,7 +99,7 @@ test('rescoreRulesEqual: identical arrays are equal; differing length is not', (
   assert.equal(rescoreRulesEqual([ruleN('50', '90'), ruleN('80', '10')], [ruleN('50', '90')]), false);
 });
 
-test('rescoreRulesEqual: any one differing field (input/length/output/note) breaks equality', () => {
+test('rescoreRulesEqual: any one differing field (query/output/note) breaks equality', () => {
   assert.equal(rescoreRulesEqual([ruleN('50', '90')], [ruleN('51', '90')]), false);
   assert.equal(rescoreRulesEqual([ruleN('50', '90', '5')], [ruleN('50', '90', '6')]), false);
   assert.equal(rescoreRulesEqual([ruleN('50', '90')], [ruleN('50', '91')]), false);
@@ -110,8 +111,8 @@ test('rescoreRulesEqual is order-sensitive: a reorder is not equal', () => {
   assert.equal(rescoreRulesEqual([a, b], [b, a]), false);
 });
 
-test('rescoreRulesEqual normalizes missing length/output/note to empty string', () => {
-  assert.equal(rescoreRulesEqual([{ input: '50' }], [ruleN('50')]), true);
+test('rescoreRulesEqual normalizes missing output/note to empty string', () => {
+  assert.equal(rescoreRulesEqual([{ query: 'score: 50' }], [ruleN('50')]), true);
 });
 
 test('rescoreRulesEqual treats null/undefined as an empty array', () => {

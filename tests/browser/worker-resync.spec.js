@@ -64,7 +64,7 @@ test('a rescore-rule edit re-syncs the worker without a manual sync', async ({ p
   // Pull Alpha's 90 down to 30 — narrows the all-sources axis. The rule edit bumps
   // cacheVersion$, so the completeness hook must re-sync with no manual call.
   await page.evaluate(() => window.__grawlixTest.setRescoreRules('Alpha', [
-    { input: '90', length: '', output: '30', note: '' },
+    { query: 'score: 90', output: '30', note: '' },
   ]));
   await settle(page);
   await pollWorkerMergedMatchesMain(page);

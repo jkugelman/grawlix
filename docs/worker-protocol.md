@@ -9,7 +9,7 @@ This doc is *what the interface is*, present-tense.
 ## Overview
 
 **The worker owns the merged and scoped corpus and every non-Edits source's entry records.**
-Main holds `state` (sources' metadata, scoring tier labels, search state), **My Edits' `rawEntries`** (its seed and optimistic-render source, edited every keystroke), and the per-config summaries the worker ships (`sourceCounts`, `sourceTotals`, `rescoreInputs`, `mergedCount`, the all-sources badge axis).
+Main holds `state` (sources' metadata, scoring tier labels, search state), **My Edits' `rawEntries`** (its seed and optimistic-render source, edited every keystroke), and the per-config summaries the worker ships (`sourceCounts`, `sourceTotals`, `rescoreChanges`, `mergedCount`, the all-sources badge axis).
 Every other source is metadata-only on main: it is **not parsed at boot**, and a fetch or import parses it only **transiently** (to write IDB and seed rules) without retaining it.
 On a `syncConfig` the worker reads every configured source's text from IndexedDB, then parses, rescores, and merges it, so the corpus never crosses the boundary as bulk data.
 Results cross as **rich, self-contained rows and atoms**, not indices, since main has no corpus to index into.
@@ -877,7 +877,7 @@ A fetch or import that also changes the source's config — its first population
     Reply `fetchApplied` with the diff payload (below).
 
 #### `fetchApplied` (fetch/import content-diff reply)
-`{ type: 'fetchApplied', requestId, applied, mode?, stale?, repatch?, diffId?, axis?, counts?, rescoreInputs?, wasEmpty?, oldCount?, newCount?, added?, deleted?, rescored?, addedCount?, deletedCount?, rescoredCount?, deferred? }` — reply to `applyFetched`.
+`{ type: 'fetchApplied', requestId, applied, mode?, stale?, repatch?, diffId?, axis?, counts?, rescoreChanges?, wasEmpty?, oldCount?, newCount?, added?, deleted?, rescored?, addedCount?, deletedCount?, rescoredCount?, deferred? }` — reply to `applyFetched`.
 `requestId` echoes for matching.
 - `deferred` — `true` on an **interim** ack posted immediately when a live run forced the apply to be deferred (above).
   It carries no diff/counts; `sendApplyFetched` treats it as "cancel the fallback timeout, keep waiting" — the real ack (with `applied` + the diff payload) follows once the run loop drains the queued op.
@@ -900,8 +900,8 @@ A fetch or import that also changes the source's config — its first population
   The dialog seeds its scroller cache from these and fetches the rest (`fetchDiffRows`) past the window.
   Absent for `wasEmpty`/no-build replies.
 - `addedCount` / `deletedCount` / `rescoredCount` — the **true** totals (the dialog's headers + pills read these, never the inline array lengths).
-- `rescoreInputs` — the refreshed per-source distinct `(score, length)` pairs for the bake gate (the changed source's content changed; see `selfReady`).
-  Consumed by `setShippedRescoreInputs` (update-when-present, not version-gated).
+- `rescoreChanges` — the refreshed set of sources whose rules move a score, for the bake gate (the changed source's content changed; see `selfReady`).
+  Consumed by `setShippedRescoreChanges` (update-when-present, not version-gated).
 - `axis` / `counts` — the refreshed all-sources axis + per-config summaries (`{ sourceCounts, sourceTotals, mergedCount, mergedWidthBound, version }`), same shape/role as `editAck`'s.
   **On receipt:** `applyConfigAck` consumes them exactly as it does an `editAck` (version-guarded `setShippedAllSourcesAxis` + `setShippedConfigCounts` → `configSummary$` repaints), so a content update needs no resync to keep the X-of-Y meta + badge axis + scoring legend current.
 
@@ -931,7 +931,7 @@ This is how the worker gets its corpus — it never receives the corpus as bulk 
 - `configId` — monotonic per client; echoed verbatim on the `selfReady` reply so each in-flight `syncConfig` awaits **its own** reply (correlation, below).
   Multiple syncs are routinely concurrent — the completeness hook fires one and a post-write re-sync fires another before either build settles.
 - `sources` — an array in **merge-priority order** (`sources[0]` highest).
-  Each: `{ sourceId, enabled, type, rescoreRules }`, where `sourceId` is the wordlist's `dbKey`, `type` is `'edits'` for My Edits (else `null` — carried so the `editEntry` handler can find the My Edits source in `ownedBuilt`), and `rescoreRules` are stripped to the **four editor fields** (`input`, `length`, `output`, `note`) — the worker recompiles them.
+  Each: `{ sourceId, enabled, type, rescoreRules }`, where `sourceId` is the wordlist's `dbKey`, `type` is `'edits'` for My Edits (else `null` — carried so the `editEntry` handler can find the My Edits source in `ownedBuilt`), and `rescoreRules` are stripped to the **three editor fields** (`query`, `output`, `note`) — the worker recompiles them.
   No display name rides along: the worker keys every source by `dbKey` and never needs the human label.
 - `mergeMode` — `'first'`, `'highest'` or `'lowest'` (`getMergeMode`), the merge's winner rule ([`wordlists.md`](wordlists.md) § *The manage panel*).
   The worker reads it from the latest config (`mergeMode()`) wherever it picks a merged winner: the corpus build, the edit splice (`computeMergedBucket`), the Sources matrix (`mergedContributors`), and the edit planner.
@@ -1195,7 +1195,7 @@ Posted only when a transform is the **last non-inert tool**; a filter after a tr
   Main owns the per-run `_error` *reset* too — the client clears stale marks on every row at dispatch.
 
 #### `selfReady`
-`{ type: 'selfReady', configId, scope, count, built, axis, version, sourceCounts, sourceTotals, rescoreInputs, mergedCount, mergedWidthBound }` — reply to `syncConfig`.
+`{ type: 'selfReady', configId, scope, count, built, axis, version, sourceCounts, sourceTotals, rescoreChanges, mergedCount, mergedWidthBound }` — reply to `syncConfig`.
 - `configId` — echoes the request's `configId` so the bridge resolves each `syncConfig`'s own reply (see `syncConfig` § *Reply correlation*).
 - `scope` — echoes the build's own scope (`scope ?? MERGED_ID`), so the durable `handleSelfReady` keys freshness off the message rather than a per-call closure.
 - `count` — the number of synced sources.
@@ -1214,9 +1214,9 @@ Posted only when a transform is the **last non-inert tool**; a filter after a tr
   It's the "Y" in the scope selector's "X of Y entries" and the count shown in the scope dropdown / Manage dialog / download gates, read via `sourceTotal(wordlist)` ([`data/merge.js`](../site/src/data/merge.js)).
   `null` on a build failure (main keeps its last-good map).
   Per-config.
-- `rescoreInputs` — per-source distinct `(score, length)` pairs (`[{ sourceId, pairs: [[score, len], …] }]`, every source).
-  The minimal sufficient input for main's `rescoringChangesScores` bake gate (`rescoreEntry` reads only a row's score + norm length): main applies the **live editor draft** to the pairs locally, so the gate stays correct while the user edits rules the worker hasn't re-synced.
-  Shipped only here and on `fetchApplied` (never the per-edit `editAck`); consumed by `setShippedRescoreInputs` (update-when-present, **not** version-gated — only full-content events carry it, so it can't stale-overwrite).
+- `rescoreChanges` — the `sourceId`s of the columnar sources whose committed rules move any score (`cols.scores !== cols.rawScores`; the columns share one array when nothing moved).
+  Main's `rescoringChangesScores` bake gate reads it for every source but My Edits, whose entries are resident; a source whose rules change on main reads unknown (`forgetRescoreChanges`) until the next build answers, so the gate never judges new rules by an old build.
+  Shipped only here and on `fetchApplied` (never the per-edit `editAck`); consumed by `setShippedRescoreChanges` (update-when-present, **not** version-gated — only full-content events carry it, so it can't stale-overwrite).
   `null` on a build failure (main keeps its last-good map).
   Per-config.
 - `mergedCount` — `ownedMerged.entries.length`, the deduped merged total (the "All Wordlists" entry total, the download-button gate, the Help dialog's merge-diagram count — all reading `mergedEntryCount()`).

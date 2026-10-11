@@ -11,16 +11,16 @@ test('seeds one inert (blank-output) rule per distinct score, sorted ascending',
   const w = wl();
   maybeAutoSeedRescoreRules(w, entries([50, 10, 30]));
   assert.deepStrictEqual(w.rescoreRules, [
-    { input: '10', length: '', output: '', note: '' },
-    { input: '30', length: '', output: '', note: '' },
-    { input: '50', length: '', output: '', note: '' },
+    { query: 'score: 10', output: '', note: '' },
+    { query: 'score: 30', output: '', note: '' },
+    { query: 'score: 50', output: '', note: '' },
   ]);
 });
 
 test('duplicate scores collapse to one rule per distinct value', () => {
   const w = wl();
   maybeAutoSeedRescoreRules(w, entries([50, 50, 50, 10]));
-  assert.deepStrictEqual(w.rescoreRules.map(r => r.input), ['10', '50']);
+  assert.deepStrictEqual(w.rescoreRules.map(r => r.query), ['score: 10', 'score: 50']);
 });
 
 test('exactly 10 distinct scores seeds; 11 does not (the AUTO_SEED_SCORE_LIMIT boundary)', () => {
@@ -40,7 +40,7 @@ test('a publisher-bound wordlist is never auto-seeded (defaults preserved)', () 
 });
 
 test('a wordlist that already has rules is left untouched', () => {
-  const existing = [{ input: '7', length: '', output: '20', note: '' }];
+  const existing = [{ query: 'score: 7', output: '20', note: '' }];
   const w = wl({ rescoreRules: existing });
   maybeAutoSeedRescoreRules(w, entries([10, 20]));
   assert.equal(w.rescoreRules, existing);
