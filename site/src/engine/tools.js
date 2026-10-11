@@ -3,8 +3,6 @@
 // ─── Tool catalog & tool helpers ─────────────────────────────────────────────
 
 import { SCORE_RANGE_HELP, LENGTH_HELP } from './range.js';
-import { RULE_QUERY_HELP } from './rule-query.js';
-import { OUTPUT_HELP } from './rescore.js';
 import { isReplacing } from './tools/shared.js';
 import anagrams from './tools/anagrams.js';
 import hidden_anagram from './tools/hidden_anagram.js';
@@ -139,13 +137,11 @@ for (const [toolKey, tool] of Object.entries(TOOLS)) {
 }
 // Non-tool inputs share the same data-help mechanism; each key must match the
 // `data-help` its input builder emits — the stats-bar score/length filters in
-// buildScoreRangeInputHTML and buildLengthRangeInputHTML, the rescore/scoring rule
-// fields in buildRulesListHTML.
+// buildScoreRangeInputHTML and buildLengthRangeInputHTML, the scoring tiers' score
+// field in buildRulesListHTML.
 PARAM_HELP['filter/score']  = SCORE_RANGE_HELP;
 PARAM_HELP['filter/length'] = LENGTH_HELP;
 PARAM_HELP['rule/score']    = SCORE_RANGE_HELP;
-PARAM_HELP['rule/query']    = RULE_QUERY_HELP;
-PARAM_HELP['rule/output']   = OUTPUT_HELP;
 
 // Normalize tool param strings: lowercase only. Same rule as wlEntry.norm —
 // the executor runs this on every param before handing to `run`, so tools see

@@ -1,23 +1,20 @@
 # A query language for search
 
-An idea, not a plan: let users search with the `field: value` query language being designed for rescore rules, instead of (or alongside) stacking filter tools.
+An idea, not a plan: let users search with the `field: value` query language that rescore rules use, instead of (or alongside) stacking filter tools.
 Nothing here is decided, and it shouldn't shake up the main UI until it has had a lot more thought.
 
 ## The language
 
-The rescore rule redesign replaces each rule's fixed score-range and length fields with a query:
+Each rescore rule's condition is a query:
 
 ```
 score: 50-59 and length: 5+
 is: proper and ends with: roman numeral
-contains: initialism or ends with: " up"
+contains: initialism or ends with: " up", " out"
 ```
 
-- A clause is `field: value`; commas mean any of the values (`ends with: at, to, of`).
-- Clauses side by side must all match; `and`, `or`, `not` and parentheses work as usual.
-- Fields: `score`, `length`, `words`, `is` / `is not`, `contains`, `starts with`, `ends with`, `pattern` (search-box wildcards), `regex`.
-- `is`, `contains`, `starts with` and `ends with` take a *category* (`proper`, `initialism`, `abbreviation`, `roman numeral`, `digits`, `punctuation`, `symbols`, `spaces`, and `plain` for `is` only) or text, read off the entry's capitalization and punctuation.
-- The editor suggests fields and values from the first keystroke, so a user needn't know the syntax.
+[`wordlists.md`](../wordlists.md) § *Rescore rules* is the reference for the fields, categories and quoting.
+The editor suggests fields and values from the first click, so a user needn't know the syntax ([`wordlists.md`](../wordlists.md) § *Rescore and scoring*).
 
 It is more expressive than any tool except Umiaq, but lives only in the rescore editor.
 
@@ -81,5 +78,5 @@ It pays only if those collapse into the language: match modes into `starts with`
 - Should rescore rules get every field?
   `rhymes with:` in a rule would load the CMU dictionary while the merge builds, so rules probably get the cheap subset.
 - Do highlights from several clauses share one atom line or keep one each?
-- Is `pattern:` Search syntax or single-binding Umiaq?
+- Rules read `pattern:` as Search syntax; would a search context want single-binding Umiaq instead?
 - Tool slugs appear in shared links ([`design.md`](../design.md) § *Stable links*); which survive as aliases?

@@ -10,6 +10,7 @@ import { mergedEntryCount } from '../../data/merge.js';
 import { buildIconHTML, colorSeed, getMergedIcon } from '../icons.js';
 import { buildToolCardHTML } from '../tool-stack.js';
 import { buildScoreOptions } from '../entries-table.js';
+import { queryHTML } from '../query-editor.js';
 import { createDialog, showDialog } from './dialog.js';
 
 function mergeDiagram() {
@@ -63,6 +64,38 @@ function wordlistCreditsHTML() {
     .join('');
 }
 
+const RULE_EXAMPLES = [
+  ['Moving scores around', [
+    ['score: 50', '60', 'bumps every 50 up to 60.'],
+    ['score: 50+', '60+', 'lifts everything 50 and up by 10.'],
+    ['score: 30-49', '20-39', 'slides that whole band down.'],
+  ]],
+  ['Picking out kinds of entries', [
+    ['is: proper and words: 2+ and score: 50+', '60', 'bumps well-known full names like ROGER EBERT.'],
+    ['is: proper and words: 1 and score: 40', '30', 'cools off lesser-known single names like CADMUS.'],
+    ['is: initialism and length: 3-4', '30', 'catches short initialisms like DNC and HGTV.'],
+    ['is: roman numeral', '20', 'buries numerals on their own, like XVIII.'],
+    ['is: proper and ends with: roman numeral', '30', 'goes after names like PIUS VII.'],
+    ['starts with: proper and is not: proper', '40', 'finds a name plus a common word, like ZOOM MEETING.'],
+    [`ends with: "'s"`, '30', `handles possessives like EULER'S.`],
+    ['ends with: " in", " at", " of", " by" and words: 2', '50', 'picks up phrasal verbs like CHAFE AT.'],
+    ['contains: digits, symbols', '0', 'sinks anything like 2ND or 50% OFF.'],
+  ]],
+  ['Size and shape', [
+    ['length: 15 and score: 50+', '60', 'rewards anything that spans a 15×15.'],
+    ['length: 3 and score: 40-49', '30', 'pushes down three-letter crosswordese.'],
+    ['pattern: "*ing" and words: 1 and length: 9+', '40', 'tames long -ING words, which are easy to coin.'],
+    ['pattern: "#@#@#"', '50', 'picks out five-letter words that alternate consonants and vowels.'],
+    ['regex: "^[rstlne]+$" and length: 8+', '40', 'marks down long entries spelled only with the Wheel of Fortune letters, like SEERESSES.'],
+  ]],
+];
+
+const ruleExamplesHTML = () => RULE_EXAMPLES.map(([title, rules]) => `
+  <p>${title}:</p>
+  <ul>${rules.map(([q, out, desc]) => `
+    <li><code>${queryHTML(q)}</code> → <code>${out}</code> ${esc(desc)}</li>`).join('')}
+  </ul>`).join('');
+
 // Each item's `slug` is a public URL (#/help/<slug>), so renaming one breaks
 // links already shared.
 const SECTIONS = [
@@ -96,7 +129,17 @@ const SECTIONS = [
           <p>Different wordlists score on different scales. XWI is usable from 25-60 but STWL is dangerous below 50. Broda and Nediger run top out at 100. Mashing the lists together and sorting by score just gives you nonsense.</p>
           <p>Rescoring fixes that. For each list you write a few rules that translate its scores onto one shared scale, so a 50 is a 50 no matter which list it came from.</p>
           <p>The good news is you don't have to fiddle with any of this if you don't want to. Grawlix ships with opinionated defaults for the four big wordlists, so out of the box they're already aligned. You only crack open the rules when you import your own list, or you decide one of my defaults got something wrong. (And if you don't care about scores at all, you can skip rescoring entirely. See <em>Do I have to rescore anything?</em>)</p>
-          <p>To change the rules, open <strong>Manage wordlists</strong> and click the list.</p>`,
+          <p>To change the rules, open <strong>Manage wordlists</strong> and click the list.</p>
+          <p>Each rule names the entries it changes, like <code>score: 50 and is: proper</code>, and the score they get. You don't need to learn the syntax: click a rule and Grawlix suggests what to type, and every rule shows how many entries it catches as you go. For a tour, see <a href="#/help/rescore-rules">What can a rescore rule do?</a></p>`,
+      },
+      {
+        slug: 'rescore-rules',
+        q: 'What can a rescore rule do?',
+        a: () => `
+          <p>A rule is a condition and a new score. Every entry the condition catches gets that score. Rules run top to bottom, and each entry goes to the first rule that catches it. Some ideas to steal.</p>
+          ${ruleExamplesHTML()}
+          <p>Leave the new score blank and the entry keeps its score. Put a rule like that near the top and it shields those entries from the rules below it.</p>
+          <p>Don't worry about memorizing any of this. Click a condition and Grawlix suggests what comes next, with a count beside each choice, and it says so if something doesn't make sense. The full list of fields is under <strong>Query language reference</strong>, below the rules.</p>`,
       },
       {
         slug: 'score-tiers',

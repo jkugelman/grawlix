@@ -57,6 +57,7 @@ html.dark-mode {
   --usd-deleted-bg:  #3d1a1a; --usd-deleted-fg:  #f07070;
   --usd-rescored-bg: #2a2a2a; --usd-rescored-fg: #909090;
   --ok-fg: #6ee89a; --warn-fg: #b09840; --err-fg: #f07070;
+  --q-field: #b9acf5; --q-value: #72d6c3; --q-op: #f2a866; --q-punct: #8e8b98; --q-err: #ff7f76;
 }
 html.light-mode {
   color-scheme: light;
@@ -99,4 +100,5 @@ html.light-mode {
   --usd-deleted-bg:  #fce8e6; --usd-deleted-fg:  #b71c1c;
   --usd-rescored-bg: #f0f0f0; --usd-rescored-fg: #666666;
   --ok-fg: #2d7a3f; --warn-fg: #856404; --err-fg: #b71c1c;
+  --q-field: #5b49b8; --q-value: #0b6f61; --q-op: #b0520b; --q-punct: #8a8796; --q-err: #cf2f27;
 }

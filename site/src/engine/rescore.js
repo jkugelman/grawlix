@@ -2,13 +2,8 @@
 
 // ─── Rescoring ────────────────────────────────────────────────────────────────
 
-import { buildHelpHTML, scoreQuery } from '../core/util.js';
+import { scoreQuery } from '../core/util.js';
 import { compileQuery, ruleSubject } from './rule-query.js';
-
-export const OUTPUT_HELP = buildHelpHTML([
-  ['blank', 'unchanged', { ghost: true }],
-  ['50', 'new score'],
-], { cols: 1 });
 
 // Order-sensitive: rules evaluate first-match-wins in their stored order (the
 // user owns it via drag), so a reorder is a real change — it must flip dirty
@@ -68,6 +63,14 @@ export function parseRuleOutput(str) {
   if (mPlus)  return { min: +mPlus[1], max: null };
   const mExact = str.match(/^(\d+)$/);
   return mExact ? +mExact[1] : null;
+}
+
+export function formatRuleOutput(str) {
+  const out = parseRuleOutput(str);
+  if (out === null) return str;
+  if (out === 'unchanged') return '';
+  if (typeof out === 'number') return String(out);
+  return out.max === null ? `${out.min}+` : `${out.min}-${out.max}`;
 }
 
 export function compileRule(rule) {
@@ -134,20 +137,27 @@ export function rescoreEntry(wlEntry, rules) {
   return rescoreFields(wlEntry.score, wlEntry.norm, wlEntry.display, rules);
 }
 
-export function rescoreFields(score, norm, display, rules) {
-  const subject = ruleSubject(score, norm, display);
+export function rescoreFields(score, norm, display, rules, facts = null, i = 0) {
+  const subject = ruleSubject(score, norm, display, facts, i);
   for (const rule of rules) {
     if (rule._match === undefined) compileRule(rule);
-    if (!rule._match || rule._outputError || !rule._match(subject)) continue;
-    const s = rule._output;
-    if (s === 'unchanged') return score;
-    if (typeof s === 'object') {
-      const iv = rule._scoreInterval;
-      if (s.max === null) return score + (s.min - iv.min);
-      const t = (score - iv.min) / (iv.max - iv.min);
-      return Math.round(s.min + t * (s.max - s.min));
-    }
-    return s; // first matching rule wins
+    if (ruleIsActive(rule) && rule._match(subject)) return ruleOutputScore(rule, score);
   }
   return score;
+}
+
+export function ruleIsActive(rule) {
+  return !!rule._match && !rule._outputError;
+}
+
+export function ruleOutputScore(rule, score) {
+  const s = rule._output;
+  if (s === 'unchanged') return score;
+  if (typeof s === 'object') {
+    const iv = rule._scoreInterval;
+    if (s.max === null) return score + (s.min - iv.min);
+    const t = (score - iv.min) / (iv.max - iv.min);
+    return Math.round(s.min + t * (s.max - s.min));
+  }
+  return s;
 }

@@ -6,15 +6,20 @@
 // § Rescore and scoring.
 
 import { MERGED_ID, DEFAULT_SCORING } from '../core/constants.js';
-import { esc } from '../core/util.js';
+import { esc, pluralize } from '../core/util.js';
 import { parseRange } from '../engine/range.js';
 import {
-  makeRescoreRuleStub, rescoreRulesEqual, scoringRulesEqual, compileRule,
+  makeRescoreRuleStub, rescoreRulesEqual, scoringRulesEqual, compileRule, formatRuleOutput,
 } from '../engine/rescore.js';
+import { suggest, readsDisplay, QUERY_REFERENCE } from '../engine/rule-suggest.js';
 import { makeScoringRowStub } from '../model/scoring.js';
+import { buildScoreBadgeHTML } from '../model/score-display.js';
 import { showConfirm } from './dialogs/confirm.js';
 import { buildEditHintHTML, buildTrashIconHTML, buildDragHandleHTML, makeReorderable, buildMoreMenuHTML } from './components.js';
 import { attachHelpPopups } from './rendering.js';
+import { buildScoreOptions } from './entries-table.js';
+import { fetchRuleCounts } from './pipeline-worker.js';
+import { SuggestField, QueryField, queryHTML, hideSuggestions, refreshSuggestionFooter } from './query-editor.js';
 
 // Injected so this view imports nothing above ui (bake lives in the app layer).
 let _bakeMenuOpts = () => ({});
@@ -49,6 +54,8 @@ export function bindDraft({ scope, rules, host, menuHost = null, onChange, defau
   _defaults = defaults;
   _resetLabel = resetLabel;
   _bakeBlocked = bakeBlocked;
+  _counts = null;
+  _probeCounts = new Map();
   recompileDraft();
   renderDraft();
 }
@@ -56,6 +63,9 @@ export function bindDraft({ scope, rules, host, menuHost = null, onChange, defau
 export function unbindDraft() {
   _draft = null; _scope = null; _host = null; _menuHost = null;
   _onChange = () => {}; _defaults = () => null; _resetLabel = () => 'Reset to defaults'; _bakeBlocked = () => false;
+  clearTimeout(_countsTimer);
+  _counts = null;
+  hideSuggestions();
 }
 
 function recompileDraft() {
@@ -67,6 +77,7 @@ function replaceDraft(rules) {
 }
 
 function renderDraft() {
+  hideSuggestions();
   if (!_host?.isConnected) return;
   _host.innerHTML = isScoringScope(_scope) ? buildScoringSectionHTML() : buildRescoreSectionHTML();
   refreshEditorMenu();
@@ -76,6 +87,11 @@ function renderDraft() {
     onReorder: onDraftReorder,
   });
   attachHelpPopups();
+  if (!isScoringScope(_scope)) {
+    mountRuleFields();
+    renderCounts();
+    scheduleCounts(0);
+  }
 }
 
 function afterDraftChange() {
@@ -91,6 +107,120 @@ function afterFieldCommit() {
   recompileDraft();
   refreshEditorMenu();
   _onChange({ edited: true });
+  scheduleCounts();
+}
+
+// ─── Rule fields ──────────────────────────────────────────────────────────────
+
+function mountRuleFields() {
+  for (const row of _host.querySelectorAll('#rescore-rules .rule-row')) {
+    const i = +row.dataset.i;
+    new QueryField(row.querySelector('.rule-query'), {
+      status: row.querySelector('.rule-status'),
+      suggest: (text, a, b) => suggest(text, a, b, { tiers: buildScoreOptions() }),
+      countProbes,
+      onInput: text => {
+        if (!_draft?.[i]) return;
+        _draft[i].query = text;
+        compileRule(_draft[i]);
+        refreshEditorMenu();
+        _onChange({ edited: true, live: true });
+        scheduleCounts();
+      },
+      onCommit: () => afterFieldCommit(),
+      footer: () => ruleFooterHTML(i),
+    });
+    const out = row.querySelector('.rule-out');
+    new SuggestField(out, { suggest: (text, a, b) => outputSuggestions(text, a, b, _draft?.[i]), format: formatRuleOutput });
+  }
+}
+
+function outputSuggestions(text, a, b, rule) {
+  const item = (value, labelHTML, desc) => ({
+    kind: 'value', label: value, labelHTML, desc, rs: 0, re: text.length, insert: value, caret: value.length,
+  });
+  const items = [item('', '<span class="rule-suggest-label">unchanged</span>', 'Keep the score')];
+  for (const o of buildScoreOptions()) {
+    items.push(item(String(o.score), `<span class="rule-suggest-label">${buildScoreBadgeHTML(o.score)}</span>`, o.note));
+  }
+  const ranged = rule?._scoreInterval && rule._scoreInterval.max !== rule._scoreInterval.min;
+  return {
+    groups: [{ label: 'New score', items }],
+    hint: ranged ? 'A range like <code>60+</code> or <code>20-39</code> moves the whole score range.' : null,
+    active: -1,
+  };
+}
+
+// ─── Live counts ──────────────────────────────────────────────────────────────
+
+let _counts = null;           // the worker's countRules result for the draft
+let _probeCounts = new Map(); // suggestion probe → count, for this list
+let _countsTimer = 0;
+let _countsSeq = 0;
+
+function scheduleCounts(delay = 150) {
+  clearTimeout(_countsTimer);
+  _countsTimer = setTimeout(runCounts, delay);
+}
+
+async function runCounts() {
+  if (!_draft || !_scope?.dbKey || isScoringScope(_scope)) return;
+  const seq = ++_countsSeq;
+  const result = await fetchRuleCounts({ sourceId: _scope.dbKey, rules: _draft });
+  if (seq !== _countsSeq || !_draft) return;
+  _counts = result;
+  renderCounts();
+}
+
+async function countProbes(probes) {
+  const missing = probes.filter(p => !_probeCounts.has(p));
+  if (missing.length && _scope?.dbKey) {
+    const result = await fetchRuleCounts({ sourceId: _scope.dbKey, rules: [], probes: missing });
+    if (!result) return null;
+    missing.forEach((p, k) => _probeCounts.set(p, result.probes[k]));
+  }
+  return _probeCounts;
+}
+
+function renderCounts() {
+  if (!_host?.isConnected) return;
+  for (const row of _host.querySelectorAll('#rescore-rules .rule-row')) {
+    const i = +row.dataset.i;
+    if (!_draft[i]) continue;
+    row.querySelector('.rule-meta').innerHTML = ruleMetaHTML(_draft[i], i);
+  }
+  refreshSuggestionFooter();
+  const rest = _host.querySelector('.rules-rest');
+  if (rest) {
+    rest.textContent = _counts?.unmatched && _draft.length
+      ? `${_counts.unmatched.toLocaleString()} of ${pluralize(_counts.total, 'entry', 'entries')} match no rule and keep their score.`
+      : '';
+  }
+}
+
+function ruleMetaHTML(rule, i) {
+  if (!(rule.query || '').trim()) return 'Type a condition to see which entries it catches.';
+  if (!_counts) return '';
+  const c = _counts.rules[i];
+  if (!c) return '<span class="rule-meta-off">This rule does nothing until it’s fixed.</span>';
+  if (!c.wins) {
+    const bare = _counts.bare && readsDisplay(rule.query)
+      ? `<span class="rule-meta-note">${esc(_scope.name)} has no capitalization or spaces, so this can’t tell its entries apart.</span>` : '';
+    return `<span>No entries match.</span>${bare}`;
+  }
+  return `<span class="rule-count">${pluralize(c.wins, 'entry', 'entries')}</span>`;
+}
+
+function ruleFooterHTML(i) {
+  const c = _counts?.rules[i];
+  if (!c?.wins || !(_draft[i]?.query || '').trim()) return null;
+  return esc(ruleSamplesText(i));
+}
+
+function ruleSamplesText(i) {
+  const c = _counts?.rules[i];
+  if (!c?.wins || !(_draft[i].query || '').trim()) return '';
+  return c.samples.map(e => e.display ?? e.norm).join(', ') + (c.wins > c.samples.length ? ', …' : '');
 }
 
 // Bake reads committed rules; Manage blocks it while anything is staged, so
@@ -119,7 +249,7 @@ function onDraftReorder(fromEl, beforeEl) {
 
 // ─── Domain builders ──────────────────────────────────────────────────────────
 
-export function buildRuleRowHTML(i, fieldsHTML, note, onDeleteFn, readOnly = false) {
+export function buildRuleRowHTML(i, fieldsHTML, note, onDeleteFn, readOnly = false, details = false) {
   const noteWrap = readOnly
     ? `<span class="rule-note-wrap${note ? ' has-note' : ''}"><span class="rule-note-text">${esc(note||'')}</span></span>`
     : `<span class="rule-note-wrap${note ? ' has-note' : ''}" onclick="startNoteEdit(this)" title="Click to edit">
@@ -128,6 +258,15 @@ export function buildRuleRowHTML(i, fieldsHTML, note, onDeleteFn, readOnly = fal
       </span>`;
   const delBtn = readOnly ? '' : `<button class="icon rule-del" onclick="${onDeleteFn}(${i})" title="Delete row">${buildTrashIconHTML()}</button>`;
   const handle = readOnly ? '' : buildDragHandleHTML();
+  if (details) {
+    return `<div class="rule-row rule-row-wrap" data-i="${i}">
+      ${handle}
+      ${fieldsHTML}
+      ${delBtn}
+      <div class="rule-status" aria-live="polite"></div>
+      <div class="rule-foot"><div class="rule-meta"></div>${noteWrap}</div>
+    </div>`;
+  }
   return `<div class="rule-row" data-i="${i}">
       ${handle}
       ${fieldsHTML}
@@ -147,17 +286,20 @@ export function buildRulesListHTML(rules, { rulesId = '', saveFn, deleteFn, addF
       let fieldsHTML;
       if (rescore) {
         const v = readOnly ? null : ruleValidity(r);
-        fieldsHTML = `<input class="rule-query${v?.query ? ' invalid' : ''}" autocapitalize="off" autocorrect="off" spellcheck="false" value="${esc(r.query)}" placeholder="score: 50"
-            data-help="rule/query" title="${esc(v?.query || 'Which entries this rule rescores')}"${disabled}${handlers('query')}>
+        const queryField = readOnly
+          ? `<span class="rule-query rule-query-static">${queryHTML(r.query || '')}</span>`
+          : `<div class="rule-query-box"><div class="rule-query-hl" aria-hidden="true"></div><textarea class="rule-query" rows="1"
+              autocapitalize="off" autocorrect="off" spellcheck="false" aria-label="Condition" placeholder="Click to pick a condition">${esc(r.query)}</textarea></div>`;
+        fieldsHTML = `${queryField}
           <span class="rule-arrow">→</span>
           <input class="rule-out${v?.output ? ' invalid' : ''}" autocapitalize="off" autocorrect="off" spellcheck="false" value="${esc(r.output)}" placeholder="unchanged"
-            data-help="rule/output" title="${esc(v?.output || 'Output score')}"${disabled}${handlers('output')}>`;
+            aria-label="New score" title="${esc(v?.output || 'New score')}"${disabled}${handlers('output')}>`;
       } else {
         const inputInvalid = !readOnly && parseRange((r.input || '').trim()) === null;
         fieldsHTML = `<input class="rule-in${inputInvalid ? ' invalid' : ''}" autocapitalize="off" autocorrect="off" spellcheck="false" value="${esc(r.input)}"
             data-help="rule/score" title="Score range"${disabled}${handlers('input')}>`;
       }
-      return buildRuleRowHTML(i, fieldsHTML, r.note, deleteFn, readOnly);
+      return buildRuleRowHTML(i, fieldsHTML, r.note, deleteFn, readOnly, rescore && !readOnly);
     }).join('');
   }
   const addBtn = (!readOnly && addFn) ? `<button type="button" class="rule-add-btn" onclick="${addFn}()">+ Add rule</button>` : '';
@@ -167,7 +309,18 @@ export function buildRulesListHTML(rules, { rulesId = '', saveFn, deleteFn, addF
 function buildRescoreSectionHTML() {
   return buildRulesListHTML(_draft, {
     rulesId: 'rescore-rules', saveFn: 'saveRuleField', deleteFn: 'deleteRule', addFn: 'addRule', rescore: true,
-  });
+  }) + '<div class="rules-rest"></div>' + buildQueryReferenceHTML();
+}
+
+function buildQueryReferenceHTML() {
+  const code = v => `<code>${queryHTML(v)}</code>`;
+  const fields = QUERY_REFERENCE.fields.map(f =>
+    `<tr><td>${code(f.name + ':')}</td><td>${esc(f.desc)}</td><td>${f.examples.map(v => `<code>${esc(v)}</code>`).join(', ')}</td></tr>`).join('');
+  const ops = QUERY_REFERENCE.operators.map(([op, desc, ex]) =>
+    `<tr><td><code class="q-op">${esc(op)}</code></td><td>${esc(desc)}</td><td>${code(ex)}</td></tr>`).join('');
+  return `<details class="faq-item rules-ref"><summary>Query language reference</summary>
+    <div class="rules-ref-body"><table><thead><tr><th>Field</th><th>Checks</th><th>Values</th></tr></thead>
+    <tbody>${fields}${ops}</tbody></table></div></details>`;
 }
 
 function buildScoringSectionHTML() {
@@ -325,7 +478,7 @@ export function startNoteEdit(wrapEl) {
 function ruleValidity(rule) {
   const r = { query: rule.query, output: rule.output };
   compileRule(r);
-  return { query: r._errors[0]?.msg ?? null, output: r._outputError };
+  return { output: r._outputError };
 }
 
 function flagField(inp, msg, fallbackTitle) {
@@ -338,11 +491,10 @@ function validateRulesContainer(container) {
   container.querySelectorAll('.rule-in').forEach(inp => {
     inp.classList.toggle('invalid', parseRange(inp.value.trim()) === null);
   });
-  container.querySelectorAll('.rule-query').forEach(inp => {
-    const row = inp.closest('.rule-row');
-    const v = ruleValidity({ query: inp.value, output: row.querySelector('.rule-out')?.value });
-    flagField(inp, v.query, 'Which entries this rule rescores');
-    flagField(row.querySelector('.rule-out'), v.output, 'Output score');
+  container.querySelectorAll('.rule-out').forEach(out => {
+    const row = out.closest('.rule-row');
+    const v = ruleValidity({ query: row.querySelector('.rule-query')?.value, output: out.value });
+    flagField(out, v.output, 'New score');
   });
 }
 
@@ -358,13 +510,15 @@ function liveEditDraftField(el) {
   if (!_draft) return;
   const row = el.closest('.rule-row');
   const field = el.classList.contains('rule-in') ? 'input'
-    : el.classList.contains('rule-query') ? 'query'
     : el.classList.contains('rule-out') ? 'output' : null;
   if (!row || field === null) return;
   const i = parseInt(row.dataset.i, 10);
   if (!_draft[i]) return;
   _draft[i][field] = el.value;
-  if (!isScoringScope(_scope)) compileRule(_draft[i]);
+  if (!isScoringScope(_scope)) {
+    compileRule(_draft[i]);
+    scheduleCounts();
+  }
   refreshEditorMenu();
   _onChange({ edited: true, live: true });
 }

@@ -1004,6 +1004,29 @@ export async function fetchWorkerProvenance(typedRaw, previewRaw, clickedNorm, c
   });
 }
 
+// ─── Rule counts bridge ── see docs/worker-protocol.md ───────────────────────
+// Its own requestId space. Resolves null on a timeout or when the worker has no
+// data for the source yet (a list added in this Manage session).
+let ruleCountsRequestId = 0;
+export function fetchRuleCounts({ sourceId, rules, probes = [] }, timeout = 5000) {
+  const w = getWorker();
+  const requestId = ++ruleCountsRequestId;
+  return new Promise(resolve => {
+    const timer = setTimeout(() => { w.removeEventListener('message', onMessage); resolve(null); }, timeout);
+    function onMessage({ data }) {
+      if (data?.type !== 'ruleCounts' || data.requestId !== requestId) return;
+      clearTimeout(timer);
+      w.removeEventListener('message', onMessage);
+      resolve(data.result ?? null);
+    }
+    w.addEventListener('message', onMessage);
+    w.postMessage({
+      type: 'ruleCounts', requestId, sourceId, probes,
+      rules: rules.map(r => ({ query: r.query ?? '', output: r.output ?? '' })),
+    });
+  });
+}
+
 // ─── Entry-edit plan fetch bridge ── see docs/worker-protocol.md ─────────────
 // Its own requestId space; the worker owns every source's rescore index, so it
 // plans the edit. A timeout resolves null so the caller falls back rather than

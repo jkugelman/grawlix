@@ -5,7 +5,6 @@
 // parentheses, compiled to a predicate over one wordlist entry. See
 // docs/wordlists.md § Rescore rules.
 
-import { buildHelpHTML } from '../core/util.js';
 import { splitWords } from './norm.js';
 import { buildSearchPattern } from './search.js';
 import { regexError } from './regex.js';
@@ -72,26 +71,95 @@ export function entryKinds(text, words) {
   return out;
 }
 
+// ─── Facts ────────────────────────────────────────────────────────────────────
+
+const IS_BIT = { plain: 1, proper: 2, initialism: 4, abbreviation: 8, 'roman numeral': 16, digits: 32, punctuation: 64, symbols: 128 };
+const KIND_BIT = { proper: 1, initialism: 2, abbreviation: 4, 'roman numeral': 8 };
+const CHAR_BIT = { digits: 1, punctuation: 2, symbols: 4 };
+// The fields must not overlap, or one category silently answers for another.
+// The DONE bits keep a computed value nonzero: 0 in a FactsCache means unset.
+const WORD_SHIFT = { any: 8, start: 12, end: 16 };
+const WORD_COUNT_SHIFT = 20, WORD_COUNT_MAX = 1023;
+const CHAR_SHIFT = { any: 0, start: 3, end: 6 };
+const SPACES_BIT = 1 << 9;
+const WORD_DONE = 1 << 30, CHAR_DONE = 1 << 10;
+
+function kindBits(words) {
+  let b = 0;
+  for (const w of words) for (const k of w.kinds) b |= KIND_BIT[k];
+  return b;
+}
+
+function wordFacts(text) {
+  const words = classifyWords(text);
+  let f = WORD_DONE | Math.min(words.length, WORD_COUNT_MAX) << WORD_COUNT_SHIFT;
+  for (const k of entryKinds(text, words)) f |= IS_BIT[k];
+  f |= kindBits(words) << WORD_SHIFT.any;
+  if (words.length) f |= kindBits(words.slice(0, 1)) << WORD_SHIFT.start | kindBits(words.slice(-1)) << WORD_SHIFT.end;
+  return f;
+}
+
+function charBits(chars) {
+  let b = 0;
+  for (const [name, re] of Object.entries(CHAR_CATEGORIES)) if (chars.some(ch => re.test(ch))) b |= CHAR_BIT[name];
+  return b;
+}
+
+function charFacts(text) {
+  const chars = [...text.trim()];
+  let f = CHAR_DONE | charBits(chars) << CHAR_SHIFT.any;
+  if (chars.length) f |= charBits(chars.slice(0, 1)) << CHAR_SHIFT.start | charBits(chars.slice(-1)) << CHAR_SHIFT.end;
+  if (/\s/.test(text.trim())) f |= SPACES_BIT;
+  return f;
+}
+
+// Indexed by column position: a subject built with the wrong index silently
+// reads another entry's categories.
+export class FactsCache {
+  constructor(n) { this.n = n; }
+  get word() { return this._word ??= new Uint32Array(this.n); }
+  get char() { return this._char ??= new Uint16Array(this.n); }
+}
+
 // Lazy, so the columnar build's score-and-length rules never classify words
 // across a 350k-entry list.
-class Subject {
-  set(score, norm, display) {
+export class Subject {
+  reset(cache = null, i = 0) {
+    this.cache = cache;
+    this.i = i;
+    this._lower = undefined;
+    this._word = this._char = 0;
+    return this;
+  }
+  set(score, norm, display, cache, i) {
     this.score = score;
     this.norm = norm;
     this.display = display ?? null;
-    this._lower = this._words = this._is = undefined;
-    return this;
+    return this.reset(cache, i);
   }
   get text()  { return this.display ?? this.norm; }
   get lower() { return this._lower ??= this.display == null ? this.norm : this.display.toLowerCase(); }
-  get words() { return this._words ??= classifyWords(this.text); }
-  get is()    { return this._is ??= entryKinds(this.text, this.words); }
+  get wordFacts() {
+    if (this._word) return this._word;
+    const c = this.cache;
+    let f = c ? c.word[this.i] : 0;
+    if (!f) { f = wordFacts(this.text); if (c) c.word[this.i] = f; }
+    return this._word = f;
+  }
+  get charFacts() {
+    if (this._char) return this._char;
+    const c = this.cache;
+    let f = c ? c.char[this.i] : 0;
+    if (!f) { f = charFacts(this.text); if (c) c.char[this.i] = f; }
+    return this._char = f;
+  }
+  get wordCount() { return this.wordFacts >>> WORD_COUNT_SHIFT & WORD_COUNT_MAX; }
 }
 
 const SUBJECT = new Subject();
 
-export function ruleSubject(score, norm, display) {
-  return SUBJECT.set(score, norm, display);
+export function ruleSubject(score, norm, display, cache = null, i = 0) {
+  return SUBJECT.set(score, norm, display, cache, i);
 }
 
 // ─── Fields ───────────────────────────────────────────────────────────────────
@@ -101,7 +169,7 @@ const RANGE_MSG = 'Use a number like 50, a minimum like 50+ or a range like 30-4
 
 function rangeField(name, key) {
   return {
-    name,
+    name, type: 'range',
     item(it) {
       const m = it.text.match(RANGE_RE);
       if (!m) return { error: RANGE_MSG };
@@ -116,11 +184,12 @@ const IS_VALUES = ['plain', ...WORD_CATEGORIES, ...Object.keys(CHAR_CATEGORIES)]
 
 function isField(name, negate) {
   return {
-    name, negate,
+    name, negate, type: 'is',
     item(it) {
       const v = it.text.toLowerCase().replace(/\s+/g, ' ');
       if (!IS_VALUES.includes(v)) return { error: `“${it.text}” isn't a choice for ${name}. Use ${IS_VALUES.join(', ')}.` };
-      return { test: s => s.is.has(v) };
+      const bit = IS_BIT[v];
+      return { test: s => (s.wordFacts & bit) !== 0 };
     },
   };
 }
@@ -128,25 +197,25 @@ function isField(name, negate) {
 // Text matches the norm or the lowercased display, like the search box, so
 // `contains: theirs` finds "the IRS".
 function positionField(name, where) {
-  const words = s => where === 'any' ? s.words : where === 'start' ? s.words.slice(0, 1) : s.words.slice(-1);
-  const chars = s => {
-    const t = s.text.trim();
-    return where === 'any' ? [...t] : where === 'start' ? [...t].slice(0, 1) : [...t].slice(-1);
-  };
   const has = where === 'any' ? (str, lit) => str.includes(lit)
     : where === 'start' ? (str, lit) => str.startsWith(lit)
     : (str, lit) => str.endsWith(lit);
   return {
-    name,
+    name, type: 'position', where,
     item(it) {
       const v = it.text.toLowerCase().replace(/\s+/g, ' ');
       if (!it.quoted) {
-        if (WORD_CATEGORIES.includes(v)) return { test: s => words(s).some(w => w.kinds.includes(v)) };
-        const re = CHAR_CATEGORIES[v];
-        if (re) return { test: s => chars(s).some(ch => re.test(ch)) };
+        if (WORD_CATEGORIES.includes(v)) {
+          const bit = KIND_BIT[v] << WORD_SHIFT[where];
+          return { test: s => (s.wordFacts & bit) !== 0 };
+        }
+        if (Object.hasOwn(CHAR_BIT, v)) {
+          const bit = CHAR_BIT[v] << CHAR_SHIFT[where];
+          return { test: s => (s.charFacts & bit) !== 0 };
+        }
         if (v === 'spaces') {
           if (where !== 'any') return { error: '“spaces” only works with contains.' };
-          return { test: s => /\s/.test(s.text.trim()) };
+          return { test: s => (s.charFacts & SPACES_BIT) !== 0 };
         }
         if (v === 'plain') return { error: '“plain” only works with is.' };
       }
@@ -159,14 +228,14 @@ function positionField(name, where) {
 const FIELDS = [
   rangeField('score', s => s.score),
   rangeField('length', s => s.norm.length),
-  rangeField('words', s => s.words.length),
+  rangeField('words', s => s.wordCount),
   isField('is', false),
   isField('is not', true),
   positionField('contains', 'any'),
   positionField('starts with', 'start'),
   positionField('ends with', 'end'),
   {
-    name: 'pattern',
+    name: 'pattern', type: 'pattern',
     item(it) {
       const pat = buildSearchPattern(it.text, 'full');
       if (!pat) return { error: 'This pattern doesn\'t work. Check any [ ] ranges.' };
@@ -174,7 +243,7 @@ const FIELDS = [
     },
   },
   {
-    name: 'regex',
+    name: 'regex', type: 'regex',
     item(it) {
       const err = regexError(it.text);
       if (err) return { error: `This regular expression doesn't work: ${err}` };
@@ -186,6 +255,11 @@ const FIELDS = [
 const FIELD_BY_NAME = new Map(FIELDS.map(f => [f.name, f]));
 
 const MULTIWORD_VALUES = IS_VALUES.filter(v => v.includes(' '));
+
+export const QUERY_FIELDS = FIELDS.map(({ name, type, where = null }) => ({ name, type, where }));
+export const QUERY_IS_VALUES = IS_VALUES;
+export const QUERY_WORD_CATEGORIES = WORD_CATEGORIES;
+export const QUERY_CHAR_CATEGORIES = Object.keys(CHAR_CATEGORIES);
 
 // ─── Lexer ────────────────────────────────────────────────────────────────────
 
@@ -455,15 +529,52 @@ export function queryErrors(str) {
   return compileQuery(str).errors;
 }
 
-export const RULE_QUERY_HELP = buildHelpHTML([
-  ['score: 50', 'score in this list'],
-  ['score: 30-49', 'a range of scores'],
-  ['length: 8+', 'letters in the entry'],
-  ['words: 2', 'words in the entry'],
-  ['is: proper', 'proper, initialism, plain…'],
-  ['contains: digits', 'a category or text'],
-  ['ends with: ing', 'starts with works too'],
-  ['pattern: ?@?@?', 'search-box wildcards'],
-  ['regex: "(.)\\1"', 'a regular expression'],
-  ['and · or · not', 'combine conditions'],
-], { cols: 1 });
+export function analyzeQuery(str) {
+  const tokens = lex(str);
+  const { errors } = parse(tokens);
+  return { tokens, errors };
+}
+
+// ─── Formatting ───────────────────────────────────────────────────────────────
+
+const RESERVED_VALUES = new Set(['plain', 'spaces', ...WORD_CATEGORIES, ...Object.keys(CHAR_CATEGORIES)]);
+
+export const quoteValue = text => '"' + text.replace(/\\(?=["”\\]|$)|"/g, m => '\\' + m) + '"';
+
+function formatValue(field, it) {
+  const word = it.text.toLowerCase().replace(/\s+/g, ' ');
+  switch (field.type) {
+    case 'range': {
+      const { min, max } = it.interval;
+      return max === null ? `${min}+` : max === min ? `${min}` : `${min}-${max}`;
+    }
+    case 'is': return word;
+    case 'position':
+      return !it.quoted && RESERVED_VALUES.has(word) ? word : quoteValue(it.text.toLowerCase());
+    default: return quoteValue(it.text);
+  }
+}
+
+const formatClause = (t, name = t.field.name) =>
+  `${name}: ${t.items.map(it => formatValue(t.field, it)).join(', ')}`;
+
+// A query with an error comes back as typed: rebuilt from a broken lex, it
+// could lose or reshape what the user wrote.
+export function formatQuery(str) {
+  const toks = lex(str);
+  if (!toks.length || parse(toks).errors.length) return str;
+  const out = [];
+  let ended = false;
+  for (let i = 0; i < toks.length; i++) {
+    const t = toks[i], next = toks[i + 1];
+    if (ended && (t.kind === 'clause' || t.kind === 'lparen' || t.op === 'not')) out.push('and');
+    if (t.op === 'not' && next?.kind === 'clause' && next.field.type === 'is') {
+      out.push(formatClause(next, next.field.negate ? 'is' : 'is not'));
+      i++;
+    } else {
+      out.push(t.kind === 'clause' ? formatClause(t) : t.kind === 'lparen' ? '(' : t.kind === 'rparen' ? ')' : t.op);
+    }
+    ended = toks[i].kind === 'clause' || toks[i].kind === 'rparen';
+  }
+  return out.reduce((s, piece, k) => (k === 0 || out[k - 1] === '(' || piece === ')' ? s + piece : s + ' ' + piece), '');
+}

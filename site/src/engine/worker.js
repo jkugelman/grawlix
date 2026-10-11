@@ -17,6 +17,7 @@ import { parseWordlist, toNorm, displayOf, isUnspaced } from './norm.js';
 import { findOccurrences, findEntryOccurrences, buildFindMatcher, FIND_MATCH_CAP } from './find.js';
 import { matchesRange, parseViewFilter } from './range.js';
 import { compileRescoreRules } from './rescore.js';
+import { countRules } from './rule-counts.js';
 import { sourceAccessor, invalidateSourceAccessor, parseWordlistColumns, columnsFromEntries } from './sources.js';
 import { buildCorpus, assignFamilies, scopeSourceIds, mergedContributors, resolveEditSeedWinner, mergeKey, bestRowForNorm, mergedNormLowerBound, mergedRowsForNorm, computeMergedBucket, diffWordlistEntries, isDistinguishing, concreteDisplay, winsMergedRow } from './corpus.js';
 import { familyKey, generateRelativeNorms, configureCommonWords,
@@ -1924,6 +1925,18 @@ function handleFetchProvenance({ requestId, typedRaw, previewRaw, clickedNorm, c
   postMessage({ type: 'provenance', requestId, preview: previewOut ?? null, rows });
 }
 
+// ─── Rule counts ── see docs/worker-protocol.md ──────────────────────────────
+// Reads one source's raw entries, which ownedBuilt keeps across a syncConfig gap,
+// so it needs no corpus freshness flag.
+function handleRuleCounts({ requestId, sourceId, rules, probes }) {
+  const wl = ownedBuilt?.find(w => w.dbKey === sourceId);
+  if (!wl) {
+    postMessage({ type: 'ruleCounts', requestId, result: null });
+    return;
+  }
+  postMessage({ type: 'ruleCounts', requestId, result: countRules(wl, rules, { probes }) });
+}
+
 // ─── Entry-edit plan ── see docs/worker-protocol.md ──────────────────────────
 // Guard on ownedBuilt ALONE, not ownedCorpusFresh: planEntryWrite reads only the
 // per-source rescore indexes (sourceAccessor/computeMergedBucket over ownedBuilt),
@@ -2991,6 +3004,10 @@ onmessage = ({ data }) => {
 
     case 'fetchProvenance':
       handleFetchProvenance(data);
+      break;
+
+    case 'ruleCounts':
+      handleRuleCounts(data);
       break;
 
     case 'find':

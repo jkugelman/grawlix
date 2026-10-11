@@ -153,8 +153,23 @@ The rule editor (`ui/rescore-editor.js`) edits one draft that Manage wordlists o
   There is no separate home for the tier editor; it is the All Wordlists version of the rescore editor.
 
 A rescore rule pairs a **condition**, a query over the list's own entries (§ *Rescore rules*), with an output score; a tier row pairs a score range with its label.
-Focusing a field pops up a syntax cheat sheet (`data-help="rule/…"`).
-A condition or output with an error turns the field red with the message in its tooltip, and the rule does nothing until it's fixed; Save isn't blocked.
+The condition is a text box (`ui/query-editor.js`) that colors the query and offers suggestions from the first click: fields, then values with how many of the list's entries each matches, then `and`/`or` (`engine/rule-suggest.js`).
+On `starts with` and `ends with`, typing a word offers both the text and the word itself (`"up"` and `" up"`).
+Suggestions filter on the whole token at the caret (a field name, or one comma-separated value) and replace all of it, so Tab with the caret mid-token never cuts the token short; a caret in the spaces just before a token counts as on it.
+The output box offers *unchanged* and the tiers; a tier's score field pops up the range cheat sheet (`data-help="rule/score"`).
+While the condition is being edited, the top of the suggestion list describes the field or operator at the caret, and the foot shows a line of the rule's own matches.
+They sit in the list, not under the rule, because the list covers that space and anything appearing there would shift the dialog on every focus change.
+An error gets a wavy underline and its message (in the list while editing, under the rule after), and the rule does nothing until it's fixed; Save isn't blocked.
+An error at the caret stays hidden while the clause is still being typed.
+Leaving a valid condition or output rewrites it one way (`formatQuery`, `formatRuleOutput`): lowercase names, operators and categories, single spaces, an explicit `and` between clauses side by side, `is not:` for `not is:`, plain numbers and `-` in ranges, and straight quotes around every text, pattern and regex.
+One with an error stays as typed, since rebuilding it from a broken parse could lose what was written.
+
+**Each rule shows what it does.**
+Under each rule: how many entries it wins (an entry goes to the first rule that matches it), beside its note.
+Below the rules, how many entries no rule matches.
+The counts come from the worker (`ruleCounts`), since main holds raw entries only for My Edits, and follow the draft as it's typed.
+On a bare list (no displays), a rule that needs capitals, spaces or punctuation and matches nothing says why, inline; there's no standing callout.
+A collapsible reference under the rules lists every field and operator.
 
 **Edits stage into the draft; Manage's Save commits.**
 `bindDraft` hands the editor the shadow's array for the selected list, and every edit mutates that array in place, so Manage's Save sees it; switching pages keeps each list's draft, and one Save commits them all with one worker rebuild.
@@ -163,6 +178,7 @@ Leaving a rule field updates the draft without re-rendering the rules: the field
 
 **No preview in the table.**
 The entries table shows committed scores only; a draft takes effect on Save.
+Manage's dialog covers the table, so the table can't give the editor feedback; each rule's own counts and sample matches take its place.
 The entry panel's provenance still shows `raw → rescored` for each list's committed rules.
 
 **The lifecycle actions sit in a `⋮` menu.**
@@ -640,15 +656,16 @@ The colon ends the field name, so names can be words with spaces:
 | `length` | letters in the norm | same range syntax |
 | `words` | words in the entry, split at the shared word breaks (`splitWords`) | same range syntax |
 | `is` / `is not` | what the whole entry is | a category |
-| `contains` / `starts with` / `ends with` | a word or character of that kind there, or text | a category or text |
-| `pattern` | search-box wildcards against the whole entry | `*ing`, `?@?@?` |
-| `regex` | a regular expression, case ignored, unanchored | `ing$`, `"(.)\1\1"` |
+| `contains` / `starts with` / `ends with` | a word or character of that kind there, or text | a category, or text: `"ing"` |
+| `pattern` | search-box wildcards against the whole entry | `"*ing"`, `"?@?@?"` |
+| `regex` | a regular expression, case ignored, unanchored | `"ing$"`, `"(.)\1\1"` |
 
 - Commas mean any of the values, in every field.
-  Clauses side by side must all match; `and`, `or`, `not` and parentheses combine them, and `not is: x` reads the same as `is not: x`.
+  Clauses side by side must all match; `and`, `or`, `not` and parentheses combine them, and `not is: x` means `is not: x`.
 - A bare value runs to the next space, comma or parenthesis; anything else goes in `"…"` (curly quotes work).
+  Text, patterns and regexes are written quoted, so they never read as a category: suggestions, the reference and cleanup all quote them, though a bare one still parses.
   Inside quotes the only escapes are `\"` and `\\`, so any other backslash reaches `RegExp` as typed.
-- Text, `pattern` and `regex` match the norm or the lowercased display, the search box's two arms (§ *Rich wordlists*, *Dual-arm search*), so `contains: theirs` finds *the IRS*.
+- Text, `pattern` and `regex` match the norm or the lowercased display, the search box's two arms (§ *Rich wordlists*, *Dual-arm search*), so `contains: "theirs"` finds *the IRS*.
   A quoted value with a space can only match the display, which is how `ends with: " up"` means the word *up*.
 - The parser is strict: anything the grammar doesn't define is an error, never a literal, so new syntax can't change what a saved rule means.
   An empty query or one with an error matches nothing, so a new blank rule dragged above others shadows none of them.
@@ -665,8 +682,10 @@ Rescoring stays unaware of list casing: an all-caps bare file already loads its 
 **Range outputs** shift or rescale: `50+ → 60+` adds 10, `30-49 → 20-39` maps the range linearly.
 They need an interval to map from, so they apply only when the query's top level ANDs exactly one `score:` clause holding a single range.
 
-**Word kinds are computed lazily.**
-The columnar build rescores every raw entry of every list, and the default rules test only score and length, so classifying words up front would cost a 350k-entry list for nothing.
+**Categories are cached per list.**
+Classifying Nediger's 350k entries takes about 120ms, too slow to repeat for every count while typing.
+A list's columns carry a `FactsCache`: two integers per entry, filled the first time a rule or a count reads a category and reused after, so a warm pass takes about 5ms.
+Rules that test only score and length, like the defaults, never classify anything.
 
 The unified scale is an *optional* mapping, not an enforced contract: the tier labels on **All Wordlists** (`state.scoring`) define what each score range means, and every wordlist's rescore rules describe how its raw scores map onto that scale.
 **Grawlix does not nag when they don't line up.**

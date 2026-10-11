@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { compileQuery, classifyWords, entryKinds, ruleSubject } from '../../site/src/engine/rule-query.js';
-import { rescoreEntry, ruleOutputError, compileRule } from '../../site/src/engine/rescore.js';
+import { compileQuery, formatQuery, classifyWords, entryKinds, ruleSubject } from '../../site/src/engine/rule-query.js';
+import { rescoreEntry, ruleOutputError, compileRule, formatRuleOutput } from '../../site/src/engine/rescore.js';
 
 const kinds = text => [...entryKinds(text, classifyWords(text))].sort();
 
@@ -114,4 +114,41 @@ test('rescoreEntry reads the display through query rules', () => {
   assert.equal(rescoreEntry({ score: 40, norm: 'obama', display: 'Obama' }, rules), 50);
   assert.equal(rescoreEntry({ score: 40, norm: 'chafeat', display: 'chafe at' }, rules), 30);
   assert.equal(rescoreEntry({ score: 55, norm: 'x', display: null }, rules), 65);
+});
+
+test('formatQuery writes a valid query one way, keeping what it matches', () => {
+  const cases = [
+    ['Score:50   AND  IS:Proper', 'score: 50 and is: proper'],
+    ['score:050,30–49 is: proper', 'score: 50, 30-49 and is: proper'],
+    ['not is: proper and NOT is not: plain', 'is not: proper and is: plain'],
+    ['( score: 50 OR score: 40 ) not contains: x', '(score: 50 or score: 40) and not contains: "x"'],
+    ['starts   with: “AB”  ends with: "digits"', 'starts with: "ab" and ends with: "digits"'],
+    ['contains: " x ", "a,b", Digits, Roman  Numeral', 'contains: " x ", "a,b", digits, roman numeral'],
+    ['regex: ^A\\d', 'regex: "^A\\d"'],
+    ['pattern: *ing', 'pattern: "*ing"'],
+    ['contains: "a\\"b\\\\"', 'contains: "a\\"b\\\\"'],
+    ['pattern: "a b"', 'pattern: "a b"'],
+  ];
+  const subjects = [
+    { norm: 'abc', display: 'AB 12' }, { score: 40, norm: 'xyz', display: 'Pius VII' },
+    { norm: 'theirs', display: 'the IRS' }, { score: 30, norm: 'ab', display: 'a,b' },
+  ];
+  for (const [typed, clean] of cases) {
+    assert.equal(formatQuery(typed), clean, typed);
+    assert.equal(formatQuery(clean), clean, clean);
+    for (const s of subjects) assert.equal(matches(clean, s), matches(typed, s), `${typed} on ${s.norm}`);
+  }
+});
+
+test('formatQuery leaves a query with an error as typed', () => {
+  assert.equal(formatQuery('Score:50  AND'), 'Score:50  AND');
+  assert.equal(formatQuery('scor: 50'), 'scor: 50');
+  assert.equal(formatQuery('  '), '  ');
+});
+
+test('formatRuleOutput writes a valid score one way', () => {
+  assert.equal(formatRuleOutput(' 060+ '), '60+');
+  assert.equal(formatRuleOutput('50–60'), '50-60');
+  assert.equal(formatRuleOutput('  '), '');
+  assert.equal(formatRuleOutput('60 +'), '60 +');
 });

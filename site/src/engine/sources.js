@@ -14,6 +14,7 @@
 
 import { getRescoredEntries, getRescoredByNorm, groupEntries, rescoreFields } from './rescore.js';
 import { parseWordlistLine, toNorm, displayForRaw, caseOfRaw, caseFromCounts } from './norm.js';
+import { FactsCache, Subject } from './rule-query.js';
 
 export function sourceAccessor(wl) {
   return wl._accessor ??= (wl.cols ? columnarAccessor(wl) : objectAccessor(wl));
@@ -41,6 +42,12 @@ function objectAccessor(wl) {
     collectRescored: () => getRescoredEntries(wl),
     *scores() { for (const e of getRescoredEntries(wl)) yield e.score; },
     collectRaw: () => wl.rawEntries,
+    rawEntryAt: i => wl.rawEntries[i],
+    hasDisplays: () => wl.rawEntries.some(e => e.display != null),
+    forEachRawSubject(cb) {
+      const s = new Subject();
+      wl.rawEntries.forEach((e, i) => cb(s.set(e.score, e.norm, e.display ?? null), i));
+    },
   };
 }
 
@@ -90,6 +97,19 @@ class ColView {
     const c = this.cols, i = this.i;
     return c.scores[i] === c.rawScores[i] ? undefined : c.rawScores[i];
   }
+}
+
+// One instance walks a whole list, so a caller that keeps the subject past its
+// callback silently reads a later entry.
+class ColSubject extends Subject {
+  constructor(cols) { super(); this.cols = cols; }
+  at(i) {
+    this.score = this.cols.rawScores[i];
+    this._norm = this._display = undefined;
+    return this.reset(this.cols.facts, i);
+  }
+  get norm() { return this._norm ??= decodeNorm(this.cols, this.i); }
+  get display() { return this._display === undefined ? (this._display = decodeDisplay(this.cols, this.i)) : this._display; }
 }
 
 class ColRawView {
@@ -164,6 +184,12 @@ function columnarAccessor(wl) {
       for (let i = 0; i < cols.n; i++) out[i] = new ColRawView(cols, i);
       return out;
     },
+    forEachRawSubject(cb) {
+      const s = new ColSubject(cols);
+      for (let i = 0; i < cols.n; i++) cb(s.at(i), i);
+    },
+    rawEntryAt: i => ({ norm: decodeNorm(cols, i), display: decodeDisplay(cols, i), score: cols.rawScores[i] }),
+    hasDisplays: () => cols.dispOffsets[cols.n] > 0,
   };
 }
 
@@ -282,10 +308,11 @@ function gatherColumns(norms, displays, comments, rawScoresArr, rules) {
   commentOffsets[n] = coff;
 
   const scores = new Int32Array(n);
+  const facts = new FactsCache(n);
   let changed = false;
   for (let k = 0; k < n; k++) {
     const src = kept[k];
-    const s = rescoreFields(rawScores[k], norms[src], displays[src] ?? null, rules);
+    const s = rescoreFields(rawScores[k], norms[src], displays[src] ?? null, rules, facts, k);
     scores[k] = s;
     if (s !== rawScores[k]) changed = true;
   }
@@ -294,6 +321,6 @@ function gatherColumns(norms, displays, comments, rawScoresArr, rules) {
     n, normBytes, normOffsets, rawScores,
     // Share rawScores when no rule moved any score, dropping a whole Int32 column.
     scores: changed ? scores : rawScores,
-    dispBytes, dispOffsets, commentBytes, commentOffsets,
+    dispBytes, dispOffsets, commentBytes, commentOffsets, facts,
   };
 }

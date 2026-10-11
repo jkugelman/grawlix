@@ -732,6 +732,23 @@ It picks the row spelled the way you typed if there is one, else the norm's best
 Advisory because laying a My Edits row over a foreign one is the normal way to rescore — it never gates the save, it only lets the panel offer a jump.
 Main caches the structural plan for the open panel (preview / Save-gate / "already exists" note read it synchronously) and re-fetches on entry-text / mode / seed changes; a save consumes a fresh plan's `deletes`/`upserts`/`primary` directly.
 
+#### `ruleCounts` (rule editor live counts)
+`{ type: 'ruleCounts', requestId, sourceId, rules, probes }` — **what a list's draft rescore rules do to its own raw entries**, for the rule editor's live preview (`countRules`, [`engine/rule-counts.js`](../site/src/engine/rule-counts.js)).
+Main holds raw entries only for My Edits, so every other list's counts must come from the worker.
+- `requestId` — monotonic per client, in its own request-id space; a client timeout resolves `null`.
+- `sourceId` — the list's `dbKey`.
+  `rules` — the **draft** rules as `{ query, output }`, compiled fresh per request (a draft is never synced).
+  `probes` — standalone query strings to count alone (the editor's suggestion counts).
+- **On receipt:** guarded by `ownedBuilt` alone (it reads one source's raw columns, which survive a `syncConfig` gap); a list the worker doesn't hold replies `result: null`.
+  The pass reads each entry once through a reused subject, and the categories it classifies stay cached on the source's columns (`cols.facts`, a `FactsCache`) for later requests.
+
+#### `ruleCounts` (rule editor live counts reply)
+`{ type: 'ruleCounts', requestId, result }` — `result` is `{ total, unmatched, bare, rules, probes }` or `null`.
+`rules[i]` is `null` for an inactive rule (empty, or with an error), else `{ wins, samples }`: how many entries it wins (first match) and up to 24 `{ norm, display }` samples spread across its wins, enough to fill the one-line examples at the foot of the editor's suggestion list.
+`probes[j]` is the probe's match count, or `null` if it doesn't parse.
+`bare` is true when no entry has a display.
+Main drops a reply older than its latest request, so a slow pass can't overwrite a newer draft's counts.
+
 #### `editEntry` (My Edits in-place write-set)
 `{ type: 'editEntry', editId, writes }` — **mutate the worker's owned corpus in place for one My Edits gesture**, in O(affected norms), so a My Edits change doesn't force a full `syncConfig` rebuild.
 The worker also **writes the My Edits IDB itself** (main holds no `rawEntries`-to-serialize beyond the seed and skips its own write).

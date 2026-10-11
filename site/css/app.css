@@ -1214,12 +1214,68 @@ dialog h2 { font-size: 16px; margin-bottom: 14px; padding-right: 24px; }
 
 /* ─── Rescore editor ────────────────────────────────────────────────────────── */
 .rule-row { display: flex; align-items: center; gap: 5px; margin-bottom: 3px; }
-.rule-in, .rule-query, .rule-out { padding: 2px 6px; border-radius: 3px; font-size: 12px; font-family: var(--font-mono); text-align: center; }
+.rule-in, .rule-out { padding: 2px 6px; border-radius: 3px; font-size: 12px; font-family: var(--font-mono); text-align: center; }
 .rule-in  { width: 80px; }
-.rule-query { flex: 2; min-width: 0; text-align: left; }
 .rule-out { width: 80px; }
 .rule-in::placeholder, .rule-query::placeholder, .rule-out::placeholder { color: var(--faint); }
-.rule-in.invalid, .rule-query.invalid, .rule-out.invalid { border-color: #ea4335; background: var(--error-bg); }
+.rule-in.invalid, .rule-out.invalid { border-color: #ea4335; background: var(--error-bg); }
+.rule-row-wrap { flex-wrap: wrap; margin-bottom: 8px; }
+
+/* The condition: a transparent textarea over a layer that draws the same text
+   highlighted. Both must share every metric below, or the colors drift off the
+   letters as the text grows. */
+.rule-query-box { position: relative; flex: 1; min-width: 0; align-self: flex-start; background: var(--input-bg); border: 1px solid var(--border); border-radius: 3px; }
+.rule-query-box:focus-within { border-color: var(--accent); }
+.rule-query-hl, .rule-query-box > .rule-query { margin: 0; padding: 2px 6px; border: 0; font-family: var(--font-mono); font-size: 12px; line-height: 18px; letter-spacing: normal; white-space: pre-wrap; overflow-wrap: anywhere; text-align: left; }
+.rule-query-hl { position: absolute; inset: 0; pointer-events: none; color: var(--text); }
+.rule-query-box > .rule-query { position: relative; display: block; width: 100%; min-height: 22px; resize: none; overflow: hidden; background: transparent; color: transparent; caret-color: var(--text); }
+.rule-query-box > .rule-query:focus { outline: none; }
+.rule-query-box > .rule-query::selection { background: color-mix(in srgb, var(--accent) 35%, transparent); }
+.rule-query-static { flex: 2; min-width: 0; font-family: var(--font-mono); font-size: 12px; padding: 2px 6px; overflow-wrap: anywhere; }
+.q-field { color: var(--q-field); }
+.q-value { color: var(--q-value); }
+.q-op { color: var(--q-op); }
+.q-punct { color: var(--q-punct); }
+.q-err { text-decoration: underline wavy var(--q-err); text-decoration-thickness: 1.5px; text-underline-offset: 3px; text-decoration-skip-ink: none; }
+
+.rule-status, .rule-foot { flex-basis: 100%; padding-left: 17px; font-size: 11.5px; color: var(--muted); }
+.rule-status:empty { display: none; }
+.rule-status.err { color: var(--q-err); }
+.rule-status code, .rules-ref code { font-family: var(--font-mono); font-size: 11px; }
+.rule-status code { color: var(--q-field); }
+.rule-foot { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+.rule-meta { flex: 0 1 auto; display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; }
+.rule-foot > .rule-note-wrap { flex: 1 1 0; padding-block: 0; }
+.rule-count { color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.rule-meta-note { color: var(--faint); }
+.rule-meta-off { color: var(--q-err); }
+.rules-rest { font-size: 11.5px; color: var(--muted); margin-top: 6px; }
+.rules-rest:empty { display: none; }
+.rules-ref { margin-top: 10px; }
+.rules-ref > summary { font-size: 12px; padding: 8px 2px; }
+.rules-ref-body { overflow-x: auto; padding-bottom: 8px; }
+.rules-ref table { border-collapse: collapse; font-size: 12px; }
+.rules-ref th { text-align: left; font-weight: 600; color: var(--muted); padding: 3px 10px 3px 0; }
+.rules-ref td { vertical-align: top; padding: 3px 10px 3px 0; color: var(--muted); }
+.rules-ref td:first-child { white-space: nowrap; }
+
+.rule-suggest { position: fixed; inset: auto; margin: 0; max-height: min(320px, 60vh); }
+.rule-suggest .score-picker-opt { align-items: baseline; }
+.rule-suggest-status { padding: 4px 8px 6px; margin-bottom: 2px; border-bottom: 1px solid var(--border2); color: var(--muted); }
+.rule-suggest-status.err { color: var(--q-err); }
+.rule-suggest-status code { font-family: var(--font-mono); color: var(--q-field); }
+.rule-suggest-group { display: flex; justify-content: space-between; padding: 7px 8px 2px; font-size: 10.5px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+.rule-suggest-label { flex: none; min-width: 84px; font-family: var(--font-mono); white-space: nowrap; }
+.rule-suggest-label b { font-weight: 700; text-decoration: underline; text-underline-offset: 2px; }
+.rule-suggest-field { color: var(--q-field); }
+.rule-suggest-value { color: var(--q-value); }
+.rule-suggest-op { color: var(--q-op); }
+.score-picker-opt.active .rule-suggest-label { color: inherit; }
+.rule-suggest .score-picker-label { color: var(--muted); }
+.rule-suggest .score-picker-opt.active .score-picker-label { color: rgba(255, 255, 255, 0.85); }
+.rule-suggest-hint { margin-top: 4px; padding: 6px 8px 2px; border-top: 1px solid var(--border2); color: var(--muted); }
+.rule-suggest-hint code { font-family: var(--font-mono); color: var(--q-value); }
+.rule-suggest-foot { margin-top: 4px; padding: 6px 8px 2px; border-top: 1px solid var(--border2); color: var(--faint); font-family: var(--font-mono); font-size: 11.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .rule-arrow { color: var(--faint); font-size: 14px; width: 14px; text-align: center; flex-shrink: 0; }
 .rule-note-wrap { flex: 1; min-width: 0; display: flex; align-items: center; cursor: text; border-radius: 3px; padding: 2px 3px; gap: 3px; }
 .rule-note-wrap:hover { background: var(--bg); }
