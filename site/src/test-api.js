@@ -343,12 +343,12 @@ const __grawlixTest = {
   fetchWorkerProvenance: (typedRaw, previewRaw, clickedNorm, clickedDisplay, timeout) =>
     fetchWorkerProvenance(typedRaw, previewRaw, clickedNorm, clickedDisplay, timeout),
 
-  // Post-flip there's no main corpus, so the oracle dumps the worker's corpus for
-  // the requested scope. Kept as `dumpMainCorpus` so the specs comparing two dumps
-  // (worker self-build vs this) read unchanged; both now come from the worker.
+  // The rebuild oracle: a fresh worker build from IDB, never the owned corpus. Main's
+  // save re-splices that corpus, so dumping it compares a splice to itself and a
+  // splice-only drift passes every spec that diffs against this.
   async dumpMainCorpus(scope) {
     await pipelineIdle();
-    const { entries } = await dumpWorkerCorpus(scope);
+    const { entries } = await dumpWorkerCorpus(scope, { fresh: true });
     return entries;
   },
 

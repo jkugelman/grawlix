@@ -21,19 +21,25 @@ export function concreteDisplay(wlE, norm, distinguishing) {
   return wlE.display ?? (distinguishing ? norm : null);
 }
 
+const newBucket = () => ({ contributors: [], displays: new Set() });
+
+function addGroup(bucket, wordlist, norm, group) {
+  const distinguishing = isDistinguishing(group);
+  for (const wlE of group) {
+    const display = concreteDisplay(wlE, norm, distinguishing);
+    bucket.contributors.push({ wordlist, score: wlE.score, rawScore: wlE.rawScore, comment: wlE.comment || '', display });
+    if (display != null) bucket.displays.add(display);
+  }
+}
+
 // `sourceList[0]` is highest priority; winner resolution depends on it.
 export function bucketContributors(sourceList) {
   const buckets = new Map();
   for (const wordlist of sourceList) {
     sourceAccessor(wordlist).forEachGroup((norm, group) => {
-      const distinguishing = isDistinguishing(group);
       let b = buckets.get(norm);
-      if (!b) buckets.set(norm, b = { contributors: [], displays: new Set() });
-      for (const wlE of group) {
-        const display = concreteDisplay(wlE, norm, distinguishing);
-        b.contributors.push({ wordlist, score: wlE.score, rawScore: wlE.rawScore, comment: wlE.comment || '', display });
-        if (display != null) b.displays.add(display);
-      }
+      if (!b) buckets.set(norm, b = newBucket());
+      addGroup(b, wordlist, norm, group);
     });
   }
   return buckets;
@@ -55,47 +61,47 @@ export function pickWinner(contributors, eligible, mode) {
   return winner;
 }
 
+// A row passes its winning list only on that contributor's first win: a bare entry
+// winning several spellings counts once, or a list's count can exceed its size.
+function resolveBucket(norm, { contributors, displays }, mode, emit) {
+  // The common case skips the variant scan; it must resolve exactly as the general
+  // path does, or single-contributor norms silently diverge.
+  if (contributors.length === 1) {
+    const c = contributors[0];
+    // `_i` (the worker's index into ownedCorpus.entries) is declared in the literal,
+    // not added later, so V8 keeps it in-object; a post-construction add spills one
+    // PropertyArray per row (~13 MB at ~660K rows). The worker overwrites the -1.
+    emit({ norm, display: c.display, score: c.score, rawScore: c.rawScore, comment: c.comment, wordlist: c.wordlist, family: '', _i: -1 }, c.wordlist);
+    return;
+  }
+  const variants = displays.size > 0 ? [...displays].sort() : [null];
+  const counted = new Set();
+  for (const variant of variants) {
+    const eligible = c => c.display === variant || c.display === null;
+    const winner = pickWinner(contributors, eligible, mode);
+    if (!winner) continue;
+    const commenter = contributors.find(c => eligible(c) && c.comment) ?? winner;
+    const first = !counted.has(winner);
+    counted.add(winner);
+    emit({ norm, display: variant, score: winner.score, rawScore: winner.rawScore, comment: commenter.comment, wordlist: winner.wordlist, family: '', _i: -1 }, first ? winner.wordlist : null);
+  }
+}
+
 export function resolveCorpus(buckets, sourceList, mode = 'first') {
   const entries = [];
   const byKey = new Map();
   const sourceCountMap = new Map();
-  const bumpCount = wl => sourceCountMap.set(wl, (sourceCountMap.get(wl) || 0) + 1);
-  for (const [norm, { contributors, displays }] of buckets) {
-    // Single-contributor buckets (the common case) resolve to exactly that
-    // contributor on its display — must mirror the general path below, or these
-    // norms silently diverge from multi-contributor ones.
-    if (contributors.length === 1) {
-      const c = contributors[0];
-      // `_i` (the worker's index into ownedCorpus.entries) is declared in the literal,
-      // not added later, so V8 keeps it in-object; a post-construction add spills one
-      // PropertyArray per row (~13 MB at ~660K rows). The worker overwrites the -1.
-      const row = { norm, display: c.display, score: c.score, rawScore: c.rawScore, comment: c.comment, wordlist: c.wordlist, family: '', _i: -1 };
-      entries.push(row);
-      byKey.set(mergeKey(norm, c.display), row);
-      bumpCount(c.wordlist);
-      continue;
-    }
-    const variants = displays.size > 0 ? [...displays].sort() : [null];
-    const countedContributors = new Set();
-    for (const variant of variants) {
-      const eligible = c => c.display === variant || c.display === null;
-      const winner = pickWinner(contributors, eligible, mode);
-      if (!winner) continue;
-      const commenter = contributors.find(c => eligible(c) && c.comment) ?? winner;
-      const row = { norm, display: variant, score: winner.score, rawScore: winner.rawScore, comment: commenter.comment, wordlist: winner.wordlist, family: '', _i: -1 };
-      entries.push(row);
-      byKey.set(mergeKey(norm, variant), row);
-      if (!countedContributors.has(winner)) {
-        countedContributors.add(winner);
-        bumpCount(winner.wordlist);
-      }
-    }
-  }
+  const emit = (row, winner) => {
+    entries.push(row);
+    byKey.set(mergeKey(row.norm, row.display), row);
+    if (winner) sourceCountMap.set(winner, (sourceCountMap.get(winner) || 0) + 1);
+  };
+  for (const [norm, bucket] of buckets) resolveBucket(norm, bucket, mode, emit);
 
   // Equivalence to localeCompare holds only because norm is strictly [a-z0-9];
   // widen toNorm's alphabet and this silently mis-orders. The display tie-break must
-  // stay localeCompare to match computeMergedBucket/recomputeScopedBucket, whose rows
-  // the splice writes positionally — diverge and its identity check drops cache tiles.
+  // stay localeCompare to match computeBucket, whose rows the splice writes
+  // positionally — diverge and its identity check drops cache tiles.
   entries.sort((a, b) => a.norm < b.norm ? -1 : a.norm > b.norm ? 1
     : (a.display ?? '').localeCompare(b.display ?? ''));
 
@@ -213,37 +219,27 @@ export function diffWordlistEntries(oldEntries, newEntries) {
   return { added, deleted, rescored, affectedNorms: [...affected] };
 }
 
-// Must reproduce buildCorpus's per-bucket logic exactly — including deduping
-// winners by contributor, not wordlist — or the worker's in-place owned-corpus
-// splice (which calls this per affected norm) drifts from a full rebuild.
-export function computeMergedBucket(norm, sources, mode = 'first') {
-  const contributors = [];
-  const displays = new Set();
+// The worker's in-place splice writes these rows over a built corpus, so they must
+// match buildCorpus(sources, mode) exactly or the view silently drifts from a
+// rebuild. No enabled filter: a scoped corpus shows its list even when disabled.
+export function computeBucket(norm, sources, mode = 'first') {
+  const bucket = newBucket();
   for (const wl of sources) {
-    if (!wl.enabled) continue;
     const group = sourceAccessor(wl).rescoredForNorm(norm);
-    if (group === undefined) continue;
-    const distinguishing = isDistinguishing(group);
-    for (const e of group) {
-      const display = concreteDisplay(e, norm, distinguishing);
-      contributors.push({ wordlist: wl, score: e.score, comment: e.comment || '', display });
-      if (display != null) displays.add(display);
-    }
+    if (group !== undefined) addGroup(bucket, wl, norm, group);
   }
   const rows = [];
   const winners = [];
-  const counted = new Set();
-  const variants = displays.size > 0 ? [...displays].sort() : [null];
-  for (const variant of variants) {
-    const eligible = c => c.display === variant || c.display === null;
-    const winner = pickWinner(contributors, eligible, mode);
-    if (!winner) continue;
-    const commenter = contributors.find(c => eligible(c) && c.comment) ?? winner;
-    rows.push({ norm, display: variant, score: winner.score, comment: commenter.comment, wordlist: winner.wordlist, family: '', _i: -1 });
-    if (!counted.has(winner)) { counted.add(winner); winners.push(winner.wordlist); }
-  }
+  resolveBucket(norm, bucket, mode, (row, winner) => {
+    rows.push(row);
+    if (winner) winners.push(winner);
+  });
   rows.sort((a, b) => (a.display ?? '').localeCompare(b.display ?? ''));
   return { rows, winners };
+}
+
+export function computeMergedBucket(norm, sources, mode = 'first') {
+  return computeBucket(norm, sources.filter(wl => wl.enabled), mode);
 }
 
 export function mergedNormLowerBound(entries, norm) {

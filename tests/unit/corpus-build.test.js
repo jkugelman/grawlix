@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildCorpus, assignFamilies, scopeSourceIds, mergedContributors, bestRowForNorm, computeMergedBucket } from '../../site/src/engine/corpus.js';
+import { buildCorpus, assignFamilies, scopeSourceIds, mergedContributors, bestRowForNorm, computeBucket, computeMergedBucket } from '../../site/src/engine/corpus.js';
 import { compileRescoreRules } from '../../site/src/engine/rescore.js';
 
 // rawScore is absent from raw entries; bucketContributors carries it through, so
@@ -360,7 +360,7 @@ test('computeMergedBucket matches a rebuild under highest score wins', () => {
   const sources = [E, A, B];
   const rebuilt = buildCorpus(sources, 'highest').entries;
   const spliced = computeMergedBucket('theirs', sources, 'highest').rows;
-  assert.deepStrictEqual(project(spliced).map(({ rawScore, ...r }) => r), project(rebuilt).map(({ rawScore, ...r }) => r));
+  assert.deepStrictEqual(project(spliced), project(rebuilt));
   assert.deepStrictEqual(project(rebuilt).map(e => [e.display, e.score, e.source]), [
     ['the IRS', 90, 'B'],
     ['Theirs', 10, 'My Edits'],
@@ -379,4 +379,20 @@ test('a single-list corpus is the same under either mode', () => {
     wlEntry('eta', 40), wlEntry('eta', 70, { display: 'ETA' }), wlEntry('crane', 10),
   ]);
   assert.deepStrictEqual(project(buildCorpus([W], 'highest').entries), project(buildCorpus([W], 'first').entries));
+});
+
+test('computeMergedBucket keeps a rescored winner\'s raw score, as a rebuild does', () => {
+  const A = src('A', [wlEntry('crane', 60)], { rescoreRules: [{ query: 'score: 60', output: '85', note: '' }] });
+  compileRescoreRules(A);
+  const B = src('B', [wlEntry('crane', 40)]);
+  const rebuilt = project(buildCorpus([A, B]).entries);
+  assert.deepStrictEqual(project(computeMergedBucket('crane', [A, B]).rows), rebuilt);
+  assert.equal(rebuilt[0].rawScore, 60);
+});
+
+test('computeBucket over one list keeps a bare entry beside its spelled sibling, as a rebuild does', () => {
+  const W = src('W', [wlEntry('eta', 40), wlEntry('eta', 70, { display: 'ETA' })]);
+  const rebuilt = project(buildCorpus([W]).entries);
+  assert.deepStrictEqual(project(computeBucket('eta', [W]).rows), rebuilt);
+  assert.deepStrictEqual(rebuilt.map(e => [e.display, e.score]), [['eta', 40], ['ETA', 70]]);
 });

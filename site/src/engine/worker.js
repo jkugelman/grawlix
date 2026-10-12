@@ -19,7 +19,7 @@ import { matchesRange, parseViewFilter } from './range.js';
 import { compileRescoreRules } from './rescore.js';
 import { countRules } from './rule-counts.js';
 import { sourceAccessor, invalidateSourceAccessor, parseWordlistColumns, columnsFromEntries } from './sources.js';
-import { buildCorpus, assignFamilies, scopeSourceIds, mergedContributors, resolveEditSeedWinner, mergeKey, bestRowForNorm, mergedNormLowerBound, mergedRowsForNorm, computeMergedBucket, diffWordlistEntries, isDistinguishing, concreteDisplay, winsMergedRow } from './corpus.js';
+import { buildCorpus, assignFamilies, scopeSourceIds, mergedContributors, resolveEditSeedWinner, mergeKey, bestRowForNorm, mergedNormLowerBound, mergedRowsForNorm, computeBucket, computeMergedBucket, diffWordlistEntries, isDistinguishing, concreteDisplay, winsMergedRow } from './corpus.js';
 import { familyKey, generateRelativeNorms, configureCommonWords,
          nameParts, nameAnchorRun, NAME_RELATIVE_CAP } from './morphology.js';
 import { COMMON_WORDS, LEMMA_BASES } from './common-words-data.js';
@@ -2237,29 +2237,6 @@ function invalidateRescoredCacheFor(wl) {
   invalidateSourceAccessor(wl);
 }
 
-// The scoped (single-source) bucket recompute. Unlike computeMergedBucket it
-// ignores enabled (a scoped corpus shows its source regardless) and carries
-// `rawScore`, as a rebuild of the scoped corpus does, so omitting it would
-// silently diverge on rescored norms.
-function recomputeScopedBucket(norm, source) {
-  const arr = sourceAccessor(source).rescoredForNorm(norm) ?? [];
-  const displays = new Set();
-  for (const e of arr) if (e.display != null) displays.add(e.display);
-  const rows = [];
-  const winners = [];
-  const variants = displays.size > 0 ? [...displays].sort() : [null];
-  for (const variant of variants) {
-    const eligible = c => c.display === variant || c.display === null;
-    const winner = arr.find(eligible);
-    if (!winner) continue;
-    const commenter = arr.find(c => eligible(c) && c.comment) ?? winner;
-    rows.push({ norm, display: variant, score: winner.score, rawScore: winner.rawScore, comment: commenter.comment || '', wordlist: source, family: '', _i: -1 });
-    winners.push(source);
-  }
-  rows.sort((a, b) => (a.display ?? '').localeCompare(b.display ?? ''));
-  return { rows, winners };
-}
-
 // In-place per-norm splice of an owned corpus: entries/byKey/norms all take the
 // same splice or they silently desync, and sourceCounts shifts by the winner delta.
 // bucketFn recomputes one norm's resolved rows. (The pipeline seeds straight off
@@ -2295,8 +2272,8 @@ function spliceOwnedCorpus(cache, affectedNorms, bucketFn) {
       for (let k = 0; k < rows.length; k++) {
         const old = entries[lo + k], r = rows[k];
         old.score = r.score; old.comment = r.comment;
+        old.rawScore = r.rawScore;
         old.wordlist = r.wordlist; old.family = r.family;
-        if ('rawScore' in r) old.rawScore = r.rawScore;
       }
     } else if (rows.length === hi - lo && restyleKeepsResult(cache, lo, rows)) {
       // Fresh objects, not respelled old ones: norm.js caches spelling-derived
@@ -2352,9 +2329,6 @@ function withFamilies(bucket, vocab) {
 // ownedBuilt), not just `source` — narrowing to the changed source would silently
 // drop a higher-priority list's winner for a norm `source` no longer touches.
 function applyOwnedEdit(source, affectedNorms) {
-  // computeMergedBucket (not the rawScore-carrying scoped variant): the merged
-  // corpus drops rawScore on every entry (a full buildCorpus merge would too), so
-  // the in-place splice must drop it to stay byte-identical to a rebuild.
   const norms = [...affectedNorms];
   const wasInMerge = norms.map(n => ownedMerged.norms.has(n));
   const merged = spliceOwnedCorpus(ownedMerged, norms, norm => withFamilies(computeMergedBucket(norm, ownedBuilt, mergeMode()), ownedMerged.vocab));
@@ -2370,7 +2344,7 @@ function applyOwnedEdit(source, affectedNorms) {
   // source it's a distinct single-source build — diverge from that and the scoped
   // view drifts from a rebuild with no error.
   if (ownedScope === source.dbKey && ownedCorpus !== ownedMerged) {
-    const scoped = spliceOwnedCorpus(ownedCorpus, norms, norm => withFamilies(recomputeScopedBucket(norm, source), ownedCorpus.vocab));
+    const scoped = spliceOwnedCorpus(ownedCorpus, norms, norm => withFamilies(computeBucket(norm, [source], mergeMode()), ownedCorpus.vocab));
     if (scoped.replaced || scoped.restyled) purgeCacheForCorpus(ownedCorpus);
     replaced = scoped.replaced || replaced;
   }
@@ -2850,9 +2824,9 @@ async function handleQueryEntry({ requestId, scope, norm, display }) {
   }
 }
 
-async function dumpCorpus(scope) {
+async function dumpCorpus(scope, fresh) {
   try {
-    const corpus = await corpusForScope(scope);
+    const corpus = await (fresh ? buildSelfCorpus(scope) : corpusForScope(scope));
     const entries = corpus.entries.map(e =>
       [e.norm, e.display, e.score, e.rawScore, e.comment, e.wordlist.dbKey]);
     postMessage({ type: 'corpusDump', scope, entries });
@@ -3092,7 +3066,7 @@ onmessage = ({ data }) => {
     }
 
     case 'dumpCorpus':
-      dumpCorpus(data.scope);
+      dumpCorpus(data.scope, data.fresh);
       break;
 
     case 'queryEntry':

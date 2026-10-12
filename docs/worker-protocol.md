@@ -767,12 +767,12 @@ The worker also **writes the My Edits IDB itself** (main holds no `rawEntries`-t
   1. **Apply the write-set to the My Edits source's `rawEntries`** (the `type: 'edits'` source in `ownedBuilt`) via the shared `applyEditsWriteSet` — the same function main runs, so the two threads' My Edits never drift.
      Invalidate that source's rescored caches.
   2. **Affected norms** = the dedup of every norm across `writes.deletes` + `writes.upserts` — one or two for a plain edit/rename, more when a downscore or keep copy adds a side write.
-  3. **Splice `ownedMerged`** per affected norm (`spliceOwnedCorpus`): recompute the bucket via the **rawScore-dropping** `computeMergedBucket(norm, ownedBuilt)` (a full merge drops `rawScore`, so the splice must too), then splice `entries`/`byKey`/`norms` and shift `sourceCounts` by the winner delta — **counted per merged row, not per distinct winning source** (a multi-variant norm one source wins several times contributes one merged entry *per variant*, so the decrement iterates the old rows symmetrically with the per-row `winners` increment; a `Set` would drift `sourceCounts` from a rebuild's by the duplicate-winner count).
+  3. **Splice `ownedMerged`** per affected norm (`spliceOwnedCorpus`): recompute the bucket via `computeMergedBucket(norm, ownedBuilt)`, which resolves one norm through the same code as the full build, then splice `entries`/`byKey`/`norms` and shift `sourceCounts` by the winner delta — **counted per merged row, not per distinct winning source** (a multi-variant norm one source wins several times contributes one merged entry *per variant*, so the decrement iterates the old rows symmetrically with the per-row `winners` increment; a `Set` would drift `sourceCounts` from a rebuild's by the duplicate-winner count).
      When an affected norm's `(norm, display)` row set is unchanged — a score/comment edit, or a winner flip keeping the same spellings — `spliceOwnedCorpus` reconciles the resolved fields onto the **existing** row objects in place instead of swapping in fresh ones, preserving the identities the prefix cache's tiles hold by reference.
      When the row count holds but spellings changed — a **respelling** (spacing, case, punctuation; same norm) — and `restyleKeepsResult` proves the displayed flat result keeps its membership, the splice instead **restyles**: it swaps the freshly built rows into the norm's existing slots (fresh objects, since `norm.js` caches spelling-derived values on a row; `_i` stamped per slot) so no position moves.
      The proof: no live run, no grouped/transform result, and — when this is the displayed corpus — a stack whose only active rows are non-inverted Search filters, with every swapped slot's verdict unchanged: before is the slot's membership in the retained `join`, after is the new row re-tested through the result's `highlighters`.
      A restyle purges the corpus's cache entries (a cached result for another query may have matched on the old spelling) but leaves `replaced` false.
-  4. **When scoped to My Edits** (`ownedScope === editsDbKey`, so `ownedCorpus !== ownedMerged`), splice `ownedCorpus` too — a single-source recompute (`recomputeScopedBucket`) that **ignores `enabled`** and **carries `rawScore`**, as a rebuild of the scoped corpus does.
+  4. **When scoped to My Edits** (`ownedScope === editsDbKey`, so `ownedCorpus !== ownedMerged`), splice `ownedCorpus` too — `computeBucket(norm, [source])`, the same per-norm resolve over the one source, which **ignores `enabled`** as a rebuild of the scoped corpus does.
      For MERGED scope `ownedCorpus === ownedMerged`, already spliced.
   5. **When any affected norm reshaped its variant set** — a *replacing* splice swaps row objects and shifts later indices — **restamp every entry's `_i`**; the replacing splice's `purgeCacheForCorpus` also drops the prefix tiles that held the old objects by reference.
      A run of pure in-place reconciles skips both, so the next run reuses the cached tool output (e.g. Umiaq's tuple search) instead of re-running the stack.
@@ -987,9 +987,11 @@ This is how the worker gets its corpus — it never receives the corpus as bulk 
   The worker invalidates its histogram-layout cache (key `'all'`) before computing, so a later `syncConfig` with changed scores doesn't return a stale axis.
 
 #### `dumpCorpus` (test-only)
-`{ type: 'dumpCorpus', scope }` — build a corpus from the synced `selfConfig` and post it back for fixture comparison.
+`{ type: 'dumpCorpus', scope, fresh? }` — post a scope's corpus back for fixture comparison.
 - `scope` — `MERGED_ID` for the merged build (enabled sources only), or a `sourceId` for a single-source scoped build (regardless of `enabled`).
-- **On receipt (`corpusForScope`):** `MERGED_ID` dumps the held `ownedMerged` (no rebuild).
+- `fresh` — build the scope from IDB and the synced `selfConfig`, ignoring the owned corpora.
+  `dumpMainCorpus`, the specs' rebuild oracle, sets it: dumping an owned corpus after an edit compares the splice to itself.
+- **On receipt without `fresh` (`corpusForScope`):** `MERGED_ID` dumps the held `ownedMerged` (no rebuild).
   A scope equal to the active owned scope (`ownedScope === scope && ownedCorpusFresh`) dumps the live, in-place-spliced `ownedCorpus` directly — so an `editEntry` splice is observable.
   Any other scope builds on demand from IDB.
   Replies `corpusDump`.

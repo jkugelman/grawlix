@@ -696,7 +696,7 @@ export function resyncWorkerConfig() {
   syncWorkerConfig(state.sources);
 }
 
-export function dumpWorkerCorpus(scope, timeout = 10000) {
+export function dumpWorkerCorpus(scope, { fresh = false, timeout = 10000 } = {}) {
   const w = getWorker();
   return new Promise(resolve => {
     const timer = setTimeout(() => { w.removeEventListener('message', onMessage); resolve({ entries: [], error: 'timeout' }); }, timeout);
@@ -707,7 +707,7 @@ export function dumpWorkerCorpus(scope, timeout = 10000) {
       resolve({ entries: data.entries, error: data.error });
     }
     w.addEventListener('message', onMessage);
-    w.postMessage({ type: 'dumpCorpus', scope });
+    w.postMessage({ type: 'dumpCorpus', scope, fresh });
   });
 }
 

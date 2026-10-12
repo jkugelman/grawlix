@@ -130,12 +130,6 @@ test('edit — multi-variant norm', async ({ page }) => {
   expect(variants).toEqual(['The Irs', 'the IRS']);
 });
 
-// A two-norm MOVE that vacates a norm a RESCORED source also holds: the merged
-// winner for the vacated norm hands off to Alpha (rescored → carries rawScore).
-// This is the rawScore-sensitive case — main patches the bucket via
-// patchMergedForNorms (which drops rawScore on patched norms) and the worker's
-// merged splice uses computeMergedBucket (also rawScore-dropping), so the two
-// stay byte-identical; a rawScore-carrying worker splice would diverge here.
 test('edit — moving a My Edits entry to a new norm junks the vacated norm, suppressing a foreign rescored row', async ({ page }) => {
   await gotoApp(page);
   await seed(page);
@@ -245,6 +239,27 @@ test('edit while scoped to My Edits splices the scoped corpus too', async ({ pag
   expect(workerScoped).not.toEqual(preScoped);   // scoped corpus actually changed
   expect(workerMerged).toEqual(mainMerged);
   expect(workerMerged).not.toEqual(preMerged);
+});
+
+test('scoped to My Edits, a bare entry beside its spelled sibling keeps its own row after an edit', async ({ page }) => {
+  await gotoApp(page);
+  await seed(page);
+  await page.evaluate(() => window.__grawlixTest.reimport('My Edits', ['GULL;95', 'theirs;60', 'the IRS;88'].join('\n')));
+  const editsKey = await page.evaluate(() => window.__grawlixTest.flushEditsToIdb());
+  await enterFreshOwned(page, 'My Edits');
+
+  const pre = (await dumpWorker(page, editsKey)).entries;
+  await page.evaluate(() => window.__grawlixTest.sendWorkerEditEntry(
+    { norm: 'theirs', display: 'the IRS' },
+    { norm: 'theirs', display: 'the IRS', score: 33, comment: 'edited' },
+  ));
+  const spliced = (await dumpWorker(page, editsKey)).entries;
+  await page.evaluate(() => window.__grawlixTest.saveMyEditFrom({ norm: 'theirs', display: 'the IRS' }, 'the IRS', 33, 'edited'));
+  const rebuilt = await dumpMain(page, editsKey);
+
+  expect(spliced).toEqual(rebuilt);
+  expect(spliced).not.toEqual(pre);
+  expect(spliced.filter(e => e[0] === 'theirs').map(e => [e[1], e[2]])).toEqual([['the IRS', 33], ['theirs', 60]]);
 });
 
 // ─── Freshness-window regression: no resync, immediate rich rows ──────────────

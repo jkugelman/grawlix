@@ -315,7 +315,8 @@ When every contributor to a norm has `display: null`, the merged row renders `no
 The ambience is **cross-source only**.
 A single source holding *both* a bare entry and a spelled sibling of the same norm — `theirs` and `the IRS` in one list — is distinguishing them on purpose, so the bucketer **concretizes** that bare entry to its norm: it earns its own `theirs` row and stops leaking onto the sibling.
 The spelled form is the proof the bare one is the literal word, not an ambiguous letter-run that might *be* the sibling.
-Without the carve-out the bare entry's wildcard absorbs the sibling's spelling and the two genuinely-distinct words collapse to one row — `bucketContributors` and the worker's per-norm `computeMergedBucket` apply the rule in lockstep so a full rebuild and an in-place edit splice agree.
+Without the carve-out the bare entry's wildcard absorbs the sibling's spelling and the two genuinely-distinct words collapse to one row.
+A full build (`bucketContributors`) and the worker's per-norm edit splice (`computeBucket`) gather and resolve a norm through the same code, so they can't disagree on it.
 
 **Comment falls through blanks.**
 Score, display, and source attribution come from the winning eligible contributor (§ *The manage panel*, merge mode), but `comment` walks the eligibility chain, in priority order, for the first non-blank value.
