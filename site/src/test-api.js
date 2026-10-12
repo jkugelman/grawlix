@@ -304,7 +304,7 @@ const __grawlixTest = {
     });
   },
   syncWorkerConfig: (sources = state.sources) => syncWorkerConfig(sources),
-  dumpWorkerCorpus: (scope) => dumpWorkerCorpus(scope),
+  dumpWorkerCorpus: (scope, opts) => dumpWorkerCorpus(scope, opts),
   fetchWorkerRows: (start, end, runId, timeout) =>
     fetchWorkerRows(runId ?? lastCompletedRunId(), start, end, timeout),
   fetchWorkerGroupChains: (groupKey, start, end, runId, timeout) =>

@@ -52,6 +52,8 @@ const dumpWorker = (page, scope) =>
   page.evaluate(s => window.__grawlixTest.dumpWorkerCorpus(s), scope);
 const dumpMain = (page, scope) =>
   page.evaluate(s => window.__grawlixTest.dumpMainCorpus(s), scope);
+const rebuiltCounts = (page, scope) =>
+  page.evaluate(s => window.__grawlixTest.dumpWorkerCorpus(s, { fresh: true }), scope).then(d => d.counts);
 
 // Captures the worker dump BEFORE applying the edit to main — main's saveMyEdit
 // persist fires a resync, so this ordering is what guarantees no resync sits
@@ -66,16 +68,19 @@ async function runEditCase(page, { orig, next }) {
   const workerDump = await dumpWorker(page, MERGED);
   expect(workerDump.error).toBeFalsy();
   const workerPost = workerDump.entries;
+  const workerCounts = workerDump.counts;
 
   await page.evaluate(({ o, n }) =>
     window.__grawlixTest.saveMyEditFrom(o, n.display, n.score, n.comment), { o: orig, n: next });
   const mainPost = await dumpMain(page, MERGED);
+  const mainCounts = await rebuiltCounts(page, MERGED);
 
-  return { pre, workerPost, mainPost, ack };
+  return { pre, workerPost, mainPost, workerCounts, mainCounts, ack };
 }
 
-function assertConverged({ pre, workerPost, mainPost }) {
+function assertConverged({ pre, workerPost, mainPost, workerCounts, mainCounts }) {
   expect(workerPost).toEqual(mainPost);         // worker splice == main rebuild
+  expect(workerCounts).toEqual(mainCounts);
   expect(workerPost).not.toEqual(pre);          // non-vacuity: the edit changed something
 }
 
@@ -260,6 +265,25 @@ test('scoped to My Edits, a bare entry beside its spelled sibling keeps its own 
   expect(spliced).toEqual(rebuilt);
   expect(spliced).not.toEqual(pre);
   expect(spliced.filter(e => e[0] === 'theirs').map(e => [e[1], e[2]])).toEqual([['the IRS', 33], ['theirs', 60]]);
+});
+
+test('a bare entry winning two spellings still counts once after a splice touches its norm', async ({ page }) => {
+  await gotoApp(page);
+  await page.evaluate(() => window.__grawlixTest.addCustomWordlist({ name: 'Bare', entries: ['theirs'], scores: [90] }));
+  await page.evaluate(() => window.__grawlixTest.addCustomWordlist({ name: 'Rich', entries: ['the IRS', 'Theirs'], scores: [60, 20] }));
+  await enterFreshOwned(page, null);
+  const syncsBefore = await page.evaluate(() => window.__grawlixTest.syncConfigsSent());
+
+  await page.evaluate(() => window.__grawlixTest.reimport('Rich', 'the IRS;60\nTheirs;30'));
+  const spliced = await dumpWorker(page, MERGED);
+  const rebuilt = await page.evaluate(s => window.__grawlixTest.dumpWorkerCorpus(s, { fresh: true }), MERGED);
+
+  expect(await page.evaluate(() => window.__grawlixTest.syncConfigsSent())).toBe(syncsBefore);
+  expect(spliced.entries).toEqual(rebuilt.entries);
+  expect(spliced.counts).toEqual(rebuilt.counts);
+  const bareKey = await page.evaluate(() => window.__grawlixTest._lookup('Bare').dbKey);
+  expect(spliced.entries.filter(e => e[5] === bareKey).map(e => e[1])).toEqual(['the IRS', 'Theirs']);
+  expect(spliced.counts.find(([id]) => id === bareKey)).toEqual([bareKey, 1]);
 });
 
 // ─── Freshness-window regression: no resync, immediate rich rows ──────────────

@@ -2238,29 +2238,27 @@ function invalidateRescoredCacheFor(wl) {
 }
 
 // In-place per-norm splice of an owned corpus: entries/byKey/norms all take the
-// same splice or they silently desync, and sourceCounts shifts by the winner delta.
-// bucketFn recomputes one norm's resolved rows. (The pipeline seeds straight off
+// same splice or they silently desync, and sourceCounts shifts from `before[k]`, the
+// winners norm k had before the change, to bucketFn's. bucketFn recomputes one
+// norm's resolved rows. (The pipeline seeds straight off
 // `entries`, so there is no separate chain array to keep in lockstep.)
 //
 // `replaced` is true when any norm's rows shifted position; `restyled` when a norm
 // only respelled its rows, swapped into their existing slots. Either swaps row
 // objects, so the caller keeps the prefix cache's tiles (their chains hold those
 // objects) only while both stay false.
-function spliceOwnedCorpus(cache, affectedNorms, bucketFn) {
+function spliceOwnedCorpus(cache, affectedNorms, before, bucketFn) {
   const { entries, norms, byKey, sourceCounts } = cache;
   const countDelta = new Map();
   let replaced = false, restyled = false;
-  for (const norm of affectedNorms) {
+  for (const [k, norm] of affectedNorms.entries()) {
     const lo = mergedNormLowerBound(entries, norm);
     let hi = lo;
     while (hi < entries.length && entries[hi].norm === norm) hi++;
 
     const { rows, winners } = bucketFn(norm);
 
-    // Per-row, not per distinct wordlist: a multi-variant norm one source wins
-    // several times contributes one merged entry PER variant — a Set here would
-    // undercount the decrement and drift sourceCounts from main's.
-    for (let i = lo; i < hi; i++) countDelta.set(entries[i].wordlist, (countDelta.get(entries[i].wordlist) || 0) - 1);
+    for (const wl of before[k]) countDelta.set(wl, (countDelta.get(wl) || 0) - 1);
     for (const wl of winners) countDelta.set(wl, (countDelta.get(wl) || 0) + 1);
 
     // Reconcile onto the existing row objects when the edit leaves this norm's
@@ -2328,10 +2326,22 @@ function withFamilies(bucket, vocab) {
 // The affected norms are re-merged from ALL sources (computeMergedBucket over
 // ownedBuilt), not just `source` — narrowing to the changed source would silently
 // drop a higher-priority list's winner for a norm `source` no longer touches.
-function applyOwnedEdit(source, affectedNorms) {
+//
+// `mutate` applies the change to `source`. The winners are read before it runs: the
+// old rows alone can't tell one bare entry winning two spellings (counted once) from
+// two entries winning one each, so counting them drifts sourceCounts from a rebuild.
+function applyOwnedEdit(source, affectedNorms, mutate) {
   const norms = [...affectedNorms];
+  const mergedBucket = norm => computeMergedBucket(norm, ownedBuilt, mergeMode());
+  const scopedBucket = norm => computeBucket(norm, [source], mergeMode());
+  const scoped = ownedScope === source.dbKey && ownedCorpus !== ownedMerged;
+  const mergedBefore = norms.map(n => mergedBucket(n).winners);
+  const scopedBefore = scoped ? norms.map(n => scopedBucket(n).winners) : null;
+  mutate();
+  invalidateRescoredCacheFor(source);
+
   const wasInMerge = norms.map(n => ownedMerged.norms.has(n));
-  const merged = spliceOwnedCorpus(ownedMerged, norms, norm => withFamilies(computeMergedBucket(norm, ownedBuilt, mergeMode()), ownedMerged.vocab));
+  const merged = spliceOwnedCorpus(ownedMerged, norms, mergedBefore, norm => withFamilies(mergedBucket(norm), ownedMerged.vocab));
   patchArtifacts(norms.filter((n, i) => ownedMerged.norms.has(n) !== wasInMerge[i]));
   // replaced===true strands a retained join's indices/refs on the swapped-out rows;
   // replaced===false only mutated scores in place, so the entry stays valid and its
@@ -2343,10 +2353,10 @@ function applyOwnedEdit(source, affectedNorms) {
   // For MERGED scope ownedCorpus === ownedMerged (spliced above). Scoped to this
   // source it's a distinct single-source build — diverge from that and the scoped
   // view drifts from a rebuild with no error.
-  if (ownedScope === source.dbKey && ownedCorpus !== ownedMerged) {
-    const scoped = spliceOwnedCorpus(ownedCorpus, norms, norm => withFamilies(computeBucket(norm, [source], mergeMode()), ownedCorpus.vocab));
-    if (scoped.replaced || scoped.restyled) purgeCacheForCorpus(ownedCorpus);
-    replaced = scoped.replaced || replaced;
+  if (scoped) {
+    const spliced = spliceOwnedCorpus(ownedCorpus, norms, scopedBefore, norm => withFamilies(scopedBucket(norm), ownedCorpus.vocab));
+    if (spliced.replaced || spliced.restyled) purgeCacheForCorpus(ownedCorpus);
+    replaced = spliced.replaced || replaced;
   }
 
   // A replacing splice shifts later indices, so restamp `_i` (mirroring setOwnedCorpus);
@@ -2419,11 +2429,8 @@ async function handleEditEntry(data) {
   }
   ensureOwnedCorpus();
 
-  applyEditsWriteSet(edits.rawEntries, writes);
-  invalidateRescoredCacheFor(edits);
-
   const affected = [...new Set([...(writes.deletes || []), ...(writes.upserts || [])].map(w => w.norm))];
-  const ack = applyOwnedEdit(edits, affected);
+  const ack = applyOwnedEdit(edits, affected, () => applyEditsWriteSet(edits.rawEntries, writes));
   postMessage({ type: 'editAck', editId, ...ack });
   await persistEditsCorpus(edits);
   // Bump AGAIN after the IDB write so a syncConfig that read the pre-write text
@@ -2450,10 +2457,7 @@ async function handleDeleteEntry(data) {
     postMessage({ type: 'editAck', editId, axis: ownedAllSourcesAxis, counts: null });
     return;
   }
-  edits.rawEntries.splice(idx, 1);
-  invalidateRescoredCacheFor(edits);
-
-  const ack = applyOwnedEdit(edits, [norm]);
+  const ack = applyOwnedEdit(edits, [norm], () => edits.rawEntries.splice(idx, 1));
   postMessage({ type: 'editAck', editId, ...ack });
   await persistEditsCorpus(edits);
   latestSyncToken++;   // post-write bump — see handleEditEntry
@@ -2624,21 +2628,24 @@ function applyFetchedNow({ requestId, sourceId, text, background }) {
   const preSplice = background && scopeAffected && positionEncoded ? ownedCorpus.entries.slice() : null;
 
   // Materialize the OLD raw entries (transient views over the current store) before
-  // rebuilding — the diff reads them while the new store is built.
+  // swap() replaces it — the diff reads them.
   const oldEntries = sourceAccessor(source).collectRaw();
   const newEntries = parseWordlist(text);
   const wasEmpty = oldEntries.length === 0;
 
   // Re-importing My Edits keeps it object-backed (the edit splice mutates
   // rawEntries); a non-Edits re-import rebuilds the columnar store.
-  if (source.type === 'edits') source.rawEntries = newEntries;
-  else source.cols = columnsFromEntries(newEntries, source.rescoreRules);
-  invalidateRescoredCacheFor(source);
+  const swap = () => {
+    if (source.type === 'edits') source.rawEntries = newEntries;
+    else source.cols = columnsFromEntries(newEntries, source.rescoreRules);
+    invalidateRescoredCacheFor(source);
+  };
 
   // Skip the diff entirely on a first population: nothing downstream reads it (the
   // rebuild ignores affectedNorms, main shows only "Loaded N"), so running it would
   // be an O(n) scan over ~600k entries for output no one consumes.
   if (wasEmpty) {
+    swap();
     const ack = rebuildOwnedFromBuilt(ownedScope);
     const { stale, repatch } = refreshFork(background && scopeAffected, preSplice);
     postMessage({
@@ -2654,9 +2661,11 @@ function applyFetchedNow({ requestId, sourceId, text, background }) {
   // Fallback rebuild is still cheaper than syncConfig — the OTHER sources stay
   // resident in ownedBuilt rather than being re-read from IDB and re-parsed.
   const rebuild = (diff.addedCount + diff.deletedCount) > ADD_DELETE_REBUILD_CAP;
-  const ack = rebuild
-    ? rebuildOwnedFromBuilt(ownedScope)
-    : applyOwnedEdit(source, diff.affectedNorms);
+  let ack;
+  if (rebuild) {
+    swap();
+    ack = rebuildOwnedFromBuilt(ownedScope);
+  } else ack = applyOwnedEdit(source, diff.affectedNorms, swap);
 
   const { stale, repatch } = refreshFork(background && scopeAffected && (rebuild || ack.replaced), preSplice);
 
@@ -2829,7 +2838,9 @@ async function dumpCorpus(scope, fresh) {
     const corpus = await (fresh ? buildSelfCorpus(scope) : corpusForScope(scope));
     const entries = corpus.entries.map(e =>
       [e.norm, e.display, e.score, e.rawScore, e.comment, e.wordlist.dbKey]);
-    postMessage({ type: 'corpusDump', scope, entries });
+    const counts = corpus.sourceCounts.filter(s => s.count > 0)
+      .map(s => [s.wordlist.dbKey, s.count]).sort((a, b) => a[0].localeCompare(b[0]));
+    postMessage({ type: 'corpusDump', scope, entries, counts });
   } catch (e) {
     postMessage({ type: 'corpusDump', scope, entries: [], error: e?.message || String(e) });
   }

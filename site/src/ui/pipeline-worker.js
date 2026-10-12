@@ -704,7 +704,7 @@ export function dumpWorkerCorpus(scope, { fresh = false, timeout = 10000 } = {})
       if (data?.type !== 'corpusDump' || data.scope !== scope) return;
       clearTimeout(timer);
       w.removeEventListener('message', onMessage);
-      resolve({ entries: data.entries, error: data.error });
+      resolve({ entries: data.entries, counts: data.counts, error: data.error });
     }
     w.addEventListener('message', onMessage);
     w.postMessage({ type: 'dumpCorpus', scope, fresh });
