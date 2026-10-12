@@ -205,7 +205,7 @@ async function shiftIndex(ctx, spacing) {
     if (bucket) bucket.push(node);
     else buckets.set(node.skeleton, [node]);
   }
-  const index = new Map();
+  const keysByDisplay = new Map();
   let bytes = 0;
   for (const bucket of buckets.values()) {
     if (!bucket.some(a => bucket.some(b => stressShifts(a, b) && swapOf(a, b) !== null))) continue;
@@ -214,24 +214,28 @@ async function shiftIndex(ctx, spacing) {
       for (const display of displays) {
         const reading = readingsOf(display, spacing).find(r => r.pron === pron);
         const node = withLetters(reading, toNorm(display));
-        if (!nodes.has(node.id)) nodes.set(node.id, node);
+        const known = nodes.get(node.id);
+        if (known) known.displays.add(display);
+        else nodes.set(node.id, { ...node, displays: new Set([display]) });
       }
     }
     for (const clique of cliquesOf([...nodes.values()])) {
       if (!clique.some(a => clique.some(b => stressShifts(a, b)))) continue;
       const key = keyOf(clique);
-      for (const { id } of clique) {
-        const keys = index.get(id);
-        if (keys) keys.push(key);
-        else index.set(id, [key]);
-        bytes += BYTES_PER_INDEX_SLOT + 2 * key.length;
+      for (const { displays } of clique) {
+        for (const display of displays) {
+          const keys = keysByDisplay.get(display);
+          if (!keys) keysByDisplay.set(display, [key]);
+          else if (!keys.includes(key)) keys.push(key);
+          else continue;
+          bytes += BYTES_PER_INDEX_SLOT + 2 * (key.length + display.length);
+        }
       }
     }
     if (ctx.due()) await ctx.yield();
   }
-  const value = { index, prons: new Set([...index.keys()].map(pronOf)) };
-  ctx.cache.put(INDEX_KEY, value, bytes);
-  return value;
+  ctx.cache.put(INDEX_KEY, keysByDisplay, bytes);
+  return keysByDisplay;
 }
 
 function readingsIn(display, key, spacing) {
@@ -289,16 +293,9 @@ export default {
       await ensureDict();
       await loadSpacingCorpus();
       const spacing = await buildSpacingTable(ctx);
-      return { spacing, show: params.show || 'homophones', ...await shiftIndex(ctx, spacing) };
+      return { spacing, show: params.show || 'homophones', keysByDisplay: await shiftIndex(ctx, spacing) };
     },
-    key(display, { spacing, index, prons }) {
-      const keys = new Set();
-      for (const reading of readingsOf(display, spacing)) {
-        if (!prons.has(reading.pron)) continue;
-        for (const key of index.get(withLetters(reading, toNorm(display)).id) ?? []) keys.add(key);
-      }
-      return [...keys];
-    },
+    key: (display, { keysByDisplay }) => keysByDisplay.get(display) ?? [],
     memberReadings: (display, key, ctx) => memberReadings(display, key, spacingReader(ctx)),
     // Rechecked per group, not settled by the index: an upstream filter can thin a
     // group down to members that all stress alike.

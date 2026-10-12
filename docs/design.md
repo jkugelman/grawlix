@@ -543,7 +543,7 @@ A phrase still meets a word (IN A SENSE and INNOCENCE, ATE IN and EIGHTEEN), but
 Connected components would chain: DETER matches DAUGHTER, DEBTOR, and DIETER, which sound nothing like each other.
 Since the spelling check makes a reading's letters part of its identity (GRAY and GREY are two nodes), a group's key is its readings' pronunciations plus vowel letters, and a member's marks re-derive from its text and the key at render time.
 Aligning every reading in the wordlist would cost too much, so only a bucket where some pair could shift is re-read with its letters.
-The index lives in the prepare-artifact cache.
+The index maps each grouped entry to its groups' keys, so bucketing an entry is a lookup, and it lives in the prepare-artifact cache.
 A `keepGroup` re-checks the shift and applies Show, because a filter upstream can thin a group down to members stressed alike.
 On the 865k-row merge (with unspaced entries CMU lacks left unread), the index builds in about three seconds.
 CMU's own wrinkles come through: it lists ELEVEN, EMOTION, and ERODE with an EE- reading stressed on the first syllable, which looks just like REsearch and DEtail.
