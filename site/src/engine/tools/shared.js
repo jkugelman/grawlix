@@ -1,7 +1,7 @@
 'use strict';
 
 import { buildHelpHTML } from '../../core/util.js';
-import { buildSpacingTable, spacingReader, loadSpacingCorpus } from '../space-out.js';
+import { buildSpacingTable, spacingReader, loadSpacingCorpus, SPACING_PASS } from '../space-out.js';
 
 // ─── Cross-tool helpers ──────────────────────────────────────────────────────
 // Only helpers used by 2+ tools belong here; single-use helpers live in their
@@ -30,6 +30,7 @@ export function matchModeReadsWords(params) {
 }
 
 export const matchModeAssets = params => (matchModeReadsWords(params) ? ['unigrams'] : []);
+export const matchModePasses = params => (matchModeReadsWords(params) ? [SPACING_PASS] : []);
 
 // Built up front rather than read on demand: a short pattern's candidates run to
 // hundreds of thousands, and reading each on the spot costs seconds per keystroke.

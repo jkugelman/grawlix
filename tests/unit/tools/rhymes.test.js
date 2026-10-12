@@ -262,7 +262,7 @@ test('the spacing table is built once and reused across target changes', async (
   const wl = merged(['roadrage', 'parkingrage', 'road', 'rage', 'parking', 'bird', 'cage']);
   const store = new Map();
   let puts = 0;
-  const cache = { get: k => store.get(k) ?? null, put: (k, v) => { puts++; store.set(k, v); } };
+  const cache = { get: k => store.get(k) ?? null, peek: k => store.get(k) ?? null, put: (k, v) => { puts++; store.set(k, v); } };
   const rhymesWith = entry =>
     executePipeline(wl, [makeToolRow('rhymes', { entry })], null, { prepareCache: cache })
       .then(out => out.rows.map(rowWords));

@@ -97,7 +97,7 @@ test('all-mode builds the spacing table; the filter reads through it without bui
   spaced();
   const wl = merged([{ entry: 'TIS', score: 60 }, 'the irate senator', 'timeisshort', 'time', 'is', 'short']);
   const store = new Map();
-  const cache = { get: k => store.get(k) ?? null, put: (k, v) => store.set(k, v) };
+  const cache = { get: k => store.get(k) ?? null, peek: k => store.get(k) ?? null, put: (k, v) => store.set(k, v) };
   const run = (params, grouped) =>
     executePipeline(wl, [makeToolRow('initialisms', params, grouped)], null, { prepareCache: cache });
 

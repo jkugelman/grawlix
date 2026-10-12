@@ -178,7 +178,7 @@ function makeWorkingSetView(rows) {
   };
 }
 
-const NO_PREPARE_CACHE = { get: () => null, take: () => null, put() {} };
+const NO_PREPARE_CACHE = { get: () => null, peek: () => null, take: () => null, put() {} };
 
 function makeCtx(wordlist, vocab, signal, y, grouped = false, reversed = false) {
   return {
@@ -189,26 +189,15 @@ function makeCtx(wordlist, vocab, signal, y, grouped = false, reversed = false) 
     throwIfAborted: () => throwIfAborted(signal),
     due: y.due,
     yield: y.yield,
-    progress: y.progress,
     cache: y.cache,
-    async forEach(iterable, fn) {
-      const total = iterable?.length;
+    async forEach(iterable, fn, pass = null) {
+      const total = pass ? iterable?.length : 0;
       let i = 0, yielded = false;
       for (const item of iterable) {
         fn(item, i++);
-        if (y.due()) { if (total) y.progress(i, total); await y.yield(); yielded = true; }
+        if (y.due()) { if (total) y.progress(pass, i / total); await y.yield(); yielded = true; }
       }
-      // Force a terminal 100% only if this pass actually reported — a fast forEach
-      // that never yielded stays silent rather than flashing a full ring.
-      if (yielded && total) y.progress(total, total, true);
-    },
-    async times(n, fn) {
-      let yielded = false;
-      for (let i = 0; i < n; i++) {
-        fn(i);
-        if (y.due()) { y.progress(i + 1, n); await y.yield(); yielded = true; }
-      }
-      if (yielded && n) y.progress(n, n, true);
+      if (pass) y.passDone(pass, yielded);
     },
   };
 }
@@ -301,6 +290,7 @@ export async function executePipeline(wordlist, stack, signal,
     from = 0;
   }
   _lastSeedFrom = from;
+  y.plan(plannedPasses(stack, from, y.cache));
 
   // Run the user-stack suffix [from, userStackLen), offering each inter-stage state as a
   // prefix tile once the time since the last cut clears the floor (greedy marginal-cost
@@ -355,6 +345,36 @@ export async function executePipeline(wordlist, stack, signal,
   };
 }
 
+const BUCKET_WEIGHTS = { keys: 2, groups: 2 };
+const bucketPassesByRow = new WeakMap();
+function bucketPasses(row) {
+  let passes = bucketPassesByRow.get(row);
+  if (!passes) {
+    const weights = { ...BUCKET_WEIGHTS, ...row.def.group.weights };
+    passes = { keys: { key: Symbol('keys'), weight: weights.keys }, groups: { key: Symbol('groups'), weight: weights.groups } };
+    bucketPassesByRow.set(row, passes);
+  }
+  return passes;
+}
+const isCached = pass => cache => cache.peek(pass.artifact ?? pass.key) != null;
+
+// A resumed prefix's rows and an already-built artifact never sweep, and planning
+// them would leave a slice of the ring that never fills.
+export function plannedPasses(stack, from, cache) {
+  const passes = [];
+  for (const row of [...stack.slice(from, -1), stack.at(-1)]) {
+    if (row.isInert()) continue;
+    const group = row.kind() === 'group';
+    const declared = (group ? row.def.group : row.def).passes;
+    const resolved = typeof declared === 'function' ? declared(normalizeParams(row.params, row.def.params)) : declared;
+    for (const pass of resolved ?? []) {
+      if (!(pass.built ?? isCached(pass))(cache)) passes.push(pass);
+    }
+    if (group) passes.push(...Object.values(bucketPasses(row)));
+  }
+  return passes;
+}
+
 async function runStackRow(stackRow, state, wordlist, vocab, signal, y, emit = null, downstream = []) {
   if (stackRow.isInert()) return;
   const { def } = stackRow;
@@ -367,7 +387,7 @@ async function runStackRow(stackRow, state, wordlist, vocab, signal, y, emit = n
       const prepared = def.group.prepare
         ? await def.group.prepare(params, ctx, makeWorkingSetView(state.groups[0].chains))
         : params;
-      state.groups = await bucketize(state.groups[0].chains, def, ctx, prepared);
+      state.groups = await bucketize(state.groups[0].chains, def, ctx, prepared, bucketPasses(stackRow));
       state.grouped = true;
       state.laneKind = 'set';
       return;
@@ -571,7 +591,7 @@ function dropRedundantGroups(groups, memberSets) {
   });
 }
 
-export async function bucketize(chains, def, ctx, prepared) {
+export async function bucketize(chains, def, ctx, prepared, passes = null) {
   const useDisplay = def.matchOn === 'display';
   const coord = useDisplay ? 'display' : 'norm';
   const memberHighlights = def.group.memberHighlights;
@@ -593,7 +613,7 @@ export async function bucketize(chains, def, ctx, prepared) {
       if (!bucket) buckets.set(key, bucket = []);
       bucket.push(chain);
     }
-  });
+  }, passes?.keys);
   const anchorFn = def.group.anchor;
   const keepGroup = def.group.keepGroup;
   // The two-member floor counts distinct *words*, not merged rows: the merge emits
@@ -612,7 +632,7 @@ export async function bucketize(chains, def, ctx, prepared) {
     return be.score - ae.score || ae.norm.localeCompare(be.norm)
       || displayOf(ae).localeCompare(displayOf(be));
   };
-  for (const [key, groupChains] of buckets) {
+  await ctx.forEach([...buckets], ([key, groupChains]) => {
     // One member per reading, each counting toward the floor: count entries alone
     // and a word said two ways (PROject, proJECT) silently stops being a group.
     let readings = null;
@@ -624,10 +644,10 @@ export async function bucketize(chains, def, ctx, prepared) {
     const members = new Set(readings
       ? readings.map(r => identity(r.chain) + '\0' + JSON.stringify(r.highlights))
       : groupChains.map(identity));
-    if (members.size < 2) continue;
-    if (keepGroup && !keepGroup(groupChains.map(memberKey), prepared, key)) continue;
+    if (members.size < 2) return;
+    if (keepGroup && !keepGroup(groupChains.map(memberKey), prepared, key)) return;
     const anchor = anchorFn ? anchorFn(key, ctx.wordlist) : null;
-    if (anchorFn && !anchor) continue;
+    if (anchorFn && !anchor) return;
     if (!readings) groupChains.sort(byScore);
     // Pre-collapse here, not via the later unify pass: members are an equivalence
     // set, and unify's cross-row mirror-fold would silently merge reverse members
@@ -637,7 +657,7 @@ export async function bucketize(chains, def, ctx, prepared) {
       : groupChains;
     groups.push({ key, chains, anchor });
     memberSets.push(members);
-  }
+  }, passes?.groups);
   return dropRedundantGroups(groups, memberSets);
 }
 
@@ -878,7 +898,7 @@ const YIELD_CLOCK_TARGET_MS = 1;
 const YIELD_STRIDE_MAX = 1 << 16;
 function makeYielder(signal, onProgress = null) {
   let stride = 1, sinceCheck = 0;
-  let lastClock = performance.now(), lastYield = lastClock, lastProgress = 0;
+  let lastClock = performance.now(), lastYield = lastClock;
   return {
     due() {
       if (++sinceCheck < stride) return false;
@@ -894,15 +914,38 @@ function makeYielder(signal, onProgress = null) {
       throwIfAborted(signal);
       lastYield = lastClock = performance.now();
     },
-    // Throttled far coarser than the yield cadence — emitting per yield (~160/s)
-    // would flood postMessage and can starve the cancel message. `force` bypasses
-    // the throttle for the terminal 100%, which the adaptive stride would else skip.
-    progress(done, total, force = false) {
-      if (!onProgress || !total) return;
-      const now = performance.now();
-      if (!force && now - lastProgress < _progressIntervalMs) return;
-      lastProgress = now;
-      onProgress(Math.min(1, done / total));
+    ...makeRunProgress(onProgress),
+  };
+}
+
+export function makeRunProgress(onProgress) {
+  const weights = new Map(), finished = new Set();
+  let total = 0, done = 0, shown = 0, lastProgress = 0;
+  const weightOf = pass => {
+    if (!weights.has(pass.key)) { weights.set(pass.key, pass.weight); total += pass.weight; }
+    return weights.get(pass.key);
+  };
+  // Throttled far coarser than the yield cadence — emitting per yield (~160/s)
+  // would flood postMessage and can starve the cancel message. `force` bypasses
+  // the throttle for a pass's end, which the adaptive stride would else skip.
+  const report = (fraction, force) => {
+    if (!onProgress || !total) return;
+    const now = performance.now();
+    if (!force && now - lastProgress < _progressIntervalMs) return;
+    lastProgress = now;
+    shown = Math.max(shown, Math.min(1, fraction));
+    onProgress(shown);
+  };
+  return {
+    plan(passes) { for (const pass of passes) weightOf(pass); },
+    progress(pass, fraction) {
+      if (!finished.has(pass.key)) report((done + weightOf(pass) * fraction) / total, false);
+    },
+    passDone(pass, yielded) {
+      if (finished.has(pass.key)) return;
+      finished.add(pass.key);
+      done += weightOf(pass);
+      if (yielded) report(done / total, true);
     },
   };
 }

@@ -4,7 +4,7 @@ import { buildSearchPattern } from '../search.js';
 import { runReplace, replacementMarksOutput } from '../regex.js';
 import {
   MATCH_PARAM, matchModeOf, ALLOW_UNLISTED_PARAM, SEARCH_HELP, isReplacing,
-  matchModeAssets, matchModeSpacing, matchModeSpacingLazy,
+  matchModeAssets, matchModePasses, matchModeSpacing, matchModeSpacingLazy,
 } from './shared.js';
 
 // Not parseReplacement: `$` is plain text in search syntax, and parsing
@@ -42,6 +42,7 @@ export default {
   isInert: params => !buildSearchPattern(params && params.pattern || ''),
   matchOn: 'both',
   assets: matchModeAssets,
+  passes: matchModePasses,
   async prepare(params, ctx) {
     return build(params, await matchModeSpacing(params, ctx));
   },

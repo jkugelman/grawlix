@@ -42,6 +42,9 @@ export function bestSpaceOutSplit(norm, wordlist) {
 // holds bestCompoundSplit's guess only where `best` has no usable reading and it found one.
 
 const SPACING_TABLE_KEY = 'space-out/readings';
+
+// A superseded run leaves a partial table in the cache, which still needs its sweep.
+export const SPACING_PASS = { key: SPACING_TABLE_KEY, weight: 35, built: cache => !!cache.peek(SPACING_TABLE_KEY)?.complete };
 const BYTES_PER_TABLE_SLOT = 24;
 const BYTES_PER_STRING_HEADER = 16;
 
@@ -131,7 +134,7 @@ export async function buildSpacingTable(ctx) {
   try {
     await ctx.forEach(ctx.wordlist.entries, wlEntry => {
       if (isUnspaced(displayOf(wlEntry))) reader.read(wlEntry.norm);
-    });
+    }, SPACING_PASS);
   } catch (e) {
     keep();   // a keystroke's superseded run hands its readings on, or each one restarts from zero
     throw e;

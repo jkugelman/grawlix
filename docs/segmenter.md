@@ -215,7 +215,7 @@ It has two tiers per norm.
 A `SpacingReader` answers from the table and reads a missing norm on the spot, writing it back: `best(norm)` for Initialisms and the match modes, `guess(norm)` for Rhymes, Phone search, and Stress shift (the best split unless it ends in a lone letter, else the compound).
 Readings are stored joined and uncased, because part casing follows whichever spellings the wordlist carries today and no consumer reads it.
 
-`buildSpacingTable(ctx)` sweeps the run corpus once under `ctx.forEach` and caches the result.
+`buildSpacingTable(ctx)` sweeps the run corpus once under `ctx.forEach`, as `SPACING_PASS` (a slice of the progress ring, [`pipeline.md`](pipeline.md) § *Passes and the progress ring*), and caches the result.
 A build cut short by a newer run (every keystroke of a whole-word search on a cold cache) caches what it read so far, marked incomplete, and the next build takes that table out of the cache, finishes it, and puts it back, so keystrokes add to one table instead of restarting the sweep.
 The table carries its accumulated build time for the cache's pricing, since the finishing run never missed.
 It is taken out rather than finished in place because an edit mid-build would patch the cached table and then refuse the re-put that prices it whole.

@@ -8,7 +8,7 @@ import { buildHelpHTML } from '../../core/util.js';
 import { matchModeOk, anchorPattern } from '../search.js';
 import {
   MATCH_PARAM, matchModeOf, ALLOW_UNLISTED_PARAM, isReplacing,
-  matchModeAssets, matchModeSpacing, matchModeSpacingLazy,
+  matchModeAssets, matchModePasses, matchModeSpacing, matchModeSpacingLazy,
 } from './shared.js';
 
 // The SyntaxError prefix is engine-specific: V8 echoes the pattern ("Invalid
@@ -84,6 +84,7 @@ export default {
   error: params => regexError(params && params.pattern),
   matchOn: 'both',
   assets: matchModeAssets,
+  passes: matchModePasses,
   async prepare(params, ctx) {
     return build(params, await matchModeSpacing(params, ctx));
   },

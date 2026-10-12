@@ -264,7 +264,7 @@ test('a word-relative mode builds the spacing table; a later run reuses it', asy
   spaced();
   const wl = merged(['datatable', 'data', 'table']);
   const store = new Map();
-  const cache = { get: k => store.get(k) ?? null, put: (k, v) => store.set(k, v) };
+  const cache = { get: k => store.get(k) ?? null, peek: k => store.get(k) ?? null, put: (k, v) => store.set(k, v) };
   const runSearch = params => executePipeline(wl, [makeToolRow('search', params)], null, { prepareCache: cache });
 
   await runSearch({ pattern: 'at' });

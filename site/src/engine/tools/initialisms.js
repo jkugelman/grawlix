@@ -1,7 +1,7 @@
 'use strict';
 import { bestRowForNorm } from '../corpus.js';
 import { toNorm, isUnspaced } from '../norm.js';
-import { buildSpacingTable, spacingReader, loadSpacingCorpus } from '../space-out.js';
+import { buildSpacingTable, spacingReader, loadSpacingCorpus, SPACING_PASS } from '../space-out.js';
 
 export function wordSplits(display) {
   const stripped = display.split(/[ ]+/).filter(Boolean);
@@ -59,6 +59,7 @@ export default {
     return !!parts && initialsOf(parts) === target && initialRanges(parts);
   },
   group: {
+    passes: [SPACING_PASS],
     async prepare(params, ctx) {
       await loadSpacingCorpus();
       return { spacing: await buildSpacingTable(ctx) };

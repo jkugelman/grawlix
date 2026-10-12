@@ -1283,6 +1283,12 @@ function makePrepareCache(scope) {
       missedAt.set(toolKey, performance.now());
       return null;
     },
+    // Uncounted: the executor peeks to plan a run's progress, and counting that as a
+    // miss would also restart the miss clock that prices the artifact.
+    peek(toolKey) {
+      const e = artifactCache.peek(keyOf(toolKey));
+      return e && cacheEntryValid(e) ? e.value : null;
+    },
     // Removes the artifact so a prepare can keep building it privately: left in place,
     // an edit mid-build would patch it and then refuse the re-put that prices it whole.
     take(toolKey) {

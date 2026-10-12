@@ -3,7 +3,7 @@
 import { loadCmuDict, stressedSoundsOf, syllabify } from '../phonetics.js';
 import { alignmentOf, lettersForPhones, canSpell } from '../phone-align.js';
 import { itemsOf } from '../phone-reading.js';
-import { buildSpacingTable, loadSpacingCorpus, spacingReader } from '../space-out.js';
+import { buildSpacingTable, loadSpacingCorpus, spacingReader, SPACING_PASS } from '../space-out.js';
 import { toNorm, displayOf } from '../norm.js';
 
 async function ensureDict() {
@@ -153,6 +153,8 @@ function stressRanges(reading) {
 // ─── Grouping ────────────────────────────────────────────────────────────────
 
 const INDEX_KEY = 'stress-shift/index';
+const INDEX_PASS = { key: INDEX_KEY, weight: 14 };
+const ALIGN_PASS = { key: 'stress-shift/align', artifact: INDEX_KEY, weight: 2 };
 const BYTES_PER_INDEX_SLOT = 64;
 
 // Maximal cliques, not connected components: chained, DETER links DAUGHTER, DEBTOR,
@@ -198,7 +200,7 @@ async function shiftIndex(ctx, spacing) {
       if (node) node.displays.push(display);
       else byPron.set(reading.pron, { ...reading, items: null, displays: [display] });
     }
-  });
+  }, INDEX_PASS);
   const buckets = new Map();
   for (const node of byPron.values()) {
     const bucket = buckets.get(node.skeleton);
@@ -207,8 +209,8 @@ async function shiftIndex(ctx, spacing) {
   }
   const keysByDisplay = new Map();
   let bytes = 0;
-  for (const bucket of buckets.values()) {
-    if (!bucket.some(a => bucket.some(b => stressShifts(a, b) && swapOf(a, b) !== null))) continue;
+  await ctx.forEach([...buckets.values()], bucket => {
+    if (!bucket.some(a => bucket.some(b => stressShifts(a, b) && swapOf(a, b) !== null))) return;
     const nodes = new Map();
     for (const { pron, displays } of bucket) {
       for (const display of displays) {
@@ -232,8 +234,7 @@ async function shiftIndex(ctx, spacing) {
         }
       }
     }
-    if (ctx.due()) await ctx.yield();
-  }
+  }, ALIGN_PASS);
   ctx.cache.put(INDEX_KEY, keysByDisplay, bytes);
   return keysByDisplay;
 }
@@ -289,6 +290,8 @@ export default {
   kind: 'group',
   matchOn: 'display',
   group: {
+    passes: [SPACING_PASS, INDEX_PASS, ALIGN_PASS],
+    weights: { keys: 0.5, groups: 0.5 },
     async prepare(params, ctx) {
       await ensureDict();
       await loadSpacingCorpus();

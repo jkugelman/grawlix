@@ -1085,15 +1085,15 @@ Always carries `ranAgainstOwned: true` (the worker always runs against its own c
   The score-range view filter then runs on main as a **no-op** when the worker already filtered (`_workerFiltered`); a score-range change **reprojects** (the worker re-derives the view over the retained join and ships a `reprojected` snapshot) rather than re-running, and windowing stays engaged.
 
 #### `progress` (worker → main, advisory)
-`{ type: 'progress', runId, fraction }` — **a 0..1 progress fraction for the live run**, posted from any `ctx.forEach`/`ctx.times` (or a manual `ctx.progress(done, total)`) so a long non-streaming pass can drive a determinate ring instead of the indefinite spinner.
+`{ type: 'progress', runId, fraction }` — **a 0..1 progress fraction for the whole live run**, posted from each planned pass's `ctx.forEach` so a long non-streaming run can drive a determinate ring instead of the indefinite spinner.
 Purely advisory: it carries no result data, and a client may ignore it entirely.
-Generic — anything that iterates a sized collection through `ctx.forEach` reports for free; today the sole consumer is `bucketize`'s `ctx.forEach` over the surviving chains, so a large grouped run fills the ring while it buckets.
-No tool's `prepare` sweeps a sized collection yet — a heavy one would report with no tool change.
+A run with several passes (Stress shift sweeps for the spacing table, its index, then `bucketize`) fills one ring across all of them, each pass its weighted slice ([`pipeline.md`](pipeline.md) § *Passes and the progress ring*).
 - `runId` — the in-flight run; the supersession key.
   The worker skips a `progress` from a superseded run (`signal.aborted`); the client drops any whose `runId` isn't `pendingRun.runId` (the same guard as `partial`) and **never settles `pendingRun`** off one — only `result`/supersession do.
-- `fraction` — monotonic within a `ctx.forEach` pass and forced to `1` at its end (a terminal emit the adaptive-stride sampling would otherwise skip), but only if the pass actually yielded, so a fast forEach stays silent rather than flashing a full ring.
+- `fraction` — monotonic across the run, and forced out at each pass's end (an emit the adaptive-stride sampling would otherwise skip), but only if the pass actually yielded, so a fast pass stays silent rather than flashing its slice in.
+  A pass missing from the plan widens the total mid-run, and the executor holds the fraction where it was rather than sliding the ring back.
   The executor throttles emission to ~one per `_progressIntervalMs` (120ms, injectable via `configureExecutorYield`) so a tight loop can't flood postMessage and starve the cancel message.
-  A tool with no `ctx.forEach`/`ctx.progress` posts none, and the client keeps the indefinite spinner.
+  A run with no planned pass posts none, and the client keeps the indefinite spinner.
 - **On receipt (client):** `setPipelineProgress(fraction)` adds `.has-progress` to `#entries-table-panel` and sets its `--progress` var; CSS swaps the indefinite `.pipeline-spinner` for the determinate `.progress-ring`.
   `runPipeline` clears it at the start of each run (`resetPipelineProgress`), so a fresh run begins on the spinner until its own first `progress`.
 

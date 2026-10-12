@@ -39,8 +39,17 @@ Tools without a `prepare` get the normalized params object.
 `ctx` is the tool's view of the run.
 `ctx.wordlist` is the merged-wordlist cache (`{ entries, sourceCounts, norms, byKey }`; `norms`, a `Set<norm>`, is the membership index that ships today, with sorted-letter and length indexes to land as tools demand them).
 `ctx.grouped` tells a `prepare` whether the row is in all-mode, so a function-`kind` tool can branch on it (Caesar's `prepare` returns a rotate-every-entry transform when all-mode carries a shift).
-`ctx.forEach` / `ctx.times` / `ctx.due` / `ctx.yield` / `ctx.throwIfAborted` / `ctx.progress` are the cooperative-yield surface (§ *Cooperative runtime*); `ctx.progress(done, total)` — and, for free, any `ctx.forEach`/`ctx.times` over a sized collection — reports a 0..1 progress fraction the worker forwards to drive a determinate progress ring, so a long non-streaming pass fills the ring instead of showing the indefinite spinner (see [`worker-protocol.md`](worker-protocol.md) § `progress`).
-Its consumers are the grouped result's cluster pass (`bucketize`'s `ctx.forEach` over the surviving chains) and the spacing table's build ([`segmenter.md`](segmenter.md) § *The spacing table*), a `prepare`-time sweep of every entry.
+`ctx.forEach` / `ctx.due` / `ctx.yield` / `ctx.throwIfAborted` are the cooperative-yield surface (§ *Cooperative runtime*).
+
+**Passes and the progress ring.**
+A *pass* is one `ctx.forEach` sweep over a sized collection, named by a descriptor `{ key, weight, artifact?, built? }`, that fills a slice of the determinate progress ring (see [`worker-protocol.md`](worker-protocol.md) § `progress`).
+A run fills one ring, not one per pass: before the first stage runs, `plannedPasses` collects every pass the run will make, and each `ctx.forEach(items, fn, pass)` maps its own 0..1 into that pass's share of the total weight.
+A tool declares the passes its `prepare` makes in `passes` (on the definition, or on `group` for the grouped `prepare`), as an array or a function of the params, like `assets`.
+The shipped passes are the spacing table's build (`SPACING_PASS`, [`segmenter.md`](segmenter.md) § *The spacing table*), shared by every tool that builds it; Phone search's sound index; Stress shift's index, built in two passes (reading every entry, then aligning letters in the buckets that could shift); and the executor's own `bucketize`, two passes every group row adds: one computing each entry's keys, one deciding which buckets become groups.
+A group tool sets their weights in `group.weights` (`{ keys, groups }`, 2 each by default), since that cost depends on the tool's `key` and `keepGroup`.
+The plan skips a row a resumed prefix covers and a pass whose artifact is already in `ctx.cache` (`built`, defaulting to "`artifact`, or else `key`, is cached"; the spacing table's checks `complete`, since a superseded run leaves a partial table), so a warm run's ring fills only the slices still to sweep.
+Weights aim at every slice filling at the same speed: each is roughly the pass's seconds in Chrome on a 750K-entry merge, so spacing is 35, Stress shift's index 14 for reading and 2 for aligning, Phone search's index 12, and Rhymes' bucketing 4 + 3.
+A `ctx.forEach` with no pass yields but reports nothing.
 `ctx.cache` (`get(toolKey)` / `take(toolKey)` / `put(toolKey, value, bytes, { patch, elapsed })`) is the seam onto the worker's prepare-artifact cache: a `prepare` retains whatever it computes from the corpus alone, so a run with different params reuses it (see [`worker-protocol.md`](worker-protocol.md) § `artifactCache`).
 Outside the worker it is a no-op, so a tool calls it unconditionally.
 `prepare` is `async`, and carries those helpers, because indexing the wordlist is real O(N) work that has to be chunked and yielded or it freezes the tab.
@@ -310,7 +319,7 @@ The executor's own defaults (~6ms, `scheduler.yield()`) apply only where it runs
 
 `due()` can't afford to read `performance.now()` every iteration, so it samples the clock once per `stride` calls and retunes `stride` after each sample to keep the sampling interval near 1ms — a hot loop of cheap iterations samples rarely, an expensive one every iteration, with nothing for a caller to tune.
 Time-based rather than iteration-count: a heavy predicate and a trivial one take wildly different time per row, and pinning yields to wall-clock keeps the yield rate sane across both — a fixed iteration count would yield every ~1ms on a cheap 500K filter, burning hundreds of ms of pure overhead.
-`run` sees none of this — it's synchronous and per-row — but a `prepare` doing heavy work drives the same gate itself, via `ctx.forEach`/`ctx.times` or `ctx.due()`/`ctx.yield()`.
+`run` sees none of this — it's synchronous and per-row — but a `prepare` doing heavy work drives the same gate itself, via `ctx.forEach` or `ctx.due()`/`ctx.yield()`.
 
 **Slow-run indicator.**
 One global signal: the entries panel gains `.pipeline-running` when `runPipeline` starts and loses it once no run is in flight.

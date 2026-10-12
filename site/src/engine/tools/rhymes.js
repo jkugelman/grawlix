@@ -2,7 +2,7 @@
 
 import { loadCmuDict, hasCmuDict, rhymingPartsOf, lastWordKey, hasPronunciation } from '../phonetics.js';
 import { hasUnigramCorpus, SPACE_OUT_WINDOWS } from '../segmenter.js';
-import { buildSpacingTable, loadSpacingCorpus, spaceOutSplits } from '../space-out.js';
+import { buildSpacingTable, loadSpacingCorpus, spaceOutSplits, SPACING_PASS } from '../space-out.js';
 import { toNorm, isUnspaced } from '../norm.js';
 
 async function ensureDict() {
@@ -45,6 +45,7 @@ export default {
   desc: 'Rhyming words and phrases',
   example: 'rhyme → climb, key lime',
   assets: ['cmudict', 'unigrams'],
+  passes: [SPACING_PASS],
   params: [
     { placeholder: 'entry' },
     { key: 'match', type: 'range', default: 'loose',
@@ -76,6 +77,8 @@ export default {
     return false;
   },
   group: {
+    passes: [SPACING_PASS],
+    weights: { keys: 4, groups: 3 },
     async prepare(params, ctx) {
       await ensureDict();
       await loadSpacingCorpus();

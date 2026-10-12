@@ -3,7 +3,7 @@
 import { loadCmuDict, hasCmuDict, soundsOf } from '../phonetics.js';
 import { alignmentOf, lettersForPhones } from '../phone-align.js';
 import { tokensOf, itemsOf as readItems } from '../phone-reading.js';
-import { buildSpacingTable, loadSpacingCorpus, spacingReader } from '../space-out.js';
+import { buildSpacingTable, loadSpacingCorpus, spacingReader, SPACING_PASS } from '../space-out.js';
 import { toNorm, displayOf, buildNormToDisplay } from '../norm.js';
 import { SEARCH_KINDS } from '../search.js';
 import { candidates } from '../morphology.js';
@@ -172,6 +172,7 @@ function replacementsOf(text, spacing) {
 }
 
 const INDEX_KEY = 'phone-search/index';
+const INDEX_PASS = { key: INDEX_KEY, weight: 12 };
 const BYTES_PER_INDEX_SLOT = 64;
 
 async function soundIndex(ctx, spacing) {
@@ -190,7 +191,7 @@ async function soundIndex(ctx, spacing) {
       else continue;
       bytes += BYTES_PER_INDEX_SLOT + 2 * code.length;
     }
-  });
+  }, INDEX_PASS);
   ctx.cache.put(INDEX_KEY, index, bytes);
   return index;
 }
@@ -245,6 +246,7 @@ export default {
   desc: 'Search (and replace) by sound',
   example: 'knee → honey, neon',
   assets: ['cmudict', 'unigrams'],
+  passes: params => (isReplacing(params) ? [SPACING_PASS, INDEX_PASS] : [SPACING_PASS]),
   findReplace: true, replaceName: 'Phone replace',
   params: [
     { placeholder: 'entry' },
