@@ -42,7 +42,7 @@ Tool lists in those two categories are provisional.
 | ✓ | Palindrome | ⬅️ Semordnilap | Reverse to get a different word | stressed ↔ desserts |
 | ✓ | Phonetic | 📱 Phone search | Search (and replace) by sound | knee → honey, neon |
 | ✓ | Phonetic | 🎵 Rhymes | Rhyming words and phrases | rhyme → climb, key lime |
-| ✓ | Phonetic | 😅 Stress shift | Same sounds, stress on another syllable | desert · dessert |
+| ✓ | Phonetic | 😅 Stress shift | Same sounds, stress on another syllable | into it · intuit |
 |   | Phonetic | 🔊 Phonetic substitution | Swap one phoneme for another across the wordlist | TBD |
 |   | Phonetic | 🎶 Sound shift | Move a phoneme between word positions (e.g. front → end) | TBD |
 | ✓ | Phrase | 🌌 Space out | Guess at where spaces go in multi-word entries | spaceout → space out |

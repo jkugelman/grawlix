@@ -277,7 +277,7 @@ function shows(show, a, b) {
 export default {
   name: 'Stress shift', icon: '😅', category: 'phonetic',
   desc: 'Same sounds, stress on another syllable',
-  example: 'desert · dessert',
+  example: 'into it · intuit',
   assets: ['cmudict', 'unigrams'],
   params: [
     { key: 'show', type: 'segmented', default: 'homophones', label: 'Show',
