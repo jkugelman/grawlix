@@ -273,12 +273,13 @@ export const HelpDialog = (() => {
 
   function mount() {
     ({ el, body } = createDialog('help-dialog', { labelledby: 'help-title' }));
+    body.addEventListener('toggle', onToggle, true);   // toggle doesn't bubble
   }
 
   function sectionHTML(section) {
     const items = section.items.map(it => {
       const answer = typeof it.a === 'function' ? it.a() : it.a;
-      return `<details class="faq-item" id="faq-${it.slug}"><summary>${it.q}</summary><div class="faq-answer">${answer}</div></details>`;
+      return `<details class="faq-item" id="faq-${it.slug}" name="faq"><summary>${it.q}</summary><div class="faq-answer">${answer}</div></details>`;
     }).join('');
     return `<section class="faq-section"><h3>${section.title}</h3>${items}</section>`;
   }
@@ -305,6 +306,14 @@ export const HelpDialog = (() => {
   // hash, and the boot/hashchange sync (in actions) drives open/close from it.
   function clearHash() {
     if (location.hash.startsWith('#/help')) history.replaceState(null, '', location.pathname + location.search);
+  }
+
+  function onToggle(e) {
+    const item = e.target;
+    if (!el.open || !item.matches('.faq-item')) return;
+    const openItem = body.querySelector('.faq-item[open]');
+    history.replaceState(history.state, '', openItem ? `#/help/${openItem.id.slice('faq-'.length)}` : '#/help');
+    if (item.open && item.getBoundingClientRect().top < el.getBoundingClientRect().top) item.scrollIntoView({ block: 'start' });
   }
 
   function open(slug) {

@@ -964,10 +964,12 @@ It is one scrollable dialog that gathers everything help-shaped:
   The fuller, maintainer-facing license inventory (third-party deps, wordlist terms, verbatim MIT texts for the bundled icons) lives in [`THIRD-PARTY-NOTICES`](../THIRD-PARTY-NOTICES) at the repo root, kept there deliberately and not shipped with the deployed site.
 
 Help is **deep-linkable at the `#/help` hash**, and every individual answer at `#/help/<slug>`: the `?` button sets the bare hash, a boot/hashchange sync (in `actions`) opens or closes the dialog to match, a slug expands that one `<details>` and scrolls it into view, and closing strips the hash (`history.replaceState`).
+The answers are an **accordion** — one shared `<details name>` group, so expanding one collapses the rest — and the hash follows the reader: expanding an answer rewrites it to that answer's slug, collapsing the last one leaves bare `#/help` (both `replaceState`, so browsing answers doesn't fill the back stack).
+That makes the address bar a ready-made link to whatever the reader is looking at, which only works if one answer is open at a time.
 A hash rather than a `/help` path because GitHub Pages serves no path routes without the SPA 404 trick (§ *URL state*).
 Every answer is slugged, not just the ones something links to, because the shareable unit of Help is an answer — pasting "here's how that works" into a chat is the common case, and a scheme that covers only some answers invites a second, ad-hoc one later.
 An unrecognized slug opens Help with nothing expanded rather than erroring, so a stale link still lands somewhere useful.
-Re-entering a slug while the dialog is already open expands and scrolls without re-rendering, which would collapse whatever else the reader had opened.
+Re-entering a slug while the dialog is already open (a link between answers) expands and scrolls without re-rendering.
 The dialog never opens on its own — there is no first-boot popup.
 
 Two places link inward.

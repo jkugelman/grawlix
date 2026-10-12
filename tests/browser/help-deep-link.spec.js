@@ -53,13 +53,32 @@ test('closing Help clears the slug from the URL', async ({ page }) => {
   expect(await page.evaluate(() => location.hash)).toBe('');
 });
 
-test('a link between answers expands the target without collapsing the rest', async ({ page }) => {
+test('a link between answers expands the target and collapses the source', async ({ page }) => {
   await gotoApp(page, '/#/help/sync-setup');
 
   await item(page, 'sync-setup').locator('a[href="#/help/ingrid"]').click();
 
   await expect(item(page, 'ingrid')).toHaveAttribute('open', '');
-  await expect(item(page, 'sync-setup')).toHaveAttribute('open', '');
+  await expect(openItems(page)).toHaveCount(1);
+});
+
+test('expanding an answer collapses the others and puts its slug in the URL', async ({ page }) => {
+  await gotoApp(page, '/#/help/rescoring');
+
+  await item(page, 'umiaq').locator('summary').click();
+
+  await expect(item(page, 'umiaq')).toHaveAttribute('open', '');
+  await expect(openItems(page)).toHaveCount(1);
+  await expect.poll(() => page.evaluate(() => location.hash)).toBe('#/help/umiaq');
+});
+
+test('collapsing the open answer leaves the bare #/help in the URL', async ({ page }) => {
+  await gotoApp(page, '/#/help/umiaq');
+
+  await item(page, 'umiaq').locator('summary').click();
+
+  await expect(openItems(page)).toHaveCount(0);
+  await expect.poll(() => page.evaluate(() => location.hash)).toBe('#/help');
 });
 
 test('the sync dialog links to the Ingrid walkthrough', async ({ page }) => {
