@@ -50,7 +50,7 @@ export function currentAtomCount(stack) {
       // A bare group producer emits members carrying the upstream atoms unchanged —
       // no atom of its own. One that highlights members (group.memberHighlights)
       // stamps a slot per member, so a downstream search adds its own line.
-      if (row.def.group.memberHighlights) {
+      if (row.def.group.memberHighlights || row.def.group.memberReadings) {
         if (tailSlot) count++;
         tailSlot = true;
       }
@@ -575,6 +575,13 @@ export async function bucketize(chains, def, ctx, prepared) {
   const useDisplay = def.matchOn === 'display';
   const coord = useDisplay ? 'display' : 'norm';
   const memberHighlights = def.group.memberHighlights;
+  const memberReadings = def.group.memberReadings;
+  const textOf = chain => {
+    const tail = rowLastEntry(chain);
+    return useDisplay ? displayOf(tail) : tail.norm;
+  };
+  const stamp = (chain, highlights) => ({ atoms: collapseRepeatAtoms([...rowAtoms(chain),
+    { wlEntry: rowLastEntry(chain), highlights: tagCoord(highlights, coord), glyph: null }]) });
   const buckets = new Map();
   await ctx.forEach(chains, chain => {
     const tail = rowLastEntry(chain);
@@ -600,26 +607,34 @@ export async function bucketize(chains, def, ctx, prepared) {
   const memberKey = c => useDisplay ? displayOf(rowLastEntry(c)) : rowLastEntry(c).norm;
   const groups = [];
   const memberSets = [];
+  const byScore = (a, b) => {
+    const ae = rowLastEntry(a), be = rowLastEntry(b);
+    return be.score - ae.score || ae.norm.localeCompare(be.norm)
+      || displayOf(ae).localeCompare(displayOf(be));
+  };
   for (const [key, groupChains] of buckets) {
-    const members = new Set(groupChains.map(identity));
+    // One member per reading, each counting toward the floor: count entries alone
+    // and a word said two ways (PROject, proJECT) silently stops being a group.
+    let readings = null;
+    if (memberReadings) {
+      groupChains.sort(byScore);
+      readings = groupChains.flatMap(chain =>
+        memberReadings(textOf(chain), key, ctx).map(highlights => ({ chain, highlights })));
+    }
+    const members = new Set(readings
+      ? readings.map(r => identity(r.chain) + '\0' + JSON.stringify(r.highlights))
+      : groupChains.map(identity));
     if (members.size < 2) continue;
-    if (keepGroup && !keepGroup(groupChains.map(memberKey), prepared)) continue;
+    if (keepGroup && !keepGroup(groupChains.map(memberKey), prepared, key)) continue;
     const anchor = anchorFn ? anchorFn(key, ctx.wordlist) : null;
     if (anchorFn && !anchor) continue;
-    groupChains.sort((a, b) => {
-      const ae = rowLastEntry(a), be = rowLastEntry(b);
-      return be.score - ae.score || ae.norm.localeCompare(be.norm)
-        || displayOf(ae).localeCompare(displayOf(be));
-    });
+    if (!readings) groupChains.sort(byScore);
     // Pre-collapse here, not via the later unify pass: members are an equivalence
     // set, and unify's cross-row mirror-fold would silently merge reverse members
     // (`rat`/`tar` in one cluster). Single atom = the pure-group path skips unify.
-    const chains = memberHighlights ? groupChains.map(chain => {
-      const tail = rowLastEntry(chain);
-      const text = useDisplay ? displayOf(tail) : tail.norm;
-      const hl = { wlEntry: tail, highlights: tagCoord(memberHighlights(text, key, ctx), coord), glyph: null };
-      return { atoms: collapseRepeatAtoms([...rowAtoms(chain), hl]) };
-    }) : groupChains;
+    const chains = readings ? readings.map(r => stamp(r.chain, r.highlights))
+      : memberHighlights ? groupChains.map(chain => stamp(chain, memberHighlights(textOf(chain), key, ctx)))
+      : groupChains;
     groups.push({ key, chains, anchor });
     memberSets.push(members);
   }

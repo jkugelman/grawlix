@@ -212,9 +212,26 @@ const phoneCode = phone => {
   return code;
 };
 
-let soundCache = new Map();
-let soundCacheDict = null;
 const SOUND_CACHE_MAX = 200_000;
+
+function wordLookup(build) {
+  let cache = new Map();
+  let cacheDict = null;
+  return word => {
+    if (!cmuDict) return null;
+    if (cacheDict !== cmuDict || cache.size > SOUND_CACHE_MAX) {
+      cache = new Map();
+      cacheDict = cmuDict;
+    }
+    const key = cmuKey(word);
+    let found = cache.get(key);
+    if (found !== undefined) return found;
+    const prons = key ? cmuDict.get(key) : null;
+    found = prons ? build(citationProns(key, prons)) : null;
+    cache.set(key, found);
+    return found;
+  };
+}
 
 // CMU's weak forms of common words, stress stripped. Each is a sound or two found
 // all over the wordlist, so searching the word would flood: ARE as "er" finds every
@@ -245,32 +262,33 @@ function citationProns(key, prons) {
 }
 
 // Stress stripped: `arbiter`'s unstressed -biter has to meet `bitter`.
-export function soundsOf(word) {
-  if (!cmuDict) return null;
-  if (soundCacheDict !== cmuDict || soundCache.size > SOUND_CACHE_MAX) {
-    soundCache = new Map();
-    soundCacheDict = cmuDict;
+export const soundsOf = wordLookup(prons => {
+  const seen = new Set();
+  const sounds = [];
+  for (const pron of prons) {
+    const bare = pron.replace(/\d/g, '').split(' ');
+    const phones = bare.map((ph, i) => foldVowel(ph, bare[i + 1]));
+    const code = phones.map(phoneCode).join('');
+    if (seen.has(code)) continue;
+    seen.add(code);
+    sounds.push({ phones, code });
   }
-  const key = cmuKey(word);
-  let sounds = soundCache.get(key);
-  if (sounds !== undefined) return sounds;
-  const prons = key ? cmuDict.get(key) : null;
-  sounds = null;
-  if (prons) {
-    const seen = new Set();
-    sounds = [];
-    for (const pron of citationProns(key, prons)) {
-      const bare = pron.replace(/\d/g, '').split(' ');
-      const phones = bare.map((ph, i) => foldVowel(ph, bare[i + 1]));
-      const code = phones.map(phoneCode).join('');
-      if (seen.has(code)) continue;
-      seen.add(code);
-      sounds.push({ phones, code });
-    }
-  }
-  soundCache.set(key, sounds);
   return sounds;
-}
+});
+
+export const stressedSoundsOf = wordLookup(prons => {
+  const seen = new Set();
+  const sounds = [];
+  for (const pron of prons) {
+    const toks = pron.split(' ');
+    const phones = toks.map((ph, i) => foldVowel(ph, toks[i + 1]));
+    const key = phones.join(' ');
+    if (seen.has(key)) continue;
+    seen.add(key);
+    sounds.push({ phones });
+  }
+  return sounds;
+});
 
 export function lastWordKey(text) {
   return cmuKey(lastWord(text));

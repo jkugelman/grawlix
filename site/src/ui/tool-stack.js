@@ -40,7 +40,7 @@
 import { esc } from '../core/util.js';
 import { HL_COLORS } from '../engine/search.js';
 import {
-  TOOL_CATEGORIES, FEATURED_TOOLS, TOOLS, groupColumnCSS, makeToolRow, toolAssets,
+  TOOL_CATEGORIES, FEATURED_TOOLS, TOOLS, groupColumnCSS, makeToolRow, toolAssets, isGroupOnly, hasAllToggle,
 } from '../engine/tools.js';
 import { MATCH_PARAM, isReplacing } from '../engine/tools/shared.js';
 import { runOnWorker, preloadWorkerAsset } from './pipeline-worker.js';
@@ -334,7 +334,7 @@ export function allModeTooltip({ blocked, active, kind }) {
 
 export function buildToolCardHTML(toolKey, tool, { allButton = true } = {}) {
   let allBtn = '';
-  if (allButton && tool.group) {
+  if (allButton && hasAllToggle(tool)) {
     const title = allModeTooltip({ blocked: false, active: false, kind: 'corner' });
     allBtn = `<button type="button" class="tool-card-all-btn" data-all-tool="${esc(toolKey)}" title="${esc(title)}" aria-label="${esc(title)}">✱</button>`;
   }
@@ -423,7 +423,7 @@ export const ToolStack = (() => {
       p => ` data-row="${idx}" data-key="${p.key}"`,
       { findReplace: !!tool.findReplace, rowToken: idx, expanded: isRowExpanded(idx) });
     let main = parts.main;
-    if (tool.group) main = decorateMainWithAllToggle(main, idx, row);
+    if (hasAllToggle(tool)) main = decorateMainWithAllToggle(main, idx, row);
     const remove = `<button type="button" class="tool-row-remove" data-remove="${idx}" title="Remove" aria-label="Remove ${esc(tool.name)}"><svg width="12" height="12"><use href="#icon-x"/></svg></button>`;
     const errBtn = `<button type="button" class="icon tool-row-error-btn" data-error-row="${idx}" aria-label="Tool error" hidden>⚠️</button>`;
     const invert = buildInvertButtonHTML(invertOptsFor(row, idx));
@@ -570,7 +570,10 @@ export const ToolStack = (() => {
     const allTaken = inAllMode.size > 0;
     document.querySelectorAll('.tool-card[data-tool]').forEach(card => {
       card.classList.toggle('active', inStack.has(card.dataset.tool));
-      card.removeAttribute('title');
+      const blocked = allTaken && isGroupOnly(TOOLS[card.dataset.tool]);
+      card.classList.toggle('disabled', blocked);
+      if (blocked) card.title = allModeTooltip({ blocked: true, active: false, kind: 'corner' });
+      else card.removeAttribute('title');
     });
     document.querySelectorAll('.tool-card-all-btn[data-all-tool]').forEach(btn => {
       applyAllModeButtonState(btn, {
@@ -635,8 +638,8 @@ export const ToolStack = (() => {
 
   function add(toolKey, { grouped = false } = {}) {
     if (!TOOLS[toolKey]) return;
-    if (grouped && !TOOLS[toolKey].group) return;
-    if (grouped && stack.some(r => r.grouped)) return;
+    if (grouped && !hasAllToggle(TOOLS[toolKey])) return;
+    if ((grouped || isGroupOnly(TOOLS[toolKey])) && stack.some(r => r.grouped)) return;
     const idx = stack.length - 1;            // insert just above the Search bar
     const row = makeToolRow(toolKey, {}, grouped);
     stack.splice(idx, 0, row);
@@ -659,7 +662,7 @@ export const ToolStack = (() => {
 
   function toggleAllMode(idx) {
     const row = stack[idx];
-    if (!row || !row.def.group) return;
+    if (!row || !hasAllToggle(row.def)) return;
     const turningOn = !row.grouped;
     if (turningOn && stack.some(r => r !== row && r.grouped)) return;
     row.grouped = turningOn;

@@ -277,7 +277,10 @@ export function materializeGroupRow(join, corpus, record, def, ctx) {
   const aIdx = join.anchorIdx.a[record.ord];
   const useDisplay = def && def.matchOn === 'display';
   const coord = useDisplay ? 'display' : 'norm';
-  const mh = def && def.group && def.group.memberHighlights;
+  // Only the first reading, safe while tryPackGroupJoin refuses an entry listed twice;
+  // let packing admit one and an entry's second reading silently vanishes.
+  const mr = def && def.group && def.group.memberReadings;
+  const mh = mr ? (text, k, c) => mr(text, k, c)[0] ?? [] : def && def.group && def.group.memberHighlights;
   const members = record.members;
   let minS = Infinity, maxS = -Infinity, minL = Infinity, maxL = -Infinity;
   const chains = new Array(members.length);

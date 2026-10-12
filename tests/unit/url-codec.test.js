@@ -100,6 +100,19 @@ test('a param at its default value stays out of the URL', () => {
   assert.equal(decode('rhymes=cat&match=whole').rows[0].params.match, 'whole');
 });
 
+test('a group-only tool encodes without `all` and decodes grouped', () => {
+  assert.equal(query(makeToolRow('stress_shift')), 'stress_shift=homophones');
+  const { rows } = decode('stress_shift=heteronyms');
+  assert.equal(rows[0].grouped, true);
+  assert.equal(rows[0].params.show, 'heteronyms');
+  assert.equal(decode('stress_shift').rows[0].params.show, 'homophones');
+});
+
+test('a group-only tool counts against the one-✱ rule', () => {
+  assert.deepEqual(decode('anagrams&all&stress_shift').rows.map(r => r.tool), ['anagrams']);
+  assert.deepEqual(decode('stress_shift&anagrams&all').rows.map(r => r.tool), ['stress_shift']);
+});
+
 test("weave's numeric Runs elides at its default, which the number input types as a string", () => {
   assert.equal(query(makeToolRow('weave', { entry: 'socks' })), 'weave=socks');
   assert.equal(decode('weave=socks').rows[0].params.runs, '4');

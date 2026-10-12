@@ -344,7 +344,7 @@ Other rich-format tools (Initials, Has-accent, Word-count, …) ship later as th
 ### Space out
 
 Space out ([`engine/tools/space_out.js`](../site/src/engine/tools/space_out.js)) emits the most likely ways to put the spaces back in each run-together entry.
-The readings come from the segmenter, which has its own reference: [`segmenter.md`](segmenter.md) covers the algorithm, the corpus, every scoring refinement, and the spacing table that Rhymes, Phone search, Initialisms, Optional letters, and the word-relative match modes share.
+The readings come from the segmenter, which has its own reference: [`segmenter.md`](segmenter.md) covers the algorithm, the corpus, every scoring refinement, and the spacing table that Rhymes, Phone search, Stress shift, Initialisms, Optional letters, and the word-relative match modes share.
 This section covers only the tool's wiring.
 
 **Space out and rich displays.**
@@ -371,7 +371,7 @@ It degenerates harmlessly, but a downstream tool that wants to treat multi-word 
 
 ### Pronunciations
 
-Rhymes and Phone search run on the **CMU Pronouncing Dictionary** ([`engine/phonetics.js`](../site/src/engine/phonetics.js)): ~135k pronunciations of ~122k words, each a flat ARPABET phone string carrying a stress digit on every vowel (`1` primary, `2` secondary, `0` unstressed) and no syllable boundaries.
+Rhymes, Phone search, and Stress shift run on the **CMU Pronouncing Dictionary** ([`engine/phonetics.js`](../site/src/engine/phonetics.js)): ~135k pronunciations of ~122k words, each a flat ARPABET phone string carrying a stress digit on every vowel (`1` primary, `2` secondary, `0` unstressed) and no syllable boundaries.
 It is a worker-owned data asset beside the segmenter's corpus (`cmudict` in [`engine/assets.js`](../site/src/engine/assets.js)): fetched from the upstream `cmusphinx/cmudict` repo on first use, parsed, and cached decoded in IndexedDB; a static dataset, refreshed by bumping its IDB key.
 Lookups key on a word's letters alone.
 
@@ -496,6 +496,57 @@ The prices trade off against each other, so a tweak usually fixes some words and
 [`scripts/phone-align-diff.js`](../scripts/phone-align-diff.js) aligns every CMU word with the working tree and with a git ref, and lists the words whose alignment changed; run it before committing a change.
 Highlights that have been checked by hand are rows in [`tests/unit/tools/phone_search.cases.js`](../tests/unit/tools/phone_search.cases.js), run offline against the real CMU lines in `tests/unit/fixtures/cmu-cases.dict`.
 After adding a row with new words, refresh that file with `node scripts/phone-cases-dict.js`.
+
+### Stress shift
+
+Stress shift ([`engine/tools/stress_shift.js`](../site/src/engine/tools/stress_shift.js)) groups entries said with the same sounds but stressed on a different syllable: ROCKET and ROCKETTE, DESERT and DESSERT, IN A SENSE and INNOCENCE, and one entry said two ways, like PROJECT.
+It is group-only, with no typed input (§ *Group-only tools* in [`pipeline.md`](pipeline.md#the-group-row-model)).
+Its **Show** control picks **Homophones** (a shift between different entries, the default) or **Heteronyms** (one entry said two ways); entries are compared by norm, so IN SIGHT and INSIGHT are a heteronym.
+Each member is marked on its primary-stressed syllable, onset to coda, through the letter–sound alignment (§ *Phone search and letter–sound alignment*), with syllables cut by `syllabify` (§ *Rhymes*): ROCKet, roCKETTE, PROJect, proJECT.
+Entries are read by Phone search's reader ([`engine/phone-reading.js`](../site/src/engine/phone-reading.js)), with stress kept (`stressedSoundsOf`).
+
+**Same sounds means the same consonants and all but one vowel.**
+Two readings match when their consonants and vowel slots line up exactly, and their vowels agree everywhere except at most one syllable, where a reduced vowel (`AH0` or `IH0`) faces a stressed one.
+CMU spells the reduction out, so identical vowels would match neither of the motivating pairs: ROCKET is `R AA1 K AH0 T` against ROCKETTE's `R AA0 K EH1 T`, DESERT is `D EH1 Z ER0 T` against DESSERT's `D IH0 Z ER1 T`.
+A second reduced syllable lets RAVEN meet RAVINE and MELON meet MALONE, which share consonants and nothing else.
+The reduced class is narrower than Whole rhyme's schwa class: adding EH0, OW0, and the rest marries EBAY to OBEY and DINO to DUNNO.
+
+**The reduced vowel must be spelled like the vowel it faces.**
+A reduced vowel is a full one weakened, and its letters show which: ROCKET's `e` is ROCKETTE's EH, PROJECT's `o` is its AA.
+CMU's `AH0` alone can't tell a weakened vowel from one that was never that vowel, so without a check DUNDEE's `u` met DANDY's AE, IMPLEMENT's `e` met EMPLOYMENT's OY, IMAGING's `a` met EMERGING's ER, and END A's `a` met ENDOW's AW.
+The letters come from the alignment, and two tests apply, each catching what the other misses.
+They must start with the same letter as the stressed vowel's spelling: the spelling table lets `a` stand for EH, which would pass PERSONAL/PERSONNEL and PATROL/PETROL.
+And they must be a spelling of the stressed vowel in that table (`canSpell`): a shared first letter would pass RIVET's `e` for REVERT's ER.
+A one-letter word never stands in for a stressed vowel, since the article A is spelled like half the vowels and paired AGATE with A GUT and OSPREY with A SPREE.
+Between two entries, the stressed vowel must also be short (no AY, EY, OY, AW, IY, OW, or UW).
+A long or gliding vowel keeps its quality where the other word's schwa doesn't, so HUMAN and HUMANE, ROMAN and ROMAINE, CARTON and CARTOON, and CRITIC and CRITIQUE sound like different words.
+One entry's own readings may face a long vowel, since CMU listing both is evidence the schwa is that vowel weakened (PROtest and pruh-TEST, DEtail and dih-TAIL, SUpine and suPINE); two different words carry no such evidence.
+A gliding vowel (AY, EY, OY, AW) is barred even there, which still splits FInance from fiNANCE and HOStile from hoSTILE.
+Readings are therefore identified per entry, so CASHES, which says CACHES' short reading, doesn't inherit what CACHES' own readings are allowed.
+Measured on the 865k-row merge, these rules take the tool from 1,321 groups to 194 homophone groups and 403 heteronym groups.
+What they cost is pairs that plausibly sound alike, which the tool treats as different: COMEDIAN/COMEDIENNE, PARKA/PARQUET, MOTEL/MOTILE, and OBSESS/ABSCESS among homophones; DEcor/deCOR and ADvertisement/adverTISEment among heteronyms.
+
+**The stress has to move, not just differ.**
+Two readings shift when their primary-stressed syllables are disjoint.
+CMU sometimes marks a compound's second stress as primary (LAWMAKERS is listed once each way), and overlapping patterns like that are no shift.
+Homophones stressed alike (CELLAR, SELLER) never group.
+
+**A word said two ways is a group by itself.**
+CMU lists heteronyms under both stresses (PROJECT, DESERT, CONTENT), and each reading is its own member, so PROJect and proJECT sit side by side; the executor's `group.memberReadings` hook is what lets one entry appear twice ([`pipeline.md`](pipeline.md) § *The group-row model*).
+Within one entry, a reading whose stressed syllables strictly contain another's is dropped: CMU's PREDATE as both preDATE and PREDATE.
+
+**A phrase reads each word one way**, by the word's first citation pronunciation.
+A phrase still meets a word (IN A SENSE and INNOCENCE, ATE IN and EIGHTEEN), but varying its words turns nearly every phrase into a group of itself: IS THIS IT stressed on each word in turn, ADVERSE EFFECT four ways, IN EFFECT restating EFFECT.
+
+**A group is a clique of readings.**
+`prepare` indexes every reading in the wordlist, buckets the readings by consonant skeleton, and keeps each maximal set whose members all match pairwise and contain at least one shifting pair.
+Connected components would chain: DETER matches DAUGHTER, DEBTOR, and DIETER, which sound nothing like each other.
+Since the spelling check makes a reading's letters part of its identity (GRAY and GREY are two nodes), a group's key is its readings' pronunciations plus vowel letters, and a member's marks re-derive from its text and the key at render time.
+Aligning every reading in the wordlist would cost too much, so only a bucket where some pair could shift is re-read with its letters.
+The index lives in the prepare-artifact cache.
+A `keepGroup` re-checks the shift and applies Show, because a filter upstream can thin a group down to members stressed alike.
+On the 865k-row merge (with unspaced entries CMU lacks left unread), the index builds in about three seconds.
+CMU's own wrinkles come through: it lists ELEVEN, EMOTION, and ERODE with an EE- reading stressed on the first syllable, which looks just like REsearch and DEtail.
 
 ### Rebus
 

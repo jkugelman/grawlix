@@ -73,7 +73,7 @@ It is a static dataset: shipping a newer copy means bumping its IDB key.
 It loads lazily: adding a tool that declares it preloads it, and otherwise the tool's `prepare()` awaits it on first run.
 The worker **evicts it when the last row needing it leaves the stack**, so the ~100 MB+ decoded table doesn't stay resident for the whole session, a real reload risk on iOS, where the worker shares the page's memory budget.
 If the fetch fails, Space out shows an **error on its row**, since an empty result would look like the tool working and finding nothing.
-The other consumers degrade instead: an unspaced entry stays unread, so Rhymes and Phone search lose it and the match modes treat it as one word.
+The other consumers degrade instead: an unspaced entry stays unread, so Rhymes, Phone search, and Stress shift lose it and the match modes treat it as one word.
 
 **Other signals considered:**
 - *A hardcoded list of short words (A, I, OF, IS, …)*: the corpus subsumes it, since those words are among the most frequent in any English corpus.
@@ -203,23 +203,23 @@ It is a guess, so it is gated: every part a wordlist entry of 2+ letters, none a
 Ungated it reads `APPELLEE` as `APPEL LEE` and `DIAMETRIC` as `DIA METRIC`.
 Inflections are peeled first and the split decided on the stem, so `RICKROLLING` reads `RICK ROLLING` while `CALLUSING` stays whole because `CALLUS` doesn't split; splitting the inflected form directly gives `CALL USING`, which passes every other gate.
 Over the merge it gives 9,677 entries a whole-mode rhyme reading they had none of before, takes none away, and adds ~4% keying time.
-Rhymes and Phone search use it, through the spacing table's `guess`; Space out never does.
+Rhymes, Phone search, and Stress shift use it, through the spacing table's `guess`; Space out never does.
 
 ## The spacing table
 
-Rhymes, Phone search, Initialisms, and the word-relative match modes all need every unspaced entry read as words, and reading a full merge takes about five seconds.
+Rhymes, Phone search, Stress shift, Initialisms, and the word-relative match modes all need every unspaced entry read as words, and reading a full merge takes about five seconds.
 So the readings live in one per-wordlist table ([`engine/space-out.js`](../site/src/engine/space-out.js)) in the worker's prepare-artifact cache, shared by every tool.
 It has two tiers per norm.
 `best` is the top-ranked split, exactly what Space out's **One** shows, stored as the norm itself when the entry reads as one word, so a norm *absent* from `best` means unread, never one word.
 `compound` holds the compound reading for norms whose `best` has no usable reading, stored only where one was found.
-A `SpacingReader` answers from the table and reads a missing norm on the spot, writing it back: `best(norm)` for Initialisms and the match modes, `guess(norm)` for Rhymes and Phone search (the best split unless it ends in a lone letter, else the compound).
+A `SpacingReader` answers from the table and reads a missing norm on the spot, writing it back: `best(norm)` for Initialisms and the match modes, `guess(norm)` for Rhymes, Phone search, and Stress shift (the best split unless it ends in a lone letter, else the compound).
 Readings are stored joined and uncased, because part casing follows whichever spellings the wordlist carries today and no consumer reads it.
 
 `buildSpacingTable(ctx)` sweeps the run corpus once under `ctx.forEach` and caches the result.
 A build cut short by a newer run (every keystroke of a whole-word search on a cold cache) caches what it read so far, marked incomplete, and the next build takes that table out of the cache, finishes it, and puts it back, so keystrokes add to one table instead of restarting the sweep.
 The table carries its accumulated build time for the cache's pricing, since the finishing run never missed.
 It is taken out rather than finished in place because an edit mid-build would patch the cached table and then refuse the re-put that prices it whole.
-Rhymes, Phone search, Initialisms all-mode, and Search and Regex in a word-relative mode build the table, since they touch every entry anyway.
+Rhymes, Phone search, Stress shift, Initialisms all-mode, and Search and Regex in a word-relative mode build the table, since they touch every entry anyway.
 The Initialisms filter, Hidden anagram, and Optional letters only read through it, because they rule out most entries first and building would make the first keystroke the slowest.
 
 **The table survives edits, patched rather than purged.**

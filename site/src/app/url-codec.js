@@ -1,6 +1,6 @@
 'use strict';
 
-import { TOOLS, makeToolRow } from '../engine/tools.js';
+import { TOOLS, makeToolRow, isGroupOnly, hasAllToggle } from '../engine/tools.js';
 
 // ─── URL ⇄ tool-stack codec ──────────────────────────────────────────────────
 // Must stay UI-free: node unit tests import this directly, so folding it back
@@ -67,7 +67,7 @@ export function encodeRow(row) {
   const { def } = row;
   const schema = def.params;
   const slug = encodeURIComponent(row.reversed() ? def.reverseSlug : row.tool);
-  if (row.grouped) return [slug, 'all', ...encodeTailParams(row, schema)];
+  if (row.grouped && !isGroupOnly(def)) return [slug, 'all', ...encodeTailParams(row, schema)];
   // A checkbox has no text to ride the tool key: collapsing it writes the boolean
   // into the slug (?optional_letters=true, or a bare `=` when off) and a valued one
   // loses its key entirely. The slug alone is already the anchor, so it keeps every
@@ -90,7 +90,7 @@ function makeSlugRow(tool, value, reverse, migrate) {
   const row = makeToolRow(tool);
   for (const p of def.params) if (p.repeat) row.params[p.key] = [];
   const first = def.params[0];
-  if (first && first.type !== 'checkbox') {
+  if (first && first.type !== 'checkbox' && (value || first.default === undefined)) {
     const v = value || '';
     row.params[first.key] = first.repeat ? [v] : (migrate && def.decodeFirstParam ? def.decodeFirstParam(v) : v);
   }
@@ -112,7 +112,7 @@ export function decodeRows(params) {
     if (RESERVED.has(key)) continue;
     if (key === 'all') {
       const cur = rows[rows.length - 1];
-      if (cur && cur.def.group) {
+      if (cur && hasAllToggle(cur.def) && !cur.grouped) {
         if (rows.some(r => r.grouped)) rows.pop();
         else { cur.grouped = true; cur.params = {}; }
       }
@@ -134,7 +134,8 @@ export function decodeRows(params) {
       continue;
     }
     if (TOOLS[key]) {
-      rows.push(makeSlugRow(key, value, false, true));
+      const row = makeSlugRow(key, value, false, true);
+      if (!(row.grouped && rows.some(r => r.grouped))) rows.push(row);
       continue;
     }
     const cur = rows[rows.length - 1];

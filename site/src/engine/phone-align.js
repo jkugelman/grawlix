@@ -178,6 +178,20 @@ export function alignWord(word, phones) {
   return { steps, cost: cost[n * W + m] };
 }
 
+let alignCache = new Map();
+const ALIGN_CACHE_MAX = 20_000;
+
+export function alignmentOf(letters, phones) {
+  const key = letters + ' ' + phones.join(' ');
+  let steps = alignCache.get(key);
+  if (!steps) {
+    if (alignCache.size > ALIGN_CACHE_MAX) alignCache = new Map();
+    steps = alignWord(letters, phones).steps;
+    alignCache.set(key, steps);
+  }
+  return steps;
+}
+
 // The letters spelling sounds [a, b) of the word. Silent letters at the word's
 // start (KNIGHT) or end (PHONE) ride along with the neighbor they sit against.
 //
@@ -208,4 +222,8 @@ export function lettersForPhones(steps, a, b, wordLength) {
 // or above it and CMU's ordinary pronunciations start failing citationProns.
 export function spellsOut(word, phones) {
   return alignWord(word, phones).steps.every(s => s.cost < SILENT_DEFAULT);
+}
+
+export function canSpell(letters, phone) {
+  return !!table().get(letters)?.some(e => e.phones.length === 1 && e.phones[0] === phone);
 }

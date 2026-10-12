@@ -9,7 +9,7 @@ Source material: shipped catalog lives in `TOOLS` in [`site/src/engine/tools.js`
 **Status** — `✓` = shipped (gallery card renders and `run` produces results).
 Blank = planned (no card, or a card with no `run` yet).
 `TBD` in any field = not yet specified; fill in when the design firms up.
-**Phonetics** loads the CMU Pronouncing Dictionary at runtime — the worker fetches and caches it on first use (no bundling); Rhymes and Phone search ship, the rest are planned.
+**Phonetics** loads the CMU Pronouncing Dictionary at runtime — the worker fetches and caches it on first use (no bundling); Rhymes, Phone search, and Stress shift ship, the rest are planned.
 **Thesaurus** is gated on bundling a semantic dataset — WordNet (preferred) ahead of Roget's Thesaurus (XML): WordNet is permissively licensed, ships structured synonym/antonym/hypernym relations, and the same dataset can back a prospective morphology layer — see [`planned/tools.md`](planned/tools.md#capability-families) for the family rationale.
 Tool lists in those two categories are provisional.
 
@@ -42,6 +42,7 @@ Tool lists in those two categories are provisional.
 | ✓ | Palindrome | ⬅️ Semordnilap | Reverse to get a different word | stressed ↔ desserts |
 | ✓ | Phonetic | 📱 Phone search | Search (and replace) by sound | knee → honey, neon |
 | ✓ | Phonetic | 🎵 Rhymes | Rhyming words and phrases | rhyme → climb, key lime |
+| ✓ | Phonetic | 😅 Stress shift | Same sounds, stress on another syllable | desert · dessert |
 |   | Phonetic | 🔊 Phonetic substitution | Swap one phoneme for another across the wordlist | TBD |
 |   | Phonetic | 🎶 Sound shift | Move a phoneme between word positions (e.g. front → end) | TBD |
 | ✓ | Phrase | 🌌 Space out | Guess at where spaces go in multi-word entries | spaceout → space out |

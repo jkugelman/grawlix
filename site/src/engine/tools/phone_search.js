@@ -1,10 +1,10 @@
 'use strict';
 
 import { loadCmuDict, hasCmuDict, soundsOf } from '../phonetics.js';
-import { alignWord, lettersForPhones } from '../phone-align.js';
-import { hasUnigramCorpus, rankedSplits, SPACE_OUT_WINDOWS } from '../segmenter.js';
+import { alignmentOf, lettersForPhones } from '../phone-align.js';
+import { tokensOf, itemsOf as readItems } from '../phone-reading.js';
 import { buildSpacingTable, loadSpacingCorpus, spacingReader } from '../space-out.js';
-import { stripAccents, toNorm, displayOf, buildNormToDisplay } from '../norm.js';
+import { toNorm, displayOf, buildNormToDisplay } from '../norm.js';
 import { SEARCH_KINDS } from '../search.js';
 import { candidates } from '../morphology.js';
 import { MATCH_PARAM, matchModeOf, isReplacing } from './shared.js';
@@ -19,74 +19,7 @@ async function ensureDict() {
 
 // ─── Reading an entry aloud ──────────────────────────────────────────────────
 
-// Apostrophes join, or DON'T reads as DON plus a letter-name T. A digit makes the
-// token unreadable: CMU has no numerals, and dropping them would read B52S as BS.
-function tokensOf(display) {
-  const tokens = [];
-  let cur = null;
-  const close = () => { if (cur) tokens.push(cur); cur = null; };
-  for (let i = 0; i < display.length; i++) {
-    const ch = display[i];
-    if (ch === '\'' || ch === '’') continue;
-    const folded = stripAccents(ch).toLowerCase();
-    let letter = false;
-    for (const c of folded) {
-      if (c >= 'a' && c <= 'z') {
-        cur ??= { letters: '', at: [], digits: false };
-        cur.letters += c;
-        cur.at.push(i);
-        letter = true;
-      } else if (c >= '0' && c <= '9') {
-        cur ??= { letters: '', at: [], digits: false };
-        cur.digits = true;
-        letter = true;
-      }
-    }
-    if (!letter) close();
-  }
-  close();
-  return tokens;
-}
-
-// A lone letter from a split is the segmenter's escape hatch, not a word: CMU
-// would read DEFOGGERS → DEFOGGE R S's R as its letter name and hear ARE in it.
-const isWordPart = part => part.length > 1 || part === 'a' || part === 'i';
-
-function unitsOfParts(token, parts) {
-  const units = [];
-  let off = 0;
-  for (const part of parts) {
-    if (!isWordPart(part)) return null;
-    const sounds = soundsOf(part);
-    if (!sounds) return null;
-    units.push({ letters: part, at: token.at.slice(off, off + part.length), sounds });
-    off += part.length;
-  }
-  return units;
-}
-
-function unitsOf(token, spacing, wide) {
-  if (token.digits || !token.letters) return null;
-  const sounds = soundsOf(token.letters);
-  if (sounds) return [{ letters: token.letters, at: token.at, sounds }];
-  const guess = spacing?.guess(token.letters);
-  const units = guess && unitsOfParts(token, guess);
-  if (units || !wide || !hasUnigramCorpus()) return units;
-  // The typed input gets Rhymes' wider window: an input that can't be read is a
-  // dead end with nothing on screen to say why.
-  for (const parts of rankedSplits(token.letters, SPACE_OUT_WINDOWS.many, spacing.vocab).slice(0, 20)) {
-    if (parts.length < 2) continue;
-    const found = unitsOfParts(token, parts);
-    if (found) return found;
-  }
-  return null;
-}
-
-function itemsOf(display, spacing, wide = false) {
-  const items = [];
-  for (const token of tokensOf(display)) items.push(...(unitsOf(token, spacing, wide) ?? [null]));
-  return items;
-}
+const itemsOf = (display, spacing, wide = false) => readItems(display, spacing, soundsOf, wide);
 
 const MAX_READINGS = 16;
 
@@ -125,20 +58,6 @@ function breaksOf(items, reading) {
 
 // ─── Highlighting ────────────────────────────────────────────────────────────
 
-let alignCache = new Map();
-const ALIGN_CACHE_MAX = 20_000;
-
-function alignmentOf(letters, sound) {
-  const key = letters + ' ' + sound.code;
-  let steps = alignCache.get(key);
-  if (!steps) {
-    if (alignCache.size > ALIGN_CACHE_MAX) alignCache = new Map();
-    steps = alignWord(letters, sound.phones).steps;
-    alignCache.set(key, steps);
-  }
-  return steps;
-}
-
 function rangesForHit(items, reading, a, b) {
   const out = [];
   let off = 0;
@@ -148,7 +67,7 @@ function rangesForHit(items, reading, a, b) {
     const lo = Math.max(a, off) - off, hi = Math.min(b, off + len) - off;
     if (item && lo < hi) {
       const sound = item.sounds[reading.picks[k]];
-      const [s, e] = lettersForPhones(alignmentOf(item.letters, sound), lo, hi, item.letters.length);
+      const [s, e] = lettersForPhones(alignmentOf(item.letters, sound.phones), lo, hi, item.letters.length);
       out.push({ start: item.at[s], end: item.at[e - 1] + 1 });
     }
     off += len;

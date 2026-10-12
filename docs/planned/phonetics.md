@@ -3,7 +3,7 @@
 Planned sound-based tools and the engine work they need: an eSpeak NG fallback for words the CMU Pronouncing Dictionary lacks, and tools built on it (spoonerisms, a slant-rhyme tier, homophone groups, phonetic substitution, and more).
 The catalog of tool cards lives in [`../tools.md`](../tools.md); this doc owns the *how*.
 
-What has shipped is recorded elsewhere: Rhymes, Phone search, and the CMU core they share are in [`design.md`](../design.md) § *Pronunciations*, § *Rhymes*, and § *Phone search and letter–sound alignment*; the segmenter that reads unspaced entries for them is in [`segmenter.md`](../segmenter.md).
+What has shipped is recorded elsewhere: Rhymes, Phone search, Stress shift, and the CMU core they share are in [`design.md`](../design.md) § *Pronunciations*, § *Rhymes*, § *Phone search and letter–sound alignment*, and § *Stress shift*; the segmenter that reads unspaced entries for them is in [`segmenter.md`](../segmenter.md).
 
 > **Status: planned.**
 > The CMU-side syllabifier and schwa set ship ([`design.md`](../design.md) § *Rhymes*); nothing that needs eSpeak exists.

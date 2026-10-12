@@ -114,7 +114,7 @@ The relation `glyph` (`→`, `↔`) is a static field on the tool, not a charact
 ## The group-row model
 
 A **group row** clusters the merged wordlist rather than transforming it entry by entry, then runs the rest of the pipeline as a *per-group* sub-pipeline.
-Groupable tools today: Anagrams (letter multiset), Letter bank (distinct-letter set — POST, STOP, SPOT, TOPS cluster under `opst`), Consonantcy (consonant skeleton), Vowelcy (vowel skeleton), Caesar shift (shift-invariant key — STEEDS and TUFFET cluster), Cryptogram (letter-pattern key — LEVEL and ROTOR cluster), Initialisms (word-initial letters of multi-word displays), Dead center (the centered core), and Rhymes (the rhyming part).
+Groupable tools today: Anagrams (letter multiset), Letter bank (distinct-letter set — POST, STOP, SPOT, TOPS cluster under `opst`), Consonantcy (consonant skeleton), Vowelcy (vowel skeleton), Caesar shift (shift-invariant key — STEEDS and TUFFET cluster), Cryptogram (letter-pattern key — LEVEL and ROTOR cluster), Initialisms (word-initial letters of multi-word displays), Dead center (the centered core), Rhymes (the rhyming part), and Stress shift (a clique of readings alike but for stress).
 
 **All-mode is a flag on the stack row, not a separate tool.**
 A flat tool declares groupability by adding a `group: { key, columns }` sub-object — `key(entry)` returns the equivalence's canonical string — or an array of them, when one entry reads several ways (Rhymes' pronunciations, Dead center's cores) — and `columns` declares the per-group attributes that surface in the row.
@@ -150,7 +150,10 @@ A tool can be a highlighting filter in flat mode yet a group producer in all-mod
 The flat-mode `input: 'highlight'` setting is inert when the tool is the group producer — `chainProducesMultiAtom` and `currentAtomCount` ignore it for a group-kind row.
 A group producer opts into per-member highlights separately, via `group.memberHighlights(member, key) → ranges`: bucketize stamps each member a highlight atom (the center span, derived purely from `member` and `key` — no re-match) and pre-collapses it to a single highlighted atom.
 Pre-collapse, rather than appending a slot for the post-pass `unify`, is deliberate — a group's members are an equivalence set, and unify's cross-row mirror-fold would merge reverse members (`rat`/`tar` in one cluster), so the pure-group path must skip unify.
-`currentAtomCount` counts the member-highlight slot only when `memberHighlights` is declared.
+`group.memberReadings(member, key) → ranges[]` generalizes it to one member per reading: bucketize emits the chain once per returned highlight list, so Stress shift can show PROJECT twice in one cluster, stressed each way.
+Those readings count toward the two-member floor, so a single entry said two ways is a cluster; `keepGroup(members, prepared, key)` gets the key for checks like that one.
+Packing refuses an entry listed twice, so a packed member always has a single reading and `materializeGroupRow` takes the first.
+`currentAtomCount` counts the member-highlight slot only when `memberHighlights` or `memberReadings` is declared.
 
 **Optional `group.anchor(key, wordlist)` hook + `group.anchorLabel`.**
 Returns the wlEntry that anchors the cluster (or `null` to drop it); the label names what that anchor is for the user.
@@ -181,6 +184,11 @@ A highlighting filter (Search, Regex) marks the matchers and hands every other m
 Groups whose chain list empties drop (the never-bucketized flat group is the one exception — an empty result is still a flat result, not a vanished one).
 This is the one spot flat and grouped diverge — a filter trims per *chain* when flat (chain = row) but keeps-or-drops the whole *group* when grouped (group = row); `runToolStage` and `unify` otherwise run identically over each group's chain list, since the flat seed is itself a group of K chains.
 (The score range, applied post-pipeline by `applyViewFilterToRows`, is the exception that still trims members per chain — it's a score-validity lens, not a locate filter, so an out-of-range member is genuinely excluded from the cluster; and if the range hides *every* member that matched the grouped filter, the cluster drops rather than lingering on an invisible match — see § Pipeline execution.)
+
+**Group-only tools.**
+A tool whose static `kind` is `'group'` (Stress shift) has no flat mode, so it shows no `✱` affordance (`hasAllToggle`) and takes no typed input; its params, if any, configure the grouping.
+`makeToolRow` marks its rows `grouped` unconditionally, which keeps every one-at-a-time gate that reads `row.grouped` working unchanged: the gallery greys its card while another `✱` row is active, adding it is refused, and the URL decoder drops it past the first group row.
+Its URL carries no `all`, since the slug alone means grouped (`?stress_shift=homophones`).
 
 **At most one group tool per pipeline.**
 A second has nothing well-defined to cluster — the first already replaced the entries with group rows — so the `✱` toggle on every other groupable row greys out once one is active, the toggle handler refuses to flip a second on, and the URL decoder ignores group tools past the first.

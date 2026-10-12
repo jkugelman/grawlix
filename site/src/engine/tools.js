@@ -28,6 +28,7 @@ import palindromes from './tools/palindromes.js';
 import semordnilap from './tools/semordnilap.js';
 import phone_search from './tools/phone_search.js';
 import rhymes from './tools/rhymes.js';
+import stress_shift from './tools/stress_shift.js';
 import space_out from './tools/space_out.js';
 import search from './tools/search.js';
 import regex from './tools/regex.js';
@@ -87,6 +88,7 @@ export const TOOLS = {
   semordnilap,
   phone_search,
   rhymes,
+  stress_shift,
   space_out,
   search,
   regex,
@@ -167,9 +169,16 @@ export function toolAssets(def, params) {
   return assets || [];
 }
 
+// A group-only tool (static `kind: 'group'`, like Stress shift) has no flat mode
+// and so no ✱ toggle. Its rows are always grouped, which is what keeps it under
+// the one-✱-per-stack rule that every gate reads off `row.grouped`.
+export const isGroupOnly = def => def.kind === 'group';
+export const hasAllToggle = def => !!def.group && !isGroupOnly(def);
+
 export function makeToolRow(tool, params = {}, grouped = false, invert = false, reverse = false) {
   const def = TOOLS[tool];
-  if (!grouped) {
+  if (isGroupOnly(def)) grouped = true;
+  if (!grouped || isGroupOnly(def)) {
     for (const p of def.params) {
       if (p.repeat) {
         if (!Array.isArray(params[p.key])) params[p.key] = [''];
