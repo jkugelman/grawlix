@@ -63,3 +63,28 @@ test('all-mode marks a run-together member and leaves a spaced one bare', async 
   expect(marksFor(rows, 'Helen of Troy')).toEqual([]);
   expect(marksFor(rows, 'helen of time')).toEqual([]);
 });
+
+// Pins the reproject path (runId unchanged): a re-run re-picks the anchor and would pass
+// even with the stale-anchor bug.
+test('a rescore that demotes the anchor re-picks it without dropping the group', async ({ page }) => {
+  await gotoApp(page);
+  await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
+    name: 'Spellings',
+    entries: ['ADA', 'Ada', 'a dog ate', 'all day air'],
+    scores: [50, 50, 50, 50],
+  }));
+  await page.evaluate(() => window.__grawlixTest.pipelineIdle());
+  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'initialisms', grouped: true }]));
+  await page.evaluate(() => {
+    const input = document.querySelector('#score-range-input');
+    input.value = '50+';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+  await expectGroups(page, gs => gs.map(g => g.anchor), [{ entry: 'ADA', score: 50 }]);
+  const runId = await page.evaluate(() => window.__grawlixTest.lastCompletedRunId());
+
+  await page.evaluate(() => window.__grawlixTest.rescoreFrom({ norm: 'ada', display: 'ADA' }, 40));
+
+  await expectGroups(page, gs => gs.map(g => g.anchor), [{ entry: 'Ada', score: 50 }]);
+  expect(await page.evaluate(() => window.__grawlixTest.lastCompletedRunId())).toBe(runId);
+});

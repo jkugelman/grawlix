@@ -940,6 +940,7 @@ function reprojectFlat(r, reprojectId, recomputeHistogram) {
 }
 
 function reprojectGroup(r, reprojectId) {
+  reanchorGroups(r.join, corpusFor(r), r.stack);
   if (r.packed) {
     const corpus = corpusFor(r);
     if (r.laneKind === 'record') {
@@ -1104,7 +1105,22 @@ function deriveFlatResult(runId, join, viewSpec, scope, stack) {
   };
 }
 
+// An anchor is score-derived (Initialisms' is its key's best spelling), and a score edit
+// keeps the retained join, so every derive re-picks it: a stale anchor that fell out of
+// the score range silently drops its whole group.
+function reanchorGroups(join, corpus, stack) {
+  const anchorFn = activeGroupRow(stack)?.def.group?.anchor;
+  if (!anchorFn) return;
+  if (join instanceof PackedGroupJoin) {
+    const ai = join.anchorIdx.a;
+    for (let ord = 0; ord < join.count; ord++) ai[ord] = anchorFn(join.keys[ord], corpus)?._i ?? -1;
+  } else if (Array.isArray(join)) {
+    for (const g of join) if (g.anchor) g.anchor = anchorFn(g.key, corpus);
+  }
+}
+
 function deriveGroupResult(runId, join, viewSpec, scope, stack, laneKind) {
+  reanchorGroups(join, ownedCorpus, stack);
   if (join instanceof PackedRecordJoin) {
     const view = recordView(join, viewSpec, ownedCorpus);
     return {

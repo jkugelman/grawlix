@@ -169,6 +169,7 @@ Returns the wlEntry that anchors the cluster (or `null` to drop it); the label n
 Initialisms declares `anchor: (key, wordlist) => bestRowForNorm(wordlist, key)` and `anchorLabel: 'Initialism'`, so a `TIS ⇄ the IRS` cluster only survives when `TIS` itself is in the wordlist — the value is the bidirectional pair, not the one-way coincidence.
 Dead center declares the same pair with `anchorLabel: 'Center'`.
 The anchor's score also gates the score-range filter (`applyViewFilterToRows` drops a group whose anchor falls outside the bracket, alongside its chain-atom check), so dragging the range narrower trims initialisms whose anchor leaves the band even when the expansions wouldn't have been cut on their own.
+Because the anchor is score-derived, every derive of a group result (terminal, cache hit, reproject) re-picks it (`reanchorGroups`): a score edit reprojects the retained join, and a stale anchor demoted out of the range would drop the group instead of handing the slot to the key's other spelling.
 The histogram source (`bottomLineAtoms` of the unfiltered pipeline output) still reflects chain atoms only — the anchor score isn't bar-counted, so an anchor-driven cut isn't visualized by the histogram.
 Initialism anchors typically land in the same score band as their expansions, so the cosmetic gap is rare.
 
