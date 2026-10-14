@@ -72,6 +72,8 @@ Plans (forward-looking, not yet shipped).
 - [`docs/planned/phonetics.md`](docs/planned/phonetics.md) — planned sound-based tools: the CMU-vs-eSpeak NG engine question (eSpeak evaluated, not adopted), its runtime and GPLv3 licensing costs, spoonerisms, a slant-rhyme tier, homophone groups.
   What shipped (Rhymes, Phone search, the CMU core) is in `design.md`.
 - [`docs/planned/settings-backup.md`](docs/planned/settings-backup.md) — deferred manual export/import of settings to a file (for users who version-control their config), the successor to the dropped `grawlix.json` mirror.
+- [`docs/planned/clue-lookup.md`](docs/planned/clue-lookup.md) — a Past clues section in the entry panel, fed by the xd crossword corpus: per-answer JSON files built nightly from gxd, served from Cloudflare R2 behind a rate-limited Worker on the free tier.
+  Grawlix's first server-side component.
 - [`docs/planned/faq.md`](docs/planned/faq.md) — backlog of candidate FAQ questions not yet written into the in-app Help dialog (`ui/dialogs/help.js`).
 
 Future (longer-horizon ideas, not actively planned):
