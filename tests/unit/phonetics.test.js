@@ -88,7 +88,7 @@ test('a stressed checked vowel keeps the next consonant as its coda', () => {
   assert.deepEqual(rhymingPartsOf('fairest', 'whole'), ['EH R | AX S T']);
   assert.deepEqual(rhymingPartsOf('rarest', 'whole'), ['EH R | AX S T']);
   assert.deepEqual(rhymingPartsOf('chemist', 'whole'), ['EH M | AX S T']);
-  assert.deepEqual(rhymingPartsOf('wettest', 'whole'), ['EH T | AX S T']);
+  assert.deepEqual(rhymingPartsOf('wettest', 'whole'), ['EH D | AX S T']);
   assert.deepEqual(rhymingPartsOf('dentist', 'whole'), ['EH N | AX S T']);
 });
 
@@ -160,6 +160,15 @@ test('after AY and AW, an unstressed ER folds into R', () => {
   assert.deepEqual(rhymingPartsOf('sour'), ['AW R']);
   assert.deepEqual(rhymingPartsOf('tire', 'whole'), rhymingPartsOf('spire', 'whole'));
   assert.deepEqual(rhymingPartsOf('player'), ['EY ER']);
+});
+
+test('a flapped T rhymes as D, but not before a syllabic N', () => {
+  setCmuDict({
+    BETTER: ['B EH1 T ER0'], SHREDDER: ['SH R EH1 D ER0'], BURTON: ['B ER1 T AH0 N'], BURDEN: ['B ER1 D AH0 N'],
+  });
+  assert.deepEqual(rhymingPartsOf('better'), rhymingPartsOf('shredder'));
+  assert.deepEqual(rhymingPartsOf('better', 'whole'), rhymingPartsOf('shredder', 'whole'));
+  assert.notDeepEqual(rhymingPartsOf('burton'), rhymingPartsOf('burden'));
 });
 
 test('whole mode needs every word, where the last-word modes need only the tail', () => {

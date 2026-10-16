@@ -61,7 +61,7 @@ const smoothR = pron => pron.replace(/\b(A[YW]\d) ER0\b/g, '$1 R');
 // primary — so cumberbatch's secondary -batch rhymes with match under loose, not strict.
 // Stress stripped so a secondary anchor still matches a primary under loose (dynamite ~ kite).
 export function rhymingPart(pron, mode = 'loose') {
-  const toks = smoothR(pron).split(' ');
+  const toks = flapT(smoothR(pron)).split(' ');
   let start = -1;
   for (let i = toks.length - 1; i >= 0; i--) {
     const last = toks[i][toks[i].length - 1];
@@ -202,7 +202,7 @@ function wholeEntryParts(text) {
   const keys = new Set();
   for (const combo of combos) {
     const sylls = [];
-    for (const pron of combo) sylls.push(...syllabify(smoothR(pron)));
+    for (const pron of combo) sylls.push(...syllabify(flapT(smoothR(pron))));
     if (sylls.length) for (const key of syllableKeys(sylls)) keys.add(key);
   }
   return [...keys];
