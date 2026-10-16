@@ -62,6 +62,36 @@ test('Enter steps to the next match and wraps at the end; Shift+Enter steps back
   await expect(count(page)).toHaveText('4/4');
 });
 
+test('Ctrl+G / F3 step forward and Shift steps back, even with focus in the table', async ({ page }) => {
+  await setup(page, { entries: AP });
+  await openFind(page);
+  await input(page).fill('ap');
+  await expect(count(page)).toHaveText('1/4');
+  await page.keyboard.press('Control+g');
+  await expect(count(page)).toHaveText('2/4');
+  await page.keyboard.press('F3');
+  await expect(count(page)).toHaveText('3/4');
+  await rowFor(page, 'staple').locator('.atom-len').click();   // focus moves to the listbox
+  await page.keyboard.press('Control+Shift+g');
+  await expect(count(page)).toHaveText('2/4');
+  await page.keyboard.press('Shift+F3');
+  await expect(count(page)).toHaveText('1/4');
+  await expect(bar(page)).toBeVisible();
+});
+
+test('Ctrl+G with the bar closed reopens it on the last query', async ({ page }) => {
+  await setup(page, { entries: AP });
+  await openFind(page);
+  await input(page).fill('ap');
+  await expect(count(page)).toHaveText('1/4');
+  await page.keyboard.press('Escape');
+  await expect(bar(page)).toBeHidden();
+  await page.keyboard.press('Control+g');
+  await expect(bar(page)).toBeVisible();
+  await expect(input(page)).toHaveValue('ap');
+  await expect(count(page)).not.toHaveText('');
+});
+
 test('matching is case-insensitive', async ({ page }) => {
   await setup(page, { entries: AP });
   await openFind(page);

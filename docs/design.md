@@ -143,6 +143,7 @@ No service worker: Grawlix is online-only by choice, which trades offline suppor
 The global shortcuts:
 
 - **Ctrl/Cmd+F** — find in the entries table (§ *Find in page*).
+- **Ctrl/Cmd+G** or **F3**, plus **Shift** — find next or previous match.
 - **Alt-T**, or **Ctrl/Cmd+K** — open the tool picker.
 - **Alt-S** — focus the permanent search bar's pattern.
 - **Alt-W** — toggle the match-mode checkbox of the focused Search, Regex, or Phone search row, else the permanent search bar's (§ *Match modes*).
@@ -781,7 +782,8 @@ See [`planned/editing.md`](planned/editing.md), which also holds the bulk-editin
 ### Find in page (Ctrl/Cmd+F)
 
 The browser's own find can only see the mounted rows — the virtual scroller windows the result, so native find silently misses everything off-screen.
-Grawlix overrides Ctrl/Cmd+F with a custom find that searches the **whole result** and navigates + highlights across it, with parity to the browser's: a bar with an in-field `N/M` counter and prev/next carets, Enter/↓ for next and Shift+Enter/↑ for previous (both wrapping), and Escape to close.
+Grawlix overrides Ctrl/Cmd+F with a custom find that searches the **whole result** and navigates + highlights across it, with parity to the browser's: a bar with an in-field `N/M` counter and prev/next carets, Enter for next and Shift+Enter for previous (both wrapping), and Escape to close.
+Ctrl/Cmd+G and F3 (with Shift for previous) step from anywhere in the entries view, so a match can be acted on from the table and the sweep continues without refocusing the bar; with the bar closed they reopen it on the last query.
 It is **find, not filter** — non-destructive, leaving the sort and any tool filter untouched.
 On the editable **flat tier** it drives the cursor and single-selection: the current match becomes the selected row, so closing find (Esc) lands **edit-ready** — Enter opens the entry panel on it, Alt+digit retiers it — and because Alt+digit already acts on the selection, retiering works straight from the open bar too, making a type→`Alt`+digit→`Enter` sweep down every match.
 Non-flat tiers aren't selectable, so there find stays navigate-only.

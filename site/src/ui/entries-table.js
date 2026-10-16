@@ -1209,13 +1209,18 @@ export class EntriesScroller extends BaseVirtualScroller {
         if (this._findBar && !this._findBar.hidden) { e.preventDefault(); this.closeFind(); }
         return;
       }
-      if (e.key !== 'f' && e.key !== 'F') return;
-      if (!(e.metaKey || e.ctrlKey) || e.altKey || e.shiftKey) return;
+      const mod = (e.metaKey || e.ctrlKey) && !e.altKey;
+      const open = mod && !e.shiftKey && (e.key === 'f' || e.key === 'F');
+      const step = (mod && (e.key === 'g' || e.key === 'G'))
+        || (e.key === 'F3' && !e.metaKey && !e.ctrlKey && !e.altKey);
+      if (!open && !step) return;
       if (document.querySelector('dialog[open]')) return;   // a modal owns the keyboard
       if (EntryPanel.isOpen()) return;                      // …as does the entry panel (a modal div, not a <dialog>)
       if (!this.host.offsetParent) return;                  // entries view not on screen
       e.preventDefault();
-      this.openFind();
+      if (open || !this._findBar || this._findBar.hidden) this.openFind();
+      else if (e.shiftKey) this.findPrev();
+      else this.findNext();
     };
     document.addEventListener('keydown', this._onFindKey);
   }
