@@ -1,6 +1,6 @@
 'use strict';
 
-import { loadCmuDict, hasCmuDict, soundsOf } from '../phonetics.js';
+import { loadCmuDict, hasCmuDict, soundsOf, phoneCode } from '../phonetics.js';
 import { alignmentOf, lettersForPhones } from '../phone-align.js';
 import { tokensOf, itemsOf as readItems } from '../phone-reading.js';
 import { buildSpacingTable, loadSpacingCorpus, spacingReader, SPACING_PASS } from '../space-out.js';
@@ -91,11 +91,26 @@ function mergeRanges(ranges) {
 
 // ─── Matching ────────────────────────────────────────────────────────────────
 
+// CMU ends TABBY on IY but has the vowel of STABBING and BLACK INK as IH, which
+// many speakers say as IY before NG. Only there: elsewhere IH is short, and
+// MONEY would match FEMINIST. Not before NG G in one word either, where it stays
+// short: TOUGHIE isn't heard in LIFT A FINGER.
+function ingCodesOf(items, readings) {
+  const last = items[items.length - 1];
+  const IY = phoneCode('IY'), IH = phoneCode('IH');
+  return readings.flatMap(({ code, picks }) => {
+    const { stress } = last.sounds[picks[picks.length - 1]];
+    return code.endsWith(IY) && stress.endsWith('0') ? [code.slice(0, -1) + IH] : [];
+  });
+}
+
 function queryOf(text, spacing) {
   const { items } = itemsOf(text, spacing, true);
   if (!items.length || items.includes(null)) return null;
+  const readings = readingsOf(items);
   return {
-    codes: [...new Set(readingsOf(items).map(r => r.code))],
+    codes: [...new Set(readings.map(r => r.code))],
+    ingCodes: [...new Set(ingCodesOf(items, readings))],
     words: items.map(item => item.letters),
   };
 }
@@ -135,13 +150,19 @@ function modeAllows(read, reading, mode) {
 function occurrencesOf(query, read, reading, mode, replacing = false) {
   const { items } = read;
   const allows = modeAllows(read, reading, mode);
+  const NG = phoneCode('NG'), G = phoneCode('G');
   const out = [];
-  for (const target of query.codes) {
-    for (let at = reading.code.indexOf(target); at !== -1; at = reading.code.indexOf(target, at + 1)) {
-      const occ = { start: at, end: at + target.length };
-      if (allows(occ) && (replacing || !isSearchWord(items, reading, occ.start, occ.end, query.words))) out.push(occ);
+  const scan = (targets, fits) => {
+    for (const target of targets) {
+      for (let at = reading.code.indexOf(target); at !== -1; at = reading.code.indexOf(target, at + 1)) {
+        const occ = { start: at, end: at + target.length };
+        if (fits(occ) && allows(occ) && (replacing || !isSearchWord(items, reading, occ.start, occ.end, query.words))) out.push(occ);
+      }
     }
-  }
+  };
+  scan(query.codes, () => true);
+  scan(query.ingCodes, ({ end }) => reading.code[end] === NG
+    && (reading.code[end + 1] !== G || breaksOf(read, reading).includes(end + 1)));
   return out;
 }
 

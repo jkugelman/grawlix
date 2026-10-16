@@ -201,7 +201,7 @@ function wholeEntryParts(text) {
 // Exactly one code unit per phone: with wider codes, indexOf could land mid-phone
 // and match sounds that aren't there.
 const phoneCodes = new Map();
-const phoneCode = phone => {
+export const phoneCode = phone => {
   let code = phoneCodes.get(phone);
   if (code === undefined) phoneCodes.set(phone, code = String.fromCharCode(0x41 + phoneCodes.size));
   return code;
@@ -261,12 +261,13 @@ export const soundsOf = wordLookup(prons => {
   const seen = new Set();
   const sounds = [];
   for (const pron of prons) {
+    const toks = pron.split(' ');
     const bare = pron.replace(/\d/g, '').split(' ');
     const phones = bare.map((ph, i) => foldVowel(ph, bare[i + 1]));
     const code = phones.map(phoneCode).join('');
     if (seen.has(code)) continue;
     seen.add(code);
-    sounds.push({ phones, code });
+    sounds.push({ phones, code, stress: toks.map(tok => (/\d$/.test(tok) ? tok.slice(-1) : '-')).join('') });
   }
   return sounds;
 });

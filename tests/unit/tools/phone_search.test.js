@@ -14,6 +14,10 @@ const CMU = {
   BOB: ['B AA1 B'], KNIGHT: ['N AY1 T'], NIGHT: ['N AY1 T'], PHONE: ['F OW1 N'],
   CO: ['K OW1', 'K AH1 M P AH0 N IY0'], AND: ['AH0 N D', 'AE1 N D'], R: ['AA1 R'],
   SAXOPHONE: ['S AE1 K S AH0 F OW2 N'], NEON: ['N IY1 AA0 N'],
+  TABBY: ['T AE1 B IY0'], STABBING: ['S T AE1 B IH0 NG'], HORSEY: ['HH AO1 R S IY0'],
+  HORSES: ['HH AO1 R S IH0 Z'], LACKEY: ['L AE1 K IY0'], BLACK: ['B L AE1 K'], INK: ['IH1 NG K'],
+  TOUGHIE: ['T AH1 F IY0'], LIFT: ['L IH1 F T'], FINGER: ['F IH1 NG G ER0'], STUFFING: ['S T AH1 F IH0 NG'],
+  GOOD: ['G UH1 D'],
 };
 
 // Corpus state is module-global and these run in one process, so a corpus seeded
@@ -48,6 +52,19 @@ test('matches by sound, not spelling', async () => {
   seed();
   assert.deepEqual(await hits(['honey', 'tee'], 'knee'), { honey: ['ney'] });
   assert.deepEqual(await hits([{ entry: 'Bob Knight' }], 'night'), { 'Bob Knight': ['Knight'] });
+});
+
+test('a final unstressed IY also meets an IH before NG, and no other IH', async () => {
+  seed();
+  assert.deepEqual(await hits(['stabbing', 'horses'], 'tabby'), { stabbing: ['tabbi'] });
+  assert.deepEqual(await hits([{ entry: 'black ink' }], 'lackey'), { 'black ink': ['lack', 'i'] });
+  assert.deepEqual(await hits(['horses'], 'horsey'), {});
+});
+
+test('the IH before NG stays short when a G follows in the same word', async () => {
+  seed();
+  assert.deepEqual(await hits([{ entry: 'lift a finger' }, { entry: 'stuffing good' }], 'toughie'),
+    { 'stuffing good': ['tuffi'] });
 });
 
 test('silent letters at a word’s edge ride along with the sounds beside them', async () => {

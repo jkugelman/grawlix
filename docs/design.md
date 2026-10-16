@@ -455,6 +455,8 @@ The breaks are Search's (`WORD_BREAK_RE`) plus the splits inside a word read thr
 
 **The query is whole words.**
 The input must read as whole words; it can't be a fragment like `pho` meaning "starts with the letters PHO", because only whole words have pronunciations.
+A query ending in an unstressed IY may also end on an IH followed by NG, so `TABBY` finds `STABBING` and `LACKEY` finds `BLACK INK`: CMU spells the final vowel of `TABBY` IY but the vowel of `-ing` and `ink` IH, which many speakers say as IY before NG.
+Elsewhere IH is short, so `MONEY` doesn't find `FEMINIST` or `HORSEY` `HORSES`, and so is an IH before NG G in one word: `TOUGHIE` doesn't find `LIFT A FINGER`, though `STUFFING GOOD` still counts.
 For each reading of the entry, the tool finds every occurrence of the query's sounds and keeps the ones the match mode allows: Whole entry needs offset 0 and the full length, Starts entry and Ends entry need just one of them, Whole word needs word breaks, and Spans words needs a break strictly between them.
 
 **The search words themselves never match.**
