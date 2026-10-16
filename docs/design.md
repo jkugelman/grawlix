@@ -460,6 +460,9 @@ It isn't a separate mode, since syllable-by-syllable is the more general relatio
 Phone search ([`engine/tools/phone_search.js`](../site/src/engine/tools/phone_search.js)) is a filter that turns the input and each entry into sound strings and runs a substring search on them.
 `soundsOf` ([`engine/phonetics.js`](../site/src/engine/phonetics.js)) gives a word's CMU pronunciations with stress stripped and the cot–caught merger folded (§ *Pronunciations*).
 Its folded reading also hears a flapped T as D (§ *Pronunciations*), so PUTTING finds TOFU PUDDING and METAL finds MEDALS.
+It also reduces unstressed AA AE AH AO EH IH UH to one schwa, so ROCKET finds DAVY CROCKETT and EFFACE finds MAKE A FACE; stressed vowels stay apart, so BIT never finds BUT.
+Unlike whole-entry rhymes it leaves an unstressed OW alone: CMU writes a reduced O as AH, so OW0 is a full "oh", and reducing it has BELLOW find BELLA.
+Only the match code is reduced: highlighting aligns the unreduced phones to letters.
 Each pronunciation is read twice, plain and folded, since the folds can't see into the next word: THE RACE keeps its IY, and only the plain reading of ERASE (IY R EY S) still finds it.
 An entry's plain readings and folded readings are combined separately, plain with plain, and each set has its own cap of 16, so the folded ones can't crowd out a plain reading that matched before.
 It encodes each phone as exactly one code unit, so `indexOf` can't land partway through a phone.

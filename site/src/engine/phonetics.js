@@ -148,6 +148,10 @@ export function syllabify(pron) {
 // match, CZECHOSLOVAKIA against ENERGY POLICY.
 const REDUCIBLE = new Set(['AA', 'AE', 'AH', 'AO', 'EH', 'IH', 'OW', 'UH']);
 
+// Hearing a word inside an entry, an unstressed OW keeps its "oh": CMU writes a
+// reduced O as AH, so OW0 is a full vowel, and reducing it has BELLOW find BELLA.
+const isWeak = vowel => vowel.endsWith('0') && vowel.slice(0, 2) !== 'OW' && REDUCIBLE.has(vowel.slice(0, -1));
+
 // Own coda, never the next syllable's onset: SAW RED has to keep folding, since a
 // word-initial R colors nothing before it.
 function nucleusKey(vowel, coda) {
@@ -268,7 +272,6 @@ function citationProns(key, prons) {
   return kept;
 }
 
-// Stress stripped: `arbiter`'s unstressed -biter has to meet `bitter`.
 // The American flap: a T between a vowel (or R) and an unstressed vowel is said
 // as D, so PUTTING finds PUDDING and METAL finds MEDAL. Not before a syllabic N,
 // where it's a glottal stop: BURTON isn't BURDEN.
@@ -279,9 +282,12 @@ const flapT = pron => {
   return toks.map((ph, i) => (ph === 'T' && flaps(i) ? 'D' : ph)).join(' ');
 };
 
+// Stress stripped: `arbiter`'s unstressed -biter has to meet `bitter`.
 // Each word is read plain and folded, and Phone search pairs plain with plain and
 // folded with folded. The folds only see inside the word, so THE RACE keeps its
-// IY and would lose ERASE's IY R if the plain reading went.
+// IY and would lose ERASE's IY R if the plain reading went. The folded reading's
+// code also reduces weak unstressed vowels to one schwa, so ROCKET finds
+// CROCKETT; its phones stay unreduced for highlighting, which has no letters for AX.
 export const soundsOf = wordLookup(prons => {
   const byCode = new Map();
   for (const raw of prons) {
@@ -290,7 +296,8 @@ export const soundsOf = wordLookup(prons => {
       const toks = pron.split(' ');
       const bare = pron.replace(/\d/g, '').split(' ');
       const phones = bare.map((ph, i) => foldVowel(ph, bare[i + 1], folded));
-      const code = phones.map(phoneCode).join('');
+      const keys = folded ? phones.map((ph, i) => (isWeak(ph + toks[i].slice(-1)) ? 'AX' : ph)) : phones;
+      const code = keys.map(phoneCode).join('');
       if (!byCode.has(code)) {
         const stress = toks.map(tok => (/\d$/.test(tok) ? tok.slice(-1) : '-')).join('');
         byCode.set(code, { phones, code, stress, plain: false, folded: false });

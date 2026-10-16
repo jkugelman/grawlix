@@ -23,6 +23,8 @@ const CMU = {
   PUTTING: ['P UH1 T IH0 NG'], PUDDING: ['P UH1 D IH0 NG'], TOFU: ['T OW1 F UW0'],
   BURDEN: ['B ER1 D AH0 N'], BURTON: ['B ER1 T AH0 N'],
   GIT: ['G IH1 T'], GETTING: ['G EH1 T IH0 NG', 'G IH1 T IH0 NG'], ATTA: ['AE1 T AH0', 'AA1 T AH0'],
+  ROCKET: ['R AA1 K AH0 T'], CROCKETT: ['K R AA1 K IH0 T'], DAVY: ['D EY1 V IY0'],
+  BIT: ['B IH1 T'], BUT: ['B AH1 T'], BELLOW: ['B EH1 L OW0'], BELLA: ['B EH1 L AH0'],
   PYRE: ['P AY1 ER0'], PIRATE: ['P AY1 R AH0 T'], SPY: ['S P AY1'], RING: ['R IH1 NG'],
 };
 
@@ -93,6 +95,13 @@ test('a T between vowels meets a D, but not before a syllabic N', async () => {
 test('folded readings never crowd out a plain one', async () => {
   seed();
   assert.deepEqual(await hits([{ entry: 'getting atta atta' }], 'git'), { 'getting atta atta': ['gett'] });
+});
+
+test('unstressed weak vowels meet each other, stressed ones and OW don’t', async () => {
+  seed();
+  assert.deepEqual(await hits([{ entry: 'Davy Crockett' }], 'rocket'), { 'Davy Crockett': ['rockett'] });
+  assert.deepEqual(await hits(['but'], 'bit'), {});
+  assert.deepEqual(await hits(['bella'], 'bellow'), {});
 });
 
 test('silent letters at a word’s edge ride along with the sounds beside them', async () => {
