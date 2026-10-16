@@ -269,25 +269,36 @@ function citationProns(key, prons) {
 }
 
 // Stress stripped: `arbiter`'s unstressed -biter has to meet `bitter`.
-// Each word is read with and without the R folds. They only see R inside the
-// word, so THE RACE keeps its IY and would lose ERASE's IY R if the unfolded
-// reading went.
+// The American flap: a T between a vowel (or R) and an unstressed vowel is said
+// as D, so PUTTING finds PUDDING and METAL finds MEDAL. Not before a syllabic N,
+// where it's a glottal stop: BURTON isn't BURDEN.
+const flapT = pron => {
+  const toks = pron.split(' ');
+  const flaps = i => (isVowel(toks[i - 1] ?? '-') || toks[i - 1] === 'R') && toks[i + 1]?.endsWith('0')
+    && !(toks[i + 2] === 'N' && !(toks[i + 3] && isVowel(toks[i + 3])));
+  return toks.map((ph, i) => (ph === 'T' && flaps(i) ? 'D' : ph)).join(' ');
+};
+
+// Each word is read plain and folded, and Phone search pairs plain with plain and
+// folded with folded. The folds only see inside the word, so THE RACE keeps its
+// IY and would lose ERASE's IY R if the plain reading went.
 export const soundsOf = wordLookup(prons => {
-  const seen = new Set();
-  const sounds = [];
+  const byCode = new Map();
   for (const raw of prons) {
-    for (const folded of [true, false]) {
-      const pron = folded ? smoothR(raw) : raw;
+    for (const folded of [false, true]) {
+      const pron = folded ? flapT(smoothR(raw)) : raw;
       const toks = pron.split(' ');
       const bare = pron.replace(/\d/g, '').split(' ');
       const phones = bare.map((ph, i) => foldVowel(ph, bare[i + 1], folded));
       const code = phones.map(phoneCode).join('');
-      if (seen.has(code)) continue;
-      seen.add(code);
-      sounds.push({ phones, code, stress: toks.map(tok => (/\d$/.test(tok) ? tok.slice(-1) : '-')).join('') });
+      if (!byCode.has(code)) {
+        const stress = toks.map(tok => (/\d$/.test(tok) ? tok.slice(-1) : '-')).join('');
+        byCode.set(code, { phones, code, stress, plain: false, folded: false });
+      }
+      byCode.get(code)[folded ? 'folded' : 'plain'] = true;
     }
   }
-  return sounds;
+  return [...byCode.values()];
 });
 
 export const stressedSoundsOf = wordLookup(prons => {

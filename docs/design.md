@@ -455,7 +455,10 @@ It isn't a separate mode, since syllable-by-syllable is the more general relatio
 
 Phone search ([`engine/tools/phone_search.js`](../site/src/engine/tools/phone_search.js)) is a filter that turns the input and each entry into sound strings and runs a substring search on them.
 `soundsOf` ([`engine/phonetics.js`](../site/src/engine/phonetics.js)) gives a word's CMU pronunciations with stress stripped and the cot–caught merger folded (§ *Pronunciations*).
-Each pronunciation is read twice, with and without the R folds, since they can't see an R in the next word: THE RACE keeps its IY, and only the unfolded reading of ERASE (IY R EY S) still finds it.
+It also folds the American flap: a T between a vowel (or R) and an unstressed vowel reads as D, so PUTTING finds TOFU PUDDING and METAL finds MEDALS.
+Not before a syllabic N, where the T is a glottal stop: BURDEN doesn't find BURTON.
+Each pronunciation is read twice, plain and folded, since the folds can't see into the next word: THE RACE keeps its IY, and only the plain reading of ERASE (IY R EY S) still finds it.
+An entry's plain readings and folded readings are combined separately, plain with plain, and each set has its own cap of 16, so the folded ones can't crowd out a plain reading that matched before.
 It encodes each phone as exactly one code unit, so `indexOf` can't land partway through a phone.
 A word CMU doesn't know is read through the spacing table's `guess` ([`segmenter.md`](segmenter.md) § *The spacing table*).
 If a word still can't be read, or it contains a digit, it reads as a **hole**: one code unit that no sound matches.

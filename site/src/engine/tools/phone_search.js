@@ -28,8 +28,16 @@ const MAX_READINGS = 16;
 const HOLE = '\u0001';
 
 // Every way to say an entry, one pronunciation per word: [{ code, picks }],
-// where picks[k] is the index into items[k].sounds.
+// where picks[k] is the index into items[k].sounds. The plain readings come
+// first and are capped on their own, so the folded ones never crowd out a
+// reading that matched before the folds existed.
 function readingsOf(items) {
+  const plain = productOf(items, sound => sound.plain);
+  const codes = new Set(plain.map(r => r.code));
+  return [...plain, ...productOf(items, sound => sound.folded).filter(r => !codes.has(r.code))];
+}
+
+function productOf(items, keep) {
   let readings = [{ code: '', picks: [] }];
   for (const item of items) {
     if (!item) {
@@ -39,7 +47,7 @@ function readingsOf(items) {
     const next = [];
     for (const r of readings) {
       for (let s = 0; s < item.sounds.length && next.length < MAX_READINGS; s++) {
-        next.push({ code: r.code + item.sounds[s].code, picks: [...r.picks, s] });
+        if (keep(item.sounds[s])) next.push({ code: r.code + item.sounds[s].code, picks: [...r.picks, s] });
       }
     }
     readings = next;

@@ -20,6 +20,9 @@ const CMU = {
   GOOD: ['G UH1 D'],
   BIER: ['B IY1 R'], BEER: ['B IH1 R'], ERASE: ['IY0 R EY1 S'], THE: ['DH IY0'], RACE: ['R EY1 S'],
   ROOT: ['R UW1 T'], WIN: ['W IH1 N'],
+  PUTTING: ['P UH1 T IH0 NG'], PUDDING: ['P UH1 D IH0 NG'], TOFU: ['T OW1 F UW0'],
+  BURDEN: ['B ER1 D AH0 N'], BURTON: ['B ER1 T AH0 N'],
+  GIT: ['G IH1 T'], GETTING: ['G EH1 T IH0 NG', 'G IH1 T IH0 NG'], ATTA: ['AE1 T AH0', 'AA1 T AH0'],
   PYRE: ['P AY1 ER0'], PIRATE: ['P AY1 R AH0 T'], SPY: ['S P AY1'], RING: ['R IH1 NG'],
 };
 
@@ -79,6 +82,17 @@ test('IY meets IH before R in the same word, and IY before an R across a word br
 test('after AY, an unstressed ER meets an R', async () => {
   seed();
   assert.deepEqual(await hits(['pirate', { entry: 'spy ring' }], 'pyre'), { pirate: ['pir'], 'spy ring': ['py', 'r'] });
+});
+
+test('a T between vowels meets a D, but not before a syllabic N', async () => {
+  seed();
+  assert.deepEqual(await hits([{ entry: 'tofu pudding' }], 'putting'), { 'tofu pudding': ['pudding'] });
+  assert.deepEqual(await hits(['burton'], 'burden'), {});
+});
+
+test('folded readings never crowd out a plain one', async () => {
+  seed();
+  assert.deepEqual(await hits([{ entry: 'getting atta atta' }], 'git'), { 'getting atta atta': ['gett'] });
 });
 
 test('silent letters at a word’s edge ride along with the sounds beside them', async () => {
