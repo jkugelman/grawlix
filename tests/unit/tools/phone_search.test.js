@@ -20,6 +20,7 @@ const CMU = {
   GOOD: ['G UH1 D'],
   BIER: ['B IY1 R'], BEER: ['B IH1 R'], ERASE: ['IY0 R EY1 S'], THE: ['DH IY0'], RACE: ['R EY1 S'],
   ROOT: ['R UW1 T'], WIN: ['W IH1 N'],
+  PYRE: ['P AY1 ER0'], PIRATE: ['P AY1 R AH0 T'], SPY: ['S P AY1'], RING: ['R IH1 NG'],
 };
 
 // Corpus state is module-global and these run in one process, so a corpus seeded
@@ -73,6 +74,11 @@ test('IY meets IH before R in the same word, and IY before an R across a word br
   seed();
   assert.deepEqual(await hits([{ entry: 'root beer' }], 'bier'), { 'root beer': ['beer'] });
   assert.deepEqual(await hits([{ entry: 'win the race' }], 'erase'), { 'win the race': ['e', 'race'] });
+});
+
+test('after AY, an unstressed ER meets an R', async () => {
+  seed();
+  assert.deepEqual(await hits(['pirate', { entry: 'spy ring' }], 'pyre'), { pirate: ['pir'], 'spy ring': ['py', 'r'] });
 });
 
 test('silent letters at a word’s edge ride along with the sounds beside them', async () => {

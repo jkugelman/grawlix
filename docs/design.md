@@ -393,6 +393,11 @@ CMU splits these just as arbitrarily: HERE, HEAR, BIER and TIER are IY R while N
 Unfolded, HERE doesn't rhyme with NEAR, and BIER can't find BEER in Phone search.
 The R is the next phone in the same word, the same test as the cot–caught exception.
 
+**After AY and AW, an unstressed ER loses its syllable.**
+CMU writes FIRE's R as its own syllable or not on a whim: TIRE and SIRE are AY ER, SPIRE is AY R, WIRE and HIRE are both, and the same goes for AW (TOWER AW ER, SOUR both).
+Unfolded, SPIRE doesn't rhyme with TIRE, and PYRE can't find PIRATE.
+Other vowels keep their ER: PLAYER stays two syllables, not a rhyme for HAIR.
+
 ### Rhymes
 
 Rhymes ([`engine/tools/rhymes.js`](../site/src/engine/tools/rhymes.js)) keeps entries that share a **rhyming part** with the typed entry.
@@ -450,7 +455,7 @@ It isn't a separate mode, since syllable-by-syllable is the more general relatio
 
 Phone search ([`engine/tools/phone_search.js`](../site/src/engine/tools/phone_search.js)) is a filter that turns the input and each entry into sound strings and runs a substring search on them.
 `soundsOf` ([`engine/phonetics.js`](../site/src/engine/phonetics.js)) gives a word's CMU pronunciations with stress stripped and the cot–caught merger folded (§ *Pronunciations*).
-Each pronunciation is read twice, with and without the before-R fold, since that fold can't see an R in the next word: THE RACE keeps its IY, and only the unfolded reading of ERASE (IY R EY S) still finds it.
+Each pronunciation is read twice, with and without the R folds, since they can't see an R in the next word: THE RACE keeps its IY, and only the unfolded reading of ERASE (IY R EY S) still finds it.
 It encodes each phone as exactly one code unit, so `indexOf` can't land partway through a phone.
 A word CMU doesn't know is read through the spacing table's `guess` ([`segmenter.md`](segmenter.md) § *The spacing table*).
 If a word still can't be read, or it contains a digit, it reads as a **hole**: one code unit that no sound matches.

@@ -149,6 +149,19 @@ test('before R, IY folds into IH and UW into UH', () => {
   assert.deepEqual(rhymingPartsOf('bin'), ['IH N']);
 });
 
+test('after AY and AW, an unstressed ER folds into R', () => {
+  setCmuDict({
+    TIRE: ['T AY1 ER0'], SPIRE: ['S P AY1 R'], TOWER: ['T AW1 ER0'], SOUR: ['S AW1 R'],
+    PLAYER: ['P L EY1 ER0'], HAIR: ['HH EH1 R'],
+  });
+  assert.deepEqual(rhymingPartsOf('tire'), ['AY R']);
+  assert.deepEqual(rhymingPartsOf('spire'), ['AY R']);
+  assert.deepEqual(rhymingPartsOf('tower'), ['AW R']);
+  assert.deepEqual(rhymingPartsOf('sour'), ['AW R']);
+  assert.deepEqual(rhymingPartsOf('tire', 'whole'), rhymingPartsOf('spire', 'whole'));
+  assert.deepEqual(rhymingPartsOf('player'), ['EY ER']);
+});
+
 test('whole mode needs every word, where the last-word modes need only the tail', () => {
   setCmuDict({ BEAN: ['B IY1 N'] });
   assert.deepEqual(rhymingPartsOf('lima bean', 'whole'), []);

@@ -52,11 +52,16 @@ const foldVowel = (phone, next, beforeR = true) => {
   return bare === 'AO' ? 'AA' + phone.slice(2) : phone;
 };
 
+// CMU writes the R after AY and AW as its own syllable or not on a whim — TIRE
+// AY ER, SPIRE AY R, WIRE both — so that ER folds into R, or SPIRE doesn't rhyme
+// with TIRE and PYRE can't find PIRATE.
+const smoothR = pron => pron.replace(/\b(A[YW]\d) ER0\b/g, '$1 R');
+
 // 'loose' anchors the rhyme on the last stress of either rank, 'strict' only on the
 // primary — so cumberbatch's secondary -batch rhymes with match under loose, not strict.
 // Stress stripped so a secondary anchor still matches a primary under loose (dynamite ~ kite).
 export function rhymingPart(pron, mode = 'loose') {
-  const toks = pron.split(' ');
+  const toks = smoothR(pron).split(' ');
   let start = -1;
   for (let i = toks.length - 1; i >= 0; i--) {
     const last = toks[i][toks[i].length - 1];
@@ -197,7 +202,7 @@ function wholeEntryParts(text) {
   const keys = new Set();
   for (const combo of combos) {
     const sylls = [];
-    for (const pron of combo) sylls.push(...syllabify(pron));
+    for (const pron of combo) sylls.push(...syllabify(smoothR(pron)));
     if (sylls.length) for (const key of syllableKeys(sylls)) keys.add(key);
   }
   return [...keys];
@@ -264,22 +269,22 @@ function citationProns(key, prons) {
 }
 
 // Stress stripped: `arbiter`'s unstressed -biter has to meet `bitter`.
-// Each word is read with and without the before-R fold. That fold only sees R
-// inside the word, so THE RACE keeps its IY and would lose ERASE's IY R if the
-// unfolded reading went.
+// Each word is read with and without the R folds. They only see R inside the
+// word, so THE RACE keeps its IY and would lose ERASE's IY R if the unfolded
+// reading went.
 export const soundsOf = wordLookup(prons => {
   const seen = new Set();
   const sounds = [];
-  for (const pron of prons) {
-    const toks = pron.split(' ');
-    const bare = pron.replace(/\d/g, '').split(' ');
-    const stress = toks.map(tok => (/\d$/.test(tok) ? tok.slice(-1) : '-')).join('');
-    for (const beforeR of [true, false]) {
-      const phones = bare.map((ph, i) => foldVowel(ph, bare[i + 1], beforeR));
+  for (const raw of prons) {
+    for (const folded of [true, false]) {
+      const pron = folded ? smoothR(raw) : raw;
+      const toks = pron.split(' ');
+      const bare = pron.replace(/\d/g, '').split(' ');
+      const phones = bare.map((ph, i) => foldVowel(ph, bare[i + 1], folded));
       const code = phones.map(phoneCode).join('');
       if (seen.has(code)) continue;
       seen.add(code);
-      sounds.push({ phones, code, stress });
+      sounds.push({ phones, code, stress: toks.map(tok => (/\d$/.test(tok) ? tok.slice(-1) : '-')).join('') });
     }
   }
   return sounds;
