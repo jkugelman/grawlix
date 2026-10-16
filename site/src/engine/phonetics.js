@@ -42,8 +42,15 @@ const lastWord = text => splitWords(text).at(-1) ?? '';
 // family in half along a coin flip in the dictionary, GONE PRO off DON HO with ON
 // AUX left in each. Never before R, where no dialect merges them and folding
 // rhymes CARD with CORD, BARB with ORB, CARD PLAYERS with BOARD GAMERS.
-const foldVowel = (phone, next) =>
-  (phone.startsWith('AO') && next !== 'R' ? 'AA' + phone.slice(2) : phone);
+// Before R, CMU splits IY from IH and UW from UH just as arbitrarily — HERE IY R
+// but NEAR IH R, POOR UW R but TOUR UH R — so those fold too, or HERE stops
+// rhyming with NEAR and BIER can't find BEER.
+const BEFORE_R = { IY: 'IH', UW: 'UH' };
+const foldVowel = (phone, next, beforeR = true) => {
+  const bare = phone.slice(0, 2);
+  if (next === 'R') return beforeR && bare in BEFORE_R ? BEFORE_R[bare] + phone.slice(2) : phone;
+  return bare === 'AO' ? 'AA' + phone.slice(2) : phone;
+};
 
 // 'loose' anchors the rhyme on the last stress of either rank, 'strict' only on the
 // primary — so cumberbatch's secondary -batch rhymes with match under loose, not strict.
@@ -257,17 +264,23 @@ function citationProns(key, prons) {
 }
 
 // Stress stripped: `arbiter`'s unstressed -biter has to meet `bitter`.
+// Each word is read with and without the before-R fold. That fold only sees R
+// inside the word, so THE RACE keeps its IY and would lose ERASE's IY R if the
+// unfolded reading went.
 export const soundsOf = wordLookup(prons => {
   const seen = new Set();
   const sounds = [];
   for (const pron of prons) {
     const toks = pron.split(' ');
     const bare = pron.replace(/\d/g, '').split(' ');
-    const phones = bare.map((ph, i) => foldVowel(ph, bare[i + 1]));
-    const code = phones.map(phoneCode).join('');
-    if (seen.has(code)) continue;
-    seen.add(code);
-    sounds.push({ phones, code, stress: toks.map(tok => (/\d$/.test(tok) ? tok.slice(-1) : '-')).join('') });
+    const stress = toks.map(tok => (/\d$/.test(tok) ? tok.slice(-1) : '-')).join('');
+    for (const beforeR of [true, false]) {
+      const phones = bare.map((ph, i) => foldVowel(ph, bare[i + 1], beforeR));
+      const code = phones.map(phoneCode).join('');
+      if (seen.has(code)) continue;
+      seen.add(code);
+      sounds.push({ phones, code, stress });
+    }
   }
   return sounds;
 });

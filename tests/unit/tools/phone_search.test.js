@@ -18,6 +18,8 @@ const CMU = {
   HORSES: ['HH AO1 R S IH0 Z'], LACKEY: ['L AE1 K IY0'], BLACK: ['B L AE1 K'], INK: ['IH1 NG K'],
   TOUGHIE: ['T AH1 F IY0'], LIFT: ['L IH1 F T'], FINGER: ['F IH1 NG G ER0'], STUFFING: ['S T AH1 F IH0 NG'],
   GOOD: ['G UH1 D'],
+  BIER: ['B IY1 R'], BEER: ['B IH1 R'], ERASE: ['IY0 R EY1 S'], THE: ['DH IY0'], RACE: ['R EY1 S'],
+  ROOT: ['R UW1 T'], WIN: ['W IH1 N'],
 };
 
 // Corpus state is module-global and these run in one process, so a corpus seeded
@@ -65,6 +67,12 @@ test('the IH before NG stays short when a G follows in the same word', async () 
   seed();
   assert.deepEqual(await hits([{ entry: 'lift a finger' }, { entry: 'stuffing good' }], 'toughie'),
     { 'stuffing good': ['tuffi'] });
+});
+
+test('IY meets IH before R in the same word, and IY before an R across a word break', async () => {
+  seed();
+  assert.deepEqual(await hits([{ entry: 'root beer' }], 'bier'), { 'root beer': ['beer'] });
+  assert.deepEqual(await hits([{ entry: 'win the race' }], 'erase'), { 'win the race': ['e', 'race'] });
 });
 
 test('silent letters at a word’s edge ride along with the sounds beside them', async () => {

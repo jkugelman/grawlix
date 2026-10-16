@@ -136,6 +136,19 @@ test('the cot–caught fold stops before R', () => {
   assert.deepEqual(rhymingPartsOf('sore ed', 'whole'), ['AO R | EH D']);
 });
 
+test('before R, IY folds into IH and UW into UH', () => {
+  setCmuDict({
+    HERE: ['HH IY1 R'], NEAR: ['N IH1 R'], POOR: ['P UW1 R'], TOUR: ['T UH1 R'],
+    BEAN: ['B IY1 N'], BIN: ['B IH1 N'],
+  });
+  assert.deepEqual(rhymingPartsOf('here'), ['IH R']);
+  assert.deepEqual(rhymingPartsOf('near'), ['IH R']);
+  assert.deepEqual(rhymingPartsOf('poor'), ['UH R']);
+  assert.deepEqual(rhymingPartsOf('tour'), ['UH R']);
+  assert.deepEqual(rhymingPartsOf('bean'), ['IY N']);
+  assert.deepEqual(rhymingPartsOf('bin'), ['IH N']);
+});
+
 test('whole mode needs every word, where the last-word modes need only the tail', () => {
   setCmuDict({ BEAN: ['B IY1 N'] });
   assert.deepEqual(rhymingPartsOf('lima bean', 'whole'), []);

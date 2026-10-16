@@ -388,6 +388,11 @@ Not before R, where no dialect merges NORTH with START and folding would rhyme C
 The R must be one the vowel's own syllable closes on, since a word-initial R colors nothing before it: SAW RED folds, SORE ED does not.
 (CMU also lists six headwords both R-ful and R-less, CARS and FOR among them, which is why OLD CARS reaches OLD SAWS; a dictionary wart, left alone.)
 
+**Before R, IY folds into IH and UW into UH.**
+CMU splits these just as arbitrarily: HERE, HEAR, BIER and TIER are IY R while NEAR, FEAR, BEER and STEER are IH R (252 stressed IY R against 1,373 IH R), and POOR is UW R while TOUR and SURE are UH R (181 against 718).
+Unfolded, HERE doesn't rhyme with NEAR, and BIER can't find BEER in Phone search.
+The R is the next phone in the same word, the same test as the cot–caught exception.
+
 ### Rhymes
 
 Rhymes ([`engine/tools/rhymes.js`](../site/src/engine/tools/rhymes.js)) keeps entries that share a **rhyming part** with the typed entry.
@@ -445,6 +450,7 @@ It isn't a separate mode, since syllable-by-syllable is the more general relatio
 
 Phone search ([`engine/tools/phone_search.js`](../site/src/engine/tools/phone_search.js)) is a filter that turns the input and each entry into sound strings and runs a substring search on them.
 `soundsOf` ([`engine/phonetics.js`](../site/src/engine/phonetics.js)) gives a word's CMU pronunciations with stress stripped and the cot–caught merger folded (§ *Pronunciations*).
+Each pronunciation is read twice, with and without the before-R fold, since that fold can't see an R in the next word: THE RACE keeps its IY, and only the unfolded reading of ERASE (IY R EY S) still finds it.
 It encodes each phone as exactly one code unit, so `indexOf` can't land partway through a phone.
 A word CMU doesn't know is read through the spacing table's `guess` ([`segmenter.md`](segmenter.md) § *The spacing table*).
 If a word still can't be read, or it contains a digit, it reads as a **hole**: one code unit that no sound matches.
