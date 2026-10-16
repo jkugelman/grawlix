@@ -22,3 +22,9 @@ export const isMobile = () =>
 
 let _hoverCapable = null;
 export function hoverCapable() { return _hoverCapable ??= window.matchMedia('(hover: hover)'); }
+
+export const isMac = () => /mac|iphone|ipad/i.test(navigator.userAgentData?.platform ?? navigator.platform);
+
+// Cmd on Apple, Ctrl elsewhere — never both, or macOS text fields lose their
+// Ctrl+F/Ctrl+K cursor bindings.
+export const hasShortcutMod = e => isMac() ? e.metaKey && !e.ctrlKey : e.ctrlKey && !e.metaKey;

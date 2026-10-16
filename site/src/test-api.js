@@ -13,6 +13,7 @@
 // one permitted import-time side effect — both are test-only.
 
 import { MERGED_ID, MERGED_NAME } from './core/constants.js';
+import { isMac } from './core/platform.js';
 import { toNorm, displayOf, parseWordlist, buildUserWlEntry } from './engine/norm.js';
 import { getTrashScore, getOutputFormat } from './data/serialize.js';
 import { setUnigramCorpus as segmenterSetCorpus } from './engine/segmenter.js';
@@ -587,6 +588,8 @@ const __grawlixTest = {
     if (format === 'json')     return buildExportJSONObject(rows, grouped, stack, tuple);
     throw new Error(`Unknown export format: ${format}`);
   },
+
+  isMac() { return isMac(); },
 
   exportFilename(ext) {
     return exportFilename(ToolStack.getStack(), ext);

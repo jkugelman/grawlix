@@ -38,6 +38,7 @@
 // string or `[string, score]` for a tool-synthesized entry not in the wordlist.
 
 import { esc } from '../core/util.js';
+import { hasShortcutMod } from '../core/platform.js';
 import { HL_COLORS } from '../engine/search.js';
 import {
   TOOL_CATEGORIES, FEATURED_TOOLS, TOOLS, groupColumnCSS, makeToolRow, toolAssets, isGroupOnly, hasAllToggle,
@@ -1095,7 +1096,7 @@ export const ToolPicker = (() => {
         return;
       }
       const isAltT = e.altKey && e.code === 'KeyT' && !e.ctrlKey && !e.metaKey && !e.shiftKey;
-      const isCmdK = (e.key === 'k' || e.key === 'K') && (e.metaKey || e.ctrlKey) && !e.altKey;
+      const isCmdK = (e.key === 'k' || e.key === 'K') && hasShortcutMod(e) && !e.altKey;
       if (isAltT || isCmdK) {
         e.preventDefault();
         open();

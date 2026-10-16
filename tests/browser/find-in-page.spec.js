@@ -24,7 +24,11 @@ const input = page => page.locator('.find-input');
 const count = page => page.locator('.find-count');
 const rowFor = (page, entry) => page.locator(`.entry-row[data-entry="${entry}"]`);
 const listbox = page => page.locator('.entries-table-rows');
-const openFind = async page => { await page.keyboard.press('Control+f'); await expect(bar(page)).toBeVisible(); };
+// The page's shortcut modifier follows the emulated device, not the host, so
+// Playwright's host-based ControlOrMeta would press the wrong key.
+const mod = async page => (await page.evaluate(() => window.__grawlixTest.isMac())) ? 'Meta' : 'Control';
+const press = async (page, keys) => page.keyboard.press(`${await mod(page)}+${keys}`);
+const openFind = async page => { await press(page, 'f'); await expect(bar(page)).toBeVisible(); };
 
 // apple / grape / maple / staple each hold exactly one "ap", so under the Entry
 // sort the four matches are one-per-row and next/prev order is predictable.
@@ -67,16 +71,22 @@ test('Ctrl+G / F3 step forward and Shift steps back, even with focus in the tabl
   await openFind(page);
   await input(page).fill('ap');
   await expect(count(page)).toHaveText('1/4');
-  await page.keyboard.press('Control+g');
+  await press(page, 'g');
   await expect(count(page)).toHaveText('2/4');
   await page.keyboard.press('F3');
   await expect(count(page)).toHaveText('3/4');
   await rowFor(page, 'staple').locator('.atom-len').click();   // focus moves to the listbox
-  await page.keyboard.press('Control+Shift+g');
+  await press(page, 'Shift+g');
   await expect(count(page)).toHaveText('2/4');
   await page.keyboard.press('Shift+F3');
   await expect(count(page)).toHaveText('1/4');
   await expect(bar(page)).toBeVisible();
+});
+
+test("the other platform's modifier does not open find", async ({ page }) => {
+  await setup(page, { entries: AP });
+  await page.keyboard.press(`${await mod(page) === 'Meta' ? 'Control' : 'Meta'}+f`);
+  await expect(bar(page)).toBeHidden();
 });
 
 test('Ctrl+G with the bar closed reopens it on the last query', async ({ page }) => {
@@ -86,7 +96,7 @@ test('Ctrl+G with the bar closed reopens it on the last query', async ({ page })
   await expect(count(page)).toHaveText('1/4');
   await page.keyboard.press('Escape');
   await expect(bar(page)).toBeHidden();
-  await page.keyboard.press('Control+g');
+  await press(page, 'g');
   await expect(bar(page)).toBeVisible();
   await expect(input(page)).toHaveValue('ap');
   await expect(count(page)).not.toHaveText('');
@@ -138,7 +148,7 @@ test('the open entry panel suppresses Ctrl+F', async ({ page }) => {
   await setup(page, { entries: AP });
   await rowFor(page, 'apple').locator('.atom-entry').click();
   await expect(page.locator('#entry-panel')).toBeVisible();
-  await page.keyboard.press('Control+f');
+  await press(page, 'f');
   await expect(bar(page)).toBeHidden();
 });
 

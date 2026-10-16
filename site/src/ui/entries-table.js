@@ -14,7 +14,7 @@
 
 import { ROW_HEIGHT, VS_BUFFER, MERGED_ID, MERGED_NAME } from '../core/constants.js';
 import { esc } from '../core/util.js';
-import { isMobile } from '../core/platform.js';
+import { isMobile, hasShortcutMod } from '../core/platform.js';
 import { displayOf, projectRangesToDisplay, toNorm, buildUserWlEntry } from '../engine/norm.js';
 import { parseRange } from '../engine/range.js';
 import { renderHighlightedText } from '../engine/search.js';
@@ -1209,7 +1209,7 @@ export class EntriesScroller extends BaseVirtualScroller {
         if (this._findBar && !this._findBar.hidden) { e.preventDefault(); this.closeFind(); }
         return;
       }
-      const mod = (e.metaKey || e.ctrlKey) && !e.altKey;
+      const mod = hasShortcutMod(e) && !e.altKey;
       const open = mod && !e.shiftKey && (e.key === 'f' || e.key === 'F');
       const step = (mod && (e.key === 'g' || e.key === 'G'))
         || (e.key === 'F3' && !e.metaKey && !e.ctrlKey && !e.altKey);
@@ -1282,7 +1282,7 @@ export class EntriesScroller extends BaseVirtualScroller {
     input.addEventListener('keydown', e => {
       if (e.key === 'Enter') { e.preventDefault(); e.shiftKey ? this.findPrev() : this.findNext(); }
       else if (e.key === 'Escape') { e.preventDefault(); this.closeFind(); }
-      else if ((e.key === 'f' || e.key === 'F') && (e.metaKey || e.ctrlKey) && !e.altKey) { e.preventDefault(); e.stopPropagation(); input.select(); }
+      else if ((e.key === 'f' || e.key === 'F') && hasShortcutMod(e) && !e.altKey) { e.preventDefault(); e.stopPropagation(); input.select(); }
     });
     bar.querySelector('.find-prev').addEventListener('click', () => { this.findPrev(); input.focus(); });
     bar.querySelector('.find-next').addEventListener('click', () => { this.findNext(); input.focus(); });

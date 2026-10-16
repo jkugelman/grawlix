@@ -140,7 +140,7 @@ No service worker: Grawlix is online-only by choice, which trades offline suppor
 
 ## Keyboard shortcuts
 
-The global shortcuts:
+The global shortcuts, where Ctrl/Cmd means Cmd on Apple platforms and Ctrl elsewhere, never both, so macOS text fields keep their Ctrl+F and Ctrl+K cursor bindings:
 
 - **Ctrl/Cmd+F** — find in the entries table (§ *Find in page*).
 - **Ctrl/Cmd+G** or **F3**, plus **Shift** — find next or previous match.
