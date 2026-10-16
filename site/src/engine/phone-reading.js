@@ -60,31 +60,46 @@ function unitsOfParts(token, parts, lookup) {
   return units;
 }
 
-function unitsOf(token, spacing, lookup, wide) {
+function unitsOf(token, splitsOf, lookup) {
   if (token.digits || !token.letters) return null;
   const sounds = lookup(token.letters);
   if (sounds) return [{ letters: token.letters, at: token.at, sounds }];
-  const guess = spacing?.guess(token.letters);
-  const units = guess && unitsOfParts(token, guess, lookup);
-  if (units || !wide || !hasUnigramCorpus()) return units;
-  // The typed input gets Rhymes' wider window: an input that can't be read is a
-  // dead end with nothing on screen to say why.
-  for (const parts of rankedSplits(token.letters, SPACE_OUT_WINDOWS.many, spacing.vocab).slice(0, 20)) {
-    if (parts.length < 2) continue;
-    const found = unitsOfParts(token, parts, lookup);
-    if (found) return found;
+  for (const parts of splitsOf(token.letters)) {
+    const units = unitsOfParts(token, parts, lookup);
+    if (units) return units;
   }
   return null;
 }
+
+// ─── Splitting a word CMU doesn't know ───────────────────────────────────────
+// Generators, so the ranked walk below only runs when the table's guess can't be
+// read, not for every word CMU doesn't know.
+
+export const tableSplits = spacing => function* (letters) {
+  const guess = spacing?.guess(letters);
+  if (guess) yield guess;
+};
+
+// The typed input gets Rhymes' wider window: an input that can't be read is a
+// dead end with nothing on screen to say why.
+export const widerSplits = spacing => function* (letters) {
+  yield* tableSplits(spacing)(letters);
+  if (!hasUnigramCorpus()) return;
+  for (const parts of rankedSplits(letters, SPACE_OUT_WINDOWS.many, spacing.vocab).slice(0, 20)) {
+    if (parts.length > 1) yield parts;
+  }
+};
+
+// ─── Reading ─────────────────────────────────────────────────────────────────
 
 // One item per word read: { letters, at, sounds }, or null for a word that can't be.
 // An item boundary isn't always a word break: tokens split at every punctuation mark
 // so U.S.A. reads as three letters, but Whole word must agree with Search that U.S.A.
 // is one word. starts[k] marks a WORD_BREAK_RE gap or a split inside a token.
-export function itemsOf(display, spacing, lookup, wide = false) {
+export function itemsOf(display, splitsOf, lookup) {
   const items = [], starts = [];
   for (const token of tokensOf(display)) {
-    const units = unitsOf(token, spacing, lookup, wide) ?? [null];
+    const units = unitsOf(token, splitsOf, lookup) ?? [null];
     units.forEach((unit, i) => {
       items.push(unit);
       starts.push(i > 0 || token.wordStart);

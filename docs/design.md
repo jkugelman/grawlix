@@ -533,7 +533,7 @@ Stress shift ([`engine/tools/stress_shift.js`](../site/src/engine/tools/stress_s
 It is group-only, with no typed input (§ *Group-only tools* in [`pipeline.md`](pipeline.md#the-group-row-model)).
 Its **Show** control picks **Homophones** (a shift between different entries, the default) or **Heteronyms** (one entry said two ways); entries are compared by norm, so IN SIGHT and INSIGHT are a heteronym.
 Each member is marked on its primary-stressed syllable, onset to coda, through the letter–sound alignment (§ *Phone search and letter–sound alignment*), with syllables cut by `syllabify` (§ *Rhymes*): ROCKet, roCKETTE, PROJect, proJECT.
-Entries are read by Phone search's reader ([`engine/phone-reading.js`](../site/src/engine/phone-reading.js)), with stress kept (`stressedSoundsOf`).
+Entries are read by the shared phone reader ([`engine/phone-reading.js`](../site/src/engine/phone-reading.js)), with stress kept (`stressedSoundsOf`).
 
 **Same sounds means the same consonants and all but one vowel.**
 Two readings match when their consonants and vowel slots line up exactly, and their vowels agree everywhere except at most one syllable, where a reduced vowel (`AH0` or `IH0`) faces a stressed one.

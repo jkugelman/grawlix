@@ -2,7 +2,7 @@
 
 import { loadCmuDict, hasCmuDict, soundsOf, phoneCode } from '../phonetics.js';
 import { alignmentOf, lettersForPhones } from '../phone-align.js';
-import { tokensOf, itemsOf as readItems } from '../phone-reading.js';
+import { tokensOf, itemsOf as readItems, tableSplits, widerSplits } from '../phone-reading.js';
 import { buildSpacingTable, loadSpacingCorpus, spacingReader, SPACING_PASS } from '../space-out.js';
 import { toNorm, displayOf, buildNormToDisplay } from '../norm.js';
 import { SEARCH_KINDS } from '../search.js';
@@ -19,7 +19,8 @@ async function ensureDict() {
 
 // ─── Reading an entry aloud ──────────────────────────────────────────────────
 
-const itemsOf = (display, spacing, wide = false) => readItems(display, spacing, soundsOf, wide);
+const itemsOf = (display, spacing, wide = false) =>
+  readItems(display, (wide ? widerSplits : tableSplits)(spacing), soundsOf);
 
 const MAX_READINGS = 16;
 

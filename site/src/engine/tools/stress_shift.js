@@ -2,7 +2,7 @@
 
 import { loadCmuDict, stressedSoundsOf, syllabify } from '../phonetics.js';
 import { alignmentOf, lettersForPhones, canSpell } from '../phone-align.js';
-import { itemsOf } from '../phone-reading.js';
+import { itemsOf, tableSplits } from '../phone-reading.js';
 import { buildSpacingTable, loadSpacingCorpus, spacingReader, SPACING_PASS } from '../space-out.js';
 import { toNorm, displayOf } from '../norm.js';
 
@@ -21,7 +21,7 @@ const stressOf = ph => ph[ph.length - 1];
 const bare = ph => ph.replace(/\d$/, '');
 
 export function readingsOf(display, spacing) {
-  const { items } = itemsOf(display, spacing, stressedSoundsOf);
+  const { items } = itemsOf(display, tableSplits(spacing), stressedSoundsOf);
   if (!items.length || items.includes(null)) return [];
   // A phrase takes each word's first pronunciation. Vary them and every phrase
   // becomes a group of itself: IS THIS IT stressed on each word in turn, ADVERSE
