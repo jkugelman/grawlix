@@ -402,6 +402,11 @@ Other vowels keep their ER: PLAYER stays two syllables, not a rhyme for HAIR.
 Americans say a T between a vowel (or R) and an unstressed vowel as D, so BETTER rhymes with SHREDDER, READER with PETER, and MEDDLE with METAL.
 Not before a syllabic N, where the T is a glottal stop: BURTON doesn't rhyme with BURDEN.
 
+**Weak unstressed vowels rhyme as one schwa.**
+Unstressed AA AE AH AO EH IH UH all drift toward schwa, so POCKET rhymes with CROCKETT and KRYPTON with LIPTON.
+The last-word modes leave an unstressed OW alone, since CMU writes a reduced O as AH and OW0 is a full "oh": BELLOW doesn't rhyme with BELLA, nor AVOCADO with PRADA.
+Whole-entry rhymes reduce OW too (§ *Rhymes*), where the rest of the entry has to match as well.
+
 ### Rhymes
 
 Rhymes ([`engine/tools/rhymes.js`](../site/src/engine/tools/rhymes.js)) keeps entries that share a **rhyming part** with the typed entry.

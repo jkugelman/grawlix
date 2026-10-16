@@ -68,7 +68,10 @@ export function rhymingPart(pron, mode = 'loose') {
     if (last === '1' || (mode !== 'strict' && last === '2')) { start = i; break; }
   }
   const tail = start >= 0 ? toks.slice(start) : toks;
-  return tail.map((ph, i) => foldVowel(ph, tail[i + 1])).join(' ').replace(/\d/g, '');
+  return tail.map((ph, i) => {
+    const folded = foldVowel(ph, tail[i + 1]);
+    return isWeak(folded) ? 'AX' : folded;
+  }).join(' ').replace(/\d/g, '');
 }
 
 export function rhymingPartsOf(text, mode = 'loose') {
@@ -148,8 +151,9 @@ export function syllabify(pron) {
 // match, CZECHOSLOVAKIA against ENERGY POLICY.
 const REDUCIBLE = new Set(['AA', 'AE', 'AH', 'AO', 'EH', 'IH', 'OW', 'UH']);
 
-// Hearing a word inside an entry, an unstressed OW keeps its "oh": CMU writes a
-// reduced O as AH, so OW0 is a full vowel, and reducing it has BELLOW find BELLA.
+// Rhyming a last word, or hearing a word inside an entry, an unstressed OW keeps
+// its "oh": CMU writes a reduced O as AH, so OW0 is a full vowel, and reducing it
+// has BELLOW find BELLA and AVOCADO rhyme with PRADA.
 const isWeak = vowel => vowel.endsWith('0') && vowel.slice(0, 2) !== 'OW' && REDUCIBLE.has(vowel.slice(0, -1));
 
 // Own coda, never the next syllable's onset: SAW RED has to keep folding, since a

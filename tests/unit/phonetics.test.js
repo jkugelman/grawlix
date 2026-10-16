@@ -4,9 +4,9 @@ import {
   rhymingPart, parseCmuDict, rhymingPartsOf, lastWordKey, setCmuDict, hasPronunciation, syllabify,
 } from '../../site/src/engine/phonetics.js';
 
-test('rhymingPart returns from the last stressed vowel to the end, stress stripped', () => {
+test('rhymingPart returns from the last stressed vowel to the end, stress stripped and weak vowels reduced', () => {
   assert.equal(rhymingPart('K AE1 T'), 'AE T');
-  assert.equal(rhymingPart('B AH0 N AE1 N AH0'), 'AE N AH');
+  assert.equal(rhymingPart('B AH0 N AE1 N AH0'), 'AE N AX');
 });
 
 test('rhymingPart normalizes stress so secondary rhymes with primary', () => {
@@ -15,7 +15,7 @@ test('rhymingPart normalizes stress so secondary rhymes with primary', () => {
 });
 
 test('rhymingPart with no stressed vowel falls back to the whole pronunciation', () => {
-  assert.equal(rhymingPart('DH AH0'), 'DH AH');
+  assert.equal(rhymingPart('DH AH0'), 'DH AX');
 });
 
 test('rhymingPart loose counts secondary stress, strict only primary', () => {
@@ -169,6 +169,15 @@ test('a flapped T rhymes as D, but not before a syllabic N', () => {
   assert.deepEqual(rhymingPartsOf('better'), rhymingPartsOf('shredder'));
   assert.deepEqual(rhymingPartsOf('better', 'whole'), rhymingPartsOf('shredder', 'whole'));
   assert.notDeepEqual(rhymingPartsOf('burton'), rhymingPartsOf('burden'));
+});
+
+test('last-word rhymes reduce weak unstressed vowels, but not OW', () => {
+  setCmuDict({
+    POCKET: ['P AA1 K AH0 T'], CROCKETT: ['K R AA1 K IH0 T'], BELLOW: ['B EH1 L OW0'], BELLA: ['B EH1 L AH0'],
+  });
+  assert.deepEqual(rhymingPartsOf('pocket'), rhymingPartsOf('crockett'));
+  assert.deepEqual(rhymingPartsOf('pocket', 'strict'), rhymingPartsOf('crockett', 'strict'));
+  assert.notDeepEqual(rhymingPartsOf('bellow'), rhymingPartsOf('bella'));
 });
 
 test('whole mode needs every word, where the last-word modes need only the tail', () => {
