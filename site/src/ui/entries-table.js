@@ -3560,25 +3560,29 @@ export const EntryPanel = (() => {
       const mark = markWinners && winner
         ? `<span class="entry-panel-prov-winner" title="${esc(winnerTitle(wordlist))}" aria-label="${esc(winnerTitle(wordlist))}">▸</span>`
         : '';
-      return `<tr class="${cls.join(' ')}">`
-        + `<td class="entry-panel-prov-mark">${mark}</td>`
-        + `<td class="entry-panel-prov-entry">${esc(displayOf(entry))}</td>`
-        + `<td class="entry-panel-prov-score">${buildScoreCellHTML(entry, true)}</td>`
-        + `<td class="entry-panel-prov-comment"${comment ? ` title="${esc(comment)}"` : ''}>${esc(comment)}</td>`
-        + `<td class="entry-panel-prov-source">${buildWordlistNameIconHTML(wordlist, { bold: false })}</td>`
-        + `<td class="entry-panel-prov-action">${trash}</td>`
+      return `<tr class="${cls.join(' ')}" role="row">`
+        + `<td class="entry-panel-prov-mark" role="cell">${mark}</td>`
+        + `<td class="entry-panel-prov-entry" role="cell" data-text="${esc(displayOf(entry))}">${esc(displayOf(entry))}</td>`
+        + `<td class="entry-panel-prov-score" role="cell">${buildScoreCellHTML(entry, true)}</td>`
+        + `<td class="entry-panel-prov-comment" role="cell"${comment ? ` title="${esc(comment)}"` : ''}>${esc(comment)}</td>`
+        + `<td class="entry-panel-prov-source" role="cell">${buildWordlistNameIconHTML(wordlist, { bold: false })}</td>`
+        + `<td class="entry-panel-prov-action" role="cell">${trash}</td>`
         + `</tr>`;
     }).join('');
-    return `<table class="entry-panel-prov">`
-      + `<thead><tr>`
-      + `<th class="entry-panel-prov-mark"></th>`
-      + `<th class="entry-panel-prov-entry">Entry</th>`
-      + `<th class="entry-panel-prov-score">Score</th>`
-      + `<th class="entry-panel-prov-comment">Comment</th>`
-      + `<th class="entry-panel-prov-source">Source</th>`
-      + `<th class="entry-panel-prov-action"></th>`
+    // Invisible stand-ins hold the ▸ and trash columns at full width, so staging an
+    // edit (which hides the ▸s and adds a trash) doesn't shift the other columns.
+    const reserveTrash = activeReadOnly ? ''
+      : `<span class="entry-panel-prov-trash-reserve entry-panel-prov-reserve" aria-hidden="true">${buildTrashIconHTML()}</span>`;
+    return `<table class="entry-panel-prov" role="table">`
+      + `<thead role="rowgroup"><tr role="row">`
+      + `<th class="entry-panel-prov-mark" role="columnheader"><span class="entry-panel-prov-winner entry-panel-prov-reserve" aria-hidden="true">▸</span></th>`
+      + `<th class="entry-panel-prov-entry" role="columnheader">Entry</th>`
+      + `<th class="entry-panel-prov-score" role="columnheader">Score</th>`
+      + `<th class="entry-panel-prov-comment" role="columnheader">Comment</th>`
+      + `<th class="entry-panel-prov-source" role="columnheader">Source</th>`
+      + `<th class="entry-panel-prov-action" role="columnheader">${reserveTrash}</th>`
       + `</tr></thead>`
-      + `<tbody>${body}</tbody>`
+      + `<tbody role="rowgroup">${body}</tbody>`
       + `</table>`;
   }
 

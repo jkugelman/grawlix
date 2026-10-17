@@ -40,6 +40,10 @@ Either way it lists every contributing wordlist, in priority order, with that wo
 This (a) serves the trust case (a constructor who doesn't auto-believe the top-priority list sees whether another list, even one they aren't merging, scored the entry differently); (b) *is* the comparison surface when scoped; and (c) fixes the "lying Source column" — the table attributes one source per row, but display, score, and comment can each come from a different contributor (comment fall-through is designed to do this — [`wordlists.md`](wordlists.md) § *Rich wordlists*).
 A **concrete** click's other spellings (`Boney M.` vs `Boney M`) are not collapsed into this table — they ride the panel's Related entries (§ *Related entries*), each its own click-through with its own provenance — while a **bare** click, being a wildcard, lists them all here (see below).
 
+*Column layout.*
+Entry gets its full width first, and Comment takes what's left, truncated with an ellipsis, so a narrow panel clips comments rather than wrapping entries.
+The ▸ and trash columns keep their width even when empty, so staging or saving an edit adds a row without shifting any column.
+
 *Which contributors show.*
 A **concrete** click scopes the panel to that spelling, mirroring the merged view's own display eligibility (`concreteDisplay`/`isDistinguishing`, [`wordlists.md`](wordlists.md) § *Rich wordlists*): a wordlist contributes when it spells the entry the way you clicked, or holds a bare entry (no fixed spelling) that unifies with any spelling.
 So clicking `the IRS` lists the lists that spell it `the IRS` plus the bare ones; `Theirs` and a plain `theirs` are *different* rows you reach through Related entries, each opening its own table.

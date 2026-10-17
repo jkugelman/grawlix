@@ -215,6 +215,36 @@ test('a triangle marks the row All Wordlists takes its score from', async ({ pag
   await expect.poll(marks).toEqual(['Used in All Wordlists: first list with this entry', null]);
 });
 
+test('staging and saving an edit leaves the columns where they were', async ({ page }) => {
+  await gotoApp(page);
+  await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
+    name: 'XWord Info', entries: ['wentunnoticed'], scores: [50],
+  }));
+  await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
+    name: 'Spread the Word(list)', entries: ['went unnoticed'], scores: [50],
+  }));
+  await openPanelOnEntry(page, 'went unnoticed');
+
+  // offsetLeft, not bounding rects: mid slide-in, WebKit can report the th and
+  // table rects from different frames of the transform, skewing them by pixels.
+  const layout = () => page.evaluate(() => {
+    const table = document.querySelector('.entry-panel-prov');
+    return {
+      rows: table.querySelectorAll('tbody tr').length,
+      cols: [...table.querySelectorAll('th')].map(th => th.offsetLeft),
+    };
+  });
+  await expect.poll(async () => (await layout()).rows).toBe(2);
+  const { cols } = await layout();
+
+  await page.locator('#entry-panel-score').fill('77');
+  await expect.poll(layout).toEqual({ rows: 3, cols });
+  await page.locator('.entry-panel-save').click();
+  await openPanelOnEntry(page, 'went unnoticed');
+  await expect(page.locator('.entry-panel-prov-trash')).toHaveCount(1);
+  expect(await layout()).toEqual({ rows: 3, cols });
+});
+
 test('an edit made through the panel still lands in My Edits', async ({ page }) => {
   await gotoApp(page);
 

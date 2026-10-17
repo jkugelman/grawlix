@@ -637,18 +637,24 @@ mark.find-hit:last-child,
 
 .entry-panel-close-back { display: none; }
 .entry-panel-title { font-size: 16px; font-weight: 700; color: var(--text); margin: 0; }
-.entry-panel-prov { width: 100%; border-collapse: collapse; }
+/* Grid so Entry sizes to its content before Comment gets the rest (table layout
+   squeezes the lone auto column first). Grid display strips table semantics in
+   some engines; the ARIA roles in the markup restore them. */
+.entry-panel-prov { display: grid; grid-template-columns: auto auto auto minmax(0, 1fr) auto auto; }
+.entry-panel-prov thead, .entry-panel-prov tbody, .entry-panel-prov tr { display: contents; }
 .entry-panel-prov th { text-align: left; font-weight: 600; color: var(--muted); padding: 2px 8px 4px 0; border-bottom: 1px solid var(--border3); white-space: nowrap; }
 .entry-panel-prov td { padding: 3px 8px 3px 0; vertical-align: top; border-bottom: 1px solid var(--border3); }
 .entry-panel-prov tr:last-child td { border-bottom: none; }
-.entry-panel-prov .entry-panel-prov-mark { width: 1%; padding-right: 4px; }
+.entry-panel-prov .entry-panel-prov-mark { padding-right: 4px; }
 .entry-panel-prov-winner { color: var(--accent); font-size: 11px; cursor: default; }
 .entry-panel-prov-entry { color: var(--text); overflow-wrap: anywhere; }
 td.entry-panel-prov-entry { font-family: var(--font-mono); }
-.entry-panel-prov-score { width: 1%; white-space: nowrap; text-align: right; }
+/* Hidden bold copy: staging bolds a row, and Firefox's synthesized bold is wider. */
+td.entry-panel-prov-entry::after { content: attr(data-text); display: block; height: 0; overflow: hidden; visibility: hidden; font-weight: 700; }
+.entry-panel-prov-score { white-space: nowrap; text-align: right; }
 .entry-panel-prov th.entry-panel-prov-score { text-align: right; }
-.entry-panel-prov-comment { width: 150px; min-width: 150px; max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.entry-panel-prov-source { width: 1%; white-space: nowrap; }
+.entry-panel-prov-comment { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.entry-panel-prov-source { white-space: nowrap; }
 .entry-panel-prov-row--disabled td,
 .entry-panel-prov-row--muted td { color: var(--faint); }
 .entry-panel-prov-row--disabled .wordlist-icon,
@@ -667,7 +673,9 @@ td.entry-panel-prov-entry { font-family: var(--font-mono); }
 .entry-panel-note::before, .entry-panel-suggest::before { content: '↳'; margin-right: 5px; }
 .entry-panel-note-link, .entry-panel-suggest-link { font: inherit; color: var(--accent); background: none; border: none; padding: 0; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
 .entry-panel-note-link:hover, .entry-panel-suggest-link:hover { text-decoration: none; }
-.entry-panel-prov-action { width: 1%; white-space: nowrap; text-align: right; }
+.entry-panel-prov-action { white-space: nowrap; text-align: right; }
+.entry-panel-prov-reserve { visibility: hidden; }
+.entry-panel-prov-trash-reserve { display: inline-block; padding: 2px 4px; line-height: 0; }
 .entry-panel-prov-trash { position: relative; background: none; border: none; padding: 2px 4px; line-height: 0; border-radius: 4px; color: var(--muted); cursor: pointer; }
 .entry-panel-prov-trash:hover { color: #e53935; background: rgba(229, 57, 53, 0.1); }
 .entry-panel-prov-trash.staged { color: #e53935; }
