@@ -12,7 +12,7 @@ The individual tools each family unlocks are listed in [`../tools.md`](../tools.
 ### Phonetics
 
 The CMU Pronouncing Dictionary maps words to phoneme sequences, opening up an entire class of sound-based operations that letter-based tools can't touch.
-The dict is fetched from a remote URL and cached at runtime by the pipeline worker (a worker-owned data asset registered in [`../../site/src/engine/assets.js`](../../site/src/engine/assets.js), a static dataset refreshed by a `dataIdbKey` bump rather than hourly polling).
+The dict is fetched from a remote URL and cached at runtime by the pipeline worker (a worker-owned data asset registered in [`../../site/src/engine/assets.js`](../../site/src/engine/assets.js), a static dataset refreshed by a `dataIdbKey` bump rather than periodic polling).
 **Rhymes** and **Phone search** ship on it (`engine/tools/rhymes.js`, `engine/tools/phone_search.js`, `engine/phonetics.js`); Phonetic substitution and Sound shift remain to explore.
 Shipped design: [`design.md`](../design.md) § *Pronunciations*, § *Rhymes*, § *Phone search and letter–sound alignment*; the engine plan and further tools: [`phonetics.md`](phonetics.md).
 

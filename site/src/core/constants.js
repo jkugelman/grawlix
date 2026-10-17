@@ -168,7 +168,7 @@ export const URL_REMAPS = [
 
 // Hosts verified to answer conditional GETs with 304, so the update check may GET
 // them in place of a HEAD. On an unverified host that GET would silently
-// re-download the whole file every hour.
+// re-download the whole file on every check.
 export const REVALIDATING_HOSTS = ['www.spreadthewordlist.com'];
 
 export const SEVERITY_PRIORITY = { info: 1 };

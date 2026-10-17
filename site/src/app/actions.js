@@ -855,7 +855,7 @@ async function remoteSize(url) {
   return resp.ok ? resp.headers.get('content-length') : null;
 }
 
-const UPDATE_CHECK_INTERVAL = 60 * 60 * 1000; // 1 hour
+const UPDATE_CHECK_INTERVAL = 4 * 60 * 60 * 1000; // 4 hours
 
 export function getAutoUpdate() { return lsLoad('autoUpdate') !== 'off'; }
 

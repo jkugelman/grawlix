@@ -2,7 +2,7 @@
 //
 // Re-fetching a URL-backed wordlist diffs old vs. new entries into
 // added / deleted / rescored. Manual updates report the diff in a dialog;
-// the hourly check either flags `_updateAvailable` (auto-update off) or
+// the periodic check either flags `_updateAvailable` (auto-update off) or
 // silently re-fetches and toasts the counts (auto-update on).
 
 import { test, expect } from '@playwright/test';

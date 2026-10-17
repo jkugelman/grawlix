@@ -9,7 +9,7 @@ import {
   loadCmuDict, invalidateCmuDict, hasCmuDict,
 } from './phonetics.js';
 
-// `autoUpdate` opts an asset into the hourly remote-freshness check. Both are static
+// `autoUpdate` opts an asset into the periodic remote-freshness check. Both are static
 // reference datasets, so they're off it — ship a newer copy by bumping the `dataIdbKey`
 // (orphans the old record, re-fetches on next load), not by polling.
 export const DATA_ASSETS = [

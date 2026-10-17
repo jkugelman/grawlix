@@ -559,13 +559,13 @@ A transient per-download format was considered — hand a Crosserville file to a
 
 A wordlist with a `url` is auto-fetch capable.
 On boot, any URL-backed wordlist that isn't yet populated fetches in the background ([`design.md`](design.md) § *The shell* — default landing).
-Thereafter `checkForUpdates()` runs once on boot and hourly (`UPDATE_CHECK_INTERVAL`): a `HEAD` request per URL-backed, populated wordlist compares `Content-Length` against the stored `fetchedSize`.
+Thereafter `checkForUpdates()` runs once on boot and every four hours (`UPDATE_CHECK_INTERVAL`): a `HEAD` request per URL-backed, populated wordlist compares `Content-Length` against the stored `fetchedSize`.
 A size change is the update signal — cheap, no body transfer.
 
 A host on `REVALIDATING_HOSTS` (STWL's `www.spreadthewordlist.com`) is checked by `GET` instead, comparing the decoded body's byte length.
 Such a host serves compressed, chunked responses with no `Content-Length`, and its `ETag` is unreadable cross-origin without `Access-Control-Expose-Headers`, so no header can carry the signal.
 What makes the `GET` cheap is the browser's HTTP cache: the host sends `cache-control: no-cache` and answers `If-None-Match` with a 304, so an unchanged file costs an empty response and a read from the local cache — verified in Chromium, Firefox, and WebKit.
-The page sees a 200 with the full body either way, so the code can't tell a cheap host from an expensive one; that's why the list is explicit, and a host joins it only after its 304s are confirmed — elsewhere the `GET` would re-download the whole file every hour.
+The page sees a 200 with the full body either way, so the code can't tell a cheap host from an expensive one; that's why the list is explicit, and a host joins it only after its 304s are confirmed — elsewhere the `GET` would re-download the whole file on every check.
 For these hosts `fetchedSize` stores the same decoded length, since `Content-Length` is the *encoded* size and the two never compare.
 
 **Eviction-resilient boot.**
@@ -583,7 +583,7 @@ Shipping the whole diff inline would re-materialize a full-replace re-import's ~
 `applyWordlistText` parses the new text only transiently, to write IDB and seed rules, and keeps nothing.
 The `viaToast` flag picks how that diff is reported: normally it opens the full `openUpdateSummaryDialog`; under auto-update it instead shows a one-line toast with the counts (`XWI auto-updated: 1,204 added, 58 rescored`, zero-count categories omitted), since an unattended background refresh shouldn't pop a modal in the user's face.
 The toast carries a **Details** action link (`showActionToast`) that opens the full `openUpdateSummaryDialog` on demand — the modal stays opt-in.
-Toggling the setting on from the Settings dialog runs `checkForUpdates()` immediately rather than waiting up to an hour for the next tick.
+Toggling the setting on from the Settings dialog runs `checkForUpdates()` immediately rather than waiting up to four hours for the next tick.
 
 **Refresh-on-consent: a background update never yanks a settled result.**
 The rule is *the user driving the pipeline always recomputes; the world changing underneath never recomputes without consent* — where the recompute consent gates is the expensive **join**, not a cheap re-scan.
