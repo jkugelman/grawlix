@@ -1,6 +1,6 @@
 'use strict';
 
-import { loadCmuDict, hasCmuDict, soundsOf, spelledSoundsOf, phoneCode, looseVowelsOf } from '../phonetics.js';
+import { loadCmuDict, hasCmuDict, soundsOf, spelledSoundsOf, phoneCode, looseVowelsOf, coalescedWithY } from '../phonetics.js';
 import { wordKinds } from '../rule-query.js';
 import { alignmentOf, lettersForPhones } from '../phone-align.js';
 import { tokensOf, itemsOf as readItems, tableSplits, widerSplits } from '../phone-reading.js';
@@ -42,27 +42,32 @@ const MAX_READINGS = 16;
 // sounds can't be heard across it.
 const HOLE = '\u0001';
 
-// Every way to say an entry, one pronunciation per word: [{ code, picks }],
-// where picks[k] is the index into items[k].sounds. The plain readings come
+// Every way to say an entry, one pronunciation per word: [{ code, sounds }], where
+// sounds[k] is how items[k] is said, null for a hole. The plain readings come
 // first and are capped on their own, so the folded ones never crowd out a
 // reading that matched before the folds existed.
 function readingsOf(items) {
   const plain = productOf(items, sound => sound.plain);
   const codes = new Set(plain.map(r => r.code));
-  return [...plain, ...productOf(items, sound => sound.folded).filter(r => !codes.has(r.code))];
+  return [...plain, ...foldedOf(items).filter(r => !codes.has(r.code))];
 }
 
-function productOf(items, keep) {
-  let readings = [{ code: '', picks: [] }];
+const foldedOf = items => productOf(items, sound => sound.folded, true);
+
+function productOf(items, keep, connected = false) {
+  let readings = [{ code: '', sounds: [] }];
   for (const item of items) {
     if (!item) {
-      readings = readings.map(r => ({ code: r.code + HOLE, picks: [...r.picks, -1] }));
+      readings = readings.map(r => ({ code: r.code + HOLE, sounds: [...r.sounds, null] }));
       continue;
     }
     const next = [];
     for (const r of readings) {
-      for (let s = 0; s < item.sounds.length && next.length < MAX_READINGS; s++) {
-        if (keep(item.sounds[s])) next.push({ code: r.code + item.sounds[s].code, picks: [...r.picks, s] });
+      for (const sound of item.sounds) {
+        if (!keep(sound)) continue;
+        if (next.length < MAX_READINGS) next.push({ code: r.code + sound.code, sounds: [...r.sounds, sound] });
+        const joined = connected && joinedWithY(r, sound, item.letters);
+        if (joined && next.length < MAX_READINGS) next.push(joined);
       }
     }
     readings = next;
@@ -70,13 +75,24 @@ function productOf(items, keep) {
   return readings;
 }
 
-const lengthOf = (items, reading, k) => (items[k] ? items[k].sounds[reading.picks[k]].phones.length : 1);
+function joinedWithY(reading, sound, word) {
+  const before = reading.sounds[reading.sounds.length - 1];
+  const merged = before && sound.phones[0] === 'Y' && sound.phones.length > 1
+    && coalescedWithY(before.phones[before.phones.length - 1], word);
+  if (!merged) return null;
+  const end = phoneCode(merged);
+  const joinedBefore = { ...before, phones: [...before.phones.slice(0, -1), merged], code: before.code.slice(0, -1) + end };
+  const rest = { ...sound, phones: sound.phones.slice(1), code: sound.code.slice(1), stress: sound.stress.slice(1) };
+  return { code: reading.code.slice(0, -1) + end + rest.code, sounds: [...reading.sounds.slice(0, -1), joinedBefore, rest] };
+}
+
+const lengthOf = (reading, k) => reading.sounds[k]?.phones.length ?? 1;
 
 function breaksOf({ items, starts }, reading) {
   const breaks = [0];
   let off = 0;
   for (let k = 0; k < items.length; k++) {
-    off += lengthOf(items, reading, k);
+    off += lengthOf(reading, k);
     if (k === items.length - 1 || starts[k + 1]) breaks.push(off);
   }
   return breaks;
@@ -89,11 +105,10 @@ function rangesForHit(items, reading, a, b) {
   let off = 0;
   for (let k = 0; k < items.length && off < b; k++) {
     const item = items[k];
-    const len = lengthOf(items, reading, k);
+    const len = lengthOf(reading, k);
     const lo = Math.max(a, off) - off, hi = Math.min(b, off + len) - off;
     if (item && lo < hi) {
-      const sound = item.sounds[reading.picks[k]];
-      const [s, e] = lettersForPhones(alignmentOf(item.letters, sound.phones), lo, hi, item.letters.length);
+      const [s, e] = lettersForPhones(alignmentOf(item.letters, reading.sounds[k].phones), lo, hi, item.letters.length);
       out.push({ start: item.at[s], end: item.at[e - 1] + 1 });
     }
     off += len;
@@ -118,13 +133,10 @@ function mergeRanges(ranges) {
 // many speakers say as IY before NG. Only there: elsewhere IH is short, and
 // MONEY would match FEMINIST. Not before NG G in one word either, where it stays
 // short: TOUGHIE isn't heard in LIFT A FINGER.
-function ingCodesOf(items, readings) {
-  const last = items[items.length - 1];
+function ingCodesOf(readings) {
   const IY = phoneCode('IY'), IH = phoneCode('IH');
-  return readings.flatMap(({ code, picks }) => {
-    const { stress } = last.sounds[picks[picks.length - 1]];
-    return code.endsWith(IY) && stress.endsWith('0') ? [code.slice(0, -1) + IH] : [];
-  });
+  return readings.flatMap(({ code, sounds }) =>
+    (code.endsWith(IY) && sounds[sounds.length - 1].stress.endsWith('0') ? [code.slice(0, -1) + IH] : []));
 }
 
 const literal = code => [...code].map(ch => `\\u${ch.charCodeAt(0).toString(16).padStart(4, '0')}`).join('');
@@ -132,10 +144,9 @@ const literal = code => [...code].map(ch => `\\u${ch.charCodeAt(0).toString(16).
 // Only the folded readings hear the query's secondary vowels loosely (looseVowelsOf), so
 // they're built on their own: readingsOf drops a folded reading spelled like a plain
 // one, and ACHOO's would go.
-function looseSourceOf(items, { code, picks }) {
+function looseSourceOf({ code, sounds }) {
   let src = '', at = 0;
-  items.forEach((item, k) => {
-    const { phones, stress } = item.sounds[picks[k]];
+  sounds.forEach(({ phones, stress }) => {
     phones.forEach((phone, i) => {
       const heard = looseVowelsOf(phone, stress[i]);
       src += heard ? `[${heard.map(p => literal(phoneCode(p))).join('')}]` : literal(code[at]);
@@ -154,9 +165,9 @@ function queryOf(text, spacing) {
   return {
     patterns: compile([
       ...productOf(items, sound => sound.plain).map(r => literal(r.code)),
-      ...productOf(items, sound => sound.folded).map(r => looseSourceOf(items, r)),
+      ...foldedOf(items).map(looseSourceOf),
     ]),
-    ingPatterns: compile(ingCodesOf(items, readings).map(literal)),
+    ingPatterns: compile(ingCodesOf(readings).map(literal)),
     words: items.map(item => item.letters),
   };
 }
@@ -167,13 +178,13 @@ function queryOf(text, spacing) {
 // FIGURESKATING hides like FIGURE SKATING; CONFIGURE's match starts mid-word.
 function isSearchWord(items, reading, a, b, words) {
   let off = 0, k = 0;
-  while (k < items.length && off < a) off += lengthOf(items, reading, k++);
+  while (k < items.length && off < a) off += lengthOf(reading, k++);
   if (off !== a || k + words.length > items.length) return false;
   for (let i = 0; i < words.length - 1; i++, k++) {
     if (items[k]?.letters !== words[i]) return false;
-    off += lengthOf(items, reading, k);
+    off += lengthOf(reading, k);
   }
-  return !!items[k] && b > off && b <= off + lengthOf(items, reading, k)
+  return !!items[k] && b > off && b <= off + lengthOf(reading, k)
     && candidates(items[k].letters).has(words[words.length - 1]);
 }
 

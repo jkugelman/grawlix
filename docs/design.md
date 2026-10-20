@@ -473,7 +473,11 @@ CMU writes ACHOO's first vowel AA2, so without this ACHOO can't find MASSACHUSET
 It stops there.
 An unstressed query vowel widened the same way has TUBA find TOO BAD and ANNA find AN HONEST MISTAKE, and a secondary I has INSULT (IH2) find CONSULT.
 The query compiles to regular expressions over the sound codes, with a character class wherever a vowel may be heard several ways.
-Each pronunciation is read twice, plain and folded, since the folds can't see into the next word: THE RACE keeps its IY, and only the plain reading of ERASE (IY R EY S) still finds it.
+Across a word break, YOU runs into the consonant before it: T, D, S and Z become CH, JH, SH and ZH, and CH, JH, SH and ZH absorb the Y sound.
+So ACHOO finds CATCH YOU LATER and I GOT YOU, and ISSUE finds KISS YOU.
+Only YOU and its forms (YOUR, YOURSELF, YOU'RE…) join, since they're said unstressed; a stressed Y word keeps its Y, or JAW would find SCOTLAND YARD.
+The joined reading is an extra folded reading beside the unjoined one, and it carries each word's changed sounds, so highlighting still aligns them to that word's letters.
+Each pronunciation is read twice, plain and folded, since the vowel folds can't see into the next word: THE RACE keeps its IY, and only the plain reading of ERASE (IY R EY S) still finds it.
 An entry's plain readings and folded readings are combined separately, plain with plain, and each set has its own cap of 16, so the folded ones can't crowd out a plain reading that matched before.
 It encodes each phone as exactly one code unit, so a match can't land partway through a phone.
 A word CMU doesn't know is first tried as an inflection: morphology's `candidates` strips an *-s*, *-es*, *-ies*, *-ed*, *-ied* or *-ing*, and the longest stem CMU knows is read with the ending's sound after it.

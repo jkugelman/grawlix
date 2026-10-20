@@ -322,6 +322,13 @@ const flapT = pron => {
   return toks.map((ph, i) => (ph === 'T' && flaps(i) ? 'D' : ph)).join(' ');
 };
 
+// Yod coalescence across a word break: GOT YOU is said "gotchoo", CATCH YOU "catchoo".
+// Only into YOU and its forms, which are said unstressed; a stressed Y word keeps its
+// Y, or JAW finds SCOTLAND YARD.
+const INTO_Y = { T: 'CH', D: 'JH', S: 'SH', Z: 'ZH', CH: 'CH', JH: 'JH', SH: 'SH', ZH: 'ZH' };
+const YOU_FORMS = new Set(['you', 'your', 'youre', 'yours', 'yourself', 'yourselves', 'youd', 'youll', 'youve']);
+export const coalescedWithY = (phone, word) => (YOU_FORMS.has(word) ? INTO_Y[phone] ?? null : null);
+
 // Stress stripped: `arbiter`'s unstressed -biter has to meet `bitter`.
 // Each word is read plain and folded, and Phone search pairs plain with plain and
 // folded with folded. The folds only see inside the word, so THE RACE keeps its

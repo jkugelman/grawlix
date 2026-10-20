@@ -31,6 +31,9 @@ const CMU = {
   ACHOO: ['AA2 CH UW1'], MASSACHUSETTS: ['M AE2 S AH0 CH UW1 S AH0 T S'], STATUETTE: ['S T AE2 CH UW0 EH1 T'],
   RITUAL: ['R IH1 CH UW0 AH0 L'], TUBA: ['T UW1 B AH0'], TOO: ['T UW1'], BAD: ['B AE1 D'],
   INSULT: ['IH2 N S AH1 L T'], CONSULT: ['K AH0 N S AH1 L T'],
+  CATCH: ['K AE1 CH'], YOU: ['Y UW1'], GOT: ['G AA1 T'], LATER: ['L EY1 T ER0'], CHOO: ['CH UW1'],
+  ISSUE: ['IH1 SH UW0'], KISS: ['K IH1 S'], YET: ['Y EH1 T'], CHET: ['CH EH1 T'],
+  SCOTLAND: ['S K AA1 T L AH0 N D'], YARD: ['Y AA1 R D'], JAW: ['JH AO1'],
 };
 
 // Corpus state is module-global and these run in one process, so a corpus seeded
@@ -127,6 +130,15 @@ test('a secondary "ah" in the query meets any "ah" or "uh"; an unstressed one an
     { massachusetts: ['achu'], statuette: ['atu'] });
   assert.deepEqual(await hits([{ entry: 'too bad' }], 'tuba'), {});
   assert.deepEqual(await hits(['consult'], 'insult'), {});
+});
+
+test('YOU runs into the consonant before it, and no other Y word does', async () => {
+  seed();
+  assert.deepEqual(await hits([{ entry: 'catch you later' }, { entry: 'I got you' }], 'achoo'),
+    { 'catch you later': ['atch', 'you'], 'I got you': ['ot', 'you'] });
+  assert.deepEqual(await hits([{ entry: 'kiss you' }], 'issue'), { 'kiss you': ['iss', 'you'] });
+  assert.deepEqual(await hits([{ entry: 'got yet' }], 'chet'), {});
+  assert.deepEqual(await hits([{ entry: 'Scotland Yard' }], 'jaw'), {});
 });
 
 test('silent letters at a word’s edge ride along with the sounds beside them', async () => {
