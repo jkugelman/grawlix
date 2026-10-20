@@ -28,6 +28,9 @@ const CMU = {
   PYRE: ['P AY1 ER0'], PIRATE: ['P AY1 R AH0 T'], SPY: ['S P AY1'], RING: ['R IH1 NG'],
   DIME: ['D AY1 M'], DIM: ['D IH1 M'], IM: ['AY1 M'],
   ENVY: ['EH1 N V IY0'], PEAS: ['P IY1 Z'],
+  ACHOO: ['AA2 CH UW1'], MASSACHUSETTS: ['M AE2 S AH0 CH UW1 S AH0 T S'], STATUETTE: ['S T AE2 CH UW0 EH1 T'],
+  RITUAL: ['R IH1 CH UW0 AH0 L'], TUBA: ['T UW1 B AH0'], TOO: ['T UW1'], BAD: ['B AE1 D'],
+  INSULT: ['IH2 N S AH1 L T'], CONSULT: ['K AH0 N S AH1 L T'],
 };
 
 // Corpus state is module-global and these run in one process, so a corpus seeded
@@ -116,6 +119,14 @@ test('an initialism CMU lacks is read letter by letter, a plural s as its ending
   assert.deepEqual(await hits([{ entry: 'NV' }, 'nv', { entry: 'MVPs' }], 'envy'), { NV: ['NV'] });
   assert.deepEqual(await hits([{ entry: 'MVPs' }, { entry: 'MVPS' }], 'peas'), { MVPs: ['Ps'] });
   assert.deepEqual(await hits([{ entry: 'NVNVNV' }], 'envy'), {});
+});
+
+test('a secondary "ah" in the query meets any "ah" or "uh"; an unstressed one and a secondary I don’t', async () => {
+  seed();
+  assert.deepEqual(await hits(['massachusetts', 'statuette', 'ritual'], 'achoo'),
+    { massachusetts: ['achu'], statuette: ['atu'] });
+  assert.deepEqual(await hits([{ entry: 'too bad' }], 'tuba'), {});
+  assert.deepEqual(await hits(['consult'], 'insult'), {});
 });
 
 test('silent letters at a word’s edge ride along with the sounds beside them', async () => {

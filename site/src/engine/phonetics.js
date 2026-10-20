@@ -157,6 +157,14 @@ const REDUCIBLE = new Set(['AA', 'AE', 'AH', 'AO', 'EH', 'IH', 'OW', 'UH']);
 // has BELLOW find BELLA and AVOCADO rhyme with PRADA.
 const isWeak = vowel => vowel.endsWith('0') && vowel.slice(0, 2) !== 'OW' && REDUCIBLE.has(vowel.slice(0, -1));
 
+// CMU writes ACHOO's first vowel AA2, a full "ah" that MASSACHUSETTS (AH0) and
+// STATUE (AE1) would never otherwise meet. Only a secondary "ah" or "uh": widen an
+// unstressed one too and TUBA finds TOO BAD; a secondary I and INSULT finds CONSULT.
+const AH_VOWELS = ['AA', 'AE', 'AH'];
+export function looseVowelsOf(phone, stress) {
+  return stress === '2' && AH_VOWELS.includes(phone) ? [...AH_VOWELS, 'AX'] : null;
+}
+
 // Own coda, never the next syllable's onset: SAW RED has to keep folding, since a
 // word-initial R colors nothing before it.
 function nucleusKey(vowel, coda) {
@@ -219,8 +227,8 @@ function wholeEntryParts(text) {
 
 // ─── Sound strings ───────────────────────────────────────────────────────────
 
-// Exactly one code unit per phone: with wider codes, indexOf could land mid-phone
-// and match sounds that aren't there.
+// Exactly one code unit per phone: with wider codes, a match could land mid-phone
+// and find sounds that aren't there.
 const phoneCodes = new Map();
 export const phoneCode = phone => {
   let code = phoneCodes.get(phone);

@@ -468,9 +468,14 @@ Its folded reading also hears a flapped T as D (§ *Pronunciations*), so PUTTING
 It also reduces unstressed AA AE AH AO EH IH UH to one schwa, so ROCKET finds DAVY CROCKETT and EFFACE finds MAKE A FACE; stressed vowels stay apart, so BIT never finds BUT.
 Unlike whole-entry rhymes it leaves an unstressed OW alone: CMU writes a reduced O as AH, so OW0 is a full "oh", and reducing it has BELLOW find BELLA.
 Only the match code is reduced: highlighting aligns the unreduced phones to letters.
+A secondary-stressed "ah" or "uh" in the query (AA2, AE2, AH2) meets any "ah" or "uh" in the entry, stressed or not, or a schwa.
+CMU writes ACHOO's first vowel AA2, so without this ACHOO can't find MASSACHUSETTS (AH0), STATUETTE (AE2) or STATUE (AE1).
+It stops there.
+An unstressed query vowel widened the same way has TUBA find TOO BAD and ANNA find AN HONEST MISTAKE, and a secondary I has INSULT (IH2) find CONSULT.
+The query compiles to regular expressions over the sound codes, with a character class wherever a vowel may be heard several ways.
 Each pronunciation is read twice, plain and folded, since the folds can't see into the next word: THE RACE keeps its IY, and only the plain reading of ERASE (IY R EY S) still finds it.
 An entry's plain readings and folded readings are combined separately, plain with plain, and each set has its own cap of 16, so the folded ones can't crowd out a plain reading that matched before.
-It encodes each phone as exactly one code unit, so `indexOf` can't land partway through a phone.
+It encodes each phone as exactly one code unit, so a match can't land partway through a phone.
 A word CMU doesn't know is first tried as an inflection: morphology's `candidates` strips an *-s*, *-es*, *-ies*, *-ed*, *-ied* or *-ing*, and the longest stem CMU knows is read with the ending's sound after it.
 The ending's sound depends on the stem's last sound: *-s* is IH Z after a hissing sound, S after a voiceless one, and Z otherwise; *-ed* is IH D after T or D, T after a voiceless sound, and D otherwise.
 So FROGGED, ASTROTURFS and BAMBOOZLING read, and DIMED is read from DIME, not DIM.

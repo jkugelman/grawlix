@@ -1,6 +1,6 @@
 'use strict';
 
-import { loadCmuDict, hasCmuDict, soundsOf, spelledSoundsOf, phoneCode } from '../phonetics.js';
+import { loadCmuDict, hasCmuDict, soundsOf, spelledSoundsOf, phoneCode, looseVowelsOf } from '../phonetics.js';
 import { wordKinds } from '../rule-query.js';
 import { alignmentOf, lettersForPhones } from '../phone-align.js';
 import { tokensOf, itemsOf as readItems, tableSplits, widerSplits } from '../phone-reading.js';
@@ -127,13 +127,36 @@ function ingCodesOf(items, readings) {
   });
 }
 
+const literal = code => [...code].map(ch => `\\u${ch.charCodeAt(0).toString(16).padStart(4, '0')}`).join('');
+
+// Only the folded readings hear the query's secondary vowels loosely (looseVowelsOf), so
+// they're built on their own: readingsOf drops a folded reading spelled like a plain
+// one, and ACHOO's would go.
+function looseSourceOf(items, { code, picks }) {
+  let src = '', at = 0;
+  items.forEach((item, k) => {
+    const { phones, stress } = item.sounds[picks[k]];
+    phones.forEach((phone, i) => {
+      const heard = looseVowelsOf(phone, stress[i]);
+      src += heard ? `[${heard.map(p => literal(phoneCode(p))).join('')}]` : literal(code[at]);
+      at++;
+    });
+  });
+  return src;
+}
+
+const compile = sources => [...new Set(sources)].map(src => new RegExp(src, 'g'));
+
 function queryOf(text, spacing) {
   const { items } = itemsOf(text, spacing, true);
   if (!items.length || items.includes(null)) return null;
   const readings = readingsOf(items);
   return {
-    codes: [...new Set(readings.map(r => r.code))],
-    ingCodes: [...new Set(ingCodesOf(items, readings))],
+    patterns: compile([
+      ...productOf(items, sound => sound.plain).map(r => literal(r.code)),
+      ...productOf(items, sound => sound.folded).map(r => looseSourceOf(items, r)),
+    ]),
+    ingPatterns: compile(ingCodesOf(items, readings).map(literal)),
     words: items.map(item => item.letters),
   };
 }
@@ -175,16 +198,17 @@ function occurrencesOf(query, read, reading, mode, replacing = false) {
   const allows = modeAllows(read, reading, mode);
   const NG = phoneCode('NG'), G = phoneCode('G');
   const out = [];
-  const scan = (targets, fits) => {
-    for (const target of targets) {
-      for (let at = reading.code.indexOf(target); at !== -1; at = reading.code.indexOf(target, at + 1)) {
-        const occ = { start: at, end: at + target.length };
+  const scan = (patterns, fits) => {
+    for (const re of patterns) {
+      re.lastIndex = 0;
+      for (let m; (m = re.exec(reading.code)); re.lastIndex = m.index + 1) {
+        const occ = { start: m.index, end: m.index + m[0].length };
         if (fits(occ) && allows(occ) && (replacing || !isSearchWord(items, reading, occ.start, occ.end, query.words))) out.push(occ);
       }
     }
   };
-  scan(query.codes, () => true);
-  scan(query.ingCodes, ({ end }) => reading.code[end] === NG
+  scan(query.patterns, () => true);
+  scan(query.ingPatterns, ({ end }) => reading.code[end] === NG
     && (reading.code[end + 1] !== G || breaksOf(read, reading).includes(end + 1)));
   return out;
 }
