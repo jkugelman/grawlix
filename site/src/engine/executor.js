@@ -202,6 +202,12 @@ function makeCtx(wordlist, vocab, signal, y, grouped = false, reversed = false) 
   };
 }
 
+export function runDetachedBuild(wordlist, vocab, signal, prepareCache, build) {
+  const y = makeYielder(signal);
+  y.cache = prepareCache;
+  return build(makeCtx(wordlist, vocab, signal, y));
+}
+
 // Run the tool stack against the run corpus, returning
 // `{ rows, atomCount }`. Each row is a ChainRow — `{ atoms: Atom[] }` — where
 // an Atom is `{ wlEntry, highlights, glyph }`, where `highlights` is a flat

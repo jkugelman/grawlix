@@ -222,6 +222,10 @@ It is taken out rather than finished in place because an edit mid-build would pa
 Rhymes, Phone search, Stress shift, Initialisms all-mode, and Search and Regex in a word-relative mode build the table, since they touch every entry anyway.
 The Initialisms filter, Hidden anagram, and Optional letters only read through it, because they rule out most entries first and building would make the first keystroke the slowest.
 
+**An idle worker builds it ahead of time**, so turning on Whole word doesn't cost the five-second sweep.
+It does so only for a visitor whose IDB already caches the corpus, and unloads a corpus it loaded once no row needs it.
+Any run interrupts it and finishes the partial table it leaves, as a newer keystroke would; [`worker-protocol.md`](worker-protocol.md) § *Idle warm-up* has the scheduling.
+
 **The table survives edits, patched rather than purged.**
 A reading depends on the wordlist only through word existence: a part of three or more letters is admitted only when the vocab carries it.
 So the table registers a `patch` with the cache, exempting it from the purge a row-swapping edit otherwise triggers, and on each edit hears which norms entered or left the merge.

@@ -1335,6 +1335,28 @@ The main client therefore **must settle that `runId`'s pending promise itself** 
 
 The worker yields **coarsely** (~30 ms) — it has no UI to keep at 60 fps, so it yields only often enough to honor cancellation, which also keeps yield overhead low.
 
+### Idle warm-up
+
+An idle worker builds the active scope's spacing table ([`segmenter.md`](segmenter.md) § *The spacing table*), so the first whole-word Search, Rhymes, or Initialisms run finds it complete.
+
+- **Trigger.**
+  `scheduleWarm()` runs at the end of every message, after each `drainRuns`, and after a `syncConfig` commit.
+  It arms one 1 s timer and never restarts it, so steady message traffic (scrolling, a test's polling) can't hold the warm-up off.
+- **Gate.**
+  It runs only when the unigram corpus is already in IDB, so a visitor who never used a word-reading tool never downloads it.
+  It runs at most once per corpus object and `ownedConfigVersion`, so a table the pool evicted waits for a run instead of churning against eviction.
+- **Abort.**
+  `runDetachedBuild` drives `buildSpacingTable` through the executor's yielder and `ctx`, with no stack and no progress, under a signal that trips on a `run` or `repatch` (`running`/`pending`), a scope change, a rebuild, or an edit (`ownedConfigVersion`).
+  It is not a run and sets no `running`, so fetches and edits apply inline under it (invariant 4 below): the abort at its next yield stops it reading the mutated corpus, and `put`'s `genAtStart` guard refuses the table it was holding.
+- **Handoff.**
+  `drainRuns` waits for an aborting build to unwind (one yield, ~30 ms) before starting the run.
+  `buildSpacingTable` holds the table out of the cache (`take`) while it builds, so without the wait the run's prepare finds nothing and starts from zero.
+  The partial table the warm-up caches is what the run finishes, the same path a superseded keystroke takes.
+  The wait covers the build only, never the IDB load before it.
+- **Memory.**
+  A corpus the warm-up loaded itself is unloaded once the worker is idle and no stack row needs it (`releaseWarmUnigrams`, also called after each `drainRuns`).
+  The asset reap acts only when the needed-asset set changes, so on its own it would leave the ~100 MB+ resident.
+
 ---
 
 ## Worker lifecycle
@@ -1387,6 +1409,7 @@ The worker yields **coarsely** (~30 ms) — it has no UI to keep at 60 fps, so i
    A run captures `ownedCorpus` by reference and its streaming emitter resolves position-encoded `_i` against the **live** corpus, so a splice/reindex (or `setOwnedCorpus` reassignment) mid-run silently shifts every already-produced row's identity — no crash, just plausibly-wrong rows.
    A mutation that does **not** also supersede the run must therefore defer until the run loop is between runs / idle (`applyFetched` → `deferredCorpusOps`).
    Mutations that *do* supersede — a structural `editEntry`/`deleteEntry` restarts the run, so its splice only tears an already-doomed run — are safe to apply inline; a key-stable edit (`replaced: false`) is safe too because it shifts no `_i`.
+   The idle warm-up is not a run, so mutations apply inline under it; it aborts on the change instead (§ *Idle warm-up*).
 
 ---
 

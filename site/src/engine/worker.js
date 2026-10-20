@@ -2,7 +2,7 @@
 
 import { MERGED_ID } from '../core/constants.js';
 import { TOOLS, makeToolRow, toolAssets, configureUmiaq, configureWeave } from './tools.js';
-import { executePipeline, configureExecutorYield, lastPipelineSeedFrom, lastPipelineTailMs, bottomLineAtoms, applyViewFilterToRows, entryPredicate, chainPredicate, rowLastEntry, rowAtoms, collapseRepeatAtoms, streamPlan, cacheGroupStats, currentAtomCount } from './executor.js';
+import { executePipeline, runDetachedBuild, configureExecutorYield, lastPipelineSeedFrom, lastPipelineTailMs, bottomLineAtoms, applyViewFilterToRows, entryPredicate, chainPredicate, rowLastEntry, rowAtoms, collapseRepeatAtoms, streamPlan, cacheGroupStats, currentAtomCount } from './executor.js';
 import { GdsCache, RoleCache } from './gds-cache.js';
 import { sortGroups, sortChainRows, activeGroupRow, groupRowComparator, chainRowComparator, chainSortTier, DEFAULT_SORT_BY_TIER, entrySortKey, foldAnchor, foldChainAnchor, chainFamily, chainAnchors, usesEntryAxis, compareValues, collationKey } from './sort.js';
 import { PackedRecordJoin, packRecordJoin, materializeRecordRow, recordView, recordComparator, recordPasses, PackedGroupJoin, tryPackGroupJoin, buildGroupFlyweights, materializeGroupRow } from './packed-join.js';
@@ -10,7 +10,7 @@ import {
   configureIO as configureSegmenterIO, setUnigramCorpus, configureSpaceOutBigrams,
   rankedSplits, SPACE_OUT_WINDOWS, loadUnigramCorpus, hasUnigramCorpus,
 } from './segmenter.js';
-import { bestSpaceOutSplit } from './space-out.js';
+import { bestSpaceOutSplit, buildSpacingTable, loadSpacingCorpus, SPACING_PASS } from './space-out.js';
 import { configureIO as configurePhoneticsIO } from './phonetics.js';
 import { DATA_ASSETS, getDataAsset } from './assets.js';
 import { parseWordlist, toNorm, displayOf, isUnspaced } from './norm.js';
@@ -150,6 +150,7 @@ let diffCounter = 0;
 // each entry by UI reachability (`freeDiff`).
 const retainedDiffs = new Map();
 let lastNeededAssetsSig = null;
+let lastNeededAssets = new Set();
 let selfConfig = null;
 const mergeMode = () => selfConfig?.mergeMode ?? 'first';
 let ownedBuilt = null;      // the retained per-source rich wordlists from the last syncConfig
@@ -233,6 +234,9 @@ async function drainRuns() {
   if (running) return;
   running = true;
   try {
+    // Else the run's prepare finds no table (the warm-up took it out to build) and starts
+    // one from zero, throwing away everything the warm-up read.
+    if (warming) await warming.catch(() => {});
     for (;;) {
       drainDeferredCorpusOps();   // land queued mutations before the next run reads the corpus
       if (!pending) break;
@@ -242,7 +246,79 @@ async function drainRuns() {
     }
   } finally {
     running = false;
+    releaseWarmUnigrams();
+    scheduleWarm();
   }
+}
+
+// ─── Idle warm-up ────────────────────────────────────────────────────────────
+// Builds the active scope's spacing table while idle. Any run, corpus change, or edit
+// aborts it, and the run waits for the abort to cache its partial table (drainRuns).
+
+const WARM_IDLE_MS = 1000;
+let warmTimer = null;
+let warmActive = false;
+let warming = null;   // the build itself; a run never waits on the corpus load before it
+// Weak: a strong ref would pin a released corpus through the rebuild that replaces it.
+const warmTried = new WeakMap();   // corpus → ownedConfigVersion
+// Set while the unigram corpus is resident only because a warm-up loaded it. The ~100 MB+
+// would otherwise stay until some later run's reap, which acts only when its needed set changes.
+let unigramsWarmOnly = false;
+
+function scheduleWarm() {
+  if (warmTimer) return;
+  warmTimer = setTimeout(() => {
+    warmTimer = null;
+    if (running || pending || warmActive) return;
+    warmActive = true;
+    warmSpacingTable().finally(() => { warmActive = false; releaseWarmUnigrams(); });
+  }, WARM_IDLE_MS);
+}
+
+// Once per corpus: a table the pool evicted waits for a run, or warm-ups and eviction churn.
+function warmNeeded() {
+  if (!ownedCorpusFresh || !ownedCorpus || !ownedMerged) return false;
+  if (warmTried.get(ownedCorpus) === ownedConfigVersion) return false;
+  return !SPACING_PASS.built(makePrepareCache(ownedScope));
+}
+
+function markWarmTried() {
+  if (ownedCorpus) warmTried.set(ownedCorpus, ownedConfigVersion);
+}
+
+async function warmSpacingTable() {
+  if (!warmNeeded()) return;
+  const unigrams = getDataAsset('unigrams');
+  try {
+    // A visitor who never used a word-reading tool would otherwise download the corpus for nothing.
+    if (!(await idbHasKey(unigrams.dataIdbKey))) { markWarmTried(); return; }
+    if (!unigrams.has()) {
+      unigramsWarmOnly = true;
+      await loadSpacingCorpus();
+    }
+  } catch { markWarmTried(); return; }
+  // Read only now: held across the awaits, a corpus a rebuild released would stay pinned.
+  if (running || pending || !warmNeeded()) { scheduleWarm(); return; }
+  const corpus = ownedCorpus, scope = ownedScope, gen = ownedConfigVersion;
+  const stale = () => running || pending || !ownedCorpusFresh
+    || ownedCorpus !== corpus || ownedScope !== scope || ownedConfigVersion !== gen;
+  const signal = { get aborted() { return stale(); }, reason: undefined };
+  try {
+    warming = runDetachedBuild(corpus, ownedMerged, signal, makePrepareCache(scope), buildSpacingTable);
+    await warming;
+    markWarmTried();
+  } catch {
+    if (stale()) scheduleWarm();
+    else markWarmTried();
+  } finally {
+    warming = null;
+  }
+}
+
+function releaseWarmUnigrams() {
+  if (!unigramsWarmOnly || running || pending || warmActive) return;
+  unigramsWarmOnly = false;
+  if (!lastNeededAssets.has('unigrams')) getDataAsset('unigrams').invalidate();
 }
 
 function neededAssets(serialized) {
@@ -267,6 +343,7 @@ function reapUnusedAssets(serialized) {
   const sig = [...needed].sort().join('\0');
   if (sig === lastNeededAssetsSig) return;
   lastNeededAssetsSig = sig;
+  lastNeededAssets = needed;
   for (const asset of DATA_ASSETS) {
     if (asset.has() && !needed.has(asset.key)) asset.invalidate();
   }
@@ -3076,6 +3153,7 @@ onmessage = ({ data }) => {
         // false (build failed / superseded by a different scope) ⇒ the client
         // settles the deferred run errored rather than waiting forever (the hang
         // trap). Reads the committed state at settle, not this build's own outcome.
+        .finally(scheduleWarm)
         .finally(() => postMessage({
           type: 'selfReady', configId: data.configId, count: data.sources.length,
           scope: data.scope ?? MERGED_ID,
@@ -3204,6 +3282,7 @@ onmessage = ({ data }) => {
       break;
     }
   }
+  scheduleWarm();
 };
 
 const _toolOriginals = new Map();
