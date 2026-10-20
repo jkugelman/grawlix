@@ -27,6 +27,7 @@ const CMU = {
   BIT: ['B IH1 T'], BUT: ['B AH1 T'], BELLOW: ['B EH1 L OW0'], BELLA: ['B EH1 L AH0'],
   PYRE: ['P AY1 ER0'], PIRATE: ['P AY1 R AH0 T'], SPY: ['S P AY1'], RING: ['R IH1 NG'],
   DIME: ['D AY1 M'], DIM: ['D IH1 M'], IM: ['AY1 M'],
+  ENVY: ['EH1 N V IY0'], PEAS: ['P IY1 Z'],
 };
 
 // Corpus state is module-global and these run in one process, so a corpus seeded
@@ -108,6 +109,13 @@ test('unstressed weak vowels meet each other, stressed ones and OW don’t', asy
 test('reads an inflection CMU lacks through its stem', async () => {
   seed();
   assert.deepEqual(await hits(['dimed'], 'I’m'), { dimed: ['im'] });
+});
+
+test('an initialism CMU lacks is read letter by letter, a plural s as its ending', async () => {
+  seed();
+  assert.deepEqual(await hits([{ entry: 'NV' }, 'nv', { entry: 'MVPs' }], 'envy'), { NV: ['NV'] });
+  assert.deepEqual(await hits([{ entry: 'MVPs' }, { entry: 'MVPS' }], 'peas'), { MVPs: ['Ps'] });
+  assert.deepEqual(await hits([{ entry: 'NVNVNV' }], 'envy'), {});
 });
 
 test('silent letters at a word’s edge ride along with the sounds beside them', async () => {

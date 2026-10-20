@@ -320,7 +320,9 @@ const flapT = pron => {
 // IY and would lose ERASE's IY R if the plain reading went. The folded reading's
 // code also reduces weak unstressed vowels to one schwa, so ROCKET finds
 // CROCKETT; its phones stay unreduced for highlighting, which has no letters for AX.
-export const soundsOf = wordLookup(prons => {
+export const soundsOf = wordLookup(soundsOfProns, { inflect: true });
+
+function soundsOfProns(prons) {
   const byCode = new Map();
   for (const raw of prons) {
     for (const folded of [false, true]) {
@@ -338,7 +340,31 @@ export const soundsOf = wordLookup(prons => {
     }
   }
   return [...byCode.values()];
-}, { inflect: true });
+}
+
+// ─── Letter names ────────────────────────────────────────────────────────────
+
+const LETTER_NAMES = {
+  a: 'EY1', b: 'B IY1', c: 'S IY1', d: 'D IY1', e: 'IY1', f: 'EH1 F', g: 'JH IY1', h: 'EY1 CH', i: 'AY1',
+  j: 'JH EY1', k: 'K EY1', l: 'EH1 L', m: 'EH1 M', n: 'EH1 N', o: 'OW1', p: 'P IY1', q: 'K Y UW1', r: 'AA1 R',
+  s: 'EH1 S', t: 'T IY1', u: 'Y UW1', v: 'V IY1', w: 'D AH1 B AH0 L Y UW0', x: 'EH1 K S', y: 'W AY1', z: 'Z IY1',
+};
+
+let spelledCache = new Map();
+
+// `plural` because the letters are already lowercase: MVPs and MVPS look alike here.
+export function spelledSoundsOf(letters, plural = false) {
+  const key = plural ? letters + '+' : letters;
+  let found = spelledCache.get(key);
+  if (found !== undefined) return found;
+  if (spelledCache.size > SOUND_CACHE_MAX) spelledCache = new Map();
+  const named = [...(plural ? letters.slice(0, -1) : letters)].map(ch => LETTER_NAMES[ch]);
+  let pron = named.join(' ');
+  if (plural) pron += ' ' + endingAfter('s', pron.slice(pron.lastIndexOf(' ') + 1).replace(/\d/, ''));
+  found = named.includes(undefined) ? null : soundsOfProns([pron]);
+  spelledCache.set(key, found);
+  return found;
+}
 
 export const stressedSoundsOf = wordLookup(prons => {
   const seen = new Set();

@@ -1,6 +1,7 @@
 'use strict';
 
-import { loadCmuDict, hasCmuDict, soundsOf, phoneCode } from '../phonetics.js';
+import { loadCmuDict, hasCmuDict, soundsOf, spelledSoundsOf, phoneCode } from '../phonetics.js';
+import { wordKinds } from '../rule-query.js';
 import { alignmentOf, lettersForPhones } from '../phone-align.js';
 import { tokensOf, itemsOf as readItems, tableSplits, widerSplits } from '../phone-reading.js';
 import { buildSpacingTable, loadSpacingCorpus, spacingReader, SPACING_PASS } from '../space-out.js';
@@ -20,7 +21,20 @@ async function ensureDict() {
 // ─── Reading an entry aloud ──────────────────────────────────────────────────
 
 const itemsOf = (display, spacing, wide = false) =>
-  readItems(display, (wide ? widerSplits : tableSplits)(spacing), soundsOf);
+  readItems(display, (wide ? widerSplits : tableSplits)(spacing), lookup);
+
+// Past five letters, the all-caps words CMU lacks are mostly said as words: CAPTCHA,
+// README, QWERTY, CRISPR. Shorter ones are mostly spelled out, COVID aside.
+const MAX_SPELLED = 5;
+
+// After CMU, so NASA keeps its word reading; before the segmenter, which would read
+// NCAA as anything but its letters.
+function lookup(letters, written) {
+  const sounds = soundsOf(letters);
+  if (sounds || !written || !wordKinds(written).includes('initialism')) return sounds;
+  const plural = written.endsWith('s') && written !== written.toUpperCase();
+  return letters.length - plural <= MAX_SPELLED ? spelledSoundsOf(letters, plural) : null;
+}
 
 const MAX_READINGS = 16;
 

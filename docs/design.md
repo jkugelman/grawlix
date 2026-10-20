@@ -475,6 +475,11 @@ A word CMU doesn't know is first tried as an inflection: morphology's `candidate
 The ending's sound depends on the stem's last sound: *-s* is IH Z after a hissing sound, S after a voiceless one, and Z otherwise; *-ed* is IH D after T or D, T after a voiceless sound, and D otherwise.
 So FROGGED, ASTROTURFS and BAMBOOZLING read, and DIMED is read from DIME, not DIM.
 Only Phone search reads inflections this way.
+A word CMU doesn't know that the rescore rules would call an initialism (`wordKinds`, so all-caps NCAA, MVPs, or IV but not II) is read letter by letter, with a plural *s* as its ending: ENVY finds NV.
+That comes after CMU, so NASA keeps its word reading, and before the segmenter, which would split NCAA into something else.
+It relies on the parser keeping only meaningful capitals (`detectCase`, [`wordlists.md`](wordlists.md) § *Rich wordlists*), so an all-caps wordlist's entries aren't spelled out.
+Only up to five letters, not counting a plural *s*: the longer all-caps words CMU lacks are mostly said as words (CAPTCHA, README, QWERTY), the shorter ones mostly spelled out.
+A short acronym said as a word that CMU lacks, like COVID, is still misread as letters.
 A word that still isn't known is read through the spacing table's `guess` ([`segmenter.md`](segmenter.md) § *The spacing table*).
 If a word still can't be read, or it contains a digit, it reads as a **hole**: one code unit that no sound matches.
 A run of sounds can't be heard across a hole, and a hole keeps its place in the entry, so Whole entry can't match an entry with an unreadable word (Starts entry can, when the hole comes after the sounds).

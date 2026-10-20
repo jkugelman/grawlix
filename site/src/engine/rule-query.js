@@ -32,7 +32,7 @@ function romanKinds(caps) {
   return ['roman numeral'];
 }
 
-function wordKinds(w) {
+export function wordKinds(w) {
   const letters = w.replace(/[^\p{L}]/gu, '');
   if (!letters || I_FORMS.has(w)) return [];
   if (/\p{L}\.\p{L}/u.test(w)) return ['initialism'];

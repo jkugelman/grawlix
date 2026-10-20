@@ -6,6 +6,7 @@ import { stripAccents, WORD_BREAK_RE } from './norm.js';
 // ─── Reading an entry aloud ──────────────────────────────────────────────────
 // `lookup` answers null, never [], for an unknown word: an empty list passes as a
 // word read with no sounds at all, and the segmenter is never asked to split it.
+// A whole token's lookup also gets its letters as written, case and accents intact.
 
 // Apostrophes join, or DON'T reads as DON plus a letter-name T. A digit makes the
 // token unreadable: CMU has no numerals, and dropping them would read B52S as BS.
@@ -60,9 +61,9 @@ function unitsOfParts(token, parts, lookup) {
   return units;
 }
 
-function unitsOf(token, splitsOf, lookup) {
+function unitsOf(token, splitsOf, lookup, display) {
   if (token.digits || !token.letters) return null;
-  const sounds = lookup(token.letters);
+  const sounds = lookup(token.letters, token.at.map(i => display[i]).join(''));
   if (sounds) return [{ letters: token.letters, at: token.at, sounds }];
   for (const parts of splitsOf(token.letters)) {
     const units = unitsOfParts(token, parts, lookup);
@@ -99,7 +100,7 @@ export const widerSplits = spacing => function* (letters) {
 export function itemsOf(display, splitsOf, lookup) {
   const items = [], starts = [];
   for (const token of tokensOf(display)) {
-    const units = unitsOf(token, splitsOf, lookup) ?? [null];
+    const units = unitsOf(token, splitsOf, lookup, display) ?? [null];
     units.forEach((unit, i) => {
       items.push(unit);
       starts.push(i > 0 || token.wordStart);
