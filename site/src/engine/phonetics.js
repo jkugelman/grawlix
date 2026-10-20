@@ -2,6 +2,7 @@
 
 import { spellsOut } from './phone-align.js';
 import { splitWords } from './norm.js';
+import { candidates } from './morphology.js';
 
 export const CMU_DICT_URL = 'https://raw.githubusercontent.com/cmusphinx/cmudict/master/cmudict.dict';
 export const CMU_DICT_IDB_KEY = 'cmu_dict_decoded';
@@ -229,7 +230,7 @@ export const phoneCode = phone => {
 
 const SOUND_CACHE_MAX = 200_000;
 
-function wordLookup(build) {
+function wordLookup(build, { inflect = false } = {}) {
   let cache = new Map();
   let cacheDict = null;
   return word => {
@@ -242,10 +243,37 @@ function wordLookup(build) {
     let found = cache.get(key);
     if (found !== undefined) return found;
     const prons = key ? cmuDict.get(key) : null;
-    found = prons ? build(citationProns(key, prons)) : null;
+    const said = prons ? citationProns(key, prons) : key && inflect ? inflectedProns(key) : null;
+    found = said ? build(said) : null;
     cache.set(key, found);
     return found;
   };
+}
+
+// ─── Inflections CMU lacks ───────────────────────────────────────────────────
+
+const VOICELESS = new Set(['P', 'T', 'K', 'F', 'TH', 'S', 'SH', 'CH']);
+const HISSING = new Set(['S', 'Z', 'SH', 'ZH', 'CH', 'JH']);
+
+function endingAfter(word, last) {
+  if (word.endsWith('ing')) return 'IH0 NG';
+  if (word.endsWith('d')) return last === 'T' || last === 'D' ? 'IH0 D' : VOICELESS.has(last) ? 'T' : 'D';
+  return HISSING.has(last) ? 'IH0 Z' : VOICELESS.has(last) ? 'S' : 'Z';
+}
+
+// The longest stem first: DIMED is DIME plus D, not DIM plus D.
+function inflectedProns(key) {
+  const word = key.toLowerCase();
+  const stems = [...candidates(word)].filter(stem => stem !== word).sort((a, b) => b.length - a.length);
+  for (const stem of stems) {
+    const prons = cmuDict.get(cmuKey(stem));
+    if (!prons) continue;
+    return citationProns(cmuKey(stem), prons).map(pron => {
+      const last = pron.slice(pron.lastIndexOf(' ') + 1).replace(/\d/, '');
+      return `${pron} ${endingAfter(word, last)}`;
+    });
+  }
+  return null;
 }
 
 // CMU's weak forms of common words, stress stripped. Each is a sound or two found
@@ -310,7 +338,7 @@ export const soundsOf = wordLookup(prons => {
     }
   }
   return [...byCode.values()];
-});
+}, { inflect: true });
 
 export const stressedSoundsOf = wordLookup(prons => {
   const seen = new Set();

@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   rhymingPart, parseCmuDict, rhymingPartsOf, lastWordKey, setCmuDict, hasPronunciation, syllabify,
+  soundsOf, stressedSoundsOf,
 } from '../../site/src/engine/phonetics.js';
 
 test('rhymingPart returns from the last stressed vowel to the end, stress stripped and weak vowels reduced', () => {
@@ -191,4 +192,22 @@ test('hasPronunciation answers membership without deriving a rhyming part', () =
   assert.equal(hasPronunciation('lives'), true);
   assert.equal(hasPronunciation('space out'), true);
   assert.equal(hasPronunciation('x-ray'), false);
+});
+
+test('an inflection CMU lacks is read as its longest known stem plus the ending’s sound', () => {
+  setCmuDict({
+    FROG: ['F R AA1 G'], DIME: ['D AY1 M'], DIM: ['D IH1 M'], KISS: ['K IH1 S'], BAT: ['B AE1 T'],
+    DISS: ['D IH1 S'], CAP: ['K AE1 P'], BAMBOOZLE: ['B AE0 M B UW1 Z AH0 L'],
+  });
+  const said = word => soundsOf(word)?.find(s => s.plain).phones.join(' ');
+  assert.equal(said('frogged'), 'F R AA G D');
+  assert.equal(said('dimed'), 'D AY M D');
+  assert.equal(said('kissed'), 'K IH S T');
+  assert.equal(said('batted'), 'B AE T IH D');
+  assert.equal(said('disses'), 'D IH S IH Z');
+  assert.equal(said('caps'), 'K AE P S');
+  assert.equal(said('frogs'), 'F R AA G Z');
+  assert.equal(said('bamboozling'), 'B AE M B UW Z AH L IH NG');
+  assert.equal(soundsOf('frogz'), null);
+  assert.equal(stressedSoundsOf('frogged'), null);
 });

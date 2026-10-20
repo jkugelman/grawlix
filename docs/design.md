@@ -471,7 +471,11 @@ Only the match code is reduced: highlighting aligns the unreduced phones to lett
 Each pronunciation is read twice, plain and folded, since the folds can't see into the next word: THE RACE keeps its IY, and only the plain reading of ERASE (IY R EY S) still finds it.
 An entry's plain readings and folded readings are combined separately, plain with plain, and each set has its own cap of 16, so the folded ones can't crowd out a plain reading that matched before.
 It encodes each phone as exactly one code unit, so `indexOf` can't land partway through a phone.
-A word CMU doesn't know is read through the spacing table's `guess` ([`segmenter.md`](segmenter.md) § *The spacing table*).
+A word CMU doesn't know is first tried as an inflection: morphology's `candidates` strips an *-s*, *-es*, *-ies*, *-ed*, *-ied* or *-ing*, and the longest stem CMU knows is read with the ending's sound after it.
+The ending's sound depends on the stem's last sound: *-s* is IH Z after a hissing sound, S after a voiceless one, and Z otherwise; *-ed* is IH D after T or D, T after a voiceless sound, and D otherwise.
+So FROGGED, ASTROTURFS and BAMBOOZLING read, and DIMED is read from DIME, not DIM.
+Only Phone search reads inflections this way.
+A word that still isn't known is read through the spacing table's `guess` ([`segmenter.md`](segmenter.md) § *The spacing table*).
 If a word still can't be read, or it contains a digit, it reads as a **hole**: one code unit that no sound matches.
 A run of sounds can't be heard across a hole, and a hole keeps its place in the entry, so Whole entry can't match an entry with an unreadable word (Starts entry can, when the hole comes after the sounds).
 An entry's readings are the product of its words' pronunciations, capped at 16.
