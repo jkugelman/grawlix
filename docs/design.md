@@ -392,6 +392,9 @@ The R must be one the vowel's own syllable closes on, since a word-initial R col
 CMU splits these just as arbitrarily: HERE, HEAR, BIER and TIER are IY R while NEAR, FEAR, BEER and STEER are IH R (252 stressed IY R against 1,373 IH R), and POOR is UW R while TOUR and SURE are UH R (181 against 718).
 Unfolded, HERE doesn't rhyme with NEAR, and BIER can't find BEER in Phone search.
 The R is the next phone in the same word, the same test as the cot–caught exception.
+The SQUARE vowel folds too, EY into EH: SHARE is EH R but PLOWSHARE, MENSWEAR and BUENOS AIRES are EY R (3,905 EH R against 80 EY R).
+Only when the R closes the syllable, at the end of the word or before a consonant: before a vowel the R starts the next syllable, and PAYROLL, PLAYROOM and BEIRUT keep their EY.
+That misses PRAIRIES and DAIRYMEN, whose EY R before a vowel really is SQUARE; no rule on the phones alone tells them from PAYROLL.
 
 **After AY and AW, an unstressed ER loses its syllable.**
 CMU writes FIRE's R as its own syllable or not on a whim: TIRE and SIRE are AY ER, SPIRE is AY R, WIRE and HIRE are both, and the same goes for AW (TOWER AW ER, SOUR both).

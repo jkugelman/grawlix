@@ -45,11 +45,17 @@ const lastWord = text => splitWords(text).at(-1) ?? '';
 // rhymes CARD with CORD, BARB with ORB, CARD PLAYERS with BOARD GAMERS.
 // Before R, CMU splits IY from IH and UW from UH just as arbitrarily — HERE IY R
 // but NEAR IH R, POOR UW R but TOUR UH R — so those fold too, or HERE stops
-// rhyming with NEAR and BIER can't find BEER.
-const BEFORE_R = { IY: 'IH', UW: 'UH' };
-const foldVowel = (phone, next, beforeR = true) => {
+// rhyming with NEAR and BIER can't find BEER. The SQUARE vowel too, EY into EH:
+// SHARE is EH R but PLOWSHARE EY R. Only on an R that closes the syllable — before
+// a vowel the R starts the next one, and PAYROLL would read as "pehroll".
+const BEFORE_R = { IY: 'IH', UW: 'UH', EY: 'EH' };
+const foldVowel = (toks, i, beforeR = true) => {
+  const phone = toks[i];
   const bare = phone.slice(0, 2);
-  if (next === 'R') return beforeR && bare in BEFORE_R ? BEFORE_R[bare] + phone.slice(2) : phone;
+  if (toks[i + 1] === 'R') {
+    const folds = beforeR && bare in BEFORE_R && !(bare === 'EY' && isVowel(toks[i + 2] ?? '-'));
+    return folds ? BEFORE_R[bare] + phone.slice(2) : phone;
+  }
   return bare === 'AO' ? 'AA' + phone.slice(2) : phone;
 };
 
@@ -70,7 +76,7 @@ export function rhymingPart(pron, mode = 'loose') {
   }
   const tail = start >= 0 ? toks.slice(start) : toks;
   return tail.map((ph, i) => {
-    const folded = foldVowel(ph, tail[i + 1]);
+    const folded = foldVowel(tail, i);
     return isWeak(folded) ? 'AX' : folded;
   }).join(' ').replace(/\d/g, '');
 }
@@ -168,7 +174,7 @@ export function looseVowelsOf(phone, stress) {
 // Own coda, never the next syllable's onset: SAW RED has to keep folding, since a
 // word-initial R colors nothing before it.
 function nucleusKey(vowel, coda) {
-  const folded = foldVowel(vowel, coda[0]);
+  const folded = foldVowel([vowel, ...coda], 0);
   const stress = folded[folded.length - 1];
   if (stress < '0' || stress > '9') return folded;
   const bare = folded.slice(0, -1);
@@ -344,7 +350,7 @@ function soundsOfProns(prons) {
       const pron = folded ? flapT(smoothR(raw)) : raw;
       const toks = pron.split(' ');
       const bare = pron.replace(/\d/g, '').split(' ');
-      const phones = bare.map((ph, i) => foldVowel(ph, bare[i + 1], folded));
+      const phones = bare.map((ph, i) => foldVowel(bare, i, folded));
       const keys = folded ? phones.map((ph, i) => (isWeak(ph + toks[i].slice(-1)) ? 'AX' : ph)) : phones;
       const code = keys.map(phoneCode).join('');
       if (!byCode.has(code)) {
@@ -386,7 +392,7 @@ export const stressedSoundsOf = wordLookup(prons => {
   const sounds = [];
   for (const pron of prons) {
     const toks = pron.split(' ');
-    const phones = toks.map((ph, i) => foldVowel(ph, toks[i + 1]));
+    const phones = toks.map((ph, i) => foldVowel(toks, i));
     const key = phones.join(' ');
     if (seen.has(key)) continue;
     seen.add(key);

@@ -20,6 +20,7 @@ const CMU = {
   GOOD: ['G UH1 D'],
   BIER: ['B IY1 R'], BEER: ['B IH1 R'], ERASE: ['IY0 R EY1 S'], THE: ['DH IY0'], RACE: ['R EY1 S'],
   ROOT: ['R UW1 T'], WIN: ['W IH1 N'],
+  SHARE: ['SH EH1 R'], PLOWSHARE: ['P L AW1 SH EY2 R'], PAIR: ['P EH1 R'], PAYROLL: ['P EY1 R OW2 L'],
   PUTTING: ['P UH1 T IH0 NG'], PUDDING: ['P UH1 D IH0 NG'], TOFU: ['T OW1 F UW0'],
   BURDEN: ['B ER1 D AH0 N'], BURTON: ['B ER1 T AH0 N'],
   GIT: ['G IH1 T'], GETTING: ['G EH1 T IH0 NG', 'G IH1 T IH0 NG'], ATTA: ['AE1 T AH0', 'AA1 T AH0'],
@@ -87,6 +88,12 @@ test('IY meets IH before R in the same word, and IY before an R across a word br
   seed();
   assert.deepEqual(await hits([{ entry: 'root beer' }], 'bier'), { 'root beer': ['beer'] });
   assert.deepEqual(await hits([{ entry: 'win the race' }], 'erase'), { 'win the race': ['e', 'race'] });
+});
+
+test('EY meets EH before an R that closes the syllable, and not before a vowel', async () => {
+  seed();
+  assert.deepEqual(await hits(['plowshare'], 'share'), { plowshare: ['share'] });
+  assert.deepEqual(await hits(['payroll'], 'pair'), {});
 });
 
 test('after AY, an unstressed ER meets an R', async () => {

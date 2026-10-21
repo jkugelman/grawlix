@@ -150,6 +150,19 @@ test('before R, IY folds into IH and UW into UH', () => {
   assert.deepEqual(rhymingPartsOf('bin'), ['IH N']);
 });
 
+test('before an R that closes the syllable, EY folds into EH', () => {
+  setCmuDict({
+    SHARE: ['SH EH1 R'], PLOWSHARE: ['P L AW1 SH EY2 R'], PLOWSHARES: ['P L AW1 SH EY2 R Z'],
+    PAYROLL: ['P EY1 R OW2 L'],
+  });
+  assert.deepEqual(rhymingPartsOf('share'), ['EH R']);
+  assert.deepEqual(rhymingPartsOf('plowshare'), ['EH R']);
+  assert.deepEqual(rhymingPartsOf('plowshares'), ['EH R Z']);
+  assert.deepEqual(rhymingPartsOf('plowshare', 'whole'), ['AW | EH R']);
+  assert.deepEqual(rhymingPartsOf('payroll', 'strict'), ['EY R OW L']);
+  assert.deepEqual(rhymingPartsOf('payroll', 'whole'), ['EY | OW L']);
+});
+
 test('after AY and AW, an unstressed ER folds into R', () => {
   setCmuDict({
     TIRE: ['T AY1 ER0'], SPIRE: ['S P AY1 R'], TOWER: ['T AW1 ER0'], SOUR: ['S AW1 R'],
