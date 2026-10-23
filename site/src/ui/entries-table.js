@@ -798,6 +798,10 @@ export class EntriesScroller extends BaseVirtualScroller {
     this._groupReqSeq = 0;
     this._groupFetchOutstanding = 0;
 
+    // Here, not on a run path: the header shows from mount, and any run path
+    // that skips the seed ellipsizes "Length" until its result lands.
+    this._seedFlatHeaderFloors();
+
     this.sizer.tabIndex = -1;
     this.sizer.setAttribute('role', 'listbox');
     this.sizer.setAttribute('aria-multiselectable', 'true');
@@ -2055,19 +2059,16 @@ export class EntriesScroller extends BaseVirtualScroller {
   // .sticky-stack, a sibling of the scroller's host) inherit the same values.
   _computeSlotWidths() {
     // An errored or not-yet-streamed result carries no width hints; the
-    // transform/group sizers would destructure null. The flat header still
-    // renders while pending, though — its shape tracks the tool stack, not the
-    // scroller's transient 'tuple' tier — so seed its label floors or the
-    // labels sit at the CSS fallback with no rows to widen them.
+    // transform/group sizers would destructure null.
     applyToolColumnLayout();
-    if (this._errored || this._streamPending) { this._seedFlatHeaderFloors(); return; }
+    if (this._errored || this._streamPending) return;
     if (isMultiLaneTier(this.sortTier)) { this._computeGroupSlotWidths(); return; }
     if (this._flat) { this._computeFlatSlotWidths(); return; }
     this._computeTransformSlotWidths();
   }
 
   // Only fills unset vars: a content-sized track already floors to the same
-  // label px and must stick, so a later empty search doesn't shrink it back.
+  // label px and must stick, so a remount doesn't shrink it back.
   _seedFlatHeaderFloors() {
     const target = this.host.closest('#detail-panel') || this.sizer;
     const seed = (name, px) => {

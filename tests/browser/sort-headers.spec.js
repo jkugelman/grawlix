@@ -302,3 +302,19 @@ test('the Sources header is not sortable (it holds per-row icons, not one name)'
   await expect(page.locator('.entry-headers .col-source')).toHaveCount(1);
   await expect(page.locator('.col-source .col-sort')).toHaveCount(0);
 });
+
+// A flat run sizes no tracks until its result lands, so without a seeded floor
+// Length sat at its 3ch CSS fallback and read "L…" for the whole cold load.
+test('the Length header fits its label before the first result lands', async ({ page }) => {
+  await gotoApp(page);
+  const fit = await page.evaluate(async () => {
+    const panel = document.getElementById('detail-panel');
+    for (const v of ['--entry-w', '--len-w', '--score-w']) panel.style.removeProperty(v);
+    const run = window.__grawlixTest.setStack([]);
+    const cell = document.querySelector('.sticky-stack .entry-headers .col-len');
+    const out = { scroll: cell.scrollWidth, client: cell.clientWidth };
+    await run;
+    return out;
+  });
+  expect(fit.scroll).toBeLessThanOrEqual(fit.client);
+});
