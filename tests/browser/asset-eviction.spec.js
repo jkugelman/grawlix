@@ -23,6 +23,12 @@ test('the CMU dict loads with Rhymes and is evicted when it leaves the stack', a
     });
   });
 
+  let supplementPath = null;
+  await page.route(/cmu-supplement\.dict/, route => {
+    supplementPath = new URL(route.request().url()).pathname;
+    return route.fulfill({ status: 200, contentType: 'text/plain', headers: { 'content-length': '0' }, body: '' });
+  });
+
   await gotoApp(page);
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
     name: 'AssetTest', entries: ['cat', 'bat'], scores: [50, 50],
@@ -31,11 +37,12 @@ test('the CMU dict loads with Rhymes and is evicted when it leaves the stack', a
   expect((await assetState(page)).cmudict).toBe(false);
 
   await setStack(page, [{ tool: 'rhymes', params: { entry: 'mat' } }]);
-  await expect.poll(() => assetState(page).then(s => s.cmudict)).toBe(true);
+  await expect.poll(() => assetState(page).then(s => s.cmudict && s.cmuSupplement)).toBe(true);
   expect(dictGets).toBe(1);
+  expect(supplementPath).toBe('/data/cmu-supplement.dict');
 
   await setStack(page, []);
-  await expect.poll(() => assetState(page).then(s => s.cmudict)).toBe(false);
+  await expect.poll(() => assetState(page).then(s => s.cmudict || s.cmuSupplement)).toBe(false);
 
   await setStack(page, [{ tool: 'rhymes', params: { entry: 'mat' } }]);
   await expect.poll(() => assetState(page).then(s => s.cmudict)).toBe(true);

@@ -561,6 +561,8 @@ A wordlist with a `url` is auto-fetch capable.
 On boot, any URL-backed wordlist that isn't yet populated fetches in the background ([`design.md`](design.md) § *The shell* — default landing).
 Thereafter `checkForUpdates()` runs once on boot and every four hours (`UPDATE_CHECK_INTERVAL`): a `HEAD` request per URL-backed, populated wordlist compares `Content-Length` against the stored `fetchedSize`.
 A size change is the update signal — cheap, no body transfer.
+`ETag` and `Last-Modified` can't stand in: GitHub Pages changes both on every deploy, even for a file the deploy didn't touch, so they'd report a change every time.
+The cost is a known gap: an edit that keeps a file's byte length (one score swapped for another of the same width) goes unnoticed until the next change that doesn't.
 
 A host on `REVALIDATING_HOSTS` (STWL's `www.spreadthewordlist.com`) is checked by `GET` instead, comparing the decoded body's byte length.
 Such a host serves compressed, chunked responses with no `Content-Length`, and its `ETag` is unreadable cross-origin without `Access-Control-Expose-Headers`, so no header can carry the signal.

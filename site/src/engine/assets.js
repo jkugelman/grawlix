@@ -6,12 +6,13 @@ import {
 } from './segmenter.js';
 import {
   CMU_DICT_URL, CMU_DICT_IDB_KEY, CMU_DICT_SIZE_KEY,
-  loadCmuDict, invalidateCmuDict, hasCmuDict,
+  CMU_SUPPLEMENT_IDB_KEY, CMU_SUPPLEMENT_SIZE_KEY, cmuSupplementUrl,
+  cmuBase, cmuSupplement,
 } from './phonetics.js';
 
-// `autoUpdate` opts an asset into the periodic remote-freshness check. Both are static
-// reference datasets, so they're off it — ship a newer copy by bumping the `dataIdbKey`
-// (orphans the old record, re-fetches on next load), not by polling.
+// `autoUpdate` opts an asset into the periodic remote-freshness check. wordfreq is
+// frozen upstream, so the unigrams are off it — ship a newer copy by bumping the
+// `dataIdbKey` (orphans the old record, re-fetches on next load), not by polling.
 export const DATA_ASSETS = [
   {
     key: 'unigrams',
@@ -28,10 +29,20 @@ export const DATA_ASSETS = [
     url: CMU_DICT_URL,
     dataIdbKey: CMU_DICT_IDB_KEY,
     sizeIdbKey: CMU_DICT_SIZE_KEY,
-    autoUpdate: false,
-    load: loadCmuDict,
-    invalidate: invalidateCmuDict,
-    has: hasCmuDict,
+    autoUpdate: true,
+    load: cmuBase.load,
+    invalidate: cmuBase.invalidate,
+    has: cmuBase.has,
+  },
+  {
+    key: 'cmuSupplement',
+    get url() { return cmuSupplementUrl(); },
+    dataIdbKey: CMU_SUPPLEMENT_IDB_KEY,
+    sizeIdbKey: CMU_SUPPLEMENT_SIZE_KEY,
+    autoUpdate: true,
+    load: cmuSupplement.load,
+    invalidate: cmuSupplement.invalidate,
+    has: cmuSupplement.has,
   },
 ];
 

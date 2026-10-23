@@ -374,8 +374,17 @@ It degenerates harmlessly, but a downstream tool that wants to treat multi-word 
 ### Pronunciations
 
 Rhymes, Phone search, and Stress shift run on the **CMU Pronouncing Dictionary** ([`engine/phonetics.js`](../site/src/engine/phonetics.js)): ~135k pronunciations of ~122k words, each a flat ARPABET phone string carrying a stress digit on every vowel (`1` primary, `2` secondary, `0` unstressed) and no syllable boundaries.
-It is a worker-owned data asset beside the segmenter's corpus (`cmudict` in [`engine/assets.js`](../site/src/engine/assets.js)): fetched from the upstream `cmusphinx/cmudict` repo on first use, parsed, and cached decoded in IndexedDB; a static dataset, refreshed by bumping its IDB key.
+It is a worker-owned data asset beside the segmenter's corpus (`cmudict` in [`engine/assets.js`](../site/src/engine/assets.js)): fetched from the upstream `cmusphinx/cmudict` repo on first use, parsed, and cached decoded in IndexedDB.
+Upstream still takes the occasional fix, so it auto-updates (`autoUpdate`, [`worker-protocol.md`](worker-protocol.md) § *`check-assets`*).
 Lookups key on a word's letters alone.
+
+**Grawlix's own supplement layers over CMU.**
+[`site/data/cmu-supplement.dict`](../site/data/cmu-supplement.dict), in CMU's format, is a second asset (`cmuSupplement`) fetched from the site itself and auto-updated the same way.
+It holds the words CMU lacks that the wordlists use, transcribed by an LLM with wordlist context, and fixes to CMU's bad entries (SCARECROW's AE R, FLAUBERT read as "flow-burt"); [`cmu-supplement.md`](cmu-supplement.md) covers what's in it and how to add to it.
+A word it lists replaces CMU's whole list rather than adding to it, which is what lets a fix remove a wrong reading.
+Its entries are read as listed: the fallbacks below (inflection, letter by letter, the segmenter) run only for a word neither dictionary has.
+An initialism carries its letter-by-letter reading as one of its entries, next to any word reading (TXT as "text" and as T-X-T); an abbreviation expansion beside it is then dropped, since only readings the letters spell survive (§ *Phone search*).
+Unchanged CMU entries stay upstream's, so the supplement holds only differences, and an update to it never refetches CMU's 3.6 MB.
 
 **A word CMU lacks is read through the segmenter.**
 It is split into words the dictionary might know, via the spacing table's `guess` ([`segmenter.md`](segmenter.md) § *The spacing table*).
@@ -483,15 +492,15 @@ The joined reading is an extra folded reading beside the unjoined one, and it ca
 Each pronunciation is read twice, plain and folded, since the vowel folds can't see into the next word: THE RACE keeps its IY, and only the plain reading of ERASE (IY R EY S) still finds it.
 An entry's plain readings and folded readings are combined separately, plain with plain, and each set has its own cap of 16, so the folded ones can't crowd out a plain reading that matched before.
 It encodes each phone as exactly one code unit, so a match can't land partway through a phone.
-A word CMU doesn't know is first tried as an inflection: morphology's `candidates` strips an *-s*, *-es*, *-ies*, *-ed*, *-ied* or *-ing*, and the longest stem CMU knows is read with the ending's sound after it.
+A word neither CMU nor the supplement knows is first tried as an inflection: morphology's `candidates` strips an *-s*, *-es*, *-ies*, *-ed*, *-ied* or *-ing*, and the longest stem CMU knows is read with the ending's sound after it.
 The ending's sound depends on the stem's last sound: *-s* is IH Z after a hissing sound, S after a voiceless one, and Z otherwise; *-ed* is IH D after T or D, T after a voiceless sound, and D otherwise.
 So FROGGED, ASTROTURFS and BAMBOOZLING read, and DIMED is read from DIME, not DIM.
 Only Phone search reads inflections this way.
-A word CMU doesn't know that the rescore rules would call an initialism (`wordKinds`, so all-caps NCAA, MVPs, or IV but not II) is read letter by letter, with a plural *s* as its ending: ENVY finds NV.
+A word neither dictionary knows that the rescore rules would call an initialism (`wordKinds`, so all-caps NCAA, MVPs, or IV but not II) is read letter by letter, with a plural *s* as its ending: ENVY finds NV.
 That comes after CMU, so NASA keeps its word reading, and before the segmenter, which would split NCAA into something else.
 It relies on the parser keeping only meaningful capitals (`detectCase`, [`wordlists.md`](wordlists.md) § *Rich wordlists*), so an all-caps wordlist's entries aren't spelled out.
 Only up to five letters, not counting a plural *s*: the longer all-caps words CMU lacks are mostly said as words (CAPTCHA, README, QWERTY), the shorter ones mostly spelled out.
-A short acronym said as a word that CMU lacks, like COVID, is still misread as letters.
+A short acronym said as a word is listed in the supplement, or it would be misread as letters.
 A word that still isn't known is read through the spacing table's `guess` ([`segmenter.md`](segmenter.md) § *The spacing table*).
 If a word still can't be read, or it contains a digit, it reads as a **hole**: one code unit that no sound matches.
 A run of sounds can't be heard across a hole, and a hole keeps its place in the entry, so Whole entry can't match an entry with an unreadable word (Starts entry can, when the hole comes after the sounds).
@@ -1318,7 +1327,7 @@ The worker-side seams are wired at the top of `engine/worker.js` or on its `conf
 | `configureMirrorSerializer` | `data/disk-sync.js` | `fetchWorkerSerialize` | `null`: a mirror write serializes on main, and All Wordlists retries |
 | `configureEditsMerger` | `data/disk-sync.js` | `mergeDisk` (`fetchWorkerMergeDisk`) | `mergeDisk` resolves `null` |
 | `configureIO` (imported as `configureSegmenterIO`) | `engine/segmenter.js` | the worker's own `idbGet`/`idbPut` | `null`: loading the unigram corpus throws |
-| `configureIO` | `engine/phonetics.js` | the worker's own `idbGet`/`idbPut` | `null`: loading CMU throws |
+| `configureIO` | `engine/phonetics.js` | the worker's own `idbGet`/`idbPut`, and the supplement's URL | `null`: loading CMU throws |
 | `configureSpaceOutBigrams` | `engine/segmenter.js` | `SPACE_OUT_BIGRAMS` | `null`: unigram-only ranking |
 | `configureCommonWords` | `engine/morphology.js` | `COMMON_WORDS`, `LEMMA_BASES` | empty sets |
 | `configureExecutorYield` | `engine/executor.js` | a `setTimeout(0)` yield every 30 ms | `scheduler.yield()`, which starves the cancel message |
@@ -1338,7 +1347,7 @@ The `engine/` layer being DOM-free is what lets the pipeline executor run in the
 The concrete main↔worker interface — data ownership, the message protocol, and the cancellation policy — is specified in [`worker-protocol.md`](worker-protocol.md).
 The one function that straddles the DOM line is the unigram-corpus loader: it mixes pure decode with I/O, and `localStorage` isn't worker-safe.
 Rather than let the engine reach into `data/storage` (an engine→data upward edge), `engine/segmenter.js` takes its I/O **injected** — `configureIO({ idbGet, idbPut })`, which `engine/worker.js` imports as `configureSegmenterIO` and calls once at startup with its own handle on the same IndexedDB store; the loader closes over the stashed deps and records the fetched size itself (`UNIGRAM_CORPUS_SIZE_KEY`).
-`engine/phonetics.js` takes the CMU dictionary's I/O the same way.
+`engine/phonetics.js` takes the CMU dictionary's I/O the same way, plus the supplement's URL: the worker resolves it against its own `import.meta.url`, since it sits at `src/engine/worker.js` in both builds, while the main bundle inlines `phonetics.js` at `src/`, where the same relative path lands outside the site.
 A tool's `prepare` then calls the segmenter's own loader (an engine-internal call), never `data/`.
 The corpus *mutators* — `setUnigramCorpus` / `invalidateUnigramCorpus` — are exported setters because ES modules forbid reassigning another module's `let` from outside.
 `invalidateUnigramCorpus` is the corpus's `invalidate` hook in the data-asset registry (`engine/assets.js`), which the worker calls to reap an asset its stack no longer needs or to drop one its remote-freshness check finds changed; `setUnigramCorpus` is the Test API's stub (the worker's `__testSetUnigramCorpus` message).

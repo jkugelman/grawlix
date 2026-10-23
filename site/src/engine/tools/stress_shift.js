@@ -278,7 +278,7 @@ export default {
   name: 'Stress shift', icon: '😅', category: 'phonetic',
   desc: 'Same sounds, stress on another syllable',
   example: 'into it · intuit',
-  assets: ['cmudict', 'unigrams'],
+  assets: ['cmudict', 'cmuSupplement', 'unigrams'],
   params: [
     { key: 'show', type: 'segmented', default: 'homophones', label: 'Show',
       title: 'Homophones pair different entries; heteronyms are one entry said two ways',

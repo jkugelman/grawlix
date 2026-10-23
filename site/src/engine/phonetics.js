@@ -7,31 +7,86 @@ import { candidates } from './morphology.js';
 export const CMU_DICT_URL = 'https://raw.githubusercontent.com/cmusphinx/cmudict/master/cmudict.dict';
 export const CMU_DICT_IDB_KEY = 'cmu_dict_decoded';
 export const CMU_DICT_SIZE_KEY = 'cmu_dict_size';
+export const CMU_SUPPLEMENT_IDB_KEY = 'cmu_supplement_decoded';
+export const CMU_SUPPLEMENT_SIZE_KEY = 'cmu_supplement_size';
 
 let _idbGet = null;
 let _idbPut = null;
+let _supplementUrl = null;
 
-export function configureIO({ idbGet, idbPut }) {
+export function configureIO({ idbGet, idbPut, supplementUrl }) {
   _idbGet = idbGet;
   _idbPut = idbPut;
+  _supplementUrl = supplementUrl;
 }
 
-// Pronunciations are stored space-joined ('K AE1 T'), not as token arrays:
-// structured-clone de-interns token arrays across the IDB round-trip, bloating
-// them on every cache-hit load.
-let cmuDict = null;
-let cmuLoadPromise = null;
+export const cmuSupplementUrl = () => _supplementUrl;
 
-export function hasCmuDict() { return !!cmuDict; }
-
-export function invalidateCmuDict() {
-  cmuDict = null;
-  cmuLoadPromise = null;
+// A word's pronunciations are stored as one string, phones space-joined and
+// variants |-joined ('R EH1 D|R IY1 D'), not as arrays: structured-clone
+// de-interns arrays across the IDB round-trip, and an array per word costs CMU
+// and the supplement 14 MB of heap between them.
+function pronouncingDict(url, dataKey, sizeKey) {
+  let dict = null;
+  let loading = null;
+  return {
+    get: () => dict,
+    has: () => !!dict,
+    set(map) {
+      dict = map;
+      loading = null;
+    },
+    invalidate() {
+      dict = null;
+      loading = null;
+    },
+    async load() {
+      if (dict) return;
+      if (loading) return loading;
+      loading = (async () => {
+        // The field names the record's shape: a cache in an older one reads as a
+        // miss and is fetched over, never misread.
+        const cached = await _idbGet(dataKey);
+        if (cached && cached.joined) {
+          dict = cached.joined;
+          return;
+        }
+        const resp = await fetch(url());
+        if (!resp.ok) throw new Error(`HTTP ${resp.status} ${resp.statusText}`);
+        dict = parseCmuDict(await resp.text());
+        await _idbPut(dataKey, { joined: dict });
+        const size = resp.headers.get('content-length');
+        if (size) await _idbPut(sizeKey, size);
+      })();
+      try {
+        await loading;
+      } finally {
+        if (!dict) loading = null;
+      }
+    },
+  };
 }
 
-export function setCmuDict(map) {
-  cmuDict = map instanceof Map ? map : new Map(Object.entries(map));
-  cmuLoadPromise = null;
+export const cmuBase = pronouncingDict(() => CMU_DICT_URL, CMU_DICT_IDB_KEY, CMU_DICT_SIZE_KEY);
+
+export const cmuSupplement = pronouncingDict(() => _supplementUrl, CMU_SUPPLEMENT_IDB_KEY, CMU_SUPPLEMENT_SIZE_KEY);
+
+// A listed word replaces CMU's whole list: merge the two and a bad CMU reading
+// survives the fix meant to remove it.
+const pronsOf = key => (cmuSupplement.get().get(key) ?? cmuBase.get().get(key))?.split('|');
+
+export function hasCmuDict() { return cmuBase.has() && cmuSupplement.has(); }
+
+export async function loadCmuDict() {
+  await Promise.all([cmuBase.load(), cmuSupplement.load()]);
+}
+
+const toMap = obj => new Map([...(obj instanceof Map ? obj : Object.entries(obj))]
+  .map(([key, prons]) => [key, Array.isArray(prons) ? prons.join('|') : prons]));
+
+export function setCmuDict(map, supplement = {}) {
+  cmuBase.set(toMap(map));
+  cmuSupplement.set(toMap(supplement));
 }
 
 const cmuKey = word => word.toUpperCase().replace(/[^A-Z]/g, '');
@@ -82,9 +137,9 @@ export function rhymingPart(pron, mode = 'loose') {
 }
 
 export function rhymingPartsOf(text, mode = 'loose') {
-  if (!cmuDict) return [];
+  if (!hasCmuDict()) return [];
   if (mode === 'whole') return wholeEntryParts(text);
-  const prons = cmuDict.get(cmuKey(lastWord(text)));
+  const prons = pronsOf(cmuKey(lastWord(text)));
   if (!prons) return [];
   const parts = new Set();
   for (const pron of prons) parts.add(rhymingPart(pron, mode));
@@ -214,7 +269,7 @@ function wholeEntryParts(text) {
   const words = splitWords(text);
   let combos = [[]];
   for (const word of words) {
-    const prons = cmuDict.get(cmuKey(word));
+    const prons = pronsOf(cmuKey(word));
     if (!prons) return [];
     const next = [];
     for (const c of combos) {
@@ -246,17 +301,19 @@ const SOUND_CACHE_MAX = 200_000;
 
 function wordLookup(build, { inflect = false } = {}) {
   let cache = new Map();
-  let cacheDict = null;
+  let cacheBase = null;
+  let cacheSupplement = null;
   return word => {
-    if (!cmuDict) return null;
-    if (cacheDict !== cmuDict || cache.size > SOUND_CACHE_MAX) {
+    if (!hasCmuDict()) return null;
+    if (cacheBase !== cmuBase.get() || cacheSupplement !== cmuSupplement.get() || cache.size > SOUND_CACHE_MAX) {
       cache = new Map();
-      cacheDict = cmuDict;
+      cacheBase = cmuBase.get();
+      cacheSupplement = cmuSupplement.get();
     }
     const key = cmuKey(word);
     let found = cache.get(key);
     if (found !== undefined) return found;
-    const prons = key ? cmuDict.get(key) : null;
+    const prons = key ? pronsOf(key) : null;
     const said = prons ? citationProns(key, prons) : key && inflect ? inflectedProns(key) : null;
     found = said ? build(said) : null;
     cache.set(key, found);
@@ -280,7 +337,7 @@ function inflectedProns(key) {
   const word = key.toLowerCase();
   const stems = [...candidates(word)].filter(stem => stem !== word).sort((a, b) => b.length - a.length);
   for (const stem of stems) {
-    const prons = cmuDict.get(cmuKey(stem));
+    const prons = pronsOf(cmuKey(stem));
     if (!prons) continue;
     return citationProns(cmuKey(stem), prons).map(pron => {
       const last = pron.slice(pron.lastIndexOf(' ') + 1).replace(/\d/, '');
@@ -406,7 +463,7 @@ export function lastWordKey(text) {
 }
 
 export function hasPronunciation(text) {
-  return !!cmuDict?.has(cmuKey(lastWord(text)));
+  return hasCmuDict() && !!pronsOf(cmuKey(lastWord(text)));
 }
 
 export function parseCmuDict(text) {
@@ -424,28 +481,6 @@ export function parseCmuDict(text) {
     if (!prons) map.set(key, prons = []);
     if (!prons.includes(pron)) prons.push(pron);
   }
+  for (const [key, prons] of map) map.set(key, prons.join('|'));
   return map;
-}
-
-export async function loadCmuDict() {
-  if (cmuDict) return;
-  if (cmuLoadPromise) return cmuLoadPromise;
-  cmuLoadPromise = (async () => {
-    const cached = await _idbGet(CMU_DICT_IDB_KEY);
-    if (cached && cached.cmu) {
-      cmuDict = cached.cmu;
-      return;
-    }
-    const resp = await fetch(CMU_DICT_URL);
-    if (!resp.ok) throw new Error(`HTTP ${resp.status} ${resp.statusText}`);
-    cmuDict = parseCmuDict(await resp.text());
-    await _idbPut(CMU_DICT_IDB_KEY, { cmu: cmuDict });
-    const size = resp.headers.get('content-length');
-    if (size) await _idbPut(CMU_DICT_SIZE_KEY, size);
-  })();
-  try {
-    await cmuLoadPromise;
-  } finally {
-    if (!cmuDict) cmuLoadPromise = null;
-  }
 }

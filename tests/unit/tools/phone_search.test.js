@@ -131,6 +131,20 @@ test('an initialism CMU lacks is read letter by letter, a plural s as its ending
   assert.deepEqual(await hits([{ entry: 'NVNVNV' }], 'envy'), {});
 });
 
+test('a supplement entry is read as listed, with no inflection or letter-by-letter guess', async () => {
+  seed();
+  setCmuDict(CMU, { DIMED: ['D IH1 M D'], GIF: ['G IH1 F'], IF: ['IH1 F'] });
+  assert.deepEqual(await hits(['dimed'], 'I’m'), {});
+  assert.deepEqual(await hits([{ entry: 'GIF' }], 'if'), { GIF: ['IF'] });
+});
+
+test('an initialism\'s letter reading in the supplement drops its abbreviation expansion', async () => {
+  seed();
+  setCmuDict(CMU, { CHR: ['K R AA1 N IH0 K AH0 L Z', 'S IY1 EY1 CH AA1 R'], CRON: ['K R AA1 N'] });
+  assert.deepEqual(await hits([{ entry: 'CHR' }], 'R'), { CHR: ['R'] });
+  assert.deepEqual(await hits([{ entry: 'CHR' }], 'cron'), {});
+});
+
 test('a secondary "ah" in the query meets any "ah" or "uh"; an unstressed one and a secondary I don’t', async () => {
   seed();
   assert.deepEqual(await hits(['massachusetts', 'statuette', 'ritual'], 'achoo'),

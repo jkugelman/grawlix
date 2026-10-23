@@ -104,7 +104,9 @@ function readWordlistText(sourceId) {
   return idbGet('data_' + sourceId);
 }
 configureSegmenterIO({ idbGet, idbPut });
-configurePhoneticsIO({ idbGet, idbPut });
+// Resolved here, not in phonetics.js: main.js bundles that module too, at src/,
+// where the same relative path lands outside the site.
+configurePhoneticsIO({ idbGet, idbPut, supplementUrl: new URL('../../data/cmu-supplement.dict', import.meta.url).href });
 
 async function handleCheckAssets() {
   for (const asset of DATA_ASSETS) {

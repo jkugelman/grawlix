@@ -33,9 +33,9 @@ test('parseCmuDict parses entries + alternates, skips comments, strips (N)', () 
     'read(2) R IY1 D',
     'wonky W AA1 NG K IY0 # slang',
   ].join('\n'));
-  assert.deepEqual(map.get('CAT'), ['K AE1 T']);
-  assert.deepEqual(map.get('READ'), ['R EH1 D', 'R IY1 D']);
-  assert.deepEqual(map.get('WONKY'), ['W AA1 NG K IY0']);
+  assert.equal(map.get('CAT'), 'K AE1 T');
+  assert.equal(map.get('READ'), 'R EH1 D|R IY1 D');
+  assert.equal(map.get('WONKY'), 'W AA1 NG K IY0');
 });
 
 test('lastWordKey canonicalizes the last word — uppercase, letters-only', () => {
@@ -121,6 +121,17 @@ test('the cot–caught pair folds together, in every mode', () => {
   assert.deepEqual(rhymingPartsOf('on aux', 'whole'), ['AA N | OW']);
   assert.deepEqual(rhymingPartsOf('cot', 'loose'), ['AA T']);
   assert.deepEqual(rhymingPartsOf('caught', 'loose'), ['AA T']);
+});
+
+test('a supplement entry replaces CMU\'s whole list, and adds words CMU lacks', () => {
+  setCmuDict(
+    { SCARECROW: ['S K AE1 R K R OW2'], SCARE: ['S K EH1 R'] },
+    { SCARECROW: ['S K EH1 R K R OW2'], ZORP: ['Z AO1 R P'] },
+  );
+  assert.deepEqual(rhymingPartsOf('scarecrow', 'whole'), ['EH R | OW']);
+  assert.deepEqual(rhymingPartsOf('zorp'), ['AO R P']);
+  assert.deepEqual(rhymingPartsOf('scare'), ['EH R']);
+  assert.equal(hasPronunciation('zorp'), true);
 });
 
 test('the cot–caught fold stops before R', () => {

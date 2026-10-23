@@ -289,5 +289,5 @@ test('the unigram corpus is declared only while a word-relative mode is on', () 
   assert.deepEqual(toolAssets(TOOLS.search, { pattern: 'cat', mode: 'span' }), ['unigrams']);
   assert.deepEqual(toolAssets(TOOLS.regex, { pattern: 'c.t', mode: 'span' }), ['unigrams']);
   assert.deepEqual(toolAssets(TOOLS.hidden_anagram, { entry: 'salt', mode: 'span' }), ['unigrams']);
-  assert.deepEqual(toolAssets(TOOLS.rhymes, {}), ['cmudict', 'unigrams']);
+  assert.deepEqual(toolAssets(TOOLS.rhymes, {}), ['cmudict', 'cmuSupplement', 'unigrams']);
 });

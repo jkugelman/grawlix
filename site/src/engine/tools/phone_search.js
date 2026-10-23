@@ -29,7 +29,7 @@ const MAX_SPELLED = 5;
 
 // After CMU, so NASA keeps its word reading; before the segmenter, which would read
 // NCAA as anything but its letters.
-function lookup(letters, written) {
+export function lookup(letters, written) {
   const sounds = soundsOf(letters);
   if (sounds || !written || !wordKinds(written).includes('initialism')) return sounds;
   const plural = written.endsWith('s') && written !== written.toUpperCase();
@@ -329,7 +329,7 @@ export default {
   name: 'Phone search', icon: '📱', category: 'phonetic',
   desc: 'Search (and replace) by sound',
   example: 'knee → honey, neon',
-  assets: ['cmudict', 'unigrams'],
+  assets: ['cmudict', 'cmuSupplement', 'unigrams'],
   passes: params => (isReplacing(params) ? [SPACING_PASS, INDEX_PASS] : [SPACING_PASS]),
   findReplace: true, replaceName: 'Phone replace',
   params: [

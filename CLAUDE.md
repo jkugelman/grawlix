@@ -58,6 +58,8 @@ Design (each doc holds both the user-visible behavior of its area and the whys b
 - [`docs/segmenter.md`](docs/segmenter.md) — **single source of truth for the segmenter**, which guesses where the spaces go in run-together entries: Norvig's algorithm, the wordfreq corpus, every scoring refinement with its measured tradeoff, and the spacing table that Rhymes, Phone search, Initialisms, Optional letters, and the word-relative match modes share.
   Opens with a human-readable overview worth linking to outsiders.
   Read before tuning segmentation.
+- [`docs/cmu-supplement.md`](docs/cmu-supplement.md) — Grawlix's own pronunciation dictionary layered over CMU: what's in it, the tokens judged to need no entry, and the LLM passes and scripts (`scripts/cmu-supplement/`) for adding to it.
+  Read before editing `site/data/cmu-supplement.dict`.
 - [`docs/entry-panel.md`](docs/entry-panel.md) — the entry panel: opening and closing, the cross-wordlist provenance view, raw editing and the create-vs-rename planner, the Score combobox, the canonical-form rename hint, tiered loading, Related entries, and the Prev/Next walk.
   Read before touching `EntryPanel` or the edit planner.
 - [`docs/wordlisted.md`](docs/wordlisted.md) — reference catalogue of Wordlisted's search modes; source material for the tool gallery.

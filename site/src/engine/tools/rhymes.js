@@ -44,7 +44,7 @@ export default {
   name: 'Rhymes', icon: '🎵', category: 'phonetic',
   desc: 'Rhyming words and phrases',
   example: 'rhyme → climb, key lime',
-  assets: ['cmudict', 'unigrams'],
+  assets: ['cmudict', 'cmuSupplement', 'unigrams'],
   passes: [SPACING_PASS],
   params: [
     { placeholder: 'entry' },

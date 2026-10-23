@@ -18,8 +18,14 @@ import { TOOLS } from '../../site/src/engine/tools.js';
 // gets an empty body, which keeps them unpopulated. Tests that want a
 // publisher populated pass `bodies` keyed by publisher id.
 //
+// Also stubs the CMU supplement empty, so specs read only the CMU they route in;
+// a spec routing /cmu-supplement\.dict/ itself overrides this.
+//
 // Call from a test's `beforeEach` before navigation.
 async function stubPublisherFetches(page, bodies = {}) {
+  await page.route(/cmu-supplement\.dict/, route => route.fulfill({
+    status: 200, contentType: 'text/plain', headers: { 'content-length': '0' }, body: '',
+  }));
   await page.route(/raw\.githubusercontent\.com|raw\.codeberg\.page|www\.spreadthewordlist\.com/, route => {
     const url = route.request().url();
     let body = '';
