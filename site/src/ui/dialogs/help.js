@@ -139,7 +139,7 @@ const SECTIONS = [
           <p>A rule is a condition and a new score. Every entry the condition catches gets that score. Rules run top to bottom, and each entry goes to the first rule that catches it. Some ideas to steal.</p>
           ${ruleExamplesHTML()}
           <p>Leave the new score blank and the entry keeps its score. Put a rule like that near the top and it shields those entries from the rules below it.</p>
-          <p>Don't worry about memorizing any of this. Click a condition and Grawlix suggests what comes next, with a count beside each choice, and it says so if something doesn't make sense. The full list of fields is under <strong>Query language reference</strong>, below the rules.</p>`,
+          <p>Don't worry about memorizing any of this. Click a condition and Grawlix suggests what comes next, with a count beside each choice, and it says so if something doesn't make sense. The full list of fields is in the <strong>Cheat sheet</strong> below the rules.</p>`,
       },
       {
         slug: 'score-tiers',

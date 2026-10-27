@@ -318,7 +318,7 @@ function buildQueryReferenceHTML() {
     `<tr><td>${code(f.name + ':')}</td><td>${esc(f.desc)}</td><td>${f.examples.map(v => `<code>${esc(v)}</code>`).join(', ')}</td></tr>`).join('');
   const ops = QUERY_REFERENCE.operators.map(([op, desc, ex]) =>
     `<tr><td><code class="q-op">${esc(op)}</code></td><td>${esc(desc)}</td><td>${code(ex)}</td></tr>`).join('');
-  return `<details class="faq-item rules-ref"><summary>Query language reference</summary>
+  return `<details class="faq-item rules-ref"><summary>Cheat sheet</summary>
     <div class="rules-ref-body"><table><thead><tr><th>Field</th><th>Checks</th><th>Values</th></tr></thead>
     <tbody>${fields}${ops}</tbody></table></div></details>`;
 }
