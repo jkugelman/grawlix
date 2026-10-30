@@ -676,6 +676,48 @@ Caesar shift ([`engine/tools/caesar.js`](../site/src/engine/tools/caesar.js)) ta
 As a filter, a blank Shift keeps every Caesar shift of the entry (the entry itself excluded) and a set Shift keeps only that rotation.
 In all-mode a blank Shift groups entries into shift classes (STEEDS and TUFFET cluster), while a set Shift rotates every entry by that amount and keeps the results that are entries — a transform shown as chain rows, the one all-mode that isn't a grouping ([`pipeline.md`](pipeline.md) § *The group-row model*).
 
+### Pattern assist
+
+The Umiaq, Regex and Search boxes (the search bar included) color their syntax as you type and open a **helper panel** beside the box while it has focus.
+A param opts in with `assist: 'umiaq' | 'regex' | 'search'`; Regex's replace box and Affix keep the plain `PopupHelp` cheat sheet.
+The panel holds, top to bottom:
+
+- **The error, in place.**
+  The bad span gets a wavy underline (`.q-err`, shared with the rescore editor), the panel says what's wrong in plain words, and a fix button applies the obvious repair when there is one (`.` → `?` in Umiaq, `[!` → `[^`, a backwards range swapped).
+  An error stays quiet while it's still being typed — an unfinished construct like `^(ab` until the caret leaves the end, any other while the caret sits right after it — so the panel doesn't nag mid-keystroke.
+- **The query read back** (Umiaq, Regex): the whole query as a sentence, including the match mode — `ABBA` reads "Finds entries made of a chunk A, then a chunk B, then B again, then A again."
+  Together with the cheat sheet it explains every piece, so the panel says nothing about the token at the caret; the box itself only outlines a paren's partner and tints the atom a quantifier repeats.
+- **Mix-up hints**: valid syntax that probably means something else, each with a fix.
+  Search syntax typed into Regex (`un*ed`, where `*` repeats the N), capitals typed into Umiaq as a word (`CAT`), a tuple whose edge variables can't be empty (`AtenB;AB` misses TENOR), a regex in Search.
+  A fix can move the query to the right tool: a stack row is swapped in place, and the search bar hands its query to a new row above it and empties itself (`ToolStack.moveQueryTo`).
+- **The cheat sheet**, always whole, every row clickable to insert at the caret.
+  Umiaq's clause rows (`|A|>=0`, `A=#@#`) append a clause named after the query's first variable; `7-9:` goes at the start of the caret's clause.
+  It never changes, so the panel looks the same from the first keystroke to the last.
+
+Search, the box people type in most, gets no reading: its syntax is a handful of symbols, and a sentence restating `c?t` is clutter.
+Its panel opens above the bar, since one below would sit over the entries table's sort headers for every search.
+
+**One panel.**
+Everything, the cheat sheet included, lives in the one panel, so a focused box never has popups on both sides.
+The panel also shows on phones, where `PopupHelp` is suppressed and typing `|`, `~` or `@` is the hard part anyway.
+Only its buttons and links take the pointer; a click on its text lands on whatever it covers, so an open panel never blocks a sort header or another row.
+
+**The analyzers describe; the parsers judge.**
+Each dialect has a pure analyzer (`engine/assist-umiaq.js`, `assist-regex.js`, `assist-search.js`) that lexes the query into spans with descriptions, a reading, and hints.
+None of them decides validity: Umiaq's is `parseUmiaqQuery`, Regex's the browser's `RegExp`, Search's `buildSearchPattern`, and an analyzer's positioned error is shown only when its parser also rejects the query.
+A parser error the lexer can't place (Umiaq's semantic ones, like a length clash) underlines the clause its message quotes.
+So the panel can explain a query in friendlier words without ever disagreeing with the tool about whether it runs.
+
+**Colors match the results.**
+Umiaq variables are colored with `variableColors`, the assignment the result lanes use, so the A in the query is the same color as the A chunk in every match.
+A Regex capture group is colored, parentheses and contents, in the color its match gets in the results (group N in color N−1, the order `groupSpansToRanges` assigns).
+A regex without groups, and every Search query, stays uncolored even though their results mark literal runs, since coloring every fixed letter of a plain query like `cat` would only be noise.
+Other syntax reuses the rescore editor's `q-*` token colors.
+
+**The colored text is a mirror.**
+The input's own text is transparent and a mirror behind it (`.assist-hl`) holds the colored copy, offset by the input's computed border and padding and shifted by its `scrollLeft`.
+A mismatch in font, padding or scroll leaves the caret off the letters, so the mirror reads those from the live input rather than hard-coding them.
+
 ### Umiaq: variable & pattern search
 
 Umiaq, the variable-and-pattern search, has its own doc.

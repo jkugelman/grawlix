@@ -20,6 +20,7 @@ import {
 import { scopedHistogramLayout } from '../data/derived.js';
 import { scoreColor } from '../model/score-display.js';
 import { PopupHelp } from './components.js';
+import { paintPatternFields } from './pattern-assist.js';
 import { AppView, scopeKey, activeScoreRange, activeLengthRange, lengthFilterDisabled } from './app-view.js';
 import {
   EntriesScroller, EntryPanel, GroupMorePopover,
@@ -515,6 +516,7 @@ export function attachHelpPopups() {
     const placement = input.closest('.tool-row-replace') ? 'below' : 'above';
     _helpPopups.push(new PopupHelp(input, content, { placement }));
   }
+  paintPatternFields();
 }
 
 export async function renderMergedDetail() {

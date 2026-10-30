@@ -1,6 +1,5 @@
 'use strict';
 
-import { buildHelpHTML } from '../../core/util.js';
 import { TUPLE_CAP_MOBILE } from '../../core/constants.js';
 import { displayOf, foldedDisplayOf } from '../norm.js';
 import { parseUmiaqQuery, matchPattern, findTuples, variableColors, variableHighlights, caseOK } from '../umiaq.js';
@@ -16,35 +15,12 @@ export function configureUmiaq({ maxResults } = {}) {
   if (Number.isFinite(maxResults) && maxResults > 0) tupleMaxResults = maxResults;
 }
 
-export const UMIAQ_HELP = buildHelpHTML([
-  ['a–z', 'a literal letter'],
-  ['A–Z', 'a variable'],
-  ['?', 'any character'],
-  ['*', 'any string'],
-  ['#', 'any consonant'],
-  ['@', 'any vowel'],
-  ['[abc]', 'any of a, b, c'],
-  [';', 'separates clauses'],
-  ['~A', 'the reverse of A'],
-  ['A=#@#', 'A fits a sub-pattern'],
-  ['A!=#@#', "A doesn't fit a sub-pattern"],
-  ['|AB|=n', 'length check (also < <= > >=)'],
-  ['|A|=8-9', 'a length range (also 10+, 0-6)'],
-  ['|A|>=0', 'A may be empty'],
-  ['|*|>=0', 'every variable may be empty'],
-  ['7-9:…', 'only 7-to-9-letter matches'],
-  ['/word', 'an anagram of word'],
-  ['A B', 'a space matches a spelled space'],
-  ['\\.', 'a literal punctuation mark'],
-  ['\\A', 'a literal capital A'],
-]);
-
 export default {
   name: 'Umiaq', icon: '🛶', category: 'search',
   desc: 'Advanced search with variables and constraints',
   example: 'ABBA · AB;BA',
   params: [
-    { key: 'query', placeholder: 'AB;BA', help: UMIAQ_HELP, raw: true },
+    { key: 'query', placeholder: 'AB;BA', assist: 'umiaq', raw: true },
   ],
   // Arity is read off the query, not a toggle: one binding filters (arity 1),
   // several bindings find tuples (arity = binding count).

@@ -2,6 +2,7 @@
 
 import { buildHelpHTML } from '../../core/util.js';
 import { buildSpacingTable, spacingReader, loadSpacingCorpus, SPACING_PASS } from '../space-out.js';
+import { SEARCH_CHEAT } from '../assist-search.js';
 
 // ─── Cross-tool helpers ──────────────────────────────────────────────────────
 // Only helpers used by 2+ tools belong here; single-use helpers live in their
@@ -50,15 +51,7 @@ export const ALLOW_UNLISTED_PARAM = { key: 'unlisted', type: 'checkbox', replace
 // `!= null`, not truthiness: an empty replacement is delete mode, and a truthiness "cleanup" silently reverts it to a filter.
 export const isReplacing = params => params.replace != null;
 
-export const SEARCH_HELP = buildHelpHTML([
-  ['*', 'any string'],
-  ['?', 'any letter or digit'],
-  ['#', 'any consonant'],
-  ['@', 'any vowel'],
-  ['[abc]', 'any of a, b, c'],
-  ['[^abc]', 'none of a, b, c'],
-  ['[a-m]', 'character range'],
-]);
+export const SEARCH_HELP = buildHelpHTML(SEARCH_CHEAT.map(r => [r.code, r.desc]));
 
 export function looksPlural(word) {
   return word.endsWith('s') && !word.endsWith('ss');

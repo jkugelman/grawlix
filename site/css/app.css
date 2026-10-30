@@ -1646,6 +1646,40 @@ html.dark-mode #discovery-banner { background: color-mix(in srgb, var(--accent) 
 .popup-help .help-link a { color: var(--accent); text-decoration: none; }
 .popup-help .help-link a:hover { text-decoration: underline; }
 
+/* Pattern assist */
+.assist-field input[data-assist] { color: transparent; caret-color: var(--text); }
+.assist-field input[data-assist]::selection { color: transparent; background: color-mix(in srgb, var(--accent) 35%, transparent); }
+.assist-hl { position: absolute; top: 0; bottom: 0; display: flex; align-items: center; overflow: hidden; pointer-events: none; font-family: var(--font-mono); font-size: 13px; color: var(--text); }
+.assist-hl-text { white-space: pre; }
+.assist-bad { color: var(--q-err); }
+.assist-pair { outline: 1px solid var(--accent); border-radius: 2px; }
+.assist-target { background: color-mix(in srgb, var(--accent) 22%, transparent); border-radius: 2px; }
+.assist-panel { position: fixed; inset: auto; margin: 0; padding: 0; pointer-events: none; max-height: min(420px, 60vh); overflow-y: auto; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 6px 24px rgba(0,0,0,0.2); font-size: 12px; line-height: 1.5; color: var(--text); }
+.assist-panel button, .assist-panel a { pointer-events: auto; }
+.assist-panel > div { padding: 6px 10px; border-top: 1px solid var(--border2); }
+.assist-panel > div:first-child { border-top: 0; }
+.assist-panel code, .assist-panel kbd { font-family: var(--font-mono); }
+.assist-quiet { color: var(--muted); }
+.assist-error { background: var(--error-bg); box-shadow: inset 3px 0 var(--q-err); }
+.assist-hint { background: var(--callout-bg); box-shadow: inset 3px 0 var(--callout-border); }
+.assist-hint.tip { background: transparent; box-shadow: inset 3px 0 var(--accent); }
+.assist-fixes { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 5px; }
+.assist-fix { font-size: 12px; padding: 3px 8px; border-color: var(--accent); color: var(--accent); background: var(--bg); }
+.assist-fix:hover:not(:disabled) { background: var(--accent); color: white; }
+.assist-cheat-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 4px; font-size: 10.5px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+.assist-cheat-grid { display: grid; grid-template-columns: max-content 1fr 20px max-content 1fr; }
+.assist-cheat-row { display: grid; grid-template-columns: subgrid; grid-column: 1 / 3; column-gap: 8px; align-items: baseline; justify-content: stretch; padding: 2px 4px; border: 0; border-radius: 4px; background: none; font-size: 11.5px; line-height: 1.4; color: var(--muted); text-align: left; }
+.assist-cheat-row:nth-child(even) { grid-column: 4 / 6; }
+button.assist-cheat-row:hover:not(:disabled) { background: var(--hover); color: var(--text); }
+.assist-cheat-row kbd { font-size: 11.5px; color: var(--text); white-space: nowrap; }
+@media (max-width: 559px) {
+  .assist-cheat-grid { grid-template-columns: max-content 1fr; }
+  .assist-cheat-row:nth-child(even) { grid-column: 1 / 3; }
+}
+.assist-cheat-link { margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--border2); }
+.assist-cheat-link a { color: var(--accent); text-decoration: none; }
+.assist-cheat-link a:hover { text-decoration: underline; }
+
 /* Dialog helpers */
 .dialog-actions { text-align: right; }
 

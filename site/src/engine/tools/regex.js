@@ -5,6 +5,7 @@ import {
   regexExecAll, runReplace, replacementMarksOutput, regexError,
 } from '../regex.js';
 import { buildHelpHTML } from '../../core/util.js';
+import { REGEX_CHEAT_LINK } from '../assist-regex.js';
 import { matchModeOk, anchorPattern } from '../search.js';
 import {
   MATCH_PARAM, matchModeOf, ALLOW_UNLISTED_PARAM, isReplacing,
@@ -38,24 +39,13 @@ export default {
   example: 'un.+ed · c.{2,4}t',
   findReplace: true,
   params: [
-    { key: 'pattern', raw: true, placeholder: 'pattern', help: buildHelpHTML([
-      ['.*', 'any string'],
-      ['.', 'any character'],
-      ['[abc]', 'any of a, b, c'],
-      ['[^abc]', 'none of a, b, c'],
-      ['a*', 'zero or more'],
-      ['a+', 'one or more'],
-      ['a?', 'optional'],
-      ['a{2,4}', '2 to 4 times'],
-      ['a|b', 'either a or b'],
-      ['(…)', 'capture group'],
-    ], { link: { url: 'https://regexone.com/', text: 'Learn regex at regexone.com →' } }) },
+    { key: 'pattern', raw: true, placeholder: 'pattern', assist: 'regex' },
     { key: 'replace', placeholder: 'replace', raw: true, encodeEmpty: true, help: buildHelpHTML([
       ['$1', 'first capture group'],
       ['$2', 'second group, etc.'],
       ['$&', 'the whole match'],
       ['$$', 'a literal $'],
-    ], { cols: 1, link: { url: 'https://regexone.com/', text: 'Learn regex at regexone.com →' } }) },
+    ], { cols: 1, link: REGEX_CHEAT_LINK }) },
     MATCH_PARAM,
     ALLOW_UNLISTED_PARAM,
   ],

@@ -61,8 +61,8 @@ export function buildBadgeHTML(severity, opts = {}) {
   return `<span class="badge" data-severity="${severity}"${titleAttr}></span>`;
 }
 
-export function buildClearableInputHTML(inputHTML, hasValue) {
-  return `<span class="clearable-input">${inputHTML}` +
+export function buildClearableInputHTML(inputHTML, hasValue, { className = '', before = '' } = {}) {
+  return `<span class="clearable-input${className ? ' ' + className : ''}">${before}${inputHTML}` +
     `<button type="button" class="clear-btn" tabindex="-1" title="Clear" aria-label="Clear"${hasValue ? '' : ' hidden'}>` +
     `<svg width="10" height="10" aria-hidden="true"><use href="#icon-x"/></svg></button></span>`;
 }
@@ -85,9 +85,10 @@ export function mountClearableInputs() {
 }
 
 export function buildTextInputHTML(param, value, toolKey, wiring) {
-  const helpAttr = param.help ? ` data-help="${toolKey}/${param.key}"` : '';
+  const helpAttr = param.assist ? ` data-assist="${param.assist}"` : param.help ? ` data-help="${toolKey}/${param.key}"` : '';
   const input = `<input class="entry-input" type="text" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="${esc(param.placeholder || '')}" value="${esc(value || '')}"${helpAttr}${wiring}>`;
-  return buildClearableInputHTML(input, !!value);
+  return buildClearableInputHTML(input, !!value, param.assist
+    ? { className: 'assist-field', before: '<span class="assist-hl" aria-hidden="true"></span>' } : {});
 }
 
 export function buildParamHTML(param, value, toolKey, wiring) {

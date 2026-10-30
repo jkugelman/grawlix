@@ -620,6 +620,30 @@ export const ToolStack = (() => {
     repaintAfterStackChange();
   }
 
+  function moveQueryTo(token, toolKey, params) {
+    if (!TOOLS[toolKey]) return;
+    const row = makeToolRow(toolKey, { ...params });
+    let idx;
+    if (token === 'bar') {
+      idx = stack.length - 1;
+      stack.splice(idx, 0, row);
+      getSearchBarRow().params.pattern = '';
+      // rerenderRows keeps the bar's DOM, so its input has to be emptied here.
+      const barInput = searchBarEl()?.querySelector('input[data-key="pattern"]');
+      if (barInput) { barInput.value = ''; syncClearButton(barInput); }
+    } else {
+      idx = parseInt(token, 10);
+      if (!(idx >= 0 && idx < stack.length - 1)) return;
+      stack.splice(idx, 1, row);
+    }
+    for (const asset of toolAssets(row.def, row.params)) preloadWorkerAsset(asset);
+    rerenderRows();
+    focusRowInput(idx);
+    flashRow(idx);
+    refreshGalleryActive();
+    repaintAfterStackChange();
+  }
+
   function removeAt(idx) {
     // The permanent Search bar (last row) is undeletable.
     if (idx < 0 || idx >= stack.length - 1) return;
@@ -964,7 +988,7 @@ export const ToolStack = (() => {
     });
   }
 
-  return { buildHTML, buildGalleryHTML, refreshGalleryActive, init, add, getStack, setStack, getSearchBarRow, getUserStack, isRowExpanded, refreshRowMarks };
+  return { buildHTML, buildGalleryHTML, refreshGalleryActive, init, add, moveQueryTo, getStack, setStack, getSearchBarRow, getUserStack, isRowExpanded, refreshRowMarks };
 })();
 
 export const ToolPicker = (() => {

@@ -11,6 +11,7 @@ import { getOutputFormat, setOutputFormat } from './data/serialize.js';
 import { persistMeta } from './data/persist.js';
 import { configureSyncDialogs, configureMirrorSerializer, configureEditsMerger } from './data/disk-sync.js';
 import { mountClearableInputs, buildClearableInputHTML, toggleSplitMenu, mountMenus } from './ui/components.js';
+import { mountPatternAssist } from './ui/pattern-assist.js';
 import { showConfirm, showAlert, showMergeConflict, showEditsConflict } from './ui/dialogs/confirm.js';
 import { openUpdateSummaryDialog } from './ui/dialogs/update-summary.js';
 import { SettingsDialog, configureSettings } from './ui/dialogs/settings.js';
@@ -144,6 +145,7 @@ function boot() {
   // Document-level / pure wiring — no dependency on the app-shell DOM existing.
   mountGroupColumnStyle();
   mountClearableInputs();
+  mountPatternAssist();
   mountScoreRangeControl();
   mountHistogramPointer();
   mountMenus();

@@ -3,7 +3,7 @@
 import { buildSearchPattern } from '../search.js';
 import { runReplace, replacementMarksOutput } from '../regex.js';
 import {
-  MATCH_PARAM, matchModeOf, ALLOW_UNLISTED_PARAM, SEARCH_HELP, isReplacing,
+  MATCH_PARAM, matchModeOf, ALLOW_UNLISTED_PARAM, isReplacing,
   matchModeAssets, matchModePasses, matchModeSpacing, matchModeSpacingLazy,
 } from './shared.js';
 
@@ -27,7 +27,7 @@ export default {
   example: 'un*ed · c?t',
   findReplace: true, replaceName: 'Replace',
   params: [
-    { placeholder: 'pattern', help: SEARCH_HELP },
+    { placeholder: 'pattern', assist: 'search' },
     { key: 'replace', placeholder: 'replace', raw: true, encodeEmpty: true },
     MATCH_PARAM,
     ALLOW_UNLISTED_PARAM,
