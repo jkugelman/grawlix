@@ -52,6 +52,22 @@ test('a Regex capture group is colored like its match, and a plain regex is not'
   await expect(mirror.locator('[class*="search-match"]')).toHaveCount(0);
 });
 
+test('a Regex replacement colors `$N` like group N, following the pattern', async ({ page }) => {
+  await gotoApp(page);
+  await addTool(page, 'regex');
+  const row = page.locator('.tool-row[data-tool="regex"]');
+  await row.locator('.find-replace-caret').click();
+  await row.locator('input[data-key="pattern"]').fill('(.)(.)');
+  const replace = row.locator('input[data-key="replace"]');
+  await replace.fill('$2$1');
+  const mirror = row.locator('.tool-row-replace .assist-hl');
+  await expect(mirror.locator('.search-match-1')).toHaveText('$2');
+  await expect(mirror.locator('.search-match-0')).toHaveText('$1');
+  await expect(panel(page)).toBeHidden();
+  await row.locator('input[data-key="pattern"]').fill('(.).');
+  await expect(mirror.locator('.assist-bad')).toHaveText('$2');
+});
+
 test('a fix button rewrites the query', async ({ page }) => {
   await gotoApp(page);
   await addTool(page, 'umiaq');

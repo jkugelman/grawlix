@@ -85,7 +85,7 @@ export function mountClearableInputs() {
 }
 
 export function buildTextInputHTML(param, value, toolKey, wiring) {
-  const helpAttr = param.assist ? ` data-assist="${param.assist}"` : param.help ? ` data-help="${toolKey}/${param.key}"` : '';
+  const helpAttr = (param.assist ? ` data-assist="${param.assist}"` : '') + (param.help ? ` data-help="${toolKey}/${param.key}"` : '');
   const input = `<input class="entry-input" type="text" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="${esc(param.placeholder || '')}" value="${esc(value || '')}"${helpAttr}${wiring}>`;
   return buildClearableInputHTML(input, !!value, param.assist
     ? { className: 'assist-field', before: '<span class="assist-hl" aria-hidden="true"></span>' } : {});

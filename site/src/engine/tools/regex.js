@@ -40,7 +40,7 @@ export default {
   findReplace: true,
   params: [
     { key: 'pattern', raw: true, placeholder: 'pattern', assist: 'regex' },
-    { key: 'replace', placeholder: 'replace', raw: true, encodeEmpty: true, help: buildHelpHTML([
+    { key: 'replace', placeholder: 'replace', raw: true, encodeEmpty: true, assist: 'regex-replace', help: buildHelpHTML([
       ['$1', 'first capture group'],
       ['$2', 'second group, etc.'],
       ['$&', 'the whole match'],

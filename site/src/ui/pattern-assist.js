@@ -10,7 +10,7 @@
 import { esc } from '../core/util.js';
 import { tokenAt, errorVisible } from '../engine/assist.js';
 import { analyzeUmiaq, UMIAQ_CHEAT } from '../engine/assist-umiaq.js';
-import { analyzeRegex, REGEX_CHEAT, REGEX_CHEAT_LINK } from '../engine/assist-regex.js';
+import { analyzeRegex, analyzeReplacement, REGEX_CHEAT, REGEX_CHEAT_LINK } from '../engine/assist-regex.js';
 import { analyzeSearch, SEARCH_CHEAT } from '../engine/assist-search.js';
 import { positionPopover } from './components.js';
 import { ToolStack } from './tool-stack.js';
@@ -20,6 +20,7 @@ const DIALECTS = {
   regex: { analyze: (text, mode) => analyzeRegex(text, { mode }), cheat: REGEX_CHEAT, link: REGEX_CHEAT_LINK, reading: true, placement: 'below' },
   // Above, so it never covers the entries table's sort headers just under the bar.
   search: { analyze: (text, mode) => analyzeSearch(text, { mode }), cheat: SEARCH_CHEAT, reading: false, placement: 'above' },
+  'regex-replace': { analyze: analyzeReplacement, context: rowPattern, panel: false },
 };
 const PATTERN_KEY = { umiaq: 'query', regex: 'pattern', search: 'pattern' };
 const KIND_CLASS = {
@@ -32,11 +33,15 @@ function matchModeOf(input) {
   return wrap?.querySelector('input[type="checkbox"]')?.checked ? wrap.dataset.mode : '';
 }
 
+function rowPattern(input) {
+  return input.closest('.tool-row')?.querySelector('input[data-assist="regex"]')?.value ?? '';
+}
+
 function analysisOf(input) {
   const d = DIALECTS[input.dataset.assist];
-  const mode = matchModeOf(input);
-  const key = `${input.value}\0${mode}`;
-  if (input._assist?.key !== key) input._assist = { key, result: d.analyze(input.value, mode) };
+  const context = (d.context ?? matchModeOf)(input);
+  const key = `${input.value}\0${context}`;
+  if (input._assist?.key !== key) input._assist = { key, result: d.analyze(input.value, context) };
   return input._assist.result;
 }
 
@@ -218,7 +223,7 @@ function refresh(input) {
   const A = analysisOf(input);
   const focused = input === document.activeElement;
   paintMirror(input, A, focused ? input.selectionStart ?? -1 : -1);
-  if (focused) Panel.show(input);
+  if (focused && DIALECTS[input.dataset.assist].panel !== false) Panel.show(input);
 }
 
 export function paintPatternFields(root = document) {
@@ -241,11 +246,10 @@ export function mountPatternAssist() {
     refresh(input);
   });
   document.addEventListener('input', e => {
-    const input = assisted(e);
-    if (input) { Panel.undismiss(); refresh(input); return; }
-    const row = e.target?.closest?.('.tool-row-match')?.closest('.tool-row, .search-bar');
-    const field = row?.querySelector('input[data-assist]');
-    if (field) refresh(field);
+    if (assisted(e)) Panel.undismiss();
+    // Repaint the whole row: the replace box's colors go stale when only the pattern repaints.
+    const row = e.target?.closest?.('.tool-row, .search-bar');
+    for (const field of row?.querySelectorAll('input[data-assist]') ?? []) refresh(field);
   });
   for (const type of ['keyup', 'click', 'select']) {
     document.addEventListener(type, e => { const input = assisted(e); if (input) refresh(input); });

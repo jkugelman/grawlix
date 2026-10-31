@@ -117,25 +117,27 @@ export function wrapRuns(body, runs) {
 // Grawlix tokenizes the replacement and applies it itself rather than calling
 // String.replace, because it needs each group's offset in the built output to
 // place highlights — String.replace surfaces no such offsets. `$&` is group 0.
-export function parseReplacement(str) {
+export function lexReplacement(str) {
   const tokens = [];
   let lit = '';
   const flush = () => { if (lit) { tokens.push({ lit }); lit = ''; } };
   for (let i = 0; i < str.length; i++) {
     const c = str[i], next = str[i + 1];
     if (c === '$' && next === '$') { lit += '$'; i++; }
-    else if (c === '$' && next === '&') { flush(); tokens.push({ group: 0 }); i++; }
+    else if (c === '$' && next === '&') { flush(); tokens.push({ group: 0, s: i, e: i + 2 }); i++; }
     else if (c === '$' && next >= '0' && next <= '9') {
       let digits = next;
       if (str[i + 2] >= '0' && str[i + 2] <= '9') digits += str[i + 2];
       flush();
-      tokens.push({ group: parseInt(digits, 10) });
+      tokens.push({ group: parseInt(digits, 10), s: i, e: i + 1 + digits.length });
       i += digits.length;
     } else lit += c;
   }
   flush();
   return tokens;
 }
+
+export const parseReplacement = str => lexReplacement(str).map(({ s, e, ...tok }) => tok);
 
 const tokenMarksOutput = (tok, capturing) => capturing ? tok.group !== undefined : tok.lit !== undefined;
 
@@ -145,9 +147,8 @@ export const replacementMarksOutput = (tokens, capturing) => tokens.some(tok => 
 
 // A capture group and its `$N` echoes must resolve to the same color so
 // rearranged text visibly moves between the input and output atoms.
-export function kindForGroup(g) {
-  return SEARCH_KINDS[g <= 0 ? 0 : (g - 1) % HL_COLORS];
-}
+export const groupColor = g => (g <= 0 ? 0 : (g - 1) % HL_COLORS);
+export const kindForGroup = g => SEARCH_KINDS[groupColor(g)];
 
 export function regexExecAll(re, text, matchOk = null) {
   re.lastIndex = 0;

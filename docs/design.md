@@ -679,7 +679,8 @@ In all-mode a blank Shift groups entries into shift classes (STEEDS and TUFFET c
 ### Pattern assist
 
 The Umiaq, Regex and Search boxes (the search bar included) color their syntax as you type and open a **helper panel** beside the box while it has focus.
-A param opts in with `assist: 'umiaq' | 'regex' | 'search'`; Regex's replace box and Affix keep the plain `PopupHelp` cheat sheet.
+A param opts in with `assist: 'umiaq' | 'regex' | 'search'`; Affix keeps the plain `PopupHelp` cheat sheet.
+Regex's replace box (`assist: 'regex-replace'`) gets the coloring but no panel: its syntax is four `$` forms, which its `PopupHelp` already lists.
 The panel holds, top to bottom:
 
 - **The error, in place.**
@@ -711,7 +712,9 @@ So the panel can explain a query in friendlier words without ever disagreeing wi
 **Colors match the results.**
 Umiaq variables are colored with `variableColors`, the assignment the result lanes use, so the A in the query is the same color as the A chunk in every match.
 A Regex capture group is colored, parentheses and contents, in the color its match gets in the results (group N in color N−1, the order `groupSpansToRanges` assigns).
+In the replace box, `$N` takes group N's color (`$&` group 1's, as in the output), and a `$N` past the pattern's last group shows red, since it silently inserts nothing.
 A regex without groups, and every Search query, stays uncolored even though their results mark literal runs, since coloring every fixed letter of a plain query like `cat` would only be noise.
+Search's replace box is plain text with no references, so it has nothing to color.
 Other syntax reuses the rescore editor's `q-*` token colors.
 
 **The colored text is a mirror.**

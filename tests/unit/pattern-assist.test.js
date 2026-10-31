@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { analyzeUmiaq } from '../../site/src/engine/assist-umiaq.js';
-import { analyzeRegex } from '../../site/src/engine/assist-regex.js';
+import { analyzeRegex, analyzeReplacement } from '../../site/src/engine/assist-regex.js';
 import { analyzeSearch } from '../../site/src/engine/assist-search.js';
 import { errorVisible, tokenAt } from '../../site/src/engine/assist.js';
 import { parseUmiaqQuery, variableColors } from '../../site/src/engine/umiaq.js';
@@ -73,6 +73,14 @@ test('Regex reads the match mode into its sentence', () => {
 test('each Regex capture group is a region in the color its match gets', () => {
   assert.deepEqual(analyzeRegex('^(un|re)(?:x)(.)$').regions, [{ s: 1, e: 8, color: 0 }, { s: 13, e: 16, color: 1 }]);
   assert.deepEqual(analyzeRegex('c.t').regions, []);
+});
+
+test('a replacement\'s `$N` takes group N\'s color, and a missing group is bad', () => {
+  const r = analyzeReplacement('$2-$1$&$3', '(a)(b)');
+  assert.deepEqual(r.regions, [{ s: 0, e: 2, color: 1 }, { s: 3, e: 5, color: 0 }, { s: 5, e: 7, color: 0 }]);
+  assert.deepEqual(r.tokens.map(t => t.kind), ['esc', 'esc', 'esc', 'bad']);
+  assert.deepEqual(analyzeReplacement('$&s', 'cat').regions, []);
+  assert.deepEqual(analyzeReplacement('$1', 'cat').tokens, [{ s: 0, e: 2, kind: 'bad' }]);
 });
 
 test('a quantifier points at the atom it repeats, and a paren at its partner', () => {

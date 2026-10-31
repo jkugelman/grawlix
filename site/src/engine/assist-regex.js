@@ -6,7 +6,7 @@
 // so a complaint from this parser surfaces only when the browser agrees.
 
 import { esc } from '../core/util.js';
-import { regexError } from './regex.js';
+import { regexError, lexReplacement, groupColor } from './regex.js';
 import { code, shout, rangeText, matchModeWhere, joinParts } from './assist.js';
 
 export const REGEX_CHEAT = [
@@ -81,7 +81,7 @@ function parse(text) {
       } else err(s, s + head, `This ${code('(')} needs a closing ${code(')')}.`, undefined, true);
       // groupSpansToRanges colors a match's groups in order, so group N lights
       // up in color N-1 — as long as every group before it took part.
-      if (idx) R.regions.push({ s, e: i, color: (idx - 1) % 9 });
+      if (idx) R.regions.push({ s, e: i, color: groupColor(idx) });
       return { t: 'group', kind, idx, body, s, e: i };
     }
     if (c === '[') {
@@ -148,7 +148,7 @@ function phrase(n) {
     case 'alt': return 'either ' + n.opts.map(phrase).join(' or ');
     case 'group': {
       const inner = phrase(n.body);
-      if (n.idx) return `<span class="search-match-${(n.idx - 1) % 9}">group ${n.idx}</span> (${inner})`;
+      if (n.idx) return `<span class="search-match-${groupColor(n.idx)}">group ${n.idx}</span> (${inner})`;
       if (n.kind === 'non') return n.body.t === 'alt' ? inner : `(${inner})`;
       return { la: `(followed by ${inner})`, nla: `(not followed by ${inner})`, lb: `(right after ${inner})`, nlb: `(not right after ${inner})` }[n.kind];
     }
@@ -257,4 +257,18 @@ export function analyzeRegex(text, { mode = '' } = {}) {
     reading: ok ? reading(R.ast, mode) : null,
     hints: ok ? hints(R, text, mode) : [],
   };
+}
+
+// ─── Replacement ──────────────────────────────────────────────────────────────
+
+export function analyzeReplacement(text, pattern) {
+  const { groups } = parse(pattern);
+  const tokens = [], regions = [];
+  for (const { group, s, e } of lexReplacement(text)) {
+    if (group === undefined) continue;
+    // runReplace inserts nothing for a group the pattern lacks, with no error.
+    tokens.push({ s, e, kind: group > groups ? 'bad' : 'esc' });
+    if (groups && group <= groups) regions.push({ s, e, color: groupColor(group) });
+  }
+  return { tokens, regions, error: null, reading: null, hints: [] };
 }
