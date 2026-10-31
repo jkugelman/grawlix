@@ -2,6 +2,8 @@
 
 import { hasUnigramCorpus, rankedSplits, SPACE_OUT_WINDOWS } from './segmenter.js';
 import { stripAccents, WORD_BREAK_RE } from './norm.js';
+import { soundsOf, spelledSoundsOf } from './phonetics.js';
+import { wordKinds } from './rule-query.js';
 
 // ─── Reading an entry aloud ──────────────────────────────────────────────────
 // `lookup` answers null, never [], for an unknown word: an empty list passes as a
@@ -90,6 +92,21 @@ export const widerSplits = spacing => function* (letters) {
     if (parts.length > 1) yield parts;
   }
 };
+
+// ─── Initialisms ─────────────────────────────────────────────────────────────
+
+// Past five letters, the all-caps words CMU lacks are mostly said as words: CAPTCHA,
+// README, QWERTY, CRISPR. Shorter ones are mostly spelled out, COVID aside.
+const MAX_SPELLED = 5;
+
+// After CMU, so NASA keeps its word reading; before the segmenter, which would read
+// NCAA as anything but its letters.
+export function soundsOrSpelled(letters, written) {
+  const sounds = soundsOf(letters);
+  if (sounds || !written || !wordKinds(written).includes('initialism')) return sounds;
+  const plural = written.endsWith('s') && written !== written.toUpperCase();
+  return letters.length - plural <= MAX_SPELLED ? spelledSoundsOf(letters, plural) : null;
+}
 
 // ─── Reading ─────────────────────────────────────────────────────────────────
 
