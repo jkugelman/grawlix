@@ -136,6 +136,12 @@ export function familyKey(text, vocab) {
   return words.map(w => reduceToken(w.norm, vocab, w.raw) ?? w.norm).join('');
 }
 
+// Equals familyKey(norm) only because a norm is one lowercase [a-z0-9] token;
+// widen toNorm and this (and addNorm) silently diverge from the general path.
+export function bareFamilyKey(norm, vocab) {
+  return reduceToken(norm, vocab) ?? norm;
+}
+
 // ─── Name relatives ──────────────────────────────────────────────────────────
 //
 // Links an entry to the fuller names that contain it (Menchú ↔ Rigoberta Menchú,
@@ -231,6 +237,12 @@ class Vocab {
     this.words.add(norm);
   }
 
+  addNorm(norm) {
+    if (!norm) return;
+    this.capitalized.delete(norm);
+    this.words.add(norm);
+  }
+
   writesLowercase(word) {
     return this.words.has(word) ? !this.capitalized.has(word) : undefined;
   }
@@ -240,6 +252,15 @@ export function collectVocab(texts) {
   const vocab = new Vocab();
   for (const text of texts) {
     for (const raw of familySplit(text)) vocab.add(raw);
+  }
+  return vocab;
+}
+
+export function collectRowVocab(rows) {
+  const vocab = new Vocab();
+  for (const { norm, display } of rows) {
+    if (display == null) vocab.addNorm(norm);
+    else for (const raw of familySplit(display)) vocab.add(raw);
   }
   return vocab;
 }

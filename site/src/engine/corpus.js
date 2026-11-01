@@ -3,8 +3,7 @@
 // ─── Corpus ──────────────────────────────────────────────────────────────────
 
 import { sourceAccessor } from './sources.js';
-import { displayOf } from './norm.js';
-import { familyKey, collectVocab } from './morphology.js';
+import { familyKey, bareFamilyKey, collectRowVocab } from './morphology.js';
 
 // A null display is a cross-wordlist wildcard (bare THEIRS unifies with another
 // list's spelled "the IRS"). But one list holding both the bare entry and a
@@ -130,7 +129,7 @@ export function buildCorpus(sourceList, mode = 'first') {
 // Assigned after resolution, not in the row literal: the key anchors against the
 // whole list's vocabulary, which isn't known until every entry exists.
 export function assignFamilies(corpus) {
-  const vocab = collectVocab(corpus.entries.map(displayOf));
+  const vocab = collectRowVocab(corpus.entries);
   corpus.vocab = vocab;
   for (const e of corpus.entries) e.family = familyOf(e, vocab);
 }
@@ -138,7 +137,7 @@ export function assignFamilies(corpus) {
 // Most rows' family spells their norm; pointing at the norm string instead of an
 // equal copy saves one string per row (~6 MB on a full merge).
 export function familyOf(row, vocab) {
-  const f = familyKey(displayOf(row), vocab);
+  const f = row.display == null ? bareFamilyKey(row.norm, vocab) : familyKey(row.display, vocab);
   return f === row.norm ? row.norm : f;
 }
 
