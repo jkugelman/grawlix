@@ -119,7 +119,7 @@ Why one owner, and what it costs: [`pipeline.md`](pipeline.md) § *The worker ow
 | Data | Shape | Notes |
 |---|---|---|
 | `ownedBuilt` | per-source wordlists `[{ dbKey, enabled, type, rescoreRules, … }]` | every configured source (enabled **and** disabled), loaded+parsed+rescored from IDB on `syncConfig`; the source of every corpus build. **My Edits is object-backed** (`rawEntries`, mutated in place each keystroke); **every other source is columnar** (`cols`: parallel typed arrays + packed string buffers — the lean cold store). Both are read through one `sourceAccessor(wl)` seam ([`engine/sources.js`](../site/src/engine/sources.js)) yielding transient entry views, so the merge / edit-planner / provenance / serialize / fetch-diff paths never branch on representation |
-| `ownedMerged` | rich merged corpus (`entries`/`norms`/`byKey`/`sourceCounts`) | the enabled-only deduped merge; feeds the config summaries **regardless** of the active scope. The pipeline seeds straight off `entries` (an undecorated row is the bare entry, not a chain — no per-entry seed array) |
+| `ownedMerged` | rich merged corpus (`entries`/`norms`/`sourceCounts`) | the enabled-only deduped merge; feeds the config summaries **regardless** of the active scope. The pipeline seeds straight off `entries` (an undecorated row is the bare entry, not a chain — no per-entry seed array) |
 | `ownedCorpus` | rich active-scope corpus | `=== ownedMerged` when the active scope is merged, else `buildScopeCorpus(ownedBuilt, scope)` (the single source, ignoring `enabled`). The corpus the pipeline executes against |
 | `entry._i` | each entry's index into `ownedCorpus.entries`, stamped onto the entry itself | written **once per corpus rebuild** (never per run), kept strictly paired with `ownedCorpus`; encodes the flat result's indices; it lives on the entry, never in a side `Map` (why: [`pipeline.md`](pipeline.md) § *The worker owns the corpus*) |
 | `entry.family`, `corpus.vocab` | each entry's word-family key + the corpus token set it anchored against (`engine/morphology.js`) | `assignFamilies` stamps `family` and stores `vocab` **once per corpus rebuild**; the edit splice re-keys only its spliced rows against the retained `vocab`. The Entry sort axis groups inflectional relatives by `family` |
@@ -144,6 +144,9 @@ The corpus carries `norms`, a membership `Set`, so there is no per-norm represen
 
 A non-Edits source's per-entry records are stored columnar at rest (`cols`): the entries never leave the worker, so the columns are read in place through `sourceAccessor` (binary search over the norm-sorted columns, transient views on demand) and never unpacked into a resident object array.
 The merge runs identically against the views a columnar source yields and the objects My Edits yields.
+
+`buildCorpus` is a k-way merge over each source's norm-sorted groups (`sortedGroups()` on the accessor): it resolves one norm at a time and appends its rows already in corpus order, so the build holds one norm's contributors at a time.
+Why streamed: bucketing every norm before resolving peaked at ~400 MB of transient contributor objects on the five default lists, enough to crash iOS; streaming drops that peak to the corpus itself.
 
 ---
 
@@ -231,7 +234,7 @@ Worker replies `pong`.
   See [`pipeline.md`](pipeline.md) § *Length filter*.
 - `rebindQuery` — `{ norm, display }` of the **open entry panel's re-anchor target**, or `null` when no panel is open (`entryPanelRebindQuery()`).
   When a new result lands while the panel is open, the table re-anchors it via `EntriesScroller.updateEntries → EntryPanel.rebindEntry → scroller.findResultEntry / resultHasEntry`, which run **synchronously** in the render path — so rather than awaiting the worker there (which would ripple a dual async path through the sync render), the open panel's target **rides the run** and the worker resolves it against `ownedCorpus`, shipping the answer on the same `result` (`rebindEntry`/`rebindExists`).
-  Resolved exactly as main's flat `findResultEntry`+`resultHasEntry` once did — a **full-corpus** `byKey.get(mergeKey(norm,display))` lookup that re-anchors even to an entry **filtered OUT** of the visible (range-filtered) view.
+  Resolved exactly as main's flat `findResultEntry`+`resultHasEntry` once did — a **full-corpus** `findRow(corpus, norm, display)` lookup that re-anchors even to an entry **filtered OUT** of the visible (range-filtered) view.
 - `sort` — `[{ key, dir }]`, the ordered multi-sort list, highest priority first (`AppView.sortList`).
   A plain header click sends a single-entry list; a modifier-click (Shift/Ctrl/Alt/Cmd) sends several.
   **Honored for the flat tier:** the worker sorts the survivor indices by the list, so every window it serves (and the inline first one) is already ordered, composing the picks the same way `composeSortAxis` does (each pick's primary at its own direction, then the primary pick's fixed-direction tiebreakers) over its own single-tier `FLAT_SORT_AXES` copy (`entry`/`length`/`score`/`comment`), plus the flat tool column's axis when the run has one.
@@ -562,7 +565,7 @@ An All Wordlists direct click seeds locally (the clicked row IS the winner); a *
   Off for clicks and for the multi-select batch rescore, where the display names a row that exists and a silent retarget to a *different* spelling would write scores to the wrong entries.
   An exact hit always wins, flag or not.
 - **Target is `ownedMerged`, never `ownedCorpus`** — the seed is the merged winner regardless of the active scope.
-  **On receipt:** if `ownedMerged` is present **and** `ownedCorpusFresh` (the latter stands in for an `ownedMerged`-specific freshness flag — a `syncConfig` clears it synchronously and only a committed `syncConfig` or an edit command re-sets it, so `fresh ⇒ ownedMerged` is current), resolve the winner via the shared `resolveEditSeedWinner(ownedMerged, norm, display)` — `byKey.get(mergeKey)`, then the **bare-display quirk** (a bare click with no bare merged row picks the first-alphabetical spelled variant, else `bestRowForNorm(merged, norm)`).
+  **On receipt:** if `ownedMerged` is present **and** `ownedCorpusFresh` (the latter stands in for an `ownedMerged`-specific freshness flag — a `syncConfig` clears it synchronously and only a committed `syncConfig` or an edit command re-sets it, so `fresh ⇒ ownedMerged` is current), resolve the winner via the shared `resolveEditSeedWinner(ownedMerged, norm, display)` — `findRow`, then the **bare-display quirk** (a bare click with no bare merged row picks the first-alphabetical spelled variant, else `bestRowForNorm(merged, norm)`).
   Reply `editSeed` with `winner = { norm, display, score, comment, sourceId }` (`sourceId` = the winning source's `dbKey`, so main resolves it to `state.sources` and applies the My-Edits raw-score adjustment locally — that adjustment stays on main, where `edits.rawEntries` is resident).
   When the norm is **absent from the merge**, reply `winner: null` (with `ready: true`) and main falls back to the clicked row (`row._wlEntry`).
   When the worker **isn't fresh**, reply `winner: null, ready: false` — see the `ready` rule below.
@@ -585,7 +588,7 @@ Its own request-id space; a timeout resolves `{ members: [], ready: false }`, wh
   Awaiting is load-bearing rather than a fire-and-forget warm-up: **nothing re-asks a family query**, so a load left in flight ships a short list that stays short until the panel is reopened — a cold deep link (`?entry=…`, which opens the panel before anything else has touched the asset) landed on an empty Related list.
   The stall is one download for a brand-new user; the asset is IDB-cached from then on, and an offline failure degrades to the unsegmented membership rather than blocking the reply.
 - **On receipt:** guarded by `ownedMerged && ownedCorpusFresh` (the freshness rule the edit-seed fetch documents).
-  Compute the query's family `familyKey(display ?? norm, ownedMerged.vocab)` — re-keyed from the query, *not* read off a looked-up row, so a live rename's not-yet-saved spelling resolves its own family — resolve the **bound** row (`byKey.get(mergeKey(boundNorm, boundDisplay))`), scan `ownedMerged.entries` for `e.norm === norm || e.family === family || genNorms.has(e.norm)` (a per-query O(n) scan, no persistent index — the norm clause catches same-norm spellings whose token-derived family differs), and reply `family` with the members.
+  Compute the query's family `familyKey(display ?? norm, ownedMerged.vocab)` — re-keyed from the query, *not* read off a looked-up row, so a live rename's not-yet-saved spelling resolves its own family — resolve the **bound** row (`findRow(ownedMerged, boundNorm, boundDisplay)`), scan `ownedMerged.entries` for `e.norm === norm || e.family === family || genNorms.has(e.norm)` (a per-query O(n) scan, no persistent index — the norm clause catches same-norm spellings whose token-derived family differs), and reply `family` with the members.
 - **Name runs** are a fourth membership clause in that same scan, so they cost no index.
   A row qualifies when its word sequence (`nameParts`, [`engine/morphology.js`](../site/src/engine/morphology.js) — split at the shared word breaks (`splitWords`), *not* the article-stripping `familyTokens` nor the lemma-reducing `familyKey`) is a strictly shorter **contiguous run** inside the other's, and that run is capitalized in every word **on both sides**.
   Contiguity is what keeps it a *sub-name*: under mere token containment the band `The The` matches every title saying "the" twice (15,655 rows).
@@ -642,7 +645,7 @@ Its client timeout is longer than the sibling reads because a cold query lazily 
   Failing any guard (no fresh merge, or the unigram corpus absent after its lazy load) replies `ready: false` instead, which is *not* a negative answer; see the reply below.
   A whole word loses to no split — its intact single-part reading wins on the segmenter's frequency scoring — so it comes back empty with no explicit dictionary check.
   Each part is then re-cased from the merge's own display for its norm (`bestRowForNorm(ownedMerged, part).display`), so `dnasplicer → DNA splicer` when the user's list spells `DNA` — the deliberate casing the lowercase split would otherwise lose.
-  A part the list *also* carries plainly (a `(norm, norm)` row in `byKey`, how a distinguishing norm stores its bare spelling) is left lowercase, so a word spelled lowercase somewhere is never force-capitalized — length-agnostic, no special-casing of short entries.
+  A part the list *also* carries plainly (a `(norm, norm)` row, how a distinguishing norm stores its bare spelling) is left lowercase, so a word spelled lowercase somewhere is never force-capitalized — length-agnostic, no special-casing of short entries.
   It's the first, local tier of the canonical resolver ([`entry-panel.md`](entry-panel.md) § *The canonical-form rename hint*); main's Wiktionary/Wikipedia pass then refines the whole phrase if it matches.
 
 #### `spaceOut` (entry-panel spacing-hint reply)
@@ -767,7 +770,7 @@ The worker also **writes the My Edits IDB itself** (main holds no `rawEntries`-t
   1. **Apply the write-set to the My Edits source's `rawEntries`** (the `type: 'edits'` source in `ownedBuilt`) via the shared `applyEditsWriteSet` — the same function main runs, so the two threads' My Edits never drift.
      Invalidate that source's rescored caches.
   2. **Affected norms** = the dedup of every norm across `writes.deletes` + `writes.upserts` — one or two for a plain edit/rename, more when a downscore or keep copy adds a side write.
-  3. **Splice `ownedMerged`** per affected norm (`spliceOwnedCorpus`): recompute the bucket via `computeMergedBucket(norm, ownedBuilt)`, which resolves one norm through the same code as the full build, then splice `entries`/`byKey`/`norms` and shift `sourceCounts` from the norm's old winners to its new ones.
+  3. **Splice `ownedMerged`** per affected norm (`spliceOwnedCorpus`): recompute the bucket via `computeMergedBucket(norm, ownedBuilt)`, which resolves one norm through the same code as the full build, then splice `entries`/`norms` and shift `sourceCounts` from the norm's old winners to its new ones.
      Both sides count a winning **entry** once however many spellings it wins, as the build does, so a list's count never exceeds its size.
      The old winners are read **before** step 1 applies the write-set (`applyOwnedEdit` takes the change as a callback): the old rows alone can't say whether one bare entry won two spellings or two entries won one each.
      When an affected norm's `(norm, display)` row set is unchanged — a score/comment edit, or a winner flip keeping the same spellings — `spliceOwnedCorpus` reconciles the resolved fields onto the **existing** row objects in place instead of swapping in fresh ones, preserving the identities the prefix cache's tiles hold by reference.
@@ -1001,11 +1004,11 @@ This is how the worker gets its corpus — it never receives the corpus as bulk 
   Requires a prior `syncConfig`.
 
 #### `queryEntry` (test-only)
-`{ type: 'queryEntry', requestId, scope, norm, display }` — a single-entry `byKey`/`bestRowForNorm` lookup against a scope's owned corpus.
+`{ type: 'queryEntry', requestId, scope, norm, display }` — a single-entry `findRow`/`bestRowForNorm` lookup against a scope's owned corpus.
 Used by the test-api `getMergedEntry`.
 - `requestId` — monotonic per client; echoed on the `entry` reply for matching; a client-side timeout resolves `null`.
 - `scope` / `norm` / `display` — the lookup target.
-  `display !== undefined` → `corpus.byKey.get(mergeKey(norm, display))`, else `bestRowForNorm(corpus, norm)`.
+  `display !== undefined` → `findRow(corpus, norm, display)`, else `bestRowForNorm(corpus, norm)`.
 - **On receipt:** resolve the scope's corpus (`corpusForScope`, building from IDB if it's not the live owned scope), look the entry up, and reply `entry` with the tuple `[norm, display, score, rawScore, comment, sourceId]` (or `null`).
 
 #### `__testFailNextBuild` (test-only)
@@ -1079,7 +1082,7 @@ Always carries `ranAgainstOwned: true` (the worker always runs against its own c
       `existsInScope = ownedCorpus.norms.has(toNorm(existsQuery))` (the active scope's norms) feeds the add-entry FAB seed (`newEntrySeedQuery`) — open blank when the query exists, pre-fill it when it doesn't.
       `null` when `existsQuery` is blank.
     - **per-result panel re-bind answer**: for the open entry panel's `rebindQuery`, the payload carries `rebindEntry` (a **rich row** `{ norm, display, score, rawScore, comment, sourceId }` or `null`) + `rebindExists` (boolean) + an echoed `rebindQuery`.
-      The worker resolves them the same way the flat `findResultEntry`+`resultHasEntry` do — `rebindEntry = ownedCorpus.byKey.get(mergeKey(norm,display))` (a **full-corpus** lookup, so it re-anchors even to a range-filtered-out entry), `rebindExists = ownedCorpus.norms.has(norm)`.
+      The worker resolves them the same way the flat `findResultEntry`+`resultHasEntry` do — `rebindEntry = findRow(ownedCorpus, norm, display)` (a **full-corpus** lookup, so it re-anchors even to a range-filtered-out entry), `rebindExists = ownedCorpus.norms.has(norm)`.
       All `null` when no panel was open.
       Main rebuilds the rich `rebindEntry` into a `wlEntry` (`sourceId` → `state.sources`) and stashes the trio on the scroller; `findResultEntry`/`resultHasEntry` return the shipped answer when `ranAgainstOwned` and the stashed `_rebindQuery` matches the requested `(norm,display)`.
   - **transform** (windowed): `payload = { firstChains: [<chain>, …], chainCount, stats, histogramCounts, histogramLayout, widthHints, filtered, existsInScope, rebindQuery, rebindEntry, rebindExists }`.
@@ -1364,7 +1367,7 @@ An idle worker builds the active scope's spacing table ([`segmenter.md`](segment
 - **Spawn:** lazily via `getWorker()` on first use, one worker per tab — but that first use is the boot-time `syncConfig`, so in practice it comes up at boot.
   Spawned via `new Worker(new URL('./engine/worker.js', baseURL), { type: 'module' })`, where `baseURL` is **`main.js`'s `import.meta.url`**, injected at boot through `configurePipelineWorker({ baseURL })`.
   (Anchoring on `main.js` is load-bearing — bundling inlines the `new URL` literal verbatim without rewriting its relative path, and the client module sits at a different depth than the bundle, so a client-anchored URL is dev-passing/prod-404.)
-- **Memory:** the worker holds the only corpus copy — roughly **1× peak corpus memory** in the worker (rich `entries` + `norms`/`byKey`, plus the separate `ownedMerged` when scoped away from merged).
+- **Memory:** the worker holds the only corpus copy — roughly **1× peak corpus memory** in the worker (rich `entries` + `norms`, plus the separate `ownedMerged` when scoped away from merged).
   Main holds no merged/scoped corpus, only My Edits' `rawEntries`.
 - **Crash → respawn → rebuild → re-dispatch.**
   A worker crash — the parent `Worker`'s `error` / `messageerror` event, **distinct from a tool `error` *message*** (which the worker posts cleanly over a live connection) — has no main-thread engine to fall back to, so recovery is *respawn + rebuild-from-IDB + re-dispatch*:

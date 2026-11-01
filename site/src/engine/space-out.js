@@ -1,6 +1,6 @@
 'use strict';
 
-import { mergeKey, bestRowForNorm } from './corpus.js';
+import { findRow, bestRowForNorm } from './corpus.js';
 import { displayOf, toNorm, isUnspaced } from './norm.js';
 import { SPACE_OUT_WINDOWS, rankedSplits, bestCompoundSplit, hasUnigramCorpus, loadUnigramCorpus } from './segmenter.js';
 
@@ -18,7 +18,7 @@ const MIN_WINDOW = SPACE_OUT_WINDOWS.few;
 export function casePart(part, wordlist) {
   // An explicit all-lowercase row is the wordlist vouching for lowercase. Without
   // this, every ordinary word takes the code-unit-minimum display below and shouts.
-  if (wordlist.byKey.has(mergeKey(part, part))) return part;
+  if (findRow(wordlist, part, part)) return part;
   const display = bestRowForNorm(wordlist, part)?.display;
   // A spaced display would re-split the very part it is meant to spell.
   return display && isUnspaced(display) ? display : part;

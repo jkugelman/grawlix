@@ -37,7 +37,7 @@ It's where a tool compiles a regex or pre-sorts letters once instead of per row 
 Tools without a `prepare` get the normalized params object.
 
 `ctx` is the tool's view of the run.
-`ctx.wordlist` is the merged-wordlist cache (`{ entries, sourceCounts, norms, byKey }`; `norms`, a `Set<norm>`, is the membership index that ships today, with sorted-letter and length indexes to land as tools demand them).
+`ctx.wordlist` is the merged-wordlist cache (`{ entries, sourceCounts, norms }`; `norms`, a `Set<norm>`, is the membership index that ships today, with sorted-letter and length indexes to land as tools demand them).
 `ctx.grouped` tells a `prepare` whether the row is in all-mode, so a function-`kind` tool can branch on it (Caesar's `prepare` returns a rotate-every-entry transform when all-mode carries a shift).
 `ctx.forEach` / `ctx.due` / `ctx.yield` / `ctx.throwIfAborted` are the cooperative-yield surface (§ *Cooperative runtime*).
 

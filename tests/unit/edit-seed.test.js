@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildCorpus, resolveEditSeedWinner, mergeKey } from '../../site/src/engine/corpus.js';
+import { buildCorpus, resolveEditSeedWinner, findRow } from '../../site/src/engine/corpus.js';
 
 // resolveEditSeedWinner is the single shared resolution main's resolveSeed and the
 // worker's handleFetchEditSeed both run against a merged corpus (buildMergedWordlist
@@ -32,8 +32,8 @@ test('scoped lower-priority overlap: the winner is the higher-priority list, not
   assert.deepStrictEqual(projectWinner(winner), {
     norm: 'ocean', display: null, score: 90, comment: 'big', sourceId: 'db_Hi',
   });
-  // It is exactly the byKey row — the common-case merged path returns clicked-IS-winner.
-  assert.equal(winner, merged.byKey.get(mergeKey('ocean', null)));
+  // It is exactly the findRow row — the common-case merged path returns clicked-IS-winner.
+  assert.equal(winner, findRow(merged, 'ocean', null));
 });
 
 test('bare-display quirk: a bare click with no bare merged row picks the first-alphabetical variant', () => {
@@ -45,14 +45,14 @@ test('bare-display quirk: a bare click with no bare merged row picks the first-a
   ]);
   const merged = buildCorpus([W1]);
 
-  assert.equal(merged.byKey.get(mergeKey('seeingashow', null)), undefined); // no bare row
+  assert.equal(findRow(merged, 'seeingashow', null), undefined); // no bare row
   const winner = resolveEditSeedWinner(merged, 'seeingashow', null);
   assert.deepStrictEqual(projectWinner(winner), {
     norm: 'seeingashow', display: 'seeing a show', score: 80, comment: '', sourceId: 'db_W1',
   });
 });
 
-test('a bare norm whose only row is bare resolves through byKey, no variant walk', () => {
+test('a bare norm whose only row is bare resolves through findRow, no variant walk', () => {
   const W = src('W', [wlEntry('apple', 42)]);
   const merged = buildCorpus([W]);
   const winner = resolveEditSeedWinner(merged, 'apple', null);

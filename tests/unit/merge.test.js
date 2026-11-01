@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  mergedNormLowerBound, mergedRowsForNorm, resolveCorpus, mergeKey,
+  mergedNormLowerBound, mergedRowsForNorm, resolveCorpus, mergeKey, findRow,
 } from '../../site/src/engine/corpus.js';
 
 test('mergeKey: joins norm and display with a NUL separator', () => {
@@ -75,8 +75,8 @@ test('mergedRowsForNorm: a norm at the very end is still spanned', () => {
   assert.deepEqual(mergedRowsForNorm(merged(FIXTURE), 'dog'), [FIXTURE[4]]);
 });
 
-// resolveCorpus consumes the bucket Map the unfenced bucketContributors produces:
-//   Map<norm, { contributors: [{ wordlist, score, rawScore, comment, display }], displays: Set }>
+// resolveCorpus consumes norm-ordered [norm, bucket] pairs (buildCorpus streams them):
+//   [norm, { contributors: [{ wordlist, score, rawScore, comment, display }], displays: Set }]
 // Contributors are pushed in sourceList order, so the FIRST in a bucket is the
 // highest-priority source — the fixtures below depend on that ordering contract,
 // which isn't visible from resolveCorpus alone.
@@ -131,12 +131,13 @@ test('resolveCorpus: a non-empty winner comment is kept (no fall-through)', () =
   assert.equal(resolveCorpus(buckets, [hi, lo]).entries[0].comment, 'mine');
 });
 
-test('resolveCorpus: norms and byKey index the resolved row', () => {
+test('resolveCorpus: norms and findRow index the resolved row', () => {
   const a = { name: 'A' };
   const buckets = new Map([['cat', bucket(contributor(a, { display: 'Cat' }))]]);
-  const { entries, norms, byKey } = resolveCorpus(buckets, [a]);
-  assert.equal(norms.has('cat'), true);
-  assert.equal(byKey.get(mergeKey('cat', 'Cat')), entries[0]);
+  const corpus = resolveCorpus(buckets, [a]);
+  assert.equal(corpus.norms.has('cat'), true);
+  assert.equal(findRow(corpus, 'cat', 'Cat'), corpus.entries[0]);
+  assert.equal(findRow(corpus, 'cat', null), undefined);
 });
 
 test('resolveCorpus: sourceCounts credits only the winning source, once per won variant', () => {
@@ -209,15 +210,15 @@ test('resolveCorpus: a null-display ambient winner takes every variant and inher
   });
 });
 
-test('resolveCorpus: entries are sorted by norm then display (localeCompare)', () => {
+test('resolveCorpus: entries keep norm order and sort each norm\'s displays (localeCompare)', () => {
   const a = { name: 'A' };
   const buckets = new Map([
-    ['dog', bucket(contributor(a))],
     ['ant', bucket(contributor(a))],
     ['cat', bucket(
       contributor(a, { display: 'CAT' }),
       contributor(a, { display: 'Cat' }),
     )],
+    ['dog', bucket(contributor(a))],
   ]);
   const { entries } = resolveCorpus(buckets, [a]);
   // Within the 'cat' norm, 'Cat' sorting before 'CAT' is locale collation, not
@@ -230,9 +231,8 @@ test('resolveCorpus: entries are sorted by norm then display (localeCompare)', (
 
 test('resolveCorpus: an empty bucket Map yields an empty corpus with zeroed source counts', () => {
   const a = { name: 'A' };
-  const { entries, norms, byKey, sourceCounts } = resolveCorpus(new Map(), [a]);
+  const { entries, norms, sourceCounts } = resolveCorpus(new Map(), [a]);
   assert.deepEqual(entries, []);
   assert.equal(norms.size, 0);
-  assert.equal(byKey.size, 0);
   assert.deepEqual(sourceCounts.map(s => [s.wordlist.name, s.count]), [['A', 0]]);
 });

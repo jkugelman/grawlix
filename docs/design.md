@@ -1469,7 +1469,7 @@ A rendered row holds a `wordlist` reference (resolved from the shipped `sourceId
 The virtual scroller follows the same convention — `currentWordlist` is a ref, not a name string.
 
 **Canonical keys throughout.**
-`_rescoredByNorm` and the worker's `norms` are keyed by `wlEntry.norm`, the canonical letter form computed once at parse, so construction allocates no extra strings and lookups never re-normalize; the worker's `byKey` keys by `mergeKey(norm, display)` for full (norm, display) disambiguation.
+`_rescoredByNorm` and the worker's `norms` are keyed by `wlEntry.norm`, the canonical letter form computed once at parse, so construction allocates no extra strings and lookups never re-normalize; an exact (norm, display) row is found by `findRow`, a binary search over the norm-sorted entries.
 
 **Hot path: switching wordlists.**
 A scope switch posts `setScope`; the worker rebuilds `ownedCorpus` from its resident `ownedBuilt` **synchronously** (no IDB read, no corpus crossing the boundary), and the scope's run then renders the new windows.

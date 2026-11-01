@@ -19,7 +19,7 @@ import { matchesRange, parseViewFilter } from './range.js';
 import { compileRescoreRules } from './rescore.js';
 import { countRules } from './rule-counts.js';
 import { sourceAccessor, invalidateSourceAccessor, parseWordlistColumns, columnsFromEntries } from './sources.js';
-import { buildCorpus, assignFamilies, scopeSourceIds, mergedContributors, resolveEditSeedWinner, mergeKey, bestRowForNorm, mergedNormLowerBound, mergedRowsForNorm, computeBucket, computeMergedBucket, diffWordlistEntries, isDistinguishing, concreteDisplay, winsMergedRow } from './corpus.js';
+import { buildCorpus, assignFamilies, scopeSourceIds, mergedContributors, resolveEditSeedWinner, findRow, familyOf, bestRowForNorm, mergedNormLowerBound, mergedRowsForNorm, computeBucket, computeMergedBucket, diffWordlistEntries, isDistinguishing, concreteDisplay, winsMergedRow } from './corpus.js';
 import { familyKey, generateRelativeNorms, configureCommonWords,
          nameParts, nameAnchorRun, NAME_RELATIVE_CAP } from './morphology.js';
 import { COMMON_WORDS, LEMMA_BASES } from './common-words-data.js';
@@ -1846,7 +1846,7 @@ async function handleFetchFamily({ requestId, norm, display, boundNorm = norm, b
     // `bound` is the entry the panel is on, flagged `current` so it renders as the
     // bold inert anchor. Mid-rename an editable panel overwrites this row with the
     // live edit, so a miss here is a genuinely absent entry, not a stale spelling.
-    const bound = ownedMerged.byKey.get(mergeKey(boundNorm, boundDisplay ?? null)) ?? null;
+    const bound = findRow(ownedMerged, boundNorm, boundDisplay) ?? null;
     // Re-key family from the query text, not bound.family: a live rename types a
     // spelling not yet in the corpus, whose family must pull the relatives. Equals
     // the stamped family on a real click (familyKey(displayOf(e))), so clicks are unchanged.
@@ -1927,7 +1927,7 @@ function handleFetchWinners({ requestId, ids }) {
 // Re-case a segmented part from the user's own list: its merged display carries
 // deliberate casing (DNA, iOS) lowercase segmentation drops. A word the list also
 // carries plainly is left alone (it, us never force-capitalized) — a distinguishing
-// norm stores that plain spelling as display === norm, so a (norm, norm) byKey row
+// norm stores that plain spelling as display === norm, so a (norm, norm) row
 // is the lowercase signal.
 async function handleFetchSpaceOut({ requestId, norm }) {
   let suggestion = null;
@@ -2254,7 +2254,7 @@ function resolveRebindExists(existsQuery, rebindQuery) {
   let rebindEntry = null, rebindExists = null;
   if (rebindQuery) {
     const { norm, display } = rebindQuery;
-    const row = ownedCorpus.byKey.get(mergeKey(norm, display)) ?? null;
+    const row = findRow(ownedCorpus, norm, display) ?? null;
     rebindEntry = row && {
       norm, display: row.display ?? null, score: row.score, rawScore: row.rawScore,
       comment: row.comment || '', sourceId: row.wordlist.dbKey,
@@ -2332,7 +2332,7 @@ function invalidateRescoredCacheFor(wl) {
   invalidateSourceAccessor(wl);
 }
 
-// In-place per-norm splice of an owned corpus: entries/byKey/norms all take the
+// In-place per-norm splice of an owned corpus: entries/norms both take the
 // same splice or they silently desync, and sourceCounts shifts from `before[k]`, the
 // winners norm k had before the change, to bucketFn's. bucketFn recomputes one
 // norm's resolved rows. (The pipeline seeds straight off
@@ -2343,7 +2343,7 @@ function invalidateRescoredCacheFor(wl) {
 // objects, so the caller keeps the prefix cache's tiles (their chains hold those
 // objects) only while both stay false.
 function spliceOwnedCorpus(cache, affectedNorms, before, bucketFn) {
-  const { entries, norms, byKey, sourceCounts } = cache;
+  const { entries, norms, sourceCounts } = cache;
   const countDelta = new Map();
   let replaced = false, restyled = false;
   for (const [k, norm] of affectedNorms.entries()) {
@@ -2373,16 +2373,12 @@ function spliceOwnedCorpus(cache, affectedNorms, before, bucketFn) {
       // values (_normMap, _fold, _breaks) on the row, which a respell would leave stale.
       restyled = true;
       for (let k = 0; k < rows.length; k++) {
-        byKey.delete(mergeKey(norm, entries[lo + k].display));
         rows[k]._i = lo + k;
         entries[lo + k] = rows[k];
-        byKey.set(mergeKey(norm, rows[k].display), rows[k]);
       }
     } else {
       replaced = true;
-      for (let i = lo; i < hi; i++) byKey.delete(mergeKey(norm, entries[i].display));
       entries.splice(lo, hi - lo, ...rows);
-      for (const r of rows) byKey.set(mergeKey(norm, r.display), r);
     }
     if (rows.length) norms.add(norm); else norms.delete(norm);
   }
@@ -2414,7 +2410,7 @@ function restyleKeepsResult(corpus, lo, rows) {
 // Spliced rows key against the last full build's vocab; an edit's own new tokens
 // are absent until the next rebuild, affecting only that entry's anchoring.
 function withFamilies(bucket, vocab) {
-  for (const row of bucket.rows) row.family = familyKey(displayOf(row), vocab);
+  for (const row of bucket.rows) row.family = familyOf(row, vocab);
   return bucket;
 }
 
@@ -2919,7 +2915,7 @@ async function handleQueryEntry({ requestId, scope, norm, display }) {
   try {
     const corpus = await corpusForScope(scope);
     const e = display !== undefined
-      ? corpus.byKey.get(mergeKey(norm, display))
+      ? findRow(corpus, norm, display)
       : bestRowForNorm(corpus, norm);
     const entry = e ? [e.norm, e.display, e.score, e.rawScore, e.comment, e.wordlist.dbKey] : null;
     postMessage({ type: 'entry', requestId, entry });

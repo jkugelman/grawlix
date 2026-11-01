@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { buildCorpus, assignFamilies, scopeSourceIds, mergedContributors, bestRowForNorm, computeBucket, computeMergedBucket } from '../../site/src/engine/corpus.js';
 import { compileRescoreRules } from '../../site/src/engine/rescore.js';
 
-// rawScore is absent from raw entries; bucketContributors carries it through, so
+// rawScore is absent from raw entries; the merge carries it through, so
 // it surfaces as `undefined` on rows that weren't rescored — the snapshots spell
 // that out, and deepStrictEqual distinguishes it from a missing key.
 const wlEntry = (norm, score, { display = null, comment = '' } = {}) =>
@@ -36,7 +36,7 @@ test('buildCorpus: multi-source priority, dedup, sort, and source counts', () =>
     wlEntry('crane', 88),
   ]);
 
-  const { entries, sourceCounts, norms, byKey } = buildCorpus([A, B]);
+  const { entries, sourceCounts, norms } = buildCorpus([A, B]);
 
   assert.deepStrictEqual(project(entries), [
     { norm: 'able',  display: null, score: 30, rawScore: undefined, comment: '',        source: 'A' },
@@ -49,7 +49,6 @@ test('buildCorpus: multi-source priority, dedup, sort, and source counts', () =>
   assert.deepStrictEqual(counts(sourceCounts), [['A', 3], ['B', 1]]);
 
   assert.equal(norms.size, 4);
-  assert.equal(byKey.size, 4);
   assert.equal(bestRowForNorm({ entries }, 'bird'), entries[1]);
 });
 
@@ -77,13 +76,12 @@ test('buildCorpus: two display variants of one norm survive as separate rows', (
     wlEntry('eagle', 70, { display: 'EAGLE', comment: 'd-caps' }),
   ]);
 
-  const { entries, byKey } = buildCorpus([C, D]);
+  const { entries } = buildCorpus([C, D]);
 
   assert.deepStrictEqual(project(entries), [
     { norm: 'eagle', display: 'Eagle', score: 60, rawScore: undefined, comment: '',     source: 'D' },
     { norm: 'eagle', display: 'EAGLE', score: 50, rawScore: undefined, comment: 'caps', source: 'C' },
   ]);
-  assert.equal(byKey.size, 2);
 });
 
 test('buildCorpus: one wordlist holding a bare entry and a spelled sibling keeps them separate', () => {
@@ -94,13 +92,12 @@ test('buildCorpus: one wordlist holding a bare entry and a spelled sibling keeps
     wlEntry('theirs', 60, { display: 'the IRS' }),
   ]);
 
-  const { entries, byKey } = buildCorpus([W]);
+  const { entries } = buildCorpus([W]);
 
   assert.deepStrictEqual(project(entries), [
     { norm: 'theirs', display: 'the IRS', score: 60, rawScore: undefined, comment: '', source: 'W' },
     { norm: 'theirs', display: 'theirs',  score: 50, rawScore: undefined, comment: '', source: 'W' },
   ]);
-  assert.equal(byKey.size, 2);
 });
 
 test('buildCorpus: a bare entry in a plain list still unifies with another list\'s spelled variant', () => {
@@ -123,13 +120,12 @@ test('buildCorpus: a deliberate lowercase entry (display === norm) keeps its own
   const Caps  = src('Caps',  [wlEntry('ebay', 20, { display: 'ebay' })]);
   const Mixed = src('Mixed', [wlEntry('ebay', 40, { display: 'eBay' })]);
 
-  const { entries, byKey } = buildCorpus([Caps, Mixed]);
+  const { entries } = buildCorpus([Caps, Mixed]);
 
   assert.deepStrictEqual(project(entries), [
     { norm: 'ebay', display: 'ebay', score: 20, rawScore: undefined, comment: '', source: 'Caps' },
     { norm: 'ebay', display: 'eBay', score: 40, rawScore: undefined, comment: '', source: 'Mixed' },
   ]);
-  assert.equal(byKey.size, 2);
 });
 
 test('buildCorpus: a rescored score feeds the merge and wins; rawScore keeps the original', () => {
@@ -257,11 +253,10 @@ test('scopeSourceIds: norm-level cross-list set — enabled lists plus the scope
 });
 
 test('buildCorpus: an empty source list yields an empty corpus', () => {
-  const { entries, sourceCounts, norms, byKey } = buildCorpus([]);
+  const { entries, sourceCounts, norms } = buildCorpus([]);
   assert.deepStrictEqual(entries, []);
   assert.deepStrictEqual(sourceCounts, []);
   assert.equal(norms.size, 0);
-  assert.equal(byKey.size, 0);
 });
 
 test('assignFamilies: stamps each row a family key and stores the corpus vocab', () => {

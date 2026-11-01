@@ -32,17 +32,28 @@ function addGroup(bucket, wordlist, norm, group) {
   }
 }
 
-// `sourceList[0]` is highest priority; winner resolution depends on it.
-export function bucketContributors(sourceList) {
-  const buckets = new Map();
-  for (const wordlist of sourceList) {
-    sourceAccessor(wordlist).forEachGroup((norm, group) => {
-      let b = buckets.get(norm);
-      if (!b) buckets.set(norm, b = newBucket());
-      addGroup(b, wordlist, norm, group);
-    });
+// Streamed, never one Map of every norm's bucket: that peaked at ~400 MB of
+// transient contributors on a full merge — fine on desktop, a crash on iOS.
+// `sourceList[0]` is highest priority; ties go to the first contributor added.
+function* sortedBuckets(sourceList) {
+  const cursors = sourceList.map(wl => {
+    const it = sourceAccessor(wl).sortedGroups();
+    return { wl, it, cur: it.next() };
+  });
+  for (;;) {
+    let norm = null;
+    for (const c of cursors) {
+      if (!c.cur.done && (norm === null || c.cur.value[0] < norm)) norm = c.cur.value[0];
+    }
+    if (norm === null) return;
+    const bucket = newBucket();
+    for (const c of cursors) {
+      if (c.cur.done || c.cur.value[0] !== norm) continue;
+      addGroup(bucket, c.wl, norm, c.cur.value[1]);
+      c.cur = c.it.next();
+    }
+    yield [norm, bucket];
   }
-  return buckets;
 }
 
 // Contributors must arrive in priority order: ties go to the first.
@@ -87,31 +98,33 @@ function resolveBucket(norm, { contributors, displays }, mode, emit) {
   }
 }
 
+// `buckets` must arrive in code-unit norm order — nothing sorts the corpus after;
+// out-of-order input silently mis-sorts every binary search over it. That order
+// equals localeCompare only because norm is strictly [a-z0-9]. The within-norm
+// localeCompare must match computeBucket, whose rows the splice writes
+// positionally — diverge and its identity check drops cache tiles.
 export function resolveCorpus(buckets, sourceList, mode = 'first') {
   const entries = [];
-  const byKey = new Map();
   const sourceCountMap = new Map();
+  const norms = new Set();
+  const rows = [];
   const emit = (row, winner) => {
-    entries.push(row);
-    byKey.set(mergeKey(row.norm, row.display), row);
+    rows.push(row);
     if (winner) sourceCountMap.set(winner, (sourceCountMap.get(winner) || 0) + 1);
   };
-  for (const [norm, bucket] of buckets) resolveBucket(norm, bucket, mode, emit);
-
-  // Equivalence to localeCompare holds only because norm is strictly [a-z0-9];
-  // widen toNorm's alphabet and this silently mis-orders. The display tie-break must
-  // stay localeCompare to match computeBucket, whose rows the splice writes
-  // positionally — diverge and its identity check drops cache tiles.
-  entries.sort((a, b) => a.norm < b.norm ? -1 : a.norm > b.norm ? 1
-    : (a.display ?? '').localeCompare(b.display ?? ''));
-
+  for (const [norm, bucket] of buckets) {
+    resolveBucket(norm, bucket, mode, emit);
+    if (rows.length > 1) rows.sort((a, b) => (a.display ?? '').localeCompare(b.display ?? ''));
+    for (const r of rows) entries.push(r);
+    if (rows.length) norms.add(norm);
+    rows.length = 0;
+  }
   const sourceCounts = sourceList.map(wl => ({ wordlist: wl, count: sourceCountMap.get(wl) || 0 }));
-
-  return { entries, sourceCounts, norms: new Set(entries.map(e => e.norm)), byKey };
+  return { entries, sourceCounts, norms };
 }
 
 export function buildCorpus(sourceList, mode = 'first') {
-  return resolveCorpus(bucketContributors(sourceList), sourceList, mode);
+  return resolveCorpus(sortedBuckets(sourceList), sourceList, mode);
 }
 
 // Assigned after resolution, not in the row literal: the key anchors against the
@@ -119,7 +132,14 @@ export function buildCorpus(sourceList, mode = 'first') {
 export function assignFamilies(corpus) {
   const vocab = collectVocab(corpus.entries.map(displayOf));
   corpus.vocab = vocab;
-  for (const e of corpus.entries) e.family = familyKey(displayOf(e), vocab);
+  for (const e of corpus.entries) e.family = familyOf(e, vocab);
+}
+
+// Most rows' family spells their norm; pointing at the norm string instead of an
+// equal copy saves one string per row (~6 MB on a full merge).
+export function familyOf(row, vocab) {
+  const f = familyKey(displayOf(row), vocab);
+  return f === row.norm ? row.norm : f;
 }
 
 // The Sources-matrix contributor set per row. Call these per *shipped* row, never
@@ -242,14 +262,26 @@ export function computeMergedBucket(norm, sources, mode = 'first') {
   return computeBucket(norm, sources.filter(wl => wl.enabled), mode);
 }
 
+// Code-unit order, matching resolveCorpus's norm sort (norm is strictly [a-z0-9]).
 export function mergedNormLowerBound(entries, norm) {
   let lo = 0, hi = entries.length;
   while (lo < hi) {
     const mid = (lo + hi) >> 1;
-    if (entries[mid].norm.localeCompare(norm) < 0) lo = mid + 1;
+    if (entries[mid].norm < norm) lo = mid + 1;
     else hi = mid;
   }
   return lo;
+}
+
+// Binary search, not a mergeKey → row Map: the Map cost ~60 MB on a full merge and
+// every caller is a point lookup.
+export function findRow(corpus, norm, display) {
+  const { entries } = corpus;
+  const d = display ?? null;
+  for (let i = mergedNormLowerBound(entries, norm); i < entries.length && entries[i].norm === norm; i++) {
+    if ((entries[i].display ?? null) === d) return entries[i];
+  }
+  return undefined;
 }
 
 // Last tiebreak is code-unit order, not localeCompare: it ranks capitals above
@@ -288,7 +320,7 @@ export function mergedRowsForNorm(merged, norm) {
 // that exists — and a batch rescore that silently retargeted a *different* spelling
 // would write scores to the wrong entries.
 export function resolveEditSeedWinner(merged, norm, display, bareFallback = false) {
-  let row = merged.byKey.get(mergeKey(norm, display));
+  let row = findRow(merged, norm, display);
   // A bare click with no bare merged row edits the first-alphabetical spelled
   // variant — deterministic but arbitrary; don't "fix" the ordering.
   if (!row && (display == null || bareFallback)) {

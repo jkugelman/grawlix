@@ -20,7 +20,7 @@ Three things users kept asking for fall out of this one idea rather than needing
 There is one canonical way to view wordlist data — the same rich table in every scope — rather than a separate inspection view; a foreign single-list scope simply shows that list read-only, since its data isn't yours to edit in place.
 
 **Scope is a parameter to the corpus build.**
-`buildCorpus(sourceList)` (`engine/corpus.js`) builds either the merged corpus (every enabled source) or a single-source scoped corpus from one code path, so a scoped corpus gets the same `norms` / `byKey` / `sourceCounts` shape the merged one does — the selection just picks the source list.
+`buildCorpus(sourceList)` (`engine/corpus.js`) builds either the merged corpus (every enabled source) or a single-source scoped corpus from one code path, so a scoped corpus gets the same `norms` / `sourceCounts` shape the merged one does — the selection just picks the source list.
 The worker owns this corpus: a scope switch re-syncs the config and rebuilds the worker's owned corpus for the new scope, tracking which scope it built for (`ownedScope`) plus a freshness flag, so a windowed fetch whose scope changed since the run is dropped rather than served against the wrong corpus.
 The histogram layout stays scope-keyed (a scoped view's own scale vs the fixed all-sources scale) so a scoped view's bins reflect its own data without leaking the all-sources distribution.
 
@@ -316,7 +316,7 @@ The ambience is **cross-source only**.
 A single source holding *both* a bare entry and a spelled sibling of the same norm — `theirs` and `the IRS` in one list — is distinguishing them on purpose, so the bucketer **concretizes** that bare entry to its norm: it earns its own `theirs` row and stops leaking onto the sibling.
 The spelled form is the proof the bare one is the literal word, not an ambiguous letter-run that might *be* the sibling.
 Without the carve-out the bare entry's wildcard absorbs the sibling's spelling and the two genuinely-distinct words collapse to one row.
-A full build (`bucketContributors`) and the worker's per-norm edit splice (`computeBucket`) gather and resolve a norm through the same code, so they can't disagree on it.
+A full build (`buildCorpus`) and the worker's per-norm edit splice (`computeBucket`) gather and resolve a norm through the same code, so they can't disagree on it.
 
 **Comment falls through blanks.**
 Score, display, and source attribution come from the winning eligible contributor (§ *The manage panel*, merge mode), but `comment` walks the eligibility chain, in priority order, for the first non-blank value.
@@ -330,7 +330,7 @@ The planner's duplicate block, keep-copies, and edit-seed all read the merged ro
 The converse holds too: a question genuinely about a *source's raw holdings* — does any enabled foreign list carry this norm, for the downscore — correctly reads the per-source maps.
 The rule governs rendered-display questions, not a blanket "always go through the merge."
 
-The worker's merged corpus exposes `norms` (a membership `Set`, the existence test tools use) and `byKey` (mergeKey → row, for full disambiguation when needed).
+The worker's merged corpus exposes `norms` (a membership `Set`, the existence test tools use) and `findRow(corpus, norm, display)` (a binary search over the norm-sorted entries) for an exact row.
 A My Edits edit splices just the affected norms' rows into that corpus in place rather than rebuilding it — the `editEntry`/`deleteEntry` command does this worker-side; see [`design.md`](design.md) § *Caches*, *Hot path: editing My Edits*.
 
 **Non-Edits sources are stored columnar in the worker** (`cols`, [`engine/sources.js`](../site/src/engine/sources.js)): parallel typed arrays and packed string buffers sorted by norm, read through `sourceAccessor` ([`worker-protocol.md`](worker-protocol.md) § *Building the corpus*).

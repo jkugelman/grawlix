@@ -32,7 +32,6 @@ export function merged(specs) {
   return {
     entries,
     norms: new Set(entries.map(e => e.norm)),
-    byKey: new Map(entries.map(e => [mergeKey(e.norm, e.display), e])),
   };
 }
 

@@ -39,6 +39,10 @@ function objectAccessor(wl) {
     forEachGroup(cb) {
       for (const [norm, g] of getRescoredByNorm(wl)) cb(norm, groupEntries(g));
     },
+    *sortedGroups() {
+      const byNorm = getRescoredByNorm(wl);
+      for (const norm of [...byNorm.keys()].sort()) yield [norm, groupEntries(byNorm.get(norm))];
+    },
     collectRescored: () => getRescoredEntries(wl),
     *scores() { for (const e of getRescoredEntries(wl)) yield e.score; },
     collectRaw: () => wl.rawEntries,
@@ -61,7 +65,10 @@ function objectAccessor(wl) {
 //     exactly when a rule left the score unchanged — the equivalence the dump and
 //     splice tuple tests pin (undefined vs a value diverges them).
 //   - Display/comment pack PRESENT entries only; a zero-length offset run is the
-//     absent marker, which holds only because a present one is never empty.
+//     absent marker, which holds only because a present one is never empty. A
+//     column with no present entry stores null offsets (~1–2 MB per column).
+//   - Score columns are the narrowest typed array that held every value at build,
+//     so writing a wider score in place silently wraps.
 //   - norm is strictly [a-z0-9], so it packs 1 byte/char and byte-compare equals
 //     the code-unit order the merge sorts by; widen toNorm and this mis-orders.
 //
@@ -77,11 +84,13 @@ function decodeNorm(cols, i) {
 }
 
 function decodeDisplay(cols, i) {
+  if (!cols.dispOffsets) return null;
   const lo = cols.dispOffsets[i], hi = cols.dispOffsets[i + 1];
   return hi > lo ? DEC.decode(cols.dispBytes.subarray(lo, hi)) : null;
 }
 
 function decodeComment(cols, i) {
+  if (!cols.commentOffsets) return '';
   const lo = cols.commentOffsets[i], hi = cols.commentOffsets[i + 1];
   return hi > lo ? DEC.decode(cols.commentBytes.subarray(lo, hi)) : '';
 }
@@ -150,6 +159,18 @@ function normRange(cols, query) {
   return [lo, end];
 }
 
+function* columnarGroups(cols) {
+  let i = 0;
+  while (i < cols.n) {
+    let j = i + 1;
+    while (j < cols.n && sameNormAt(cols, i, j)) j++;
+    const views = [];
+    for (let k = i; k < j; k++) views.push(new ColView(cols, k));
+    yield [decodeNorm(cols, i), views];
+    i = j;
+  }
+}
+
 function columnarAccessor(wl) {
   const cols = wl.cols;
   return {
@@ -163,16 +184,9 @@ function columnarAccessor(wl) {
       return views;
     },
     forEachGroup(cb) {
-      let i = 0;
-      while (i < cols.n) {
-        let j = i + 1;
-        while (j < cols.n && sameNormAt(cols, i, j)) j++;
-        const views = [];
-        for (let k = i; k < j; k++) views.push(new ColView(cols, k));
-        cb(decodeNorm(cols, i), views);
-        i = j;
-      }
+      for (const [norm, views] of columnarGroups(cols)) cb(norm, views);
     },
+    sortedGroups: () => columnarGroups(cols),
     collectRescored() {
       const out = new Array(cols.n);
       for (let i = 0; i < cols.n; i++) out[i] = new ColView(cols, i);
@@ -189,7 +203,7 @@ function columnarAccessor(wl) {
       for (let i = 0; i < cols.n; i++) cb(s.at(i), i);
     },
     rawEntryAt: i => ({ norm: decodeNorm(cols, i), display: decodeDisplay(cols, i), score: cols.rawScores[i] }),
-    hasDisplays: () => cols.dispOffsets[cols.n] > 0,
+    hasDisplays: () => cols.dispOffsets !== null,
   };
 }
 
@@ -244,6 +258,12 @@ export function columnsFromEntries(entries, rules) {
   return gatherColumns(norms, displays, comments, rawScores, rules);
 }
 
+function scoreArrayType(values) {
+  let lo = 0, hi = 0;
+  for (const v of values) { if (v < lo) lo = v; else if (v > hi) hi = v; }
+  return lo >= -128 && hi <= 127 ? Int8Array : lo >= -32768 && hi <= 32767 ? Int16Array : Int32Array;
+}
+
 function gatherColumns(norms, displays, comments, rawScoresArr, rules) {
   const total = norms.length;
 
@@ -276,7 +296,7 @@ function gatherColumns(norms, displays, comments, rawScoresArr, rules) {
   for (const src of kept) nb += norms[src].length;
   const normBytes = new Uint8Array(nb);
   const normOffsets = new Uint32Array(n + 1);
-  const rawScores = new Int32Array(n);
+  const rawScores = new (scoreArrayType(kept.map(src => rawScoresArr[src])))(n);
 
   const dispEnc = new Array(n), commentEnc = new Array(n);
   let noff = 0, db = 0, cb = 0;
@@ -307,20 +327,21 @@ function gatherColumns(norms, displays, comments, rawScoresArr, rules) {
   dispOffsets[n] = doff;
   commentOffsets[n] = coff;
 
-  const scores = new Int32Array(n);
+  const rescored = new Array(n);
   const facts = new FactsCache(n);
   let changed = false;
   for (let k = 0; k < n; k++) {
     const src = kept[k];
     const s = rescoreFields(rawScores[k], norms[src], displays[src] ?? null, rules, facts, k);
-    scores[k] = s;
+    rescored[k] = s;
     if (s !== rawScores[k]) changed = true;
   }
 
   return {
     n, normBytes, normOffsets, rawScores,
-    // Share rawScores when no rule moved any score, dropping a whole Int32 column.
-    scores: changed ? scores : rawScores,
-    dispBytes, dispOffsets, commentBytes, commentOffsets, facts,
+    // Share rawScores when no rule moved any score, dropping a whole score column.
+    scores: changed ? scoreArrayType(rescored).from(rescored) : rawScores,
+    dispBytes, dispOffsets: db ? dispOffsets : null,
+    commentBytes, commentOffsets: cb ? commentOffsets : null, facts,
   };
 }
