@@ -199,8 +199,8 @@ export function runReplace(wlEntry, prepared, wordlist) {
   if (!matches.length) return [];
   const src = armNorm ? norm : display;
   const map = armNorm ? normToDisplayMap(wlEntry) : null;
-  const dStart = i => !map ? i : i < map.length ? map[i] : display.length;
-  const dEnd = (s, e) => e === s ? dStart(s) : !map ? e : map[e - 1] + 1;
+  const dStart = i => !map ? i : i < map.length ? map.charCodeAt(i) : display.length;
+  const dEnd = (s, e) => e === s ? dStart(s) : !map ? e : map.charCodeAt(e - 1) + 1;
   const tag = r => armNorm ? r : { ...r, coord: 'display' };
   let outNorm = '', outDisp = '', inPos = 0, dispPos = 0;
   const inputHighlights = [], normHl = [], dispHl = [];

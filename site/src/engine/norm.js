@@ -36,6 +36,10 @@ export function toNorm(s) {
   return stripAccents(s).toLowerCase().replace(/[^a-z0-9]/g, '');
 }
 
+// The map is a string of char codes, read with charCodeAt: it is cached on every
+// row a highlight or gate touches, and a Uint16Array's object overhead cost ~240
+// bytes a row (~80 MB across a full merge) where a short string costs ~16 + n.
+// Indexing it with map[i] yields a character, not an offset, and fails silently.
 export function buildNormToDisplay(display) {
   if (display == null) return null;
   const map = [];
@@ -45,7 +49,7 @@ export function buildNormToDisplay(display) {
       if (c >= 'a' && c <= 'z' || c >= '0' && c <= '9') map.push(i);
     }
   }
-  return new Uint16Array(map);
+  return String.fromCharCode(...map);
 }
 
 export function normToDisplayMap(wlEntry) {
@@ -72,7 +76,12 @@ export function foldDisplay(s) {
 
 export function foldedDisplayOf(wlEntry) {
   if (wlEntry.display == null) return wlEntry.norm;
-  return wlEntry._fold ??= foldDisplay(wlEntry.display);
+  if (wlEntry._fold === undefined) {
+    const f = foldDisplay(wlEntry.display);
+    // Most displays fold to themselves; sharing the string halves this cache.
+    wlEntry._fold = f === wlEntry.display ? wlEntry.display : f;
+  }
+  return wlEntry._fold;
 }
 
 export function normLen(s) {
@@ -93,9 +102,9 @@ export function projectRangesToDisplay(ranges, wlEntry) {
   return ranges.map(r => {
     if (r.coord === 'display') return r;
     if (r.start >= map.length) return { ...r, start: display.length, end: display.length };
-    const start = map[r.start];
+    const start = map.charCodeAt(r.start);
     const endIdx = Math.min(r.end - 1, map.length - 1);
-    const end = endIdx >= 0 ? map[endIdx] + 1 : start;
+    const end = endIdx >= 0 ? map.charCodeAt(endIdx) + 1 : start;
     return { ...r, start, end };
   });
 }
@@ -127,7 +136,8 @@ function displayBreaks(wlEntry) {
   const map = normToDisplayMap(wlEntry), display = wlEntry.display;
   const breaks = [];
   for (let i = 1; i < map.length; i++) {
-    if (map[i] - map[i - 1] > 1 && WORD_BREAK_RE.test(display.slice(map[i - 1] + 1, map[i]))) breaks.push(i);
+    const a = map.charCodeAt(i - 1), b = map.charCodeAt(i);
+    if (b - a > 1 && WORD_BREAK_RE.test(display.slice(a + 1, b))) breaks.push(i);
   }
   return breaks;
 }
@@ -164,9 +174,9 @@ export function displayRangeToNorm(wlEntry, start, end) {
   const map = normToDisplayMap(wlEntry);
   if (!map) return [start, end];
   let ns = 0;
-  while (ns < map.length && map[ns] < start) ns++;
+  while (ns < map.length && map.charCodeAt(ns) < start) ns++;
   let ne = ns;
-  while (ne < map.length && map[ne] < end) ne++;
+  while (ne < map.length && map.charCodeAt(ne) < end) ne++;
   return [ns, ne];
 }
 

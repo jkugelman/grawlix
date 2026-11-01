@@ -88,13 +88,15 @@ test('stripAccents: folds ligatures, decomposes accents to ASCII, preserves case
   assert.equal(stripAccents('猫'), '猫');
 });
 
+const codes = map => Array.from(map, c => c.charCodeAt(0));
+
 test('buildNormToDisplay: maps each norm char index back to the display index that produced it', () => {
   assert.equal(buildNormToDisplay(null), null);
-  assert.deepEqual(Array.from(buildNormToDisplay('')), []);
-  assert.deepEqual(Array.from(buildNormToDisplay('cat')), [0, 1, 2]);
-  assert.deepEqual(Array.from(buildNormToDisplay('New York!')), [0, 1, 2, 4, 5, 6, 7]);
-  assert.deepEqual(Array.from(buildNormToDisplay('Æsop')), [0, 0, 1, 2, 3]);
-  assert.deepEqual(Array.from(buildNormToDisplay('straße')), [0, 1, 2, 3, 4, 4, 5]);
+  assert.deepEqual(codes(buildNormToDisplay('')), []);
+  assert.deepEqual(codes(buildNormToDisplay('cat')), [0, 1, 2]);
+  assert.deepEqual(codes(buildNormToDisplay('New York!')), [0, 1, 2, 4, 5, 6, 7]);
+  assert.deepEqual(codes(buildNormToDisplay('Æsop')), [0, 0, 1, 2, 3]);
+  assert.deepEqual(codes(buildNormToDisplay('straße')), [0, 1, 2, 3, 4, 4, 5]);
 });
 
 test('projectRangesToDisplay: maps norm-coordinate ranges onto the display string', () => {

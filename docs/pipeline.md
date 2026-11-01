@@ -708,11 +708,12 @@ The `EntriesScroller` routes through `renderHighlightedText` for both pipeline h
 Each range carries an implicit `coord` tag — `norm` for letter-pattern tools (Head off, Back off, Anagrams, …), `display` for Search's hits.
 Initialisms is display-aware but tags its own ranges `norm`, because it marks the initials of parts the segmenter cut out of the norm.
 The executor in `runToolStage` tags ranges as it appends them to atoms, so tools don't have to think about coordinates.
-At paint time `projectRangesToDisplay` projects `norm`-tagged ranges onto the display string via a per-wlEntry `Uint16Array` (norm index → display index), so a Head off range `[0, count]` lights up the right display characters even when the display has spaces or accents between the letters.
+At paint time `projectRangesToDisplay` projects `norm`-tagged ranges onto the display string via a per-wlEntry map (norm index → display index), so a Head off range `[0, count]` lights up the right display characters even when the display has spaces or accents between the letters.
 Display-tagged ranges (Search hits) pass through unchanged.
 
 On plain entries (`display === null`) the projection is the identity and the array is never built — near-zero cost on letter-only wordlists.
-On rich entries the array is built lazily and cached on `wlEntry._normMap`.
+On rich entries the map is built lazily and cached on `wlEntry._normMap`.
+It is a string of char codes read with `charCodeAt`, not a `Uint16Array`: a broad regex or highlight caches one on every rich row, and the typed array's object overhead cost about 80 MB across a full merge where the string costs about 10 MB.
 
 **A highlight re-derived at render time gets a `ctx`.**
 Both re-derivation paths — `compileFlatHighlighters` for the flat tier and `materializeGroupRow`'s `memberHighlights` for grouped members — run off the worker's *retained* result, outside the run that produced it, with no executor `ctx` in scope.

@@ -269,7 +269,7 @@ async function soundIndex(ctx, spacing) {
 // marks would land misplaced on a differently spaced one (THEIRS / THE IRS).
 function toNormRanges(display, ranges) {
   const map = buildNormToDisplay(display);
-  const at = x => { let i = 0; while (i < map.length && map[i] < x) i++; return i; };
+  const at = x => { let i = 0; while (i < map.length && map.charCodeAt(i) < x) i++; return i; };
   return ranges
     .map(r => ({ ...r, start: at(r.start), end: at(r.end), coord: 'norm' }))
     .filter(r => r.start < r.end);

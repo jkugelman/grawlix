@@ -63,9 +63,9 @@ export default {
       if (!wordlist.norms.has(reduced)) continue;
       if (!prepared.plurals && norm[i] === 's'
           && (pluralS ??= pluralWordEnds(wlEntry, prepared.spacing)).has(i)) continue;
-      const d = map ? map[i] : i;
+      const d = map ? map.charCodeAt(i) : i;
       // One display char can back several norm chars (æ → ae); half of it can't circle.
-      if (map && (map[i - 1] === d || map[i + 1] === d)) continue;
+      if (map && (map.charCodeAt(i - 1) === d || map.charCodeAt(i + 1) === d)) continue;
       hits.push({ i, d, reduced });
     }
     if (!hits.length) return [];
