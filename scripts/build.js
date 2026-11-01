@@ -1,4 +1,5 @@
 import { readdir, readFile, writeFile, mkdir, copyFile, rm } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
 import { join, extname, relative } from 'node:path';
 import { minify } from 'html-minifier-terser';
 import * as esbuild from 'esbuild';
@@ -36,6 +37,19 @@ const kb = n => `${(n / 1024).toFixed(1)} KB`;
 
 await rm(OUT, { recursive: true, force: true });
 
+// The worker's column cache keys on this, so only a change to the parse code
+// (sources.js and what it imports) throws users' cached columns away; hashing the
+// whole site would miss on every deploy.
+async function parseBuildId() {
+  const { metafile } = await esbuild.build({
+    entryPoints: ['site/src/engine/sources.js'], bundle: true, format: 'esm', write: false, metafile: true,
+  });
+  const hash = createHash('sha256');
+  for (const path of Object.keys(metafile.inputs).sort()) hash.update(path).update(await readFile(path));
+  return hash.digest('hex').slice(0, 16);
+}
+const define = { __GRAWLIX_PARSE_BUILD_ID__: JSON.stringify(await parseBuildId()) };
+
 for (const { entry, outfile } of JS_ENTRIES) {
   await esbuild.build({
     entryPoints: [entry],
@@ -44,6 +58,7 @@ for (const { entry, outfile } of JS_ENTRIES) {
     format: 'esm',
     minify: true,
     sourcemap: true,
+    define,
   });
   const src = await readFile(entry, 'utf8');
   const out = await readFile(outfile, 'utf8');

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { buildCorpus } from '../../site/src/engine/corpus.js';
 import { parseWordlist } from '../../site/src/engine/norm.js';
 import { compileRescoreRules } from '../../site/src/engine/rescore.js';
-import { sourceAccessor, parseWordlistColumns, columnsFromEntries } from '../../site/src/engine/sources.js';
+import { sourceAccessor, parseWordlistColumns, columnsFromEntries, rescoreColumns, colsToRecord, colsFromRecord } from '../../site/src/engine/sources.js';
 
 // Build the same source two ways from one text: object-backed (parseWordlist) and
 // columnar (parseWordlistColumns). The columnar store must be a drop-in — every
@@ -156,4 +156,39 @@ test('an empty source builds an empty columnar store', () => {
   assert.equal(acc.count, 0);
   assert.equal(acc.hasNorm('x'), false);
   assert.deepStrictEqual(acc.collectRescored(), []);
+});
+
+// ─── Column cache: record round-trip and score-only re-run ───────────────────
+
+const rules = list => { const wl = { rescoreRules: list.map(r => ({ ...r })) }; compileRescoreRules(wl); return wl.rescoreRules; };
+const RULED = [{ query: 'score: 0-29', output: '5' }];
+
+function viaRecord(cols) {
+  return colsFromRecord(structuredClone(colsToRecord(cols)));
+}
+
+test('a structured-cloned record reads back as the same columns', () => {
+  const cols = parseWordlistColumns(FIXTURE, rules(RULED));
+  const back = viaRecord(cols);
+  const wl = c => ({ name: 'A', dbKey: 'A', enabled: true, rescoreRules: [], cols: c });
+  assert.deepStrictEqual(project(buildCorpus([wl(back)]).entries), project(buildCorpus([wl(cols)]).entries));
+  assert.equal(back.scores === back.rawScores, false);
+});
+
+test('a record of unrescored columns re-aliases scores to rawScores', () => {
+  // rescoreChangesFrom reads the identity: a copied column would report "rescored".
+  const back = viaRecord(parseWordlistColumns(FIXTURE, []));
+  assert.equal(back.scores, back.rawScores);
+});
+
+test('rescoreColumns under new rules equals a fresh parse under them', () => {
+  const fresh = parseWordlistColumns(FIXTURE, rules(RULED));
+  for (const start of [parseWordlistColumns(FIXTURE, []), viaRecord(parseWordlistColumns(FIXTURE, []))]) {
+    const re = rescoreColumns(start, rules(RULED));
+    assert.deepStrictEqual([...re.scores], [...fresh.scores]);
+    assert.deepStrictEqual([...re.rawScores], [...fresh.rawScores]);
+    assert.equal(re.normBytes, start.normBytes);
+  }
+  const back = rescoreColumns(fresh, []);
+  assert.equal(back.scores, back.rawScores);
 });

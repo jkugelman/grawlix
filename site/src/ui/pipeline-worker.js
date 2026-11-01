@@ -791,6 +791,22 @@ export function configureArtifactCacheForTest(opts) {
   getWorker().postMessage({ type: '__testArtifactCacheConfig', ...opts });
 }
 
+export function colsCacheStateForTest(timeout = 2000) {
+  const w = getWorker();
+  return new Promise(resolve => {
+    const timer = setTimeout(() => { w.removeEventListener('message', onMessage); resolve(null); }, timeout);
+    function onMessage({ data }) {
+      if (data?.type !== '__testColsCacheState') return;
+      clearTimeout(timer);
+      w.removeEventListener('message', onMessage);
+      const { type, ...state } = data;
+      resolve(state);
+    }
+    w.addEventListener('message', onMessage);
+    w.postMessage({ type: '__testColsCacheState' });
+  });
+}
+
 export function artifactCacheStateForTest(timeout = 2000) {
   const w = getWorker();
   return new Promise(resolve => {

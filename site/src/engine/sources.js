@@ -327,21 +327,58 @@ function gatherColumns(norms, displays, comments, rawScoresArr, rules) {
   dispOffsets[n] = doff;
   commentOffsets[n] = coff;
 
+  const raw = {
+    n, normBytes, normOffsets, rawScores,
+    dispBytes, dispOffsets: db ? dispOffsets : null,
+    commentBytes, commentOffsets: cb ? commentOffsets : null,
+  };
+  return withScores(raw, rules, new FactsCache(n), k => norms[kept[k]], k => displays[kept[k]] ?? null);
+}
+
+function withScores(raw, rules, facts, normAt, displayAt) {
+  const { n, rawScores } = raw;
   const rescored = new Array(n);
-  const facts = new FactsCache(n);
   let changed = false;
   for (let k = 0; k < n; k++) {
-    const src = kept[k];
-    const s = rescoreFields(rawScores[k], norms[src], displays[src] ?? null, rules, facts, k);
+    const s = rescoreFields(rawScores[k], normAt(k), displayAt(k), rules, facts, k);
     rescored[k] = s;
     if (s !== rawScores[k]) changed = true;
   }
-
   return {
-    n, normBytes, normOffsets, rawScores,
+    n: raw.n, normBytes: raw.normBytes, normOffsets: raw.normOffsets, rawScores,
     // Share rawScores when no rule moved any score, dropping a whole score column.
+    // Callers test the identity (rescoreChangesFrom), so a copy reads as "rescored".
     scores: changed ? scoreArrayType(rescored).from(rescored) : rawScores,
-    dispBytes, dispOffsets: db ? dispOffsets : null,
-    commentBytes, commentOffsets: cb ? commentOffsets : null, facts,
+    dispBytes: raw.dispBytes, dispOffsets: raw.dispOffsets,
+    commentBytes: raw.commentBytes, commentOffsets: raw.commentOffsets, facts,
+  };
+}
+
+export function rescoreColumns(cols, rules) {
+  return withScores(cols, rules, cols.facts, k => decodeNorm(cols, k), k => decodeDisplay(cols, k));
+}
+
+// ─── Persisted column record ─────────────────────────────────────────────────
+//
+// Plain typed arrays only. `facts` stays out: it fills lazily in place and is a
+// class instance a structured clone would strip. `scores` is null when it aliases
+// rawScores, since the clone of two puts can't preserve that identity.
+
+export function colsToRecord(cols) {
+  return {
+    n: cols.n, normBytes: cols.normBytes, normOffsets: cols.normOffsets, rawScores: cols.rawScores,
+    scores: cols.scores === cols.rawScores ? null : cols.scores,
+    dispBytes: cols.dispBytes, dispOffsets: cols.dispOffsets,
+    commentBytes: cols.commentBytes, commentOffsets: cols.commentOffsets,
+  };
+}
+
+export function colsFromRecord(r) {
+  return {
+    n: r.n, normBytes: r.normBytes, normOffsets: r.normOffsets, rawScores: r.rawScores,
+    scores: r.scores ?? r.rawScores,
+    dispBytes: r.dispBytes, dispOffsets: r.dispOffsets,
+    commentBytes: r.commentBytes, commentOffsets: r.commentOffsets,
+    facts: new FactsCache(r.n),
   };
 }

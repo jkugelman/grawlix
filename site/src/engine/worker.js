@@ -18,7 +18,7 @@ import { findOccurrences, findEntryOccurrences, buildFindMatcher, FIND_MATCH_CAP
 import { matchesRange, parseViewFilter } from './range.js';
 import { compileRescoreRules } from './rescore.js';
 import { countRules } from './rule-counts.js';
-import { sourceAccessor, invalidateSourceAccessor, parseWordlistColumns, columnsFromEntries } from './sources.js';
+import { sourceAccessor, invalidateSourceAccessor, parseWordlistColumns, columnsFromEntries, rescoreColumns, colsToRecord, colsFromRecord } from './sources.js';
 import { buildCorpus, assignFamilies, scopeSourceIds, mergedContributors, resolveEditSeedWinner, findRow, familyOf, bestRowForNorm, mergedNormLowerBound, mergedRowsForNorm, computeBucket, computeMergedBucket, diffWordlistEntries, isDistinguishing, concreteDisplay, winsMergedRow } from './corpus.js';
 import { familyKey, generateRelativeNorms, configureCommonWords,
          nameParts, nameAnchorRun, NAME_RELATIVE_CAP } from './morphology.js';
@@ -2728,7 +2728,10 @@ function applyFetchedNow({ requestId, sourceId, text, background }) {
   // rawEntries); a non-Edits re-import rebuilds the columnar store.
   const swap = () => {
     if (source.type === 'edits') source.rawEntries = newEntries;
-    else source.cols = columnsFromEntries(newEntries, source.rescoreRules);
+    else {
+      source.cols = columnsFromEntries(newEntries, source.rescoreRules);
+      adoptSwappedColumns(source, text);
+    }
     invalidateRescoredCacheFor(source);
   };
 
@@ -2808,6 +2811,7 @@ let _releaseBuild = null;
 async function buildAllSourcesWordlists() {
   if (_failNextBuild) { _failNextBuild = false; throw new Error('forced build failure'); }
   if (_stallBuild) await _stallBuild;
+  const prior = new Map((ownedBuilt ?? []).map(w => [w.dbKey, w]));
   const built = [];
   for (const { sourceId, enabled, type, rescoreRules } of selfConfig.sources) {
     const text = await readWordlistText(sourceId);
@@ -2816,10 +2820,102 @@ async function buildAllSourcesWordlists() {
     // My Edits stays object-backed because the edit splice mutates rawEntries in
     // place each keystroke; every other source is the lean columnar cold store.
     if (wl.type === 'edits') wl.rawEntries = text ? parseWordlist(text) : [];
-    else wl.cols = parseWordlistColumns(text ?? '', wl.rescoreRules);
+    else await loadColumns(wl, text ?? '', prior.get(sourceId));
     built.push(wl);
   }
   return built;
+}
+
+// ─── Column cache ── see docs/worker-protocol.md § Column cache ──────────────
+//
+// The text is hashed, not tracked by a writer-bumped generation, so no write path
+// can forget to invalidate and silently serve another text's columns.
+
+const COLS_CACHE_VERSION = 1;
+// Injected by scripts/build.js as a hash of the parse code. Unbundled dev has none,
+// so the IDB record is off there: a parser edit would otherwise serve stale columns.
+const PARSE_BUILD_ID = typeof __GRAWLIX_PARSE_BUILD_ID__ !== 'undefined' ? __GRAWLIX_PARSE_BUILD_ID__ : null;
+const COLS_PREFIX = 'cols_';
+const colsStats = { reused: 0, rescored: 0, recordHits: 0, recordRescored: 0, parsed: 0, writes: 0 };
+const colsWrites = new Map();   // dbKey → source awaiting an idle record write
+let colsWriteTimer = null;
+
+// A note doesn't change a score, so it doesn't invalidate.
+const rulesSig = rules => JSON.stringify((rules ?? []).map(r => [r.query, r.output]));
+
+const TEXT_ENC = new TextEncoder();
+async function hashText(text) {
+  const digest = await crypto.subtle.digest('SHA-256', TEXT_ENC.encode(text));
+  return Array.from(new Uint8Array(digest), b => b.toString(16).padStart(2, '0')).join('');
+}
+
+async function loadColumns(wl, text, prev) {
+  const textHash = await hashText(text);
+  const sig = rulesSig(wl.rescoreRules);
+  wl.textHash = textHash;
+  wl.rulesSig = sig;
+  if (prev?.cols && prev.textHash === textHash) {
+    if (prev.rulesSig === sig) {
+      wl.cols = prev.cols;
+      colsStats.reused++;
+      // The prior build's queued write skips once that build is replaced.
+      if (prev.colsPersisted) wl.colsPersisted = true; else queueColsWrite(wl);
+    } else { wl.cols = rescoreColumns(prev.cols, wl.rescoreRules); colsStats.rescored++; queueColsWrite(wl); }
+    return;
+  }
+  const rec = PARSE_BUILD_ID ? await idbGet(COLS_PREFIX + wl.dbKey) : null;
+  if (rec && rec.v === COLS_CACHE_VERSION && rec.buildId === PARSE_BUILD_ID && rec.textHash === textHash) {
+    const cols = colsFromRecord(rec);
+    if (rec.rulesSig === sig) { wl.cols = cols; wl.colsPersisted = true; colsStats.recordHits++; }
+    else { wl.cols = rescoreColumns(cols, wl.rescoreRules); colsStats.recordRescored++; queueColsWrite(wl); }
+    return;
+  }
+  wl.cols = parseWordlistColumns(text, wl.rescoreRules);
+  colsStats.parsed++;
+  queueColsWrite(wl);
+}
+
+// Idle and one source per tick: a put structured-clones megabytes synchronously,
+// which would land on the first keystroke's run if written at commit.
+function queueColsWrite(wl) {
+  if (!PARSE_BUILD_ID) return;
+  colsWrites.set(wl.dbKey, wl);
+  scheduleColsWrite();
+}
+
+function scheduleColsWrite() {
+  if (colsWriteTimer || !colsWrites.size) return;
+  colsWriteTimer = setTimeout(async () => {
+    colsWriteTimer = null;
+    if (running || pending) { scheduleColsWrite(); return; }
+    const [dbKey, wl] = colsWrites.entries().next().value;
+    colsWrites.delete(dbKey);
+    // Written only if still the live store: a superseded build's or a since-swapped
+    // source's columns would persist under a hash they no longer match.
+    if (wl.textHash && ownedBuilt?.includes(wl)) {
+      try {
+        await idbPut(COLS_PREFIX + dbKey, { v: COLS_CACHE_VERSION, buildId: PARSE_BUILD_ID,
+          textHash: wl.textHash, rulesSig: wl.rulesSig, ...colsToRecord(wl.cols) });
+        wl.colsPersisted = true;
+        colsStats.writes++;
+      } catch { /* quota or clone failure: the cache is optional */ }
+    }
+    scheduleColsWrite();
+  }, WARM_IDLE_MS);
+}
+
+// A swap outside loadColumns (a fetch applied in place) learns its text's hash late;
+// until then textHash is null, so nothing reuses or persists the new columns.
+function adoptSwappedColumns(wl, text) {
+  wl.textHash = null;
+  wl.colsPersisted = false;
+  wl.rulesSig = rulesSig(wl.rescoreRules);
+  const cols = wl.cols;
+  hashText(text).then(h => {
+    if (wl.cols !== cols) return;
+    wl.textHash = h;
+    queueColsWrite(wl);
+  });
 }
 
 function buildScopeCorpus(built, scope) {
@@ -3258,6 +3354,10 @@ onmessage = ({ data }) => {
     case '__testArtifactCacheConfig':
       artifactCache.configure({ minMs: data.minMs, maxBytes: data.maxBytes, maxEntryBytes: data.maxEntryBytes });
       artifactHits = artifactMisses = 0;
+      break;
+
+    case '__testColsCacheState':
+      postMessage({ type: '__testColsCacheState', ...colsStats, pendingWrites: colsWrites.size, enabled: !!PARSE_BUILD_ID });
       break;
 
     case '__testArtifactCacheState':

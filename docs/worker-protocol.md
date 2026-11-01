@@ -135,6 +135,7 @@ Why one owner, and what it costs: [`pipeline.md`](pipeline.md) § *The worker ow
 | `artifactCache` | `GdsCache` of `{ value, scope, corpus, patch }` (+ `elapsed`/`bytes`/`H`), keyed `(scope, toolKey)` | the **prepare-artifact cache** (an `artifact`-role `RoleCache` view, fourth role over the same shared `pipelineCache` pool): whatever a tool's `prepare` computes from the corpus alone. Its key leaves the tool's params out — where `resultCacheKey` hashes them — so a run with the same corpus and different params **reuses** it, and two tools asking for one `toolKey` share it. Reached through the executor's `ctx.cache` seam (`makePrepareCache`, worker-owned closures like `resume`): `get(toolKey)` / `take(toolKey)` / `put(toolKey, value, bytes, { patch, elapsed })`, the tool pricing its own value. `take` removes the artifact as it returns it, for a `prepare` that finishes an incomplete artifact privately and re-puts it. `elapsed` runs from that key's `get` miss to its `put`, not from run start, so an artifact built behind a slow upstream stage isn't credited with that stage's time; `put`'s `elapsed` option overrides it for an artifact built across several runs, which no single miss spans. Same admission floor/ceiling, GDS eviction, `cacheEntryValid` identity test, `genAtStart` guard on `put`, and one shared budget as its siblings. **Edits:** an artifact with no `patch` is purged by a replacing splice like everything else bound to that corpus. One that supplies `patch(value, flippedNorms)` is exempt — so it must hold no row objects or corpus indices — and instead hears, on every `applyOwnedEdit`, the norms that entered or left the **merge** (the vocab tools consult under every scope), repairing itself in place. The spacing table is the first consumer (see [`segmenter.md`](segmenter.md) § *The spacing table*). |
 | the executor + full tool catalog | `executePipeline` / `runToolStage` / `bucketize` / `unify` + every tool's `run`/`prepare`/`group` | imported directly from `engine/` (the worker runs the identical module text). The executor holds **no** cross-run cache state of its own — all pipeline reuse rides the worker-supplied `resume` seam into `prefixCache` (above) |
 | large data assets (unigram corpus, CMU dict, CMU supplement) | `DATA_ASSETS` registry ([`engine/assets.js`](../site/src/engine/assets.js)); each loader's `configureIO({ idbGet, idbPut })` at worker boot | The worker is the **sole owner** of each large data asset: it fetches, parses, holds it in memory, IDB-caches it, *and* — for an `autoUpdate` asset (CMU and its supplement) — runs the freshness check itself (`check-assets`). Main never loads the corpus — no eager preload, no resident copy. An asset is **evicted the moment no row needs it** (`reapUnusedAssets`, run whenever the set of assets the stack needs changes — a declaration may depend on a row's params, via `toolAssets`, so the Search bar's match mode counts): each such run `invalidate()`s any loaded asset the stack no longer needs, reclaiming ~100 MB+ on iOS without a re-fetch on re-add (`invalidate()` drops only the in-memory copy; the IDB record survives). `idbGet`/`idbPut` live in `data/storage.js` (not importable from `engine/`), so the worker opens the **same** IndexedDB DB/store (`grawlix`/`data`, v1) directly — the cache is per-origin. The freshness check probes the cached map's key with `getKey` (never deserializing it) and keeps the content-length validator in a **separate** `sizeIdbKey` record, established on first check for a cache predating it. Also how the worker reads each source's wordlist text (`data_<dbKey>`) and writes the My Edits IDB |
+| the per-source **column cache** | `cols_<dbKey>` IDB record (§ *Column cache*) | the worker's derived copy of a non-Edits source's parsed columns. The worker is its **sole writer**; main only **deletes** it alongside `data_<dbKey>` (`Storage.deleteWordlist`). Losing it costs a re-parse, never data, so it needs no `SCHEMA_VERSION` bump |
 | the My Edits disk-merge **baseline** | `sync_worker_<editsKey>` IDB record `{ baseline }` | the 3-way-merge common ancestor. The worker is its **sole writer** — `mergeDisk` reads and advances it in **both** sync directions (inbound, and the outbound push, which is a reconcile against the unchanged file). Main keeps the file-handle I/O + watch loop + conflict dialog (`data/disk-sync.js`) but **never** writes this record; main only **deletes** it (alongside `sync_main_`) on detach teardown, which can't race the worker since a merge runs only while synced and the delete only on teardown |
 
 ### Building the corpus
@@ -149,6 +150,34 @@ The merge runs identically against the views a columnar source yields and the ob
 Why streamed: bucketing every norm before resolving peaked at ~400 MB of transient contributor objects on the five default lists, enough to crash iOS; streaming drops that peak to the corpus itself.
 
 ---
+
+### Column cache
+
+Parsing a source into columns is most of a warm boot (about 2.8 s on the five default lists), and every `syncConfig` builds every source.
+A source's columns are a pure function of its text, its rescore rules, and the parse code, so `loadColumns` reuses them when all three match, trying in order:
+
+1. **The previous build, in memory**: the source in the outgoing `ownedBuilt` with the same text hash.
+   A toggle, reorder, or merge-mode change re-parses nothing.
+2. **The `cols_<dbKey>` IDB record**: typed arrays only, tagged with a cache version, the parse build id, the text hash, and the rules signature.
+3. **A fresh parse**, queued for an idle record write.
+
+A matching text with different rules reuses the text-derived arrays and re-runs only the score pass (`rescoreColumns`).
+The rules signature is each rule's query and output; a note changes no score, so editing one doesn't invalidate.
+
+Why the text is hashed (SHA-256, about 0.1 s for all five lists): the key is correct by construction.
+A writer-maintained generation would have to be bumped by every write path, and a missed one silently serves another text's columns.
+A fetch applied in place (`applyFetched`) swaps a source's columns outside `loadColumns`, so it clears the hash and re-adopts it once the new text is hashed.
+
+Why the build id covers only the parse code: `scripts/build.js` hashes `engine/sources.js` and everything it imports into `__GRAWLIX_PARSE_BUILD_ID__`, so only a parser change discards users' records; hashing the whole site would miss on every deploy.
+Unbundled `site/` has no build id, so the IDB record is off in dev and in `npm run test:browser`; a parser edit there would otherwise serve stale columns.
+The cache specs (`tests/browser/cols-cache.spec.js`) skip unless run against `dist`.
+
+The record omits two things a structured clone would get wrong.
+`facts` fills lazily in place and is a class instance, so it is rebuilt empty on load.
+`scores` is stored as null when it aliases `rawScores`, and re-aliased on load: `rescoreChangesFrom` tests that identity, and a copied column would report every list as rescored.
+
+Writes run at idle, one source per tick, and only for the live `ownedBuilt`: a put structured-clones megabytes synchronously, which would otherwise land on the first keystroke's run.
+A write that fails (quota, clone) is dropped; the next boot parses instead.
 
 ## Message encoding & packing
 

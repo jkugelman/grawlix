@@ -181,7 +181,7 @@ Labeling is optional too — merged scores with no tier label still display, jus
 
 - **localStorage** (prefix `grawlix_`): wordlist metadata and settings.
   `persistMeta()` saves all wordlist metadata.
-- **IndexedDB**: raw wordlist text per wordlist (keyed `data_<dbKey>`) plus per-list disk-sync targets (keyed `sync_main_<dbKey | __merged__>`: a `FileSystemFileHandle`; `sync_worker_<editsKey>`: My Edits' baseline).
+- **IndexedDB**: raw wordlist text per wordlist (keyed `data_<dbKey>`) plus per-list disk-sync targets (keyed `sync_main_<dbKey | __merged__>`: a `FileSystemFileHandle`; `sync_worker_<editsKey>`: My Edits' baseline), plus the worker's derived per-source column cache (`cols_<dbKey>`; see [`worker-protocol.md`](docs/worker-protocol.md) § *Column cache*).
   Wordlists can be hundreds of thousands of entries, too large for localStorage.
   `Storage.writeWordlist(wordlist, text)` saves one wordlist's text.
 

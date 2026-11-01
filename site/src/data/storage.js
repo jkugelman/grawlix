@@ -118,7 +118,7 @@ export const Storage = {
 
   async readWordlist(wordlist) { return idbGet('data_' + wordlist.dbKey); },
   async writeWordlist(wordlist, text) { await idbPut('data_' + wordlist.dbKey, text); },
-  async deleteWordlist(wordlist) { await idbDel('data_' + wordlist.dbKey); },
+  async deleteWordlist(wordlist) { await idbDel('data_' + wordlist.dbKey); await idbDel('cols_' + wordlist.dbKey); },
 
   async reset() {
     Object.keys(localStorage).filter(k => k.startsWith(LS_PREFIX)).forEach(k => localStorage.removeItem(k));
