@@ -997,17 +997,18 @@ This is how the worker gets its corpus — it never receives the corpus as bulk 
     A per-entry My Edits edit/delete instead refreshes via the `editEntry`/`deleteEntry` command + `editAck`, and a re-fetch/re-import of a populated source via the `applyFetched` content-diff (above) — both in place, neither bumping `cacheVersion$` nor resyncing (the fetch path falls back to `resyncWorkerConfig` only when the source's config *also* changed — an enable flip or an auto-seeded rule — or the worker has no build for it yet).
     A **first population is not a separate fall-back trigger**: the worker handles empty→full via its own rebuild path inside `applyFetched` and reports `wasEmpty` on the ack, so main posts `applyFetched` for it too (unless an enable flip / rule seed makes it config-changed).
     A completeness-hook resync that also does a post-write re-sync fires *prematurely* (before the write lands → stale text), made harmless by supersession (below).
-- **On receipt:** worker stores `selfConfig = data`, captures a fresh **`latestSyncToken`** (supersession key, below), clears `ownedCorpusFresh` synchronously (so a run dispatched in the rebuild gap defers rather than running against the stale corpus), and asynchronously builds the all-sources wordlists from IDB (retained as `ownedBuilt`).
+- **On receipt:** worker stores `selfConfig = data`, captures a fresh **`latestConfigToken`** (supersession key, below), clears `ownedCorpusFresh` synchronously (so a run dispatched in the rebuild gap defers rather than running against the stale corpus), and asynchronously builds the all-sources wordlists from IDB (retained as `ownedBuilt`, built by `buildLatestConfig` from this message's own config).
   When the build settles **and is still the latest** (token guard): bump `ownedConfigVersion`, compute `ownedAllSourcesAxis`, eager-build `ownedMerged` (the enabled-only deduped merge — feeds the config summaries), and `setOwnedCorpus` for the active scope (`ownedMerged` when merged, else `buildScopeCorpus(built, scope)`).
-  A superseded build discards its result (`ownedCorpusFresh` stays `false`).
+  A build superseded by a newer `syncConfig` discards its result (`ownedCorpusFresh` stays `false`).
   A build **failure** in the latest sync nulls `ownedBuilt`/`ownedMerged`/`ownedCorpus`.
   Either way the `.finally` replies `selfReady` (echoing `configId`) once the build settles — even when superseded or failed (so the bridge's `await` always resolves).
-- **Supersession (`latestSyncToken`).**
+- **Supersession (`latestConfigToken`, `latestSyncToken`).**
   A single config change can fire two re-syncs — the premature completeness hook (stale text) and the post-write re-sync (fresh text).
-  Each `syncConfig` captures `const myToken = ++latestSyncToken` synchronously at handler start, and the build's `.then`/`.catch` guard their commit with `if (myToken !== latestSyncToken) return`.
-  Only the **latest** sync's build commits; a stale build discards.
+  Each `syncConfig` captures `myConfig = ++latestConfigToken` synchronously at handler start; only the build whose `myConfig` is still the latest commits.
   Because the post-write re-sync is always posted after the premature hook one (FIFO), the committed build always read fresh IDB text.
-  (The same token guard is what makes an in-flight stale build lose to a concurrent `editEntry`, which also bumps the token.)
+  Each build attempt also captures `++latestSyncToken`, which `editEntry`, `deleteEntry`, `mergeDisk`, and `applyFetched` bump too, because an attempt that read pre-change IDB text must not commit.
+  An attempt bails at its first await past either bump, so a burst of `syncConfig`s (a cold boot's publisher fetches) doesn't parse every source once per message.
+  When only the sync token moved, the build **retries** against the new data rather than dropping: the edit handler's `ensureOwnedCorpus` rebuilds from the previous `ownedBuilt`, so a dropped build would silently keep the old enabled flags and rules until some later resync (`tests/browser/worker-build-supersede.spec.js`).
 - **Reply correlation (`configId`) — load-bearing.**
   `selfReady` is consumed on the **persistent** worker listener (`handleSelfReady`), never a per-call listener.
   `configId` keys the `_configWaiters` map so each `syncWorkerConfig`'s returned promise resolves on **its own** reply; the freshness/axis/counts processing runs for **every** `selfReady` that arrives.

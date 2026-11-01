@@ -689,7 +689,10 @@ export function loadIdle() {
 
 export async function applyWordlistText(wordlist, text, { fetchedSize = null, originalFilename = null, nameOverride = null, source = null, clearUrl = false, silent = false, viaToast = false } = {}) {
   const isEdits = wordlist.type === 'edits';
-  const parsed = parseWordlist(text);   // transient for a non-Edits source; only My Edits retains it
+  // The worker owns a non-Edits source's entries; main parses one only for auto-seed.
+  // This gate must mirror maybeAutoSeedRescoreRules's early returns, or a custom
+  // import silently loses its seeded rules.
+  let parsed = isEdits || (!wordlist.publisherId && !wordlist.rescoreRules?.length) ? parseWordlist(text) : null;
   // The worker keys its merge on each source's enabled flag + rescore rules. A change
   // to either (a first population flips enabled; an auto-seed adds rules) makes the
   // worker's resident copy stale, so the content-diff can't apply — fall back to the
@@ -709,7 +712,7 @@ export async function applyWordlistText(wordlist, text, { fetchedSize = null, or
     if (fetchedSize !== null) { wordlist.fetchedSize = fetchedSize; wordlist._updateAvailable = false; }
     if (originalFilename !== null) wordlist.originalFilename = originalFilename;
     if (!wordlist.populated) { wordlist.populated = true; wordlist.enabled = true; }
-    maybeAutoSeedRescoreRules(wordlist, parsed);
+    if (parsed) maybeAutoSeedRescoreRules(wordlist, parsed);
     if (isEdits) reconcileEditsRulesAfterImport(wordlist);
     compileRescoreRules(wordlist);
     if (nameOverride) wordlist.name = nameOverride;
@@ -748,7 +751,7 @@ export async function applyWordlistText(wordlist, text, { fetchedSize = null, or
   // The applyFetched path reads wasEmpty/counts off the ack — the worker is the only
   // holder of the old entries now; the resync path counts the transient parse.
   if (!ack?.applied) {
-    if (!silent) showToast(`Loaded ${pluralize(parsed.length, 'entry', 'entries')} from ${esc(source)}`);
+    if (!silent) showToast(`Loaded ${pluralize((parsed ??= parseWordlist(text)).length, 'entry', 'entries')} from ${esc(source)}`);
   } else if (ack.wasEmpty) {
     if (!silent) showToast(`Loaded ${pluralize(ack.newCount, 'entry', 'entries')} from ${esc(source)}`);
   } else {

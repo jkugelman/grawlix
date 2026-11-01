@@ -531,6 +531,10 @@ export function failNextWorkerBuildForTest() {
 
 // Pairs with the `__grawlixStallBuild` init-script flag: releases the held boot build so
 // the suite can assert the un-ready panel first, then the same panel once the corpus lands.
+export function stallNextWorkerBuildForTest() {
+  getWorker().postMessage({ type: '__testStallNextBuild' });
+}
+
 export function releaseWorkerBuildForTest() {
   getWorker().postMessage({ type: '__testReleaseBuild' });
 }

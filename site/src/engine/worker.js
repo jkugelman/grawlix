@@ -173,6 +173,11 @@ let ownedConfigVersion = 0;
 // only the LATEST build may commit, or the premature build — which read stale IDB
 // text — could set ownedCorpus + fresh=true with stale data and corrupt rows.
 let latestSyncToken = 0;
+// Which syncConfig owns the in-flight build. Distinct from latestSyncToken, which
+// edits, fetches and disk merges also bump: a build superseded only by those must
+// retry against the new data, not drop its config, or the new enabled flags and
+// rules are silently lost until the next resync.
+let latestConfigToken = 0;
 // A false positive (enriching from a mismatched ownedCorpus) silently corrupts
 // every rendered row; a false negative just falls back to index-only — so this
 // guard stays conservative. Because a snapshot no longer clears it, the paired
@@ -2808,19 +2813,36 @@ let _failNextBuild = false;
 let _stallBuild = null;
 let _releaseBuild = null;
 
-async function buildAllSourcesWordlists() {
+// Resolves the committable `built`, or null when a newer syncConfig took over. Each
+// attempt bails at its first await past a supersession, so a burst of syncConfigs
+// (a cold boot's publisher fetches) doesn't parse every source once per message.
+async function buildLatestConfig(config, myConfig) {
+  for (;;) {
+    const myToken = ++latestSyncToken;
+    const stale = () => myToken !== latestSyncToken;
+    const built = await buildAllSourcesWordlists(config, stale);
+    if (myConfig !== latestConfigToken) return null;
+    if (built && !stale()) return built;
+  }
+}
+
+async function buildAllSourcesWordlists(config = selfConfig, stale = () => false) {
   if (_failNextBuild) { _failNextBuild = false; throw new Error('forced build failure'); }
   if (_stallBuild) await _stallBuild;
-  const prior = new Map((ownedBuilt ?? []).map(w => [w.dbKey, w]));
+  for (const dbKey of latestCols.keys()) {
+    if (!config.sources.some(src => src.sourceId === dbKey)) latestCols.delete(dbKey);
+  }
   const built = [];
-  for (const { sourceId, enabled, type, rescoreRules } of selfConfig.sources) {
+  for (const { sourceId, enabled, type, rescoreRules } of config.sources) {
     const text = await readWordlistText(sourceId);
+    if (stale()) return null;
     const wl = { dbKey: sourceId, enabled, type: type ?? null, rescoreRules };
     compileRescoreRules(wl);
     // My Edits stays object-backed because the edit splice mutates rawEntries in
     // place each keystroke; every other source is the lean columnar cold store.
     if (wl.type === 'edits') wl.rawEntries = text ? parseWordlist(text) : [];
-    else await loadColumns(wl, text ?? '', prior.get(sourceId));
+    else if (await loadColumns(wl, text ?? '', latestCols.get(sourceId), stale)) latestCols.set(sourceId, wl);
+    else return null;
     built.push(wl);
   }
   return built;
@@ -2838,6 +2860,10 @@ const PARSE_BUILD_ID = typeof __GRAWLIX_PARSE_BUILD_ID__ !== 'undefined' ? __GRA
 const COLS_PREFIX = 'cols_';
 const colsStats = { reused: 0, rescored: 0, recordHits: 0, recordRescored: 0, parsed: 0, writes: 0 };
 const colsWrites = new Map();   // dbKey → source awaiting an idle record write
+// Each source's most recently loaded columns from ANY build, not just the committed
+// ownedBuilt: a cold boot's overlapping syncConfigs otherwise each re-parse every
+// list, since the superseded builds never commit what they parsed.
+const latestCols = new Map();
 let colsWriteTimer = null;
 
 // A note doesn't change a score, so it doesn't invalidate.
@@ -2849,8 +2875,9 @@ async function hashText(text) {
   return Array.from(new Uint8Array(digest), b => b.toString(16).padStart(2, '0')).join('');
 }
 
-async function loadColumns(wl, text, prev) {
+async function loadColumns(wl, text, prev, stale = () => false) {
   const textHash = await hashText(text);
+  if (stale()) return false;
   const sig = rulesSig(wl.rescoreRules);
   wl.textHash = textHash;
   wl.rulesSig = sig;
@@ -2861,18 +2888,20 @@ async function loadColumns(wl, text, prev) {
       // The prior build's queued write skips once that build is replaced.
       if (prev.colsPersisted) wl.colsPersisted = true; else queueColsWrite(wl);
     } else { wl.cols = rescoreColumns(prev.cols, wl.rescoreRules); colsStats.rescored++; queueColsWrite(wl); }
-    return;
+    return true;
   }
   const rec = PARSE_BUILD_ID ? await idbGet(COLS_PREFIX + wl.dbKey) : null;
+  if (stale()) return false;
   if (rec && rec.v === COLS_CACHE_VERSION && rec.buildId === PARSE_BUILD_ID && rec.textHash === textHash) {
     const cols = colsFromRecord(rec);
     if (rec.rulesSig === sig) { wl.cols = cols; wl.colsPersisted = true; colsStats.recordHits++; }
     else { wl.cols = rescoreColumns(cols, wl.rescoreRules); colsStats.recordRescored++; queueColsWrite(wl); }
-    return;
+    return true;
   }
   wl.cols = parseWordlistColumns(text, wl.rescoreRules);
   colsStats.parsed++;
   queueColsWrite(wl);
+  return true;
 }
 
 // Idle and one source per tick: a put structured-clones megabytes synchronously,
@@ -3214,11 +3243,11 @@ onmessage = ({ data }) => {
       selfConfig = data;
       // A newer syncConfig started while this one's async build was in flight —
       // discard the older build (it read stale IDB text); only the latest commits.
-      const myToken = ++latestSyncToken;
+      const myConfig = ++latestConfigToken;
       releasePriorCorpus();
-      buildAllSourcesWordlists()
+      buildLatestConfig(data, myConfig)
         .then(built => {
-          if (myToken !== latestSyncToken) return;
+          if (!built) return;
           ownedConfigVersion++;
           ownedBuilt = built;
           ownedAllSourcesAxis = computeAllSourcesAxis(built);
@@ -3233,7 +3262,7 @@ onmessage = ({ data }) => {
           setOwnedCorpus(scopeCorpus, data.scope ?? MERGED_ID);
         })
         .catch(() => {
-          if (myToken !== latestSyncToken) return;
+          if (myConfig !== latestConfigToken) return;
           ownedBuilt = null; ownedMerged = null; clearOwnedCorpus();
         })
         // Reply even on build failure, else the bridge's `await selfReady` hangs
@@ -3290,6 +3319,12 @@ onmessage = ({ data }) => {
 
     case '__testFailNextBuild':
       _failNextBuild = true;
+      break;
+
+    // Test-only: holds the next build open, armed after boot (configTools arms the
+    // boot build's).
+    case '__testStallNextBuild':
+      _stallBuild = new Promise(r => { _releaseBuild = r; });
       break;
 
     case '__testReleaseBuild':
