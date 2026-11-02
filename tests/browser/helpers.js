@@ -10,7 +10,7 @@ import { TOOLS } from '../../site/src/engine/tools.js';
 //
 //   jkugelman → raw.githubusercontent.com
 //   stwl      → www.spreadthewordlist.com
-//   nediger   → raw.codeberg.page
+//   nediger   → codeberg.org
 //   broda     → raw.githubusercontent.com
 //
 // (XWI has no auto-fetch URL — it's subscriber-import-only.) The fetch
@@ -26,7 +26,7 @@ async function stubPublisherFetches(page, bodies = {}) {
   await page.route(/cmu-supplement\.dict/, route => route.fulfill({
     status: 200, contentType: 'text/plain', headers: { 'content-length': '0' }, body: '',
   }));
-  await page.route(/raw\.githubusercontent\.com|raw\.codeberg\.page|www\.spreadthewordlist\.com/, route => {
+  await page.route(/raw\.githubusercontent\.com|codeberg\.org|www\.spreadthewordlist\.com/, route => {
     const url = route.request().url();
     let body = '';
     if (url.includes('jkugelman-wordlist.txt'))        body = bodies.jkugelman ?? '';

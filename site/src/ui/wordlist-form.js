@@ -396,17 +396,19 @@ export class WordlistForm {
     const warn = msg => this.setUrlCheck('⚠️', 'url-check-warn', msg);
 
     let hasContentLength = false;
-    try {
-      const headResp = await fetch(url, { method: 'HEAD', signal });
-      if (!headResp.ok) {
-        const reason = headResp.statusText || HTTP_REASON[headResp.status] || '';
-        err(`Server returned ${headResp.status}${reason ? ' ' + esc(reason) : ''}`);
+    if (!revalidatesOnGet(url)) {
+      try {
+        const headResp = await fetch(url, { method: 'HEAD', signal });
+        if (!headResp.ok) {
+          const reason = headResp.statusText || HTTP_REASON[headResp.status] || '';
+          err(`Server returned ${headResp.status}${reason ? ' ' + esc(reason) : ''}`);
+          return;
+        }
+        hasContentLength = !!headResp.headers.get('content-length');
+      } catch (e) {
+        if (e.name !== 'AbortError') err('Unreachable — possible CORS restriction');
         return;
       }
-      hasContentLength = !!headResp.headers.get('content-length');
-    } catch (e) {
-      if (e.name !== 'AbortError') err('Unreachable — possible CORS restriction');
-      return;
     }
 
     let chunkText = '';

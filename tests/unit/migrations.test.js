@@ -99,11 +99,15 @@ test('the live URL_REMAPS move the STWL icon off its dead favicon.ico', () => {
   assert.deepEqual(metas[0].icon, icon);
 });
 
-test('the live URL_REMAPS resolve the original Nediger url to its current home', () => {
+test('the live URL_REMAPS resolve every old Nediger url to its current home', () => {
   const nedigerUrl = WORDLIST_PUBLISHERS.find(p => p.id === 'nediger').url;
-  const metas = [{ name: 'nediger', url: 'https://grawlix.wtf/Nediger list.txt' }];
+  const metas = [
+    { name: 'nediger-hosted', url: 'https://grawlix.wtf/Nediger list.txt' },
+    { name: 'nediger-pages',  url: 'https://raw.codeberg.page/bewilderingly/Nediger-list/@main/nediger list.txt' },
+  ];
   remapStoredUrls(metas);
   assert.equal(metas[0].url, nedigerUrl);
+  assert.equal(metas[1].url, nedigerUrl);
 });
 
 test('the live URL_REMAPS resolve every old STWL and Broda host to their current homes', () => {

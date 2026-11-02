@@ -86,7 +86,7 @@ export const WORDLIST_PUBLISHERS = [
     id: 'nediger',
     popularity: 3,
     name: 'Will Nediger',
-    url: 'https://raw.codeberg.page/bewilderingly/Nediger-list/@main/nediger list.txt',
+    url: 'https://codeberg.org/api/v1/repos/bewilderingly/Nediger-list/raw/nediger list.txt?ref=main',
     homepage: 'https://github.com/bewilderingly/Nediger-list/',
     icon: null,
     defaultRules: [
@@ -135,8 +135,9 @@ export const WORDLIST_PUBLISHERS = [
 // drifted value. See docs/migration.md § Remapping moved URLs.
 export const URL_REMAPS = [
   {
-    to: 'https://raw.codeberg.page/bewilderingly/Nediger-list/@main/nediger list.txt',
+    to: 'https://codeberg.org/api/v1/repos/bewilderingly/Nediger-list/raw/nediger list.txt?ref=main',
     from: [
+      'https://raw.codeberg.page/bewilderingly/Nediger-list/@main/nediger list.txt',
       'https://grawlix.wtf/Nediger list.txt',
       'https://grawlix.wtf/wordlists/Nediger list.txt',
     ],
@@ -168,7 +169,8 @@ export const URL_REMAPS = [
 
 // Hosts verified to answer conditional GETs with 304, so the update check may GET
 // them in place of a HEAD. On an unverified host that GET would silently
-// re-download the whole file on every check.
-export const REVALIDATING_HOSTS = ['www.spreadthewordlist.com'];
+// re-download the whole file on every check. Codeberg's API refuses HEAD (405),
+// so without its entry the Nediger list would silently stop seeing updates.
+export const REVALIDATING_HOSTS = ['www.spreadthewordlist.com', 'codeberg.org'];
 
 export const SEVERITY_PRIORITY = { info: 1 };
