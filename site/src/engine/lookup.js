@@ -9,9 +9,9 @@
 
 import { LruCache } from '../core/lru.js';
 
-const DATAMUSE = 'https://api.datamuse.com/words';
-const WIKI_SUMMARY = 'https://en.wikipedia.org/api/rest_v1/page/summary/';
-const WIKTIONARY_DEF = 'https://en.wiktionary.org/api/rest_v1/page/definition/';
+export const DATAMUSE = 'https://api.datamuse.com/words';
+export const WIKI_SUMMARY = 'https://en.wikipedia.org/api/rest_v1/page/summary/';
+export const WIKTIONARY_DEF = 'https://en.wiktionary.org/api/rest_v1/page/definition/';
 
 // Sharing one cache across every endpoint is load-bearing for the summary URL:
 // the rename hint and the Wikipedia card read the same response here, and

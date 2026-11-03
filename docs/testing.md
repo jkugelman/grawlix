@@ -455,6 +455,14 @@ Dev serves the raw module graph (~75 small files), and the browser matrix agains
 The bundled `dist` is one request, no waterfall, and runs clean.
 So use `npm run test:dist` for the full three-browser matrix — it builds `dist/` and runs the suite against it (CI does the equivalent already); single-browser chromium iteration against `site/` is fine.
 
+### Resource links
+
+[`scripts/check-links.js`](../scripts/check-links.js) fetches every external resource the app reads (publisher wordlists, the CMU and wordfreq data assets, publisher icons, the lookup APIs) and fails if one stops answering the way the app needs.
+A 200 isn't enough to pass: fetched resources must also send CORS headers the browser accepts, wordlists must parse as `ENTRY;SCORE`, and hosts the update check probes with HEAD must return a `Content-Length`.
+URLs come from the modules that use them, so the check follows a relocated resource.
+[`links.yml`](../.github/workflows/links.yml) runs it daily, and GitHub emails when a scheduled run fails.
+Run it locally with `node scripts/check-links.js`.
+
 ## When a test breaks
 
 - **Intentional behavior change**: update the test in the same commit.

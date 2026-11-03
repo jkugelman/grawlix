@@ -13,8 +13,8 @@
 import { toNorm, FOLD_MAP } from './norm.js';
 import { fetchJSON, fetchWikipediaSummary } from './lookup.js';
 
-const WIKTIONARY_API = 'https://en.wiktionary.org/w/api.php';
-const WIKIPEDIA_API = 'https://en.wikipedia.org/w/api.php';
+export const WIKTIONARY_API = 'https://en.wiktionary.org/w/api.php';
+export const WIKIPEDIA_API = 'https://en.wikipedia.org/w/api.php';
 
 // ─── Reference queries (network; soft-fail to empty) ─────────────────────────
 
