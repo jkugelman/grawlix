@@ -78,6 +78,7 @@ function paintMirror(input, A, caret) {
   const hl = input.parentElement.querySelector('.assist-hl');
   if (!hl) return;
   const cs = getComputedStyle(input);
+  for (const prop of ['fontFamily', 'fontSize', 'fontWeight', 'letterSpacing']) hl.style[prop] = cs[prop];
   hl.style.left = `${parseFloat(cs.borderLeftWidth) + parseFloat(cs.paddingLeft)}px`;
   hl.style.right = `${parseFloat(cs.borderRightWidth) + parseFloat(cs.paddingRight)}px`;
   hl.innerHTML = `<span class="assist-hl-text">${mirrorHTML(input.value, A, caret)}</span>`;

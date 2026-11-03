@@ -10,6 +10,9 @@ input[type="file"] { display: none; }
 /* Force the scrollbar gutter so the page doesn't shift horizontally when
    content grows past the viewport and the scrollbar appears. */
 html { overflow-y: scroll; }
+/* Without this, iOS landscape inflates text outside form controls: the
+   pattern-assist mirror drifts off its input and popovers outgrow their spot. */
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 body { font-family: var(--font-sans); font-size: 14px; background: var(--bg); color: var(--text); }
 body { display: flex; flex-direction: column; min-height: 100vh; }
 main { flex: 1 0 auto; display: flex; flex-direction: column; }
@@ -1649,7 +1652,7 @@ html.dark-mode #discovery-banner { background: color-mix(in srgb, var(--accent) 
 /* Pattern assist */
 .assist-field input[data-assist] { color: transparent; caret-color: var(--text); }
 .assist-field input[data-assist]::selection { color: transparent; background: color-mix(in srgb, var(--accent) 35%, transparent); }
-.assist-hl { position: absolute; top: 0; bottom: 0; display: flex; align-items: center; overflow: hidden; pointer-events: none; font-family: var(--font-mono); font-size: 13px; color: var(--text); }
+.assist-hl { position: absolute; top: 0; bottom: 0; display: flex; align-items: center; overflow: hidden; pointer-events: none; color: var(--text); }
 .assist-hl-text { white-space: pre; }
 .assist-bad { color: var(--q-err); }
 .assist-pair { outline: 1px solid var(--accent); border-radius: 2px; }

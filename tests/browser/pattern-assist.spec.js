@@ -114,3 +114,22 @@ test('Escape dismisses the panel until the next edit', async ({ page }) => {
   await input.pressSequentially('A');
   await expect(panel(page)).toBeVisible();
 });
+
+test('the mirror follows the input font, so the caret stays on the letters', async ({ page }) => {
+  await gotoApp(page);
+  // Stands in for iOS, which raises inputs to 16px to stop focus-zoom.
+  await page.addStyleTag({ content: '.search-bar input[data-key="pattern"] { font-size: 16px; }' });
+  await bar(page).fill('incredibles');
+  const widths = await bar(page).evaluate(input => {
+    const probe = document.createElement('span');
+    probe.style.font = getComputedStyle(input).font;
+    probe.style.whiteSpace = 'pre';
+    probe.style.position = 'absolute';
+    probe.textContent = input.value;
+    document.body.append(probe);
+    const w = probe.getBoundingClientRect().width;
+    probe.remove();
+    return { input: w, mirror: input.parentElement.querySelector('.assist-hl-text').getBoundingClientRect().width };
+  });
+  expect(widths.mirror).toBeCloseTo(widths.input, 0);
+});
