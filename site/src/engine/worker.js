@@ -2,7 +2,7 @@
 
 import { MERGED_ID } from '../core/constants.js';
 import { TOOLS, makeToolRow, toolAssets, configureUmiaq, configureWeave } from './tools.js';
-import { installFixtureTools } from './fixture-tools.js';
+import { installFixtureTools, releaseFixtureHold } from './fixture-tools.js';
 import { executePipeline, runDetachedBuild, configureExecutorYield, lastPipelineSeedFrom, lastPipelineTailMs, bottomLineAtoms, applyViewFilterToRows, entryPredicate, chainPredicate, rowLastEntry, rowAtoms, collapseRepeatAtoms, chainKey, mirrorKey, streamPlan, cacheGroupStats, currentAtomCount } from './executor.js';
 import { GdsCache, RoleCache } from './gds-cache.js';
 import { sortGroups, sortChainRows, activeGroupRow, groupRowComparator, chainRowComparator, chainSortTier, DEFAULT_SORT_BY_TIER, entrySortKey, foldAnchor, foldChainAnchor, chainFamily, chainAnchors, usesEntryAxis, compareValues, collationKey } from './sort.js';
@@ -3305,6 +3305,10 @@ onmessage = ({ data }) => {
     // Test-only: the worker has its own TOOLS realm, which installing on main can't reach.
     case '__testInstallFixtureTools':
       installFixtureTools();
+      break;
+
+    case '__testReleaseFixtureHold':
+      releaseFixtureHold();
       break;
 
     // Test-only: the uncaught throw is the point — it fires the parent Worker's

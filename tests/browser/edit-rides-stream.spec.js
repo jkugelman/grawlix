@@ -11,24 +11,20 @@ test.beforeEach(async ({ page }) => {
   await stubPublisherFetches(page);
 });
 
-// All 5-letter words over a 7-letter alphabet (16807), enabled into the merge (scope
-// stays All Wordlists). The reverse-join ABCDE;EDCBA pairs every word with its
-// mirror, so it streams long enough that an edit fired right after the first partial
-// lands — and is DECIDED — while the run is still in flight. A shorter join finishes
-// during the edit's plan + ack round-trips, taking the (correct) settled re-run path
-// instead, which doesn't exercise the ride.
+// The `held_pairs` fixture (engine/fixture-tools.js) pairs each entry with its reverse
+// and, with `hold`, stops after its first batch until released, so an edit fired then
+// is decided while the run is provably in flight.
 //
 // ABCDE is also seeded into My Edits, so rescoring it is a pure score change (a
 // key-stable edit) rather than an add that reshapes the merge's variant set.
-async function seedHeavyMerge(page) {
-  await page.evaluate(() => {
-    const A = 'ABCDEFG', entries = [], scores = [];
-    for (const a of A) for (const b of A) for (const c of A) for (const d of A) for (const e of A) {
-      entries.push(a + b + c + d + e);
-      scores.push(10 + (entries.length % 60));
-    }
-    return window.__grawlixTest.addCustomWordlist({ name: 'Pents', entries, scores });
-  });
+const PAIRS = { tool: 'held_pairs', params: {} };
+const HELD_PAIRS = { tool: 'held_pairs', params: { hold: '1' } };
+
+async function seedMerge(page) {
+  await page.evaluate(() => window.__grawlixTest.installFixtureTools());
+  await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
+    name: 'Pents', entries: ['ABCDE', 'EDCBA', 'FGHIJ', 'JIHGF'], scores: [40, 30, 20, 10],
+  }));
   await page.evaluate(() => window.__grawlixTest.reimport('My Edits', 'ABCDE;50'));
   await page.evaluate(() => window.__grawlixTest.flushEditsToIdb());
   await page.evaluate(() => window.__grawlixTest.pipelineIdle());
@@ -37,13 +33,12 @@ async function seedHeavyMerge(page) {
 
 test('a key-stable rescore mid-stream rides the tuple run instead of restarting it', async ({ page }) => {
   await gotoApp(page);
-  await seedHeavyMerge(page);
+  await seedMerge(page);
 
-  const out = await page.evaluate(async () => {
+  const out = await page.evaluate(async stack => {
     const T = window.__grawlixTest;
-    T.setWorkerYieldIntervalForTest(1);
     const cap = T.captureWorkerGroupPartialsForTest();
-    const started = T.setStack([{ tool: 'umiaq', params: { query: 'ABCDE;EDCBA' } }]);   // dispatches the run; ride it mid-stream
+    const started = T.setStack(stack);   // dispatches the run; ride it mid-stream
 
     let streamRunId = null;
     for (let i = 0; i < 400 && streamRunId == null; i++) {
@@ -54,16 +49,16 @@ test('a key-stable rescore mid-stream rides the tuple run instead of restarting 
 
     const streamingAtEdit = !!document.querySelector('#entries-table-panel.pipeline-streaming');
     await T.rescoreFrom({ norm: 'abcde', display: 'ABCDE' }, 7);
+    T.releaseFixtureHold();
 
     await started;              // setStack resolves on renderMergedDetail, not the run…
     await T.pipelineIdle();     // …so wait here for the run (the ride) to actually settle
     const partialRunIds = [...new Set(cap.stop().map(p => p.runId))];
-    T.setWorkerYieldIntervalForTest(30);
 
     const dump = await T.dumpWorkerCorpus('__merged__');
     const abcde = dump.entries.find(e => e[0] === 'abcde');   // [norm, display, score, ...]
     return { streamRunId, finalRunId: T.lastCompletedRunId(), streamingAtEdit, partialRunIds, abcdeScore: abcde ? abcde[2] : null };
-  });
+  }, [HELD_PAIRS]);
 
   expect(out.streamRunId).not.toBeNull();
   expect(out.streamingAtEdit).toBe(true);            // the edit really landed mid-stream
@@ -77,9 +72,9 @@ test('a key-stable rescore mid-stream rides the tuple run instead of restarting 
 // unchanged and the spliced score shows. Guards that a set-preserving edit never re-joins.
 test('a key-stable rescore after the stream settles reprojects (runId unchanged)', async ({ page }) => {
   await gotoApp(page);
-  await seedHeavyMerge(page);
+  await seedMerge(page);
 
-  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'umiaq', params: { query: 'ABCDE;EDCBA' } }]));
+  await page.evaluate(s => window.__grawlixTest.setStack(s), [PAIRS]);
   await page.evaluate(() => window.__grawlixTest.pipelineIdle());
 
   const before = await page.evaluate(() => window.__grawlixTest.lastCompletedRunId());

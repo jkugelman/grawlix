@@ -12,10 +12,11 @@ test.beforeEach(async ({ page }) => {
 });
 
 // All 4-letter words over a 7-letter alphabet (2401), scoped so the run reads exactly this
-// source. AB;BA pairs every word with its rotation — heavy
-// enough that the run crosses many 1ms yields, so an update fired after the first partial
-// lands while the run is still in flight.
+// source. The `held_pairs` fixture (engine/fixture-tools.js) pairs every word with its
+// reverse and, with `hold`, stops after its first batch until released, so an update
+// fired then lands while the run is provably in flight.
 async function seedQuads(page) {
+  await page.evaluate(() => window.__grawlixTest.installFixtureTools());
   await page.evaluate(() => {
     const A = 'abcdefg', entries = [], scores = [];
     for (const a of A) for (const b of A) for (const c of A) for (const d of A) {
@@ -49,9 +50,8 @@ test('a background structural update mid-stream defers — the tuple run finishe
 
   const out = await page.evaluate(async newBody => {
     const T = window.__grawlixTest;
-    T.setWorkerYieldIntervalForTest(1);                          // force streaming (many yields)
     const cap = T.captureWorkerGroupPartialsForTest();
-    const started = T.setStack([{ tool: 'umiaq', params: { query: 'AB;BA' } }]);   // dispatch the run
+    const started = T.setStack([{ tool: 'held_pairs', params: { hold: '1' } }]);   // dispatch the run
 
     // Wait until the run is confirmed in flight (a partial landed) before firing the update,
     // so the applyFetched genuinely arrives mid-stream (the deferral's whole reason to exist).
@@ -63,11 +63,13 @@ test('a background structural update mid-stream defers — the tuple run finishe
     }
     const streamingAtUpdate = !!document.querySelector('#entries-table-panel.pipeline-streaming');
 
-    await T.backgroundUpdate('Quads', newBody);                 // fires mid-stream, resolves once the deferred op lands
+    // The deferred op lands only once the run ends, so release the hold before awaiting it.
+    const updated = T.backgroundUpdate('Quads', newBody);
+    T.releaseFixtureHold();
+    await updated;
     await started;
     await T.pipelineIdle();
     const partialRunIds = [...new Set(cap.stop().map(p => p.runId))];
-    T.setWorkerYieldIntervalForTest(30);
 
     const runId = T.lastCompletedRunId();
     const reply = await T.fetchWorkerAllGroups(runId);
@@ -82,14 +84,11 @@ test('a background structural update mid-stream defers — the tuple run finishe
   expect(out.finalRunId).toBe(out.streamRunId);          // deferred, not superseded — the SAME run completed
 
   // The run's result is still serveable and coherent. Under the bug the mid-stream splice
-  // leaves it either un-serveable (a fetch drops it) or shifted — for AB;BA, lane 2 is a
-  // cyclic rotation of lane 1, which a reindex breaks (lanes resolve to unrelated words).
+  // leaves it either un-serveable (a fetch drops it) or shifted — lane 2 is lane 1
+  // reversed, which a reindex breaks (lanes resolve to unrelated words).
   expect(out.tuples).not.toBeNull();
   expect(out.tuples.length).toBeGreaterThan(0);
-  for (const [l1, l2] of out.tuples) {
-    expect(l1.length).toBe(l2.length);
-    expect((l1 + l1).includes(l2)).toBe(true);
-  }
+  for (const [l1, l2] of out.tuples) expect(l2).toBe([...l1].reverse().join(''));
 
   await expect(page.locator('#stats .results-stale-chip')).toBeVisible();   // deferred update landed → pinned + chipped
 });

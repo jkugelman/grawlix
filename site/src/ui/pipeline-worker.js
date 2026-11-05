@@ -517,6 +517,10 @@ export function installWorkerFixtureToolsForTest() {
   getWorker().postMessage({ type: '__testInstallFixtureTools' });
 }
 
+export function releaseWorkerFixtureHoldForTest() {
+  getWorker().postMessage({ type: '__testReleaseFixtureHold' });
+}
+
 export function crashWorkerForTest() {
   getWorker().postMessage({ type: '__testCrash' });
 }

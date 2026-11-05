@@ -1052,6 +1052,9 @@ Sibling of `__testCrash`.
 #### `__testInstallFixtureTools` (test-only)
 `{ type: '__testInstallFixtureTools' }` — installs the test-only tools of [`engine/fixture-tools.js`](../site/src/engine/fixture-tools.js) into the worker's `TOOLS`, which main's `installFixtureTools()` can't reach (`__grawlixTest.installFixtureTools()` does both).
 
+#### `__testReleaseFixtureHold` (test-only)
+`{ type: '__testReleaseFixtureHold' }` — lets a streamed `held_pairs` run (a fixture tool) continue past the first batch it holds at, so a spec acts while the run is provably in flight.
+
 #### `__testCrash` (test-only)
 `{ type: '__testCrash' }` — throws uncaught, firing the parent `Worker`'s `error` event (the real crash signal the client's recovery path keys on).
 

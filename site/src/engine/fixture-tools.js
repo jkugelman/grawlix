@@ -108,6 +108,38 @@ const throws = {
   },
 };
 
+// A tuple producer pairing each entry with its reverse when listed, one batch per
+// pair. With `hold` set, a streamed run stops after its first batch until the spec
+// calls `releaseFixtureHold`, so "mid-stream" never depends on how slow a join is.
+let holdOpen = true;
+export function releaseFixtureHold() { holdOpen = true; }
+
+const held_pairs = {
+  name: 'Held pairs', icon: '🧪', category: 'pairs',
+  desc: 'Test fixture', example: 'stop + pots',
+  params: [{ key: 'hold' }],
+  kind: 'tuple',
+  isInert: () => false,
+  prepare: params => ({ hold: !!params?.hold }),
+  async findTuples(pool, { hold }, ctx) {
+    const byNorm = new Map(pool.map(e => [e.norm, e]));
+    const tuples = [];
+    if (hold && ctx.onBatch) holdOpen = false;
+    for (const entry of pool) {
+      const rev = [...entry.norm].reverse().join('');
+      const partner = rev !== entry.norm && byNorm.get(rev);
+      if (!partner) continue;
+      const lanes = [{ entry, highlights: null }, { entry: partner, highlights: null }];
+      tuples.push(lanes);
+      if (!ctx.onBatch) continue;
+      await ctx.onBatch([lanes]);
+      while (!holdOpen) await ctx.y.yield();
+      if (ctx.y.due()) await ctx.y.yield();
+    }
+    return { tuples, retained: true, truncated: false, capped: false };
+  },
+};
+
 export function installFixtureTools() {
-  Object.assign(TOOLS, { late_twin, echo, prefix_group, prefix_group_anchored, pair_map, throws });
+  Object.assign(TOOLS, { late_twin, echo, prefix_group, prefix_group_anchored, pair_map, throws, held_pairs });
 }
