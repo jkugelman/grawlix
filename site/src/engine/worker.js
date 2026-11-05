@@ -415,7 +415,7 @@ async function runOne({ runId, stack: serialized, sort, scope, existsQuery, scor
     return runOne({ runId, stack: serialized, sort, scope, existsQuery, scoreRange, lengthRange, rebindQuery }, true);
   }
 
-  const { tier: rtier, r } = postResult(runId, out, viewSpec, scope, stack, existsQuery, rebindQuery, streamState.streamed);
+  const { tier: rtier, r } = postResult(runId, out, viewSpec, scope, stack, existsQuery, rebindQuery, streamState.streamed ? tier : null);
   admitResultToCache(cacheKey, rtier, r, out, scope, lastPipelineTailMs());
 }
 
@@ -1154,10 +1154,13 @@ function shipResult(runId, tier, r, laneKind, atomCount, capped, viewSpec, exist
   } });
 }
 
-function postResult(runId, out, viewSpec, scope, stack, existsQuery, rebindQuery, streamed) {
+// A streamed run adopts the slot its emitter filled, so its tier is the stream
+// plan's. Classifying its rows instead calls a hidden-input transform's plain corpus
+// rows flat and crashes adopting the empty flat slot.
+function postResult(runId, out, viewSpec, scope, stack, existsQuery, rebindQuery, streamedTier) {
   const { atomCount, laneKind, capped } = out;
-  const tier = resultTier(out);
-  const r = streamed
+  const tier = streamedTier ? (streamedTier === 'tuple' ? 'group' : streamedTier) : resultTier(out);
+  const r = streamedTier
     ? adoptStreamedSlot(tier)
     : deriveSlot(runId, tier, terminalJoin(tier, laneKind, out.rows, stack), viewSpec, scope, stack, laneKind);
   shipResult(runId, tier, r, laneKind, atomCount, capped, viewSpec, existsQuery, rebindQuery);
