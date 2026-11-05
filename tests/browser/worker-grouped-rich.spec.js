@@ -166,6 +166,17 @@ test('a single-key grouped result is index-packed, not the eager member graph', 
   expect(info.bytes / info.atoms).toBeLessThan(20);   // packed band; the eager member was ~170 B
 });
 
+// A packed member is re-materialized with only the group tool's own marks, so a
+// highlighting filter above the group must keep the result eager or its marks vanish.
+test('a highlighting filter above a group keeps its marks on the members', async ({ page }) => {
+  await gotoApp(page);
+  await seedCorpus(page);
+  const rows = await renderRich(page, [{ tool: 'search', params: { pattern: '*v*' } }, { tool: 'anagrams', grouped: true }], undefined);
+
+  const elvis = rows.find(r => r.text.includes('elvis'));
+  expect(elvis.marks.filter(m => m === 'v').length).toBe(4);
+});
+
 test('grouped initialisms (display-keyed, with anchor) ship rich atoms', async ({ page }) => {
   await gotoApp(page);
   await seedCorpus(page);

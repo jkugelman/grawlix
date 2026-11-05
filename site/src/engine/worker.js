@@ -721,6 +721,18 @@ function packableRecordStack(stack) {
   return true;
 }
 
+// A packed set member re-derives only the group tool's own marks (materializeGroupRow),
+// so a highlighting filter before the group forces the eager path. tryPackGroupJoin
+// can't see it: unify has already folded those marks into the member's one atom.
+function packableGroupStack(stack) {
+  for (const row of stack) {
+    if (row.isInert()) continue;
+    if (row.kind() === 'group') return true;
+    if (row.kind() === 'filter' && row.inputHi() && !row.inverted()) return false;
+  }
+  return true;
+}
+
 // The packed-record sibling of makeTupleStreamEmitter: append each batch's tuples
 // to the packed join and keep the view an ordinal permutation merged by the same
 // total comparator (so completion adopts the streamed order). Reads `viewSpec` per
@@ -1175,7 +1187,7 @@ function postResult(runId, out, viewSpec, scope, stack, existsQuery, rebindQuery
 function terminalJoin(tier, laneKind, rows, stack) {
   if (tier === 'flat') return flatJoinFromRows(rows);
   if (laneKind === 'record' && packableRecordStack(stack)) return packRecordJoin(rows);
-  if (laneKind === 'set') return tryPackGroupJoin(rows) ?? rows;   // null ⇒ multi-key/decorated ⇒ eager
+  if (laneKind === 'set' && packableGroupStack(stack)) return tryPackGroupJoin(rows) ?? rows;   // null ⇒ multi-key/decorated ⇒ eager
   return rows;
 }
 
