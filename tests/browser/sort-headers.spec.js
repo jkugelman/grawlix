@@ -80,11 +80,12 @@ test('transform tier: the Len column keeps Length and adds the Min/Max length sp
 
 test('hidden-input tier: Len and Score drop their spreads -- one atom, one number', async ({ page }) => {
   await gotoApp(page);
+  await page.evaluate(() => window.__grawlixTest.installFixtureTools());
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
     name: 'HiddenInput', entries: ['hart', 'hat', 'house', 'hose'], scores: [70, 60, 80, 50],
   }));
-  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'optional_letters' }]));
-  await expectVisible(page, ['haⓡt', 'hoⓤse']);
+  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'late_twin', params: {} }]));
+  await expectVisible(page, ['hart', 'hat', 'house', 'hose']);
 
   for (const col of ['.col-len', '.col-score']) {
     await expect(page.locator(`${col} .col-sort`)).not.toHaveAttribute('aria-haspopup', 'listbox');
@@ -97,12 +98,13 @@ test('hidden-input tier: Len and Score drop their spreads -- one atom, one numbe
 
 test('group tier: Min/Max score live on the Entries menu; Count sorts on click', async ({ page }) => {
   await gotoApp(page);
+  await page.evaluate(() => window.__grawlixTest.installFixtureTools());
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
     name: 'GroupSort',
-    entries: ['opt', 'pot', 'top', 'act', 'cat', 'dog'],
+    entries: ['ab0', 'ab1', 'ab2', 'cd0', 'cd1', 'solo'],
     scores:  [50, 40, 30, 60, 20, 70],
   }));
-  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'letter_bank', grouped: true }]));
+  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'prefix_group', grouped: true }]));
 
   await expect(page.locator('.group-headers')).toBeVisible();
   await expect(page.locator('.group-headers .col-score')).toHaveCount(0);
@@ -125,9 +127,10 @@ test('group tier: Min/Max score live on the Entries menu; Count sorts on click',
 
 test('tier remap: a Length sort becomes Min length across the group boundary, then back', async ({ page }) => {
   await gotoApp(page);
+  await page.evaluate(() => window.__grawlixTest.installFixtureTools());
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
     name: 'RemapSort',
-    entries: ['opt', 'pot', 'top', 'act', 'cat', 'dog'],
+    entries: ['ab0', 'ab1', 'ab2', 'cd0', 'cd1', 'solo'],
     scores:  [50, 40, 30, 60, 20, 70],
   }));
 
@@ -136,7 +139,7 @@ test('tier remap: a Length sort becomes Min length across the group boundary, th
 
   // The anchorless group tier has no first-atom Length; the sort lands on its
   // across-the-row twin Min length, not Count — then collapses back on removal.
-  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'letter_bank', grouped: true }]));
+  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'prefix_group', grouped: true }]));
   expect((await sortState(page)).key).toBe('min-length');
   await page.evaluate(() => window.__grawlixTest.setStack([]));
   expect((await sortState(page)).key).toBe('length');
@@ -144,18 +147,19 @@ test('tier remap: a Length sort becomes Min length across the group boundary, th
 
 test('a Count sort shows as Length once the group goes, and comes back with it', async ({ page }) => {
   await gotoApp(page);
+  await page.evaluate(() => window.__grawlixTest.installFixtureTools());
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
     name: 'RemapSort',
-    entries: ['opt', 'pot', 'top', 'act', 'cat', 'dog'],
+    entries: ['ab0', 'ab1', 'ab2', 'cd0', 'cd1', 'solo'],
     scores:  [50, 40, 30, 60, 20, 70],
   }));
-  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'letter_bank', grouped: true }]));
+  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'prefix_group', grouped: true }]));
   await page.locator('.group-headers .group-count .col-sort').click();
   expect((await sortState(page)).key).toBe('count');
 
   await page.evaluate(() => window.__grawlixTest.setStack([]));
   expect((await sortState(page)).key).toBe('length');
-  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'letter_bank', grouped: true }]));
+  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'prefix_group', grouped: true }]));
   expect((await sortState(page)).key).toBe('count');
 });
 

@@ -16,66 +16,53 @@ test.beforeEach(async ({ page }) => {
 
 const BIG = 100000;   // an end past any group's size — fetch the whole tail
 
-// Distinct descending scores so the within-group seed order (score-desc, then
-// norm) is total — a tie could flip across runs and unfreeze the golden.
+// The fixture tool `prefix_group` (engine/fixture-tools.js) keys an entry by its
+// norm minus trailing digits, so `ab000`..`ab069` is one 70-member group sorted
+// by member norm. Distinct descending scores keep the within-group order total.
+const pad = i => String(i).padStart(3, '0');
 
-// 70 distinct {A,B} strings (each containing both) all key to letter-bank "ab" —
-// one group past the window. Five {A,B,C} strings form a second, single-window
-// group ("abc").
-function letterBankFixture() {
+// "ab" crosses the 64-chain window; "abc" fits one window.
+function bigGroupFixture() {
   const entries = [], scores = [];
   let score = 5000;
-  const ab = new Set();
-  for (let len = 2; ab.size < 70; len++) {
-    for (let mask = 0; mask < (1 << len) && ab.size < 70; mask++) {
-      let s = '';
-      for (let b = 0; b < len; b++) s += (mask >> b) & 1 ? 'B' : 'A';
-      if (s.includes('A') && s.includes('B')) ab.add(s);
-    }
-  }
-  for (const s of ab) { entries.push(s); scores.push(score--); }
-  for (const s of ['ABC', 'CAB', 'BCA', 'ACB', 'CBA']) { entries.push(s); scores.push(score--); }
+  for (let i = 0; i < 70; i++) { entries.push('ab' + pad(i)); scores.push(score--); }
+  for (let i = 0; i < 5; i++) { entries.push('abc' + pad(i)); scores.push(score--); }
   return { name: 'Bank', entries, scores };
 }
 
-// 100 distinct "H.. of T.." phrases all key to initialisms "hot"; "HOT" present
-// as a single entry is the group's anchor.
-function initialismsFixture() {
-  const entries = [], scores = [];
+// 100 members under "hot", with `hot` itself present as the anchor.
+function anchoredFixture() {
+  const entries = ['hot'], scores = [9000];
   let score = 5000;
-  entries.push('HOT'); scores.push(9000);
-  const firsts = ['Helen', 'House', 'Heart', 'Hall', 'Hat', 'Hill', 'Hope', 'Hand', 'Head', 'Home'];
-  const lasts = ['Troy', 'Tudor', 'Texas', 'Time', 'Tin', 'Tea', 'Top', 'Toe', 'Tan', 'Tip'];
-  for (const f of firsts) for (const l of lasts) { entries.push(`${f} of ${l}`); scores.push(score--); }
-  return { name: 'Phrases', entries, scores };
+  for (let i = 0; i < 100; i++) { entries.push('hot' + pad(i)); scores.push(score--); }
+  return { name: 'Anchored', entries, scores };
 }
 
-// ~150 letter-bank groups, exercising windowing of the GROUP LIST (not the chains
-// within a group). Each group is a strictly-increasing 3-letter bank (e.g. "abc")
-// with exactly two chains — the bank itself and the bank with its last letter
-// doubled ("abc", "abcc"), both keying to the bank. A group needs ≥2 chains to
-// survive (the executor drops singletons). The first chain's norm equals the bank
-// key, so under the default Entry grouped sort the groups land in plain
-// lexicographic key order, freezable across runs. 150 > GROUP_ROW_WINDOW (60), so
-// the list crosses the window boundary and the fetchGroups path is exercised.
-function manyGroupsFixture(targetGroups = 150) {
-  const entries = [], scores = [];
-  let score = 9000;
-  const A = 'abcdefghijklmnopqrstuvwxyz';
-  let n = 0;
-  outer:
+// Two-member groups keyed by strictly increasing letter triples ("abc", "abd", ...),
+// for windowing the group LIST. Equal-length keys sort the groups lexicographically.
+function tripleKeys(count) {
+  const A = 'abcdefghijklmnopqrstuvwxyz', keys = [];
   for (let i = 0; i < A.length; i++)
     for (let j = i + 1; j < A.length; j++)
       for (let k = j + 1; k < A.length; k++) {
-        const bank = (A[i] + A[j] + A[k]).toUpperCase();
-        entries.push(bank, bank + A[k].toUpperCase());
-        scores.push(score--, score--);
-        if (++n >= targetGroups) break outer;
+        keys.push(A[i] + A[j] + A[k]);
+        if (keys.length >= count) return keys;
       }
+  return keys;
+}
+
+function manyGroupsFixture(targetGroups = 150) {
+  const entries = [], scores = [];
+  let score = 9000;
+  for (const key of tripleKeys(targetGroups)) {
+    entries.push(key + '0', key + '1');
+    scores.push(score--, score--);
+  }
   return { name: 'Many', entries, scores };
 }
 
 async function seedScoped(page, fixture) {
+  await page.evaluate(() => window.__grawlixTest.installFixtureTools());
   await page.evaluate(f => window.__grawlixTest.addCustomWordlist(f), fixture);
   await page.evaluate(n => window.__grawlixTest.setScope(n), fixture.name);
   await page.evaluate(() => window.__grawlixTest.pipelineIdle());
@@ -115,10 +102,10 @@ async function fullFetch(page, key) {
 
 // ─── Golden reassembly ───────────────────────────────────────────────────────
 
-test('letter-bank grouped: windowed reassembly equals the full group, per group', async ({ page }) => {
+test('grouped: windowed reassembly equals the full group, per group', async ({ page }) => {
   await gotoApp(page);
-  await seedScoped(page, letterBankFixture());
-  await runGrouped(page, [{ tool: 'letter_bank', grouped: true }]);
+  await seedScoped(page, bigGroupFixture());
+  await runGrouped(page, [{ tool: 'prefix_group', grouped: true }]);
 
   const reassembled = await reassemble(page);
 
@@ -138,16 +125,15 @@ test('letter-bank grouped: windowed reassembly equals the full group, per group'
   }
 
   // Pin the big group's seed order across the boundary (head resident, tail
-  // fetched). The default grouped sort is Entry → chains alphabetical by seed
-  // norm, so these are frozen norm-sorted slices.
-  expect(ab.chains.slice(0, 4)).toEqual(['aaaab', 'aaaaba', 'aaab', 'aaaba']);
-  expect(ab.chains.slice(64)).toEqual(['bbba', 'bbbaa', 'bbbaaa', 'bbbab', 'bbbba', 'bbbbaa']);
+  // fetched): the default grouped sort is Entry, so chains run by seed norm.
+  expect(ab.chains.slice(0, 4)).toEqual(['ab000', 'ab001', 'ab002', 'ab003']);
+  expect(ab.chains.slice(64)).toEqual(['ab064', 'ab065', 'ab066', 'ab067', 'ab068', 'ab069']);
 });
 
-test('initialisms grouped (anchored): windowed reassembly equals the full group', async ({ page }) => {
+test('anchored grouped: windowed reassembly equals the full group', async ({ page }) => {
   await gotoApp(page);
-  await seedScoped(page, initialismsFixture());
-  await runGrouped(page, [{ tool: 'initialisms', grouped: true }]);
+  await seedScoped(page, anchoredFixture());
+  await runGrouped(page, [{ tool: 'prefix_group_anchored', grouped: true }]);
 
   const reassembled = await reassemble(page);
   const hot = reassembled.find(g => g.key === 'hot');
@@ -158,10 +144,8 @@ test('initialisms grouped (anchored): windowed reassembly equals the full group'
   const full = await fullFetch(page, 'hot');
   expect(hot.chains).toEqual(full);
   expect(full.length).toBe(100);
-  // The anchor "HOT" isn't a chain member; chains are the 100 phrases, sorted by
-  // seed norm under the default Entry grouped sort (norms strip spaces — "Hall of
-  // Tan" → "halloftan", first alphabetically).
-  expect(hot.chains[0]).toBe('halloftan');
+  // The anchor `hot` isn't a chain member; chains are the 100 members by seed norm.
+  expect(hot.chains[0]).toBe('hot000');
 });
 
 // ─── Group-LIST windowed reassembly ──────────────────────────────────────────
@@ -184,7 +168,7 @@ async function reassembleGroupList(page) {
 test('grouped: windowed group LIST reassembles to the full sorted group list', async ({ page }) => {
   await gotoApp(page);
   await seedScoped(page, manyGroupsFixture(150));
-  await runGrouped(page, [{ tool: 'letter_bank', grouped: true }]);
+  await runGrouped(page, [{ tool: 'prefix_group', grouped: true }]);
 
   const { groupCount, residentCount, keys } = await reassembleGroupList(page);
 
@@ -201,8 +185,8 @@ test('grouped: windowed group LIST reassembles to the full sorted group list', a
   expect(keys.length).toBe(groupCount);
   expect(keys).toEqual(full);
 
-  // norm==key (fixture) under the default Entry grouped sort ⇒ lexicographic; freeze
-  // the head and tail across the boundary.
+  // Lexicographic under the default Entry grouped sort; freeze the head and tail
+  // across the boundary.
   expect(keys.slice(0, 4)).toEqual(['abc', 'abd', 'abe', 'abf']);
   expect(keys.slice(-3)).toEqual(['aij', 'aik', 'ail']);
   expect(new Set(keys).size).toBe(keys.length);
@@ -218,8 +202,8 @@ test('grouped: windowed group LIST reassembles to the full sorted group list', a
 
 test('grouped export emits every chain of a >64-chain group, not just the window', async ({ page }) => {
   await gotoApp(page);
-  await seedScoped(page, letterBankFixture());
-  await runGrouped(page, [{ tool: 'letter_bank', grouped: true }]);
+  await seedScoped(page, bigGroupFixture());
+  await runGrouped(page, [{ tool: 'prefix_group', grouped: true }]);
 
   // The big group's true count exceeds the window — otherwise nothing is tested.
   const abCount = await page.evaluate(() =>
@@ -234,10 +218,10 @@ test('grouped export emits every chain of a >64-chain group, not just the window
   expect(abGroup).toBeTruthy();
   expect(abGroup.chains.length).toBe(abCount);   // 70, not 64
 
-  // The wordlist text dedupes by tail entry; each {A,B} chain has a distinct tail,
-  // so all 70 land as distinct lines (none of the post-64 tail dropped).
+  // The wordlist text dedupes by tail entry; each chain has a distinct tail, so all
+  // 70 land as distinct lines (none of the post-64 tail dropped).
   const abLines = wordlist.split('\n').filter(Boolean)
-    .filter(l => /^[ab]+;/i.test(l));
+    .filter(l => /^ab\d+;/i.test(l));
   expect(abLines.length).toBe(abCount);
 
   const abcGroup = json.groups.find(g => g.group_key === 'abc');
@@ -248,8 +232,8 @@ test('grouped export emits every chain of a >64-chain group, not just the window
 
 test('+N more popover fetches later windows in order; a fetched chain is editable', async ({ page }) => {
   await gotoApp(page);
-  await seedScoped(page, letterBankFixture());
-  await runGrouped(page, [{ tool: 'letter_bank', grouped: true }]);
+  await seedScoped(page, bigGroupFixture());
+  await runGrouped(page, [{ tool: 'prefix_group', grouped: true }]);
 
   const moreBtn = page.locator('#vs-host .group-row .group-more:not([hidden])').first();
   await expect(moreBtn).toBeVisible();
@@ -286,8 +270,8 @@ test('+N more popover fetches later windows in order; a fetched chain is editabl
 test('collapsed group rows paint from the resident window with no under-fill', async ({ page }) => {
   await gotoApp(page);
   await page.evaluate(() => window.__grawlixTest.resetGroupWindowUnderfillForTest());
-  await seedScoped(page, letterBankFixture());
-  await runGrouped(page, [{ tool: 'letter_bank', grouped: true }]);
+  await seedScoped(page, bigGroupFixture());
+  await runGrouped(page, [{ tool: 'prefix_group', grouped: true }]);
 
   // Only the popover ever shows a skeleton; collapsed rows render fully resident.
   await expect(page.locator('#vs-host .group-row .group-chain.skeleton')).toHaveCount(0);
@@ -309,33 +293,13 @@ test('collapsed group rows paint from the resident window with no under-fill', a
 
 // ─── Scroll-fetch: later group ROWS fill in (skeleton → real) ─────────────────
 
-// 80 two-chain groups (increasing-triple banks, sort first) plus one big group
-// keyed "xyz" with 70 chains. Two chains per bank because the executor drops
-// singleton groups (see manyGroupsFixture). "xyz" sorts after every "a.." key, so
-// it lands past GROUP_ROW_WINDOW — the scroll-fetch + fetched-row "+N more" target.
+// 80 two-member groups plus one 70-member group keyed "xyz", which sorts after
+// every "a.." key and so lands past GROUP_ROW_WINDOW: the scroll-fetch and
+// fetched-row "+N more" target.
 function scrollFetchFixture() {
-  const entries = [], scores = [];
-  let score = 9000;
-  const A = 'abcdefghijklmnopqrstuvwxyz';
-  let n = 0;
-  outer:
-  for (let i = 0; i < A.length; i++)
-    for (let j = i + 1; j < A.length; j++)
-      for (let k = j + 1; k < A.length; k++) {
-        const bank = (A[i] + A[j] + A[k]).toUpperCase();
-        entries.push(bank, bank + A[k].toUpperCase());
-        scores.push(score--, score--);
-        if (++n >= 80) break outer;
-      }
-  const xyz = new Set();
-  for (let len = 3; xyz.size < 70; len++) {
-    for (let mask = 0; mask < 3 ** len && xyz.size < 70; mask++) {
-      let s = '', m = mask;
-      for (let p = 0; p < len; p++) { s += 'XYZ'[m % 3]; m = Math.floor(m / 3); }
-      if (s.includes('X') && s.includes('Y') && s.includes('Z')) xyz.add(s);
-    }
-  }
-  for (const s of xyz) { entries.push(s); scores.push(score--); }
+  const { entries, scores } = manyGroupsFixture(80);
+  let score = 5000;
+  for (let i = 0; i < 70; i++) { entries.push('xyz' + pad(i)); scores.push(score--); }
   return { name: 'Scroll', entries, scores };
 }
 
@@ -351,7 +315,7 @@ function visibleGroupRows(page) {
 test('grouped: scrolling past the first window fetches later group rows (skeleton → real, in order)', async ({ page }) => {
   await gotoApp(page);
   await seedScoped(page, scrollFetchFixture());
-  await runGrouped(page, [{ tool: 'letter_bank', grouped: true }]);
+  await runGrouped(page, [{ tool: 'prefix_group', grouped: true }]);
   await settleGroupWindow(page);
 
   // Above the fold paints fully resident — no group-row skeletons on first screen.

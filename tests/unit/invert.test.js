@@ -4,6 +4,9 @@ import { run, groups, wlEntry } from './tools/harness.js';
 import { makeToolRow } from '../../site/src/engine/tools.js';
 import { currentAtomCount } from '../../site/src/engine/executor.js';
 import { compileFlatHighlighters, materializeFlatRow } from '../../site/src/engine/flat-highlight.js';
+import { installFixtureTools } from '../../site/src/engine/fixture-tools.js';
+
+installFixtureTools();
 
 const norms = rows => rows.map(r => (r.atoms ? r.atoms[r.atoms.length - 1].wlEntry : r).norm).sort();
 
@@ -73,30 +76,25 @@ test('materializeFlatRow reserves currentAtomCount lines through an inverted fil
 
 // ─── Grouped filters: the !any quantifier ────────────────────────────────────
 
+// `prefix_group` (engine/fixture-tools.js) clusters ab0/ab1 under "ab", cd0/cd1 under "cd".
+const GROUP = { tool: 'prefix_group', grouped: true };
+const NOT_AB0 = { tool: 'search', params: { pattern: 'ab0' }, invert: true };
+
 test('an inverted grouped filter drops every cluster the pattern touched', async () => {
-  const gs = await groups(['level', 'rotor', 'ape', 'pea'], [
-    { tool: 'cryptogram', grouped: true },
-    { tool: 'search', params: { pattern: 'level' }, invert: true },
-  ]);
+  const gs = await groups(['ab0', 'ab1', 'cd0', 'cd1'], [GROUP, NOT_AB0]);
   assert.equal(gs.length, 1);
-  assert.deepEqual(gs[0].chains.map(c => c[0]).sort(), ['ape', 'pea']);
+  assert.deepEqual(gs[0].chains.map(c => c[0]).sort(), ['cd0', 'cd1']);
 });
 
 // `any(!match)` — negating per-member as the flat path does — would keep this
-// cluster, since `rotor` doesn't match. The stage negates as a whole instead.
+// cluster, since `ab1` doesn't match. The stage negates as a whole instead.
 test('a cluster survives only when NO member matches, not when some member misses', async () => {
-  const gs = await groups(['level', 'rotor'], [
-    { tool: 'cryptogram', grouped: true },
-    { tool: 'search', params: { pattern: 'level' }, invert: true },
-  ]);
+  const gs = await groups(['ab0', 'ab1'], [GROUP, NOT_AB0]);
   assert.equal(gs.length, 0);
 });
 
 test('inverted grouped members are tagged matched so the score gate keeps them', async () => {
-  const { rows } = await run(['level', 'rotor', 'ape', 'pea'], [
-    { tool: 'cryptogram', grouped: true },
-    { tool: 'search', params: { pattern: 'level' }, invert: true },
-  ]);
+  const { rows } = await run(['ab0', 'ab1', 'cd0', 'cd1'], [GROUP, NOT_AB0]);
   assert.equal(rows.length, 1);
   for (const c of rows[0].chains) assert.equal(c.matched, true);
 });
@@ -111,7 +109,7 @@ test('inverted() ignores the flag on a row whose params make it a transform', ()
 });
 
 test('inverted() ignores the flag on an all-mode group row', () => {
-  const row = makeToolRow('cryptogram', {}, true, true);
+  const row = makeToolRow('prefix_group', {}, true, true);
   assert.equal(row.kind(), 'group');
   assert.equal(row.inverted(), false);
 });
