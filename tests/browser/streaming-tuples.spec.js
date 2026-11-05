@@ -18,7 +18,7 @@ const SHIPPED_MS = 30;
 
 // All 4-letter words over a 7-letter alphabet (2401 words): AB;BA pairs every split
 // of every word with its rotation (B+A is always present), so the join is heavy
-// enough to cross many 1ms yields and caps at UMIAQ_MAX_RESULTS (2000).
+// enough to cross many 1ms yields.
 async function seedCorpus(page) {
   await page.evaluate(() => {
     const A = 'abcdefg', entries = [], scores = [];

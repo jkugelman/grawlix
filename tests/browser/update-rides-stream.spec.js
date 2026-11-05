@@ -12,7 +12,7 @@ test.beforeEach(async ({ page }) => {
 });
 
 // All 4-letter words over a 7-letter alphabet (2401), scoped so the run reads exactly this
-// source. AB;BA pairs every word with its rotation, capping at UMIAQ_MAX_RESULTS — heavy
+// source. AB;BA pairs every word with its rotation — heavy
 // enough that the run crosses many 1ms yields, so an update fired after the first partial
 // lands while the run is still in flight.
 async function seedQuads(page) {

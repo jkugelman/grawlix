@@ -104,10 +104,11 @@ test('a chain row is judged on its last atom, not its seed', async ({ page }) =>
   await gotoApp(page);
   await seed(page);
   // Head off "s": scat (4) → cat (3), scats (5) → cats (4), scatter (7) → catter (6).
-  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'head_off', params: { string: 's' } }]));
+  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'head_off', params: { pattern: 's' } }]));
   await awaitSettle(page, () => window.__grawlixTest.pipelineIdle());
   await setLength(page, '3');
-  await expectVisible(page, ['cat']);   // from the 4-letter seed `scat`
+  // The chain, not a bare `cat`: the seed holds `cat` too, so an inert stack passes a bare match.
+  await expectVisible(page, [['scat', 'cat']]);
 });
 
 // ─── Tuple tier: the control goes inert ──────────────────────────────────────
