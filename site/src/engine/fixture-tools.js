@@ -108,9 +108,11 @@ const throws = {
   },
 };
 
-// A tuple producer pairing each entry with its reverse when listed, one batch per
-// pair. With `hold` set, a streamed run stops after its first batch until the spec
-// calls `releaseFixtureHold`, so "mid-stream" never depends on how slow a join is.
+// A tuple producer pairing each entry with its reverse when listed, streaming a
+// batch every HELD_PAIRS_BATCH pairs, so a streamed run's batch count depends on the
+// corpus, never on machine speed. With `hold` set, it flushes its first pair and
+// stops until the spec calls `releaseFixtureHold`.
+const HELD_PAIRS_BATCH = 64;
 let holdOpen = true;
 export function releaseFixtureHold() { holdOpen = true; }
 
@@ -123,7 +125,8 @@ const held_pairs = {
   prepare: params => ({ hold: !!params?.hold }),
   async findTuples(pool, { hold }, ctx) {
     const byNorm = new Map(pool.map(e => [e.norm, e]));
-    const tuples = [];
+    const tuples = [], pending = [];
+    const flush = async () => { if (ctx.onBatch && pending.length) await ctx.onBatch(pending.splice(0)); };
     if (hold && ctx.onBatch) holdOpen = false;
     for (const entry of pool) {
       const rev = [...entry.norm].reverse().join('');
@@ -131,11 +134,14 @@ const held_pairs = {
       if (!partner) continue;
       const lanes = [{ entry, highlights: null }, { entry: partner, highlights: null }];
       tuples.push(lanes);
-      if (!ctx.onBatch) continue;
-      await ctx.onBatch([lanes]);
-      while (!holdOpen) await ctx.y.yield();
-      if (ctx.y.due()) await ctx.y.yield();
+      pending.push(lanes);
+      if (!holdOpen) {
+        await flush();
+        while (!holdOpen) await ctx.y.yield();
+      }
+      if (pending.length >= HELD_PAIRS_BATCH) { await flush(); await ctx.y.yield(); }
     }
+    await flush();
     return { tuples, retained: true, truncated: false, capped: false };
   },
 };

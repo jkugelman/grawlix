@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { stubPublisherFetches, gotoApp } from './helpers.js';
 
-// Worker-side streaming for the TUPLE tier: a multi-pattern Umiaq query
+// Worker-side streaming for the TUPLE tier: a tuple producer
 // posts SORTED `partialGroups` snapshots of its tuples as the join finds them, and
 // the terminal grouped `result` ships the same sorted order (the incremental merge
 // over a total comparator equals a from-scratch sortGroups). This pins the worker
@@ -16,10 +16,11 @@ test.beforeEach(async ({ page }) => {
 const STREAM_MS = 1;
 const SHIPPED_MS = 30;
 
-// All 4-letter words over a 7-letter alphabet (2401 words): AB;BA pairs every split
-// of every word with its rotation (B+A is always present), so the join is heavy
-// enough to cross many 1ms yields.
+// All 4-letter words over a 7-letter alphabet (2401 words). The `held_pairs` fixture
+// (engine/fixture-tools.js) pairs each with its reverse, one batch per pair, so a run
+// spans many batches however fast the machine.
 async function seedCorpus(page) {
+  await page.evaluate(() => window.__grawlixTest.installFixtureTools());
   await page.evaluate(() => {
     const A = 'abcdefg', entries = [], scores = [];
     for (const a of A) for (const b of A) for (const c of A) for (const d of A) {
@@ -47,14 +48,16 @@ async function runStack(page, stack, { stream } = {}) {
   }, { stack, stream, STREAM_MS, SHIPPED_MS });
 }
 
-async function runTuple(page, query, opts = {}) {
-  return runStack(page, [{ tool: 'umiaq', params: { query } }], opts);
+const PAIRS = { tool: 'held_pairs', params: {} };
+
+async function runPairs(page, opts = {}) {
+  return runStack(page, [PAIRS], opts);
 }
 
 test('a forced-stream tuple run streams many tuple partials', async ({ page }) => {
   await gotoApp(page);
   await seedCorpus(page);
-  const { partials } = await runTuple(page, 'AB;BA', { stream: true });
+  const { partials } = await runPairs(page, { stream: true });
   expect(partials.length).toBeGreaterThan(1);
   for (const p of partials) expect(p.laneKind).toBe('record');
 });
@@ -63,8 +66,8 @@ test('the final tuple result is identical with and without forced streaming', as
   await gotoApp(page);
   await seedCorpus(page);
 
-  const plain = await runTuple(page, 'AB;BA');
-  const streamed = await runTuple(page, 'AB;BA', { stream: true });
+  const plain = await runPairs(page);
+  const streamed = await runPairs(page, { stream: true });
 
   expect(streamed.groups.length).toBe(plain.groups.length);
   expect(streamed.groups).toEqual(plain.groups);   // same tuples, same sorted order
@@ -75,14 +78,11 @@ test('a tuple run with a downstream filter streams only the filtered tuples', as
   await seedCorpus(page);
 
   // Stream the filtered run FIRST, while the pre-search cache is cold. The
-  // permanent trailing search bar gives both this stack and a bare `[umiaq]` run
-  // the same user stack `[umiaq]`, so a prior run would warm the cache, skip the
+  // permanent trailing search bar gives both this stack and a bare `[held_pairs]` run
+  // the same user stack `[held_pairs]`, so a prior run would warm the cache, skip the
   // rerun, and stream nothing (0 partials).
-  const streamed = await runStack(page, [
-    { tool: 'umiaq', params: { query: 'AB;BA' } },
-    { tool: 'search', params: { pattern: 'a' } },
-  ], { stream: true });
-  const unfiltered = await runTuple(page, 'AB;BA');
+  const streamed = await runStack(page, [PAIRS, { tool: 'search', params: { pattern: 'a' } }], { stream: true });
+  const unfiltered = await runPairs(page);
 
   expect(streamed.groups.length).toBeGreaterThan(0);
   expect(streamed.groups.length).toBeLessThan(unfiltered.groups.length);   // the filter dropped some
@@ -105,7 +105,7 @@ test('a streamed run hands off cleanly to a settled tuple render', async ({ page
   await seedCorpus(page);
 
   await page.evaluate(() => window.__grawlixTest.setWorkerYieldIntervalForTest(1));
-  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'umiaq', params: { query: 'AB;BA' } }]));
+  await page.evaluate(s => window.__grawlixTest.setStack(s), [PAIRS]);
   await page.evaluate(() => window.__grawlixTest.pipelineIdle());
   await page.evaluate(() => window.__grawlixTest.setWorkerYieldIntervalForTest(30));
 
@@ -130,7 +130,7 @@ test('tuple partials stream a climbing total and a sorted group prefix', async (
   await gotoApp(page);
   await seedCorpus(page);
 
-  const { partials, groups } = await runTuple(page, 'AB;BA', { stream: true });
+  const { partials, groups } = await runPairs(page, { stream: true });
 
   let prev = 0;
   for (const p of partials) {
@@ -154,12 +154,12 @@ test('a tuple result retains an index-packed join, not the eager object graph', 
   await gotoApp(page);
   await seedCorpus(page);
 
-  const info = await page.evaluate(async () => {
+  const info = await page.evaluate(async stack => {
     const T = window.__grawlixTest;
-    await T.setStack([{ tool: 'umiaq', params: { query: 'AB;BA' } }]);
+    await T.setStack(stack);
     await T.pipelineIdle();
     return T.retainedResultInfo();
-  });
+  }, [PAIRS]);
 
   expect(info.packed).toBe(true);
   expect(info.laneKind).toBe('record');
@@ -173,21 +173,18 @@ test('a highlighting filter after the tuple falls back to the eager (unpacked) j
   await gotoApp(page);
   await seedCorpus(page);
 
-  const info = await page.evaluate(async () => {
+  const info = await page.evaluate(async stack => {
     const T = window.__grawlixTest;
-    await T.setStack([
-      { tool: 'umiaq', params: { query: 'AB;BA' } },
-      { tool: 'search', params: { pattern: '*a*' } },
-    ]);
+    await T.setStack(stack);
     await T.pipelineIdle();
     return T.retainedResultInfo();
-  });
+  }, [PAIRS, { tool: 'search', params: { pattern: '*a*' } }]);
 
   expect(info.packed).toBe(false);
   expect(info.laneKind).toBe('record');
 });
 
-// A tuple run's first tuple is ~1s out; without an eager indicator the prior result
+// A slow tuple run's first tuple can be ~1s out; without an eager indicator the prior result
 // lingers on screen looking current. Dispatch must show empty + dots at once.
 test('a tuple-run dispatch shows the streaming state at once, before the first tuple batch', async ({ page }) => {
   await gotoApp(page);
@@ -196,10 +193,10 @@ test('a tuple-run dispatch shows the streaming state at once, before the first t
   // Read the panel SYNCHRONOUSLY after an un-awaited dispatch: the worker reply is a
   // later task, so beginStreamPending (run in the dispatch's synchronous prefix) is the
   // only thing that has touched the DOM — there is provably no first batch yet.
-  const snap = await page.evaluate(() => {
+  const snap = await page.evaluate(stack => {
     const T = window.__grawlixTest;
     const before = T.scrollerRowCount();
-    const settle = T.setStack([{ tool: 'umiaq', params: { query: 'AB;BA' } }]);
+    const settle = T.setStack(stack);
     const panel = document.getElementById('entries-table-panel');
     const pending = {
       before,
@@ -209,7 +206,7 @@ test('a tuple-run dispatch shows the streaming state at once, before the first t
       footer: document.querySelector('.entries-footer')?.textContent ?? '',
     };
     return settle.then(() => pending);
-  });
+  }, [PAIRS]);
 
   expect(snap.before).toBeGreaterThan(0);            // a result WAS on screen
   expect(snap.streaming).toBe(true);                 // replaced at once by the streaming state

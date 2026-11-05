@@ -262,6 +262,7 @@ test('re-abandoning a resumed run past the crossover keeps the extra progress', 
 // ─── Tuple tier ──────────────────────────────────────────────────────────────
 
 async function seedQuads(page) {
+  await page.evaluate(() => window.__grawlixTest.installFixtureTools());
   await page.evaluate(() => {
     const A = 'abcdefg', entries = [], scores = [];
     for (const a of A) for (const b of A) for (const c of A) for (const d of A) {
@@ -274,7 +275,7 @@ async function seedQuads(page) {
   await page.evaluate(() => window.__grawlixTest.pipelineIdle());
 }
 
-const tuple = query => [{ tool: 'umiaq', params: { query } }];
+const PAIRS = [{ tool: 'held_pairs', params: {} }];
 
 async function coldTupleGroups(page, stack) {
   await page.evaluate(s => window.__grawlixTest.setStack(s), stack);
@@ -304,16 +305,16 @@ async function abandonTuple(page, stack, detour) {
 test('workflow: abandon a slow tuple run, detour, re-enter — resumes the stash byte-identically', async ({ page }) => {
   await gotoApp(page);
   await seedQuads(page);
-  const expected = await coldTupleGroups(page, tuple('AB;BA'));
+  const expected = await coldTupleGroups(page, PAIRS);
   await isolate(page);
 
-  const { aLastTotal } = await abandonTuple(page, tuple('AB;BA'), flat('a'));
+  const { aLastTotal } = await abandonTuple(page, PAIRS, flat('a'));
   expect(aLastTotal).toBeGreaterThan(0);
 
-  const out = await page.evaluate(async ({ SHIPPED_MS }) => {
+  const out = await page.evaluate(async ({ stack, SHIPPED_MS }) => {
     const T = window.__grawlixTest;
     const capture = T.captureWorkerGroupPartialsForTest();
-    await T.setStack([{ tool: 'umiaq', params: { query: 'AB;BA' } }]);
+    await T.setStack(stack);
     await T.pipelineIdle();
     const parts = capture.stop().map(p => p.total);
     T.setWorkerYieldIntervalForTest(SHIPPED_MS);
@@ -321,7 +322,7 @@ test('workflow: abandon a slow tuple run, detour, re-enter — resumes the stash
     const runId = T.lastCompletedRunId();
     const reply = await T.fetchWorkerAllGroups(runId);
     return { parts, st, groups: reply.groups.map(g => g.key) };
-  }, { SHIPPED_MS });
+  }, { stack: PAIRS, SHIPPED_MS });
 
   expect(out.st.hits).toBeGreaterThanOrEqual(1);
   expect(out.st.resumedFrom).toBe(aLastTotal);

@@ -379,7 +379,7 @@ A browser spec installs them on main and in the worker with `__grawlixTest.insta
 | `pair_map` | transform whose chains the spec lists (`pairs: 'spark>park'`); `input: 'highlight'` marks the input | row shapes, cross-run anchors |
 | `prefix_group`, `prefix_group_anchored` | group keyed by the norm minus trailing digits (`ab042` → `ab`) | windowing, group headers, grouped filters and inversion |
 | `throws` | filter throwing from the stage its `at` param names | the tool-error path |
-| `held_pairs` | tuple pairing entries with their reverse; `hold` stops a streamed run after its first batch until `__grawlixTest.releaseFixtureHold()` | actions that must land mid-stream |
+| `held_pairs` | tuple pairing entries with their reverse, a batch every 64 pairs; `hold` stops a streamed run after its first pair until `__grawlixTest.releaseFixtureHold()` | tuple streaming and its partial cache, actions that must land mid-stream |
 
 Reach for one when a test exercises shared machinery and only needs *some* tool of a given shape.
 A test that picks a real tool for its shape depends on that tool's incidental behavior, and a later change to the tool, or to an unrelated rule like sorting or morphology, can quietly leave it testing nothing.
