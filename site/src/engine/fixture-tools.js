@@ -12,15 +12,17 @@ import { TOOLS } from './tools.js';
 const late_twin = {
   name: 'Late twin', icon: '🧪', category: 'transform',
   desc: 'Test fixture', example: 'zzapple → apple',
-  params: [],
-  kind: 'transform', input: 'hidden', output: 'plain',
+  params: [{ key: 'mark' }],
+  kind: 'transform', input: 'hidden',
+  output: params => (params.mark ? 'highlight' : 'plain'),
   run(entry, params, wordlist) {
+    const emit = e => [params.mark ? { entry: e, outputHighlights: [{ start: 0, end: 1, kind: 'search:0' }] } : { entry: e }];
     if (entry.startsWith('zz')) {
       const twin = entry.slice(2);
-      return wordlist.norms.has(twin) ? [{ entry: twin }] : [];
+      return wordlist.norms.has(twin) ? emit(twin) : [];
     }
     if (wordlist.norms.has('zz' + entry)) return [];
-    return [{ entry }];
+    return emit(entry);
   },
 };
 

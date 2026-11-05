@@ -80,7 +80,7 @@ Because a later batch can introduce an earlier-collating member, batch *k*'s com
 It is restored by a **repair** step inside the emitter: when a batch drops a family's anchor, that family's already-placed rows are pulled back out of `indices`, folded into the batch, and re-merged.
 No shipped stack makes a drop: the anchor is a row's norm, scans run in corpus (norm) order, and the one case that puts a scanned output first, a transform that hides its input, emits synthetic rows, which carry no family.
 The repair guards that invariant against a tool whose hidden-input output is a corpus entry, which is what the test-only `late_twin` tool ([`engine/fixture-tools.js`](../site/src/engine/fixture-tools.js)) is.
-Such a run's rows are single-atom corpus entries that `resultTier` would classify as flat, so a streamed run's terminal takes its tier from the stream plan instead, adopting the slot its emitter filled.
+Such a run's rows are single-atom corpus entries that look flat, so `resultTier` reads the tier off the stack, not the rows: any active transform means the transform tier, streamed or not.
 This is incremental maintenance in the streaming path, not a settle — the terminal still only adopts.
 Two consequences that are load-bearing:
 

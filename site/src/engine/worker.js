@@ -416,7 +416,7 @@ async function runOne({ runId, stack: serialized, sort, scope, existsQuery, scor
     return runOne({ runId, stack: serialized, sort, scope, existsQuery, scoreRange, lengthRange, rebindQuery }, true);
   }
 
-  const { tier: rtier, r } = postResult(runId, out, viewSpec, scope, stack, existsQuery, rebindQuery, streamState.streamed ? tier : null);
+  const { tier: rtier, r } = postResult(runId, out, viewSpec, scope, stack, existsQuery, rebindQuery, streamState.streamed);
   admitResultToCache(cacheKey, rtier, r, out, scope, lastPipelineTailMs());
 }
 
@@ -452,7 +452,7 @@ async function runRepatch({ runId, reprojectId, stack: serialized, sort, scoreRa
     return;
   }
   if (signal.aborted) return;
-  if (out.laneKind !== 'single' || out.rows.some(rowIsRich)) {
+  if (resultTier(out, stack) !== 'flat') {
     postMessage({ type: 'reprojectStale', runId, reprojectId });
     return;
   }
@@ -1083,13 +1083,14 @@ function stackRowIndex(stack, e) {
 }
 
 // ─── Result encoding ── three tiers, see docs/worker-protocol.md ──────────────
-// The flat path's index+scores encoding is lossless only when every atom is the
-// same word; a rich row (glyph, distinct norms, or a synthetic) would silently
-// lose data through it, so any rich row forces the atom-sequence encoding for the
-// whole result.
-
-function resultTier({ rows, laneKind }) {
-  return laneKind !== 'single' ? 'group' : rows.some(rowIsRich) ? 'transform' : 'flat';
+// The flat path's index encoding is lossless only for a filter-only stack: it keeps
+// no glyph, synthetic, or second atom, and re-derives marks by replaying the stack's
+// filters. Any active transform forces the atom-sequence encoding, decided from the
+// stack, not the rows: a hidden-input transform's plain single-atom corpus rows look
+// flat, and replaying would drop the transform's own marks and misplace a filter's.
+function resultTier({ laneKind }, stack) {
+  if (laneKind !== 'single') return 'group';
+  return stack.some(r => !r.isInert() && r.kind() === 'transform') ? 'transform' : 'flat';
 }
 
 function flatJoinFromRows(rows) {
@@ -1166,13 +1167,10 @@ function shipResult(runId, tier, r, laneKind, atomCount, capped, viewSpec, exist
   } });
 }
 
-// A streamed run adopts the slot its emitter filled, so its tier is the stream
-// plan's. Classifying its rows instead calls a hidden-input transform's plain corpus
-// rows flat and crashes adopting the empty flat slot.
-function postResult(runId, out, viewSpec, scope, stack, existsQuery, rebindQuery, streamedTier) {
+function postResult(runId, out, viewSpec, scope, stack, existsQuery, rebindQuery, streamed) {
   const { atomCount, laneKind, capped } = out;
-  const tier = streamedTier ? (streamedTier === 'tuple' ? 'group' : streamedTier) : resultTier(out);
-  const r = streamedTier
+  const tier = resultTier(out, stack);
+  const r = streamed
     ? adoptStreamedSlot(tier)
     : deriveSlot(runId, tier, terminalJoin(tier, laneKind, out.rows, stack), viewSpec, scope, stack, laneKind);
   shipResult(runId, tier, r, laneKind, atomCount, capped, viewSpec, existsQuery, rebindQuery);
@@ -2331,13 +2329,6 @@ function computeTransformWidthHints(unfiltered, filtered) {
     }
   }
   return { maxDisplayLen, maxGlyphDisplayLen, maxLenDigits, maxScoreDigits };
-}
-
-function rowIsRich(row) {
-  if (!row.atoms) return false;   // a bare seed entry is a plain, single-atom flat row
-  const first = row.atoms[0].wlEntry;
-  return row.atoms.some(a =>
-    a.glyph != null || a.wlEntry !== first || a.wlEntry.wordlist == null);
 }
 
 // ─── My Edits in-place edit/add ── see docs/worker-protocol.md ───────────────
