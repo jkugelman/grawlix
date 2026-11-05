@@ -703,14 +703,19 @@ export function cacheGroupStats(g) {
 // smaller — picked explicitly, so it's deterministic regardless of emit order
 // — and it keeps its own highlights; the dropped direction's are not carried
 // over.
+// Per spelling, not per norm: rows are per (norm, display), so a norm-only key lets
+// `ate → ETA` overwrite `ate → eta` and its mirror fold into the wrong row.
+const atomKey = a => a.wlEntry.norm + '\u0001' + (a.wlEntry.display ?? '');
+export const chainKey = atoms => atoms.map(atomKey).join('\0');
+export const mirrorKey = atoms => atoms.map(atomKey).reverse().join('\0');
+
 export async function unify(rows, y) {
   const seen = new Map();   // entry-chain key → { row, index } of its slot in `out`
   const out = [];
   for (let i = 0; i < rows.length; i++) {
     const row = { atoms: collapseRepeatAtoms(rows[i].atoms), matched: rows[i].matched };
-    const entries = row.atoms.map(a => a.wlEntry.norm);
-    const fwd = entries.join('\0');
-    const rev = [...entries].reverse().join('\0');
+    const fwd = chainKey(row.atoms);
+    const rev = mirrorKey(row.atoms);
     let folded = false;
     if (fwd !== rev) {
       const mirror = seen.get(rev);

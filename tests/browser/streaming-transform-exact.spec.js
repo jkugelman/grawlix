@@ -83,6 +83,33 @@ test('score sort: the last streamed snapshot equals the settled result', async (
   expectStreamConverged(await streamThenSettle(page));
 });
 
+// A reproject re-derives from the retained join, so a join keyed by norm alone
+// keeps one spelling of `eta`/`ETA` and the other's row vanishes on a sort change.
+test('both spellings of a norm survive a streamed fold and a re-sort', async ({ page }) => {
+  await gotoApp(page);
+  await page.evaluate(() => {
+    // Lowercase filler: an all-caps list is read as case-less, folding ETA into eta.
+    const entries = ['ate', 'eta', 'ETA'], scores = [50, 50, 50];
+    for (let i = 0; i < 14000; i++) { entries.push('w' + String(i).padStart(6, '0')); scores.push(10 + (i % 60)); }
+    return window.__grawlixTest.addCustomWordlist({ name: 'Spellings', entries, scores });
+  });
+  await page.evaluate(() => window.__grawlixTest.setScope('Spellings'));
+  await page.evaluate(() => window.__grawlixTest.pipelineIdle());
+
+  const { streamedCount, settled } = await streamThenSettle(page);
+  expect(streamedCount).toBeGreaterThanOrEqual(1);
+  expect(settled).toEqual([['ate', 'eta'], ['ate', 'ETA']]);
+
+  await page.evaluate(() => window.__grawlixTest.applySort('score', 'desc'));
+  await page.evaluate(() => window.__grawlixTest.pipelineIdle());
+  const resorted = await page.evaluate(async () => {
+    const T = window.__grawlixTest;
+    const reply = await T.fetchWorkerAllTransformRows(T.lastCompletedRunId());
+    return reply.rows.map(c => c.atoms.map(a => (a.wlEntry.display ?? a.wlEntry.norm) + (a.glyph ?? '')));
+  });
+  expect(resorted.sort()).toEqual([['ate', 'ETA↔'], ['ate', 'eta↔']]);
+});
+
 test('filtered (score range): the last streamed snapshot equals the settled result', async ({ page }) => {
   await gotoApp(page);
   await seedCorpus(page);

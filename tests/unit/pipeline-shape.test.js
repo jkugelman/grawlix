@@ -208,6 +208,16 @@ test('unify: a mirror pair (STRESSED ↔ DESSERTS) collapses to one row with ↔
   assert.deepEqual(out[0].atoms.map(a => a.glyph), ['↔', '↔']);
 });
 
+test('unify: each spelling of a norm folds with its own mirror', async () => {
+  const sp = display => ({ wlEntry: { ...wl(display.toLowerCase(), 50), display: display === display.toLowerCase() ? null : display }, highlights: null, glyph: '→' });
+  const out = await unify([
+    chain(sp('ate'), sp('eta')), chain(sp('ate'), sp('ETA')),
+    chain(sp('eta'), sp('ate')), chain(sp('ETA'), sp('ate')),
+  ], noYield);
+  assert.deepEqual(out.map(r => r.atoms.map(a => (a.wlEntry.display ?? a.wlEntry.norm) + a.glyph)),
+    [['ate↔', 'eta↔'], ['ate↔', 'ETA↔']]);
+});
+
 test('unify: mirror with non-mirrored scores does NOT collapse', () => {
   // Reverse chain but the scores don't mirror, so the pair stays two rows.
   return unify([

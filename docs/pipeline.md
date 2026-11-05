@@ -498,6 +498,7 @@ A downstream transform breaks the symmetry: `semordnilap → head_off` diverges 
 The tool author writes the dumb bidirectional emit; whether a pair dedupes is decided afterward, from whether the rows actually mirror once the full pipeline has run.
 
 Of the two directions, the survivor is chosen explicitly — whichever entry chain sorts lexicographically smaller — so the result is deterministic regardless of the order the executor emitted the pair in.
+A chain is keyed per spelling, each atom by its norm then its display (`chainKey` / `mirrorKey`), because rows are per spelling: over `ate`, `eta` and `ETA`, Semordnilap's `ate → eta` and `ate → ETA` each fold with their own mirror and stay two rows.
 The survivor keeps its own direction's highlights; the dropped direction's are not carried over.
 (Carrying them — lighting both atoms from both directions' search hits — was considered and dropped: the carried highlight could land on an already-lit atom, which by the unification rule spawns an extra atom, letting a unified row outgrow the static atom count.)
 

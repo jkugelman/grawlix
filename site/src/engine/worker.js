@@ -3,7 +3,7 @@
 import { MERGED_ID } from '../core/constants.js';
 import { TOOLS, makeToolRow, toolAssets, configureUmiaq, configureWeave } from './tools.js';
 import { installFixtureTools } from './fixture-tools.js';
-import { executePipeline, runDetachedBuild, configureExecutorYield, lastPipelineSeedFrom, lastPipelineTailMs, bottomLineAtoms, applyViewFilterToRows, entryPredicate, chainPredicate, rowLastEntry, rowAtoms, collapseRepeatAtoms, streamPlan, cacheGroupStats, currentAtomCount } from './executor.js';
+import { executePipeline, runDetachedBuild, configureExecutorYield, lastPipelineSeedFrom, lastPipelineTailMs, bottomLineAtoms, applyViewFilterToRows, entryPredicate, chainPredicate, rowLastEntry, rowAtoms, collapseRepeatAtoms, chainKey, mirrorKey, streamPlan, cacheGroupStats, currentAtomCount } from './executor.js';
 import { GdsCache, RoleCache } from './gds-cache.js';
 import { sortGroups, sortChainRows, activeGroupRow, groupRowComparator, chainRowComparator, chainSortTier, DEFAULT_SORT_BY_TIER, entrySortKey, foldAnchor, foldChainAnchor, chainFamily, chainAnchors, usesEntryAxis, compareValues, collationKey } from './sort.js';
 import { PackedRecordJoin, packRecordJoin, materializeRecordRow, recordView, recordComparator, recordPasses, PackedGroupJoin, tryPackGroupJoin, buildGroupFlyweights, materializeGroupRow } from './packed-join.js';
@@ -914,9 +914,8 @@ function makeTransformStreamEmitter(runId, viewSpec, scope, stack, signal, strea
     const newInRange = [];
     for (const raw of batchRows) {
       const row = { atoms: collapseRepeatAtoms(raw.atoms), matched: raw.matched };
-      const norms = row.atoms.map(a => a.wlEntry.norm);
-      const fwd = norms.join('\0');
-      const rev = norms.slice().reverse().join('\0');
+      const fwd = chainKey(row.atoms);
+      const rev = mirrorKey(row.atoms);
       let folded = false;
       if (fwd !== rev) {
         const mirror = seen.get(rev);
@@ -1475,7 +1474,7 @@ function armPartialResume(runId, cacheKey, tier, viewSpec, scope, stack, streamS
 
 function transformSurvivorKeys(rows) {
   const keys = new Set();
-  for (const row of rows) keys.add(rowAtoms(row).map(a => a.wlEntry.norm).join('\0'));
+  for (const row of rows) keys.add(chainKey(rowAtoms(row)));
   return keys;
 }
 
