@@ -367,6 +367,25 @@ No interpolated value is observable there at any sampling rate (a 16ms timer see
 The deep-linked entry panel's slide-in and backdrop fade were pinned that way in 2026-08; both tests were deleted rather than rewritten.
 If you need to reproduce a webkit-shard failure locally, run CI's own image — `mcr.microsoft.com/playwright:v1.60.0-noble`, `--ipc=host`, tests against `dist` — since a local `--project=webkit` run is macOS WebKit and behaves differently.
 
+## Fixture tools
+
+[`engine/fixture-tools.js`](../site/src/engine/fixture-tools.js) holds test-only tools, kept out of the catalog so they never reach the gallery or a URL.
+A browser spec installs them on main and in the worker with `__grawlixTest.installFixtureTools()`; a unit test imports `installFixtureTools` and calls it once at the top of its file.
+
+| Tool | Shape | For |
+|---|---|---|
+| `late_twin` | hidden-input transform emitting corpus entries out of norm order (`zzapple` → `apple`); `mark` highlights its output | the transform tier's anchor repair, the tier pick for plain-looking rows |
+| `echo` | glyph-less transform that shows its input and can return it | atom counts |
+| `pair_map` | transform whose chains the spec lists (`pairs: 'spark>park'`); `input: 'highlight'` marks the input | row shapes, cross-run anchors |
+| `prefix_group`, `prefix_group_anchored` | group keyed by the norm minus trailing digits (`ab042` → `ab`) | windowing, group headers, grouped filters and inversion |
+| `throws` | filter throwing from the stage its `at` param names | the tool-error path |
+| `held_pairs` | tuple pairing entries with their reverse; `hold` stops a streamed run after its first batch until `__grawlixTest.releaseFixtureHold()` | actions that must land mid-stream |
+
+Reach for one when a test exercises shared machinery and only needs *some* tool of a given shape.
+A test that picks a real tool for its shape depends on that tool's incidental behavior, and a later change to the tool, or to an unrelated rule like sorting or morphology, can quietly leave it testing nothing.
+A test of a tool's own behavior stays on the real tool.
+A fixture also reaches engine paths no shipped tool can, which is how the tier pick for a hidden-input transform and the atom count for a glyph-less one were found to be wrong.
+
 ## Family anchoring
 
 The Entry sort collates a family at its first visible member's **anchor**, not at the family key (`docs/worker-protocol.md` § *Family anchoring*).
