@@ -1049,8 +1049,8 @@ Used by the test-api `getMergedEntry`.
 `{ type: '__testFailNextBuild' }` — forces the next `syncConfig` build to throw, so the suite exercises the build-failure `selfReady` (`built: false` → the client settles the deferred run errored, no-hang settle path 4).
 Sibling of `__testCrash`.
 
-#### `__testPatchTool` (test-only)
-`{ type: '__testPatchTool', tool, method, message }` — the suite breaks a tool to exercise the error path, but the worker has its own `TOOLS` realm a page-side patch can't reach, so it patches the worker's copy (`message == null` restores the original).
+#### `__testInstallFixtureTools` (test-only)
+`{ type: '__testInstallFixtureTools' }` — installs the test-only tools of [`engine/fixture-tools.js`](../site/src/engine/fixture-tools.js) into the worker's `TOOLS`, which main's `installFixtureTools()` can't reach (`__grawlixTest.installFixtureTools()` does both).
 
 #### `__testCrash` (test-only)
 `{ type: '__testCrash' }` — throws uncaught, firing the parent `Worker`'s `error` event (the real crash signal the client's recovery path keys on).

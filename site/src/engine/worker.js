@@ -3302,13 +3302,7 @@ onmessage = ({ data }) => {
       handleSerializeFor(data);
       break;
 
-    // Test-only: the suite breaks a tool to exercise the error path, but the
-    // worker has its own TOOLS realm a page-side `TOOLS.x.run = …` can't reach,
-    // so it patches the worker's copy instead.
-    case '__testPatchTool':
-      patchToolForTest(data.tool, data.method, data.message);
-      break;
-
+    // Test-only: the worker has its own TOOLS realm, which installing on main can't reach.
     case '__testInstallFixtureTools':
       installFixtureTools();
       break;
@@ -3419,15 +3413,3 @@ onmessage = ({ data }) => {
   scheduleWarm();
 };
 
-const _toolOriginals = new Map();
-function patchToolForTest(tool, method, message) {
-  const def = TOOLS[tool];
-  if (!def) return;
-  const sig = `${tool}.${method}`;
-  if (!_toolOriginals.has(sig)) _toolOriginals.set(sig, def[method]);
-  if (message == null) {
-    def[method] = _toolOriginals.get(sig);
-  } else {
-    def[method] = () => { throw new Error(message); };
-  }
-}

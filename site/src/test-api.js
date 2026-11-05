@@ -38,7 +38,7 @@ import { HelpDialog } from './ui/dialogs/help.js';
 import { openUpdateSummaryDialog } from './ui/dialogs/update-summary.js';
 import { ToolStack, pipelineIdle } from './ui/tool-stack.js';
 import {
-  pingWorker, runOnWorker, patchWorkerToolForTest, installWorkerFixtureToolsForTest, workerAssetStateForTest,
+  pingWorker, runOnWorker, installWorkerFixtureToolsForTest, workerAssetStateForTest,
   pipelineWorkerState, crashWorkerForTest, forceWorkerCrashForTest, failNextWorkerBuildForTest, stallNextWorkerBuildForTest, releaseWorkerBuildForTest,
   setWorkerYieldIntervalForTest, stopRunAfterTotalForTest, setWorkerUnigramCorpusForTest, captureWorkerPartialsForTest, captureWorkerGroupPartialsForTest, captureWorkerChainPartialsForTest,
   configureResultCacheForTest, resultCacheStateForTest, configurePrefixCacheForTest, prefixCacheStateForTest, configurePartialCacheForTest, partialCacheStateForTest, configureArtifactCacheForTest, artifactCacheStateForTest, colsCacheStateForTest, retainedResultInfoForTest,
@@ -260,7 +260,6 @@ const __grawlixTest = {
   },
 
   pingWorker,
-  patchWorkerToolForTest,
   installFixtureTools() {
     installFixtureTools();
     installWorkerFixtureToolsForTest();

@@ -513,10 +513,6 @@ export function pipelineWorkerState() {
   return { workerUnavailable, crashCount };
 }
 
-export function patchWorkerToolForTest(tool, method, message) {
-  getWorker().postMessage({ type: '__testPatchTool', tool, method, message });
-}
-
 export function installWorkerFixtureToolsForTest() {
   getWorker().postMessage({ type: '__testInstallFixtureTools' });
 }

@@ -90,6 +90,24 @@ const pair_map = {
   },
 };
 
+// A filter that throws from the stage `at` names (`run` or `prepare`) and passes
+// everything otherwise, so a spec "fixes" it by clearing the param.
+const THROWS_MESSAGE = 'deliberate test failure';
+const throws = {
+  name: 'Throws', icon: '🧪', category: 'transform',
+  desc: 'Test fixture', example: 'at: run',
+  params: [{ key: 'at' }],
+  kind: 'filter', input: 'plain', output: 'plain',
+  prepare(params) {
+    if (params.at === 'prepare') throw new Error(THROWS_MESSAGE);
+    return params;
+  },
+  run(entry, params) {
+    if (params.at === 'run') throw new Error(THROWS_MESSAGE);
+    return true;
+  },
+};
+
 export function installFixtureTools() {
-  Object.assign(TOOLS, { late_twin, echo, prefix_group, prefix_group_anchored, pair_map });
+  Object.assign(TOOLS, { late_twin, echo, prefix_group, prefix_group_anchored, pair_map, throws });
 }
