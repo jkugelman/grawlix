@@ -517,16 +517,15 @@ function makeStreamEmitter(runId, viewSpec, scope, stack, signal, streamState, r
     const rowOk = filter && entryPredicate(filter);
     // The retained result is THIS run's only once the run has placed rows; until then
     // it still holds the PREVIOUS run's, which this emitter must not read either half
-    // of. Its anchors would hand every family a final anchor before this run has seen
-    // a row, so no drop fires and the repair below goes unreached; its indices are
-    // rows of a superseded result, which the repair would re-admit as this run's own
-    // and duplicate on screen. Both are silent. armPartialResume is the other way in:
+    // of. Its anchors would collate a family at a member this view may not contain,
+    // and nothing raises an anchor once set; its indices are rows of a superseded
+    // result, which the merge would admit as this run's own and duplicate on screen.
+    // Both are silent. armPartialResume is the other way in:
     // it sets streamed before this emitter exists, having already built the result for
     // this run via deriveFlatResult, so a resumed stream inherits its own map rather
     // than restarting empty and merging two arrays sorted under different comparators.
     const mine = streamState.streamed ? lastFlatResult : null;
     const anchors = usesEntryAxis(viewSpec.sort) ? (mine?.anchors ?? new Map()) : null;
-    const dropped = anchors ? new Set() : null;
     const batchIdx = [];
     for (const row of batchRows) {
       const e = rowLastEntry(row);
@@ -534,23 +533,15 @@ function makeStreamEmitter(runId, viewSpec, scope, stack, signal, streamState, r
       if (rowOk && !rowOk(e)) continue;
       batchIdx.push(e._i);
       widthAcc.add(e);
-      if (anchors && foldAnchor(anchors, e)) dropped.add(e.family);
+      if (anchors) foldAnchor(anchors, e);
     }
     if (batchIdx.length === 0) return;   // join grew but nothing in-range — no snapshot (join.push already ran)
 
+    // No anchor-drop repair, unlike the transform tier: the scan runs in norm order and
+    // an anchor is its family's lowest norm, so the first member seen is final. Feed
+    // this emitter out of norm order and mergeSortedIndices silently interleaves.
     const cmp = flatComparator(viewSpec.sort, ownedCorpus, anchors, column);
-    // Anchoring makes the comparator time-varying, so mergeSortedIndices' precondition
-    // (both sides sorted the same way) stops holding for free. A family whose anchor
-    // just dropped re-enters the batch; without that the merge silently interleaves.
-    let placed = mine?.indices;
-    if (dropped?.size && placed) {
-      const keep = [];
-      for (const i of placed) {
-        if (dropped.has(ownedCorpus.entries[i].family)) batchIdx.push(i);
-        else keep.push(i);
-      }
-      placed = Int32Array.from(keep);
-    }
+    const placed = mine?.indices;
 
     batchIdx.sort(cmp);
     const batchIndices = Int32Array.from(batchIdx);

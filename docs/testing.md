@@ -381,7 +381,7 @@ Two levels cover it:
 A drop needs a family member that collates ahead of where the scan meets it, and no shipped stack produces one (`worker-protocol.md` § *Family anchoring*).
 `__grawlixTest.installFixtureTools()` installs test-only tools ([`engine/fixture-tools.js`](../site/src/engine/fixture-tools.js)) on main and in the worker; `late_twin` hides its input and emits `apple` from a `zzapple` seed, after the filler, so `worker-partials.spec.js`' transform test drops the family's anchor on the last batch.
 It asserts on the last *streamed snapshot*, not on rows fetched after the run settles, since a post-completion read can be served by a wholesale rebuild that masks a torn stream, and it was verified red with the repair disabled.
-The flat tier's repair has no test: its rows are corpus entries scanned in norm order, so no tool can reorder them.
+The flat tier has no repair to test: its rows are corpus entries scanned in norm order, so an anchor never drops.
 Note `tests/browser/streaming-render.spec.js` uses `streamSyntheticBatch` and bypasses the worker, so it cannot catch a comparator regression.
 
 **Cross-run inheritance needs two runs back to back, one of them streamed.**

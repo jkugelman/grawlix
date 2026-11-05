@@ -76,18 +76,19 @@ A cross-run **cache hit** rides this exact same non-streamed derive path (`deriv
 The Entry axis does not collate on `entry.family` (a morphological reduction that can name a spelling no row has); it collates on the family's **anchor** — the alphabetically first member visible *in the current view* — with the family itself as the second half of a composite primary.
 The pair must travel as ONE primary: a second sort pick composes ahead of an axis's own tiebreakers, so ranking anchor and family separately lets that pick interleave two families sharing an anchor and shatters the table's family brackets.
 
-Because a later batch can introduce an earlier-collating member, batch *k*'s comparator is **not** batch *k+1*'s, and `mergeSortedIndices`' precondition (both sides sorted under the same comparator) stops holding for free.
-It is restored by a **repair** step inside the emitter: when a batch drops a family's anchor, that family's already-placed rows are pulled back out of `indices`, folded into the batch, and re-merged.
-No shipped stack makes a drop: the anchor is a row's norm, scans run in corpus (norm) order, and the one case that puts a scanned output first, a transform that hides its input, emits synthetic rows, which carry no family.
-The repair guards that invariant against a tool whose hidden-input output is a corpus entry, which is what the test-only `late_twin` tool ([`engine/fixture-tools.js`](../site/src/engine/fixture-tools.js)) is.
+If a later batch could introduce an earlier-collating member, batch *k*'s comparator would not be batch *k+1*'s, and the merge's precondition (both sides sorted under the same comparator) would stop holding.
+In the **flat** tier it can't: the anchor is a row's norm and the scan runs in corpus (norm) order, so a family's first member seen is its anchor for good, and the emitter only seeds anchors.
+In the **transform** tier the first atom is the seed in norm order too, except under a transform that hides its input, whose first atom is an output arriving in seed order.
+Shipped hidden-input tools (Rebus, Optional letters) emit synthetic rows, which carry no family, but a tool emitting a corpus entry there would drop an anchor mid-stream, so the transform emitter carries a **repair** step: when a batch drops a family's anchor, that family's already-placed `chains` are pulled back out, folded into the batch, and re-merged.
+The test-only `late_twin` tool ([`engine/fixture-tools.js`](../site/src/engine/fixture-tools.js)) is such a tool.
 Such a run's rows are single-atom corpus entries that look flat, so `resultTier` reads the tier off the stack, not the rows: any active transform means the transform tier, streamed or not.
 This is incremental maintenance in the streaming path, not a settle — the terminal still only adopts.
 Two consequences that are load-bearing:
 
 - The anchor map lives on `lastFlatResult` / `lastTransformResult`, **never** in the emitter's closure.
-  `armPartialResume` sets `streamState.streamed` before the emitter is constructed, so a resumed stream never takes the create branch; a closure-local map would start empty, skip every repair, and merge two arrays sorted under different comparators — a tear that survives to the terminal.
-- **That slot holds the *previous* run's result until this run places its first rows**, so the emitter reads it only when `streamState.streamed` — one condition gating both halves, the anchor map and the already-placed `indices`/`chains` the repair pulls back.
-  Reading the anchors early hands every family a final anchor before this run has seen a row, so no drop fires and the repair goes unreached; reading the rows early re-admits a superseded result's rows as this run's own, which on a per-keystroke search duplicates the whole result once per keystroke.
+  `armPartialResume` sets `streamState.streamed` before the emitter is constructed, so a resumed stream never takes the create branch; a closure-local map would start empty, re-seed anchors against rows already placed under the resumed map, and merge two arrays sorted under different comparators — a tear that survives to the terminal.
+- **That slot holds the *previous* run's result until this run places its first rows**, so the emitter reads it only when `streamState.streamed` — one condition gating both halves, the anchor map and the already-placed `indices`/`chains`.
+  Reading the anchors early hands every family the previous run's anchor, which may name a member this view lacks and which nothing raises; reading the rows early re-admits a superseded result's rows as this run's own, which on a per-keystroke search duplicates the whole result once per keystroke.
   `armPartialResume` is the only other way `streamed` is set, and it builds the slot for *this* run before setting it, so the resume path inherits its own map rather than a stranger's.
 - Anchors are built over the **filtered view**, not the join, so a family collates at a member the filter actually left on screen.
   Every wholesale rebuild (`flatViewIndices`, `chainAnchors`) rebuilds the map atomically with the order it sorts, so a mid-stream `reproject` cannot leave the two disagreeing.
