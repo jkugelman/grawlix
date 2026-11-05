@@ -119,6 +119,7 @@ An empty Search row is *inert* — it reports `isInert(params)` and `executePipe
 A transform writes the dumb thing — one row per `(input, output)` it produces.
 Semordnilap emits a row whenever the reverse is also an entry, in *both* directions; the unification pass cleans that up afterward (§ Symmetric unification).
 The relation `glyph` (`→`, `↔`) is a static field on the tool, not a character the tool body picks.
+A transform that shows its input but declares no glyph gets `→`: a glyph-less output that equals its input would fold into it (`collapseRepeatAtoms`), leaving the row an atom short of `currentAtomCount`.
 
 ## The group-row model
 

@@ -26,6 +26,20 @@ const late_twin = {
   },
 };
 
+// Shows its input and emits it back (plus its reverse when listed). Must stay
+// glyph-less, which no shipped input-showing transform is, or the atom-count spec
+// tests nothing.
+const echo = {
+  name: 'Echo', icon: '🧪', category: 'transform',
+  desc: 'Test fixture', example: 'stop → stop, pots',
+  params: [],
+  kind: 'transform', input: 'plain', output: 'plain',
+  run(entry, params, wordlist) {
+    const rev = [...entry].reverse().join('');
+    return rev !== entry && wordlist.norms.has(rev) ? [{ entry }, { entry: rev }] : [{ entry }];
+  },
+};
+
 export function installFixtureTools() {
-  Object.assign(TOOLS, { late_twin });
+  Object.assign(TOOLS, { late_twin, echo });
 }

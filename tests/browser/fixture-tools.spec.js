@@ -35,3 +35,20 @@ test('a hidden-input transform keeps its own marks when it does not stream', asy
   const rows = await renderedRows(page, [{ tool: 'late_twin', params: { mark: '1' } }, { tool: 'search', params: { pattern: '*e*' } }]);
   expect(rows.map(r => r.marks)).toEqual([['a', 'e'], ['p', 'e']]);
 });
+
+// Every row must carry exactly the atoms currentAtomCount reserves, or rows overlap
+// in the scroller. An identity output with no glyph folded into its input atom.
+test('a glyph-less transform that shows its input keeps every row at its atom count', async ({ page }) => {
+  await gotoApp(page);
+  await seed(page, ['pots', 'stop', 'cat']);
+  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'echo', params: {} }]));
+  await page.evaluate(() => window.__grawlixTest.pipelineIdle());
+
+  const rows = await page.evaluate(async () => {
+    const T = window.__grawlixTest;
+    const reply = await T.fetchWorkerAllTransformRows(T.lastCompletedRunId());
+    return reply.rows.map(c => c.atoms.map(a => a.wlEntry.norm));
+  });
+  expect(rows.length).toBeGreaterThan(0);
+  for (const atoms of rows) expect(atoms.length).toBe(2);
+});

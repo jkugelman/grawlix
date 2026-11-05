@@ -220,8 +220,12 @@ export function makeToolRow(tool, params = {}, grouped = false, invert = false, 
       if (row.grouped) return null;
       return def.error ? def.error(row.params) : null;
     },
+    // An input-showing transform needs a glyph even when it declares none: a glyph-less
+    // output equal to its input folds into it (collapseRepeatAtoms), leaving the row an
+    // atom short of currentAtomCount, so rows overlap in the scroller.
     glyph() {
-      return def.glyph ? def.glyph(row.params) : null;
+      if (def.glyph) return def.glyph(row.params);
+      return row.kind() === 'transform' && row.inputShown() ? '→' : null;
     },
   };
   return row;
