@@ -224,25 +224,25 @@ test('a transform family whose anchor drops mid-stream is re-placed', async ({ p
   expect(settled.slice(0, 3)).toEqual(['apple', 'apples', 'applea']);
 });
 
-// The transform tier's half of the same ownership rule, and every entry is load-bearing.
-// AKE makes Head off yield exactly ONE chain, anchoring the bake family at "bake"; Back
-// off then yields BAKED and BAKEA, correctly anchored at "baked" and "bakea", so BAKEA
-// leads. Inheriting the poison run's lower "bake" keeps the family ahead of BAKEA
-// instead, and no drop fires to repair it. BAK is absent on purpose: admit it and BAKE
-// becomes a Back off head too, anchoring the family at "bake" legitimately and leaving
-// the two orderings in agreement -- a test that cannot fail.
+// The transform tier's half of the same ownership rule, with `pair_map`
+// (engine/fixture-tools.js) listing each run's chains. The poison run's one chain
+// BAKE → AKE anchors the bake family at "bake"; the run under test yields BAKED and
+// BAKEA, correctly anchored at "baked" and "bakea", so BAKEA leads. Inheriting the
+// poison run's lower "bake" keeps BAKED ahead instead, and no drop fires to repair it.
 const AFFIX_FAMILY = ['BAKE', 'AKE', 'BAKED', 'BAKEA'];
+const UNDER_TEST = { pairs: 'baked>bake bakea>bake' };
 
 test('a new transform run does not inherit the anchors of the run it supersedes', async ({ page }) => {
   await gotoApp(page);
+  await page.evaluate(() => window.__grawlixTest.installFixtureTools());
   await seedCorpus(page, AFFIX_FAMILY);
 
   const lower = names => names.map(n => n.toLowerCase());
-  const baseline = await runTransform(page, 'back_off');
+  const baseline = await runTransform(page, 'pair_map', { params: UNDER_TEST });
   expect(lower(baseline.settled)).toEqual(['bakea', 'baked']);
 
-  await runTransform(page, 'head_off');
-  const streamed = await runTransform(page, 'back_off', { stream: true });
+  await runTransform(page, 'pair_map', { params: { pairs: 'bake>ake' } });
+  const streamed = await runTransform(page, 'pair_map', { stream: true, params: UNDER_TEST });
 
   expect(streamed.partials.length).toBeGreaterThan(0);
   const last = streamed.partials[streamed.partials.length - 1];

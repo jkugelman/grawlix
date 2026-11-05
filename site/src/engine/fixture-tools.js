@@ -62,6 +62,34 @@ const prefix_group_anchored = {
   group: { key: groupKey, anchor: (key, wordlist) => bestRowForNorm(wordlist, key), anchorLabel: 'Prefix' },
 };
 
+// A transform whose outputs the spec lists: `pairs: 'spark>park devil>lived'` maps
+// each seed to its listed outputs that are corpus entries. `input: 'highlight'`
+// marks the whole input word, for an input-marked shape.
+const parsePairs = text => {
+  const map = new Map();
+  for (const pair of (text || '').split(/[\s,]+/).filter(Boolean)) {
+    const [from, to] = pair.split('>');
+    if (!map.has(from)) map.set(from, []);
+    map.get(from).push(to);
+  }
+  return map;
+};
+
+const pair_map = {
+  name: 'Pair map', icon: '🧪', category: 'transform',
+  desc: 'Test fixture', example: 'spark>park',
+  params: [{ key: 'pairs' }, { key: 'input' }],
+  kind: 'transform', glyph: () => '→',
+  input: params => params.input || 'plain', output: 'plain',
+  isInert: params => !(params && params.pairs),
+  prepare: params => ({ map: parsePairs(params.pairs), markInput: params.input === 'highlight' }),
+  run(entry, { map, markInput }, wordlist) {
+    return (map.get(entry) || []).filter(to => wordlist.norms.has(to)).map(to => markInput
+      ? { entry: to, inputHighlights: [{ start: 0, end: entry.length, kind: 'search:0' }] }
+      : { entry: to });
+  },
+};
+
 export function installFixtureTools() {
-  Object.assign(TOOLS, { late_twin, echo, prefix_group, prefix_group_anchored });
+  Object.assign(TOOLS, { late_twin, echo, prefix_group, prefix_group_anchored, pair_map });
 }

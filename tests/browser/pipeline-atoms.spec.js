@@ -22,6 +22,7 @@ test.beforeEach(async ({ page }) => {
 // row silently disappears (a transform keeps an output only when it's a real
 // entry), leaving the count assertion nothing to read.
 async function addFixture(page) {
+  await page.evaluate(() => window.__grawlixTest.installFixtureTools());
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
     name: 'AtomCount',
     entries: ['lindsey', 'cat', 'act', 'dog', 'devil', 'lived', 'spark', 'park', 'carts', 'cart'],
@@ -65,15 +66,15 @@ const cases = [
     atoms: 1,
   },
   {
-    name: 'a plain transform (semordnilap) adds an output atom → 2 atoms',
+    name: 'a plain transform adds an output atom → 2 atoms',
     rowHasText: 'devil',
-    stack: [{ tool: 'semordnilap' }],
+    stack: [{ tool: 'pair_map', params: { pairs: 'devil>lived' } }],
     atoms: 2,
   },
   {
-    name: 'an input-marked transform (head off) folds its input mark with no slot tail → 2 atoms',
+    name: 'an input-marked transform folds its input mark with no slot tail → 2 atoms',
     rowHasText: 'spark',
-    stack: [{ tool: 'head_off', params: { pattern: '?' } }],
+    stack: [{ tool: 'pair_map', params: { pairs: 'spark>park', input: 'highlight' } }],
     atoms: 2,
   },
   {
@@ -87,7 +88,7 @@ const cases = [
     rowHasText: 'spark',
     stack: [
       { tool: 'search', params: { pattern: 'spark' } },
-      { tool: 'head_off', params: { pattern: '?' } },
+      { tool: 'pair_map', params: { pairs: 'spark>park', input: 'highlight' } },
     ],
     atoms: 3,
   },
@@ -137,10 +138,10 @@ test('the multi-atom rows render the expected distinct chain words', async ({ pa
   await gotoApp(page);
   await addFixture(page);
 
-  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'semordnilap' }]));
+  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'pair_map', params: { pairs: 'devil>lived' } }]));
   await expectVisible(page, [['devil', 'lived']]);
 
-  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'head_off', params: { pattern: '?' } }]));
+  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'pair_map', params: { pairs: 'spark>park', input: 'highlight' } }]));
   await expectVisible(page, [['spark', 'park']]);
 
   await page.evaluate(() => window.__grawlixTest.setStack([
