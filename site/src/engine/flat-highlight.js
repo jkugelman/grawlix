@@ -26,8 +26,9 @@ export function compileFlatHighlighters(stack, ctx) {
 }
 
 // Sync only — the render path can't await, and an async prepare would silently
-// ship a Promise as `prepared`. A filter whose prepare awaits or reads ctx
-// declares a sync `replay(params, ctx)` that rebuilds the same value.
+// ship a Promise as `prepared`. A filter whose prepare awaits, reads ctx, or reads
+// its input set (a third parameter, absent here) declares a sync
+// `replay(params, ctx)` that rebuilds the same value.
 function preparedSync(row, ctx) {
   const { def } = row;
   const params = normalizeParams(row.params, def.params);

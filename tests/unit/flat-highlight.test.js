@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { makeToolRow } from '../../site/src/engine/tools.js';
+import { makeToolRow, TOOLS } from '../../site/src/engine/tools.js';
 import { executePipeline } from '../../site/src/engine/executor.js';
 import { compileFlatHighlighters, materializeFlatRow } from '../../site/src/engine/flat-highlight.js';
 import { setUnigramCorpus } from '../../site/src/engine/segmenter.js';
@@ -108,4 +108,12 @@ test('oracle fixtures actually exercise highlighted atoms (guard against vacuous
   assert.ok(rows.length > 0, 'fixture matched no rows');
   const hasHighlight = rows.some(r => r.atoms.some(a => Array.isArray(a.highlights) && a.highlights.length > 0));
   assert.ok(hasHighlight, 'fixture produced no highlight ranges, so the oracle would be vacuous');
+});
+
+// Flat replay calls prepare(params, {}) with no input set, so a prepare that reads
+// one (a third parameter) would mis-highlight every row with no error.
+test('every tool whose prepare reads its input declares a sync replay', () => {
+  for (const [slug, def] of Object.entries(TOOLS)) {
+    if (def.prepare && def.prepare.length >= 3) assert.ok(def.replay, `${slug}.prepare reads its input but has no replay`);
+  }
 });
