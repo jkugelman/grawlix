@@ -2,6 +2,7 @@
 
 import { MERGED_ID } from '../core/constants.js';
 import { TOOLS, makeToolRow, toolAssets, configureUmiaq, configureWeave } from './tools.js';
+import { installFixtureTools } from './fixture-tools.js';
 import { executePipeline, runDetachedBuild, configureExecutorYield, lastPipelineSeedFrom, lastPipelineTailMs, bottomLineAtoms, applyViewFilterToRows, entryPredicate, chainPredicate, rowLastEntry, rowAtoms, collapseRepeatAtoms, streamPlan, cacheGroupStats, currentAtomCount } from './executor.js';
 import { GdsCache, RoleCache } from './gds-cache.js';
 import { sortGroups, sortChainRows, activeGroupRow, groupRowComparator, chainRowComparator, chainSortTier, DEFAULT_SORT_BY_TIER, entrySortKey, foldAnchor, foldChainAnchor, chainFamily, chainAnchors, usesEntryAxis, compareValues, collationKey } from './sort.js';
@@ -3313,6 +3314,10 @@ onmessage = ({ data }) => {
     // so it patches the worker's copy instead.
     case '__testPatchTool':
       patchToolForTest(data.tool, data.method, data.message);
+      break;
+
+    case '__testInstallFixtureTools':
+      installFixtureTools();
       break;
 
     // Test-only: the uncaught throw is the point — it fires the parent Worker's

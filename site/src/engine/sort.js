@@ -7,7 +7,6 @@
 
 import { rowLastEntry, rowAtoms, isGroupChain, isTupleChain, isFilterOnlyChain, currentAtomCount } from './executor.js';
 import { displayOf } from './norm.js';
-import { familyTokens } from './morphology.js';
 import { TOOLS } from './tools.js';
 
 // ─── Chain-tier sort axes (single / multi) ───────────────────────────────────
@@ -49,18 +48,14 @@ const rowChainTail = r => !r.atoms ? '' : r.atoms.slice(1).map(a => a.wlEntry.no
 // VISIBLE member instead — visible, since a member the filter hides is one the user
 // cannot see either.
 
-// familyTokens, not the norm: the anchor drops a leading article (`the best` files
-// under B), and joins without spaces to collate the way the family key groups.
-export function anchorTextOf(wlEntry) {
-  return familyTokens(displayOf(wlEntry)).join('');
-}
-
 // True only when the anchor DROPPED, obliging the caller to repair already-placed
 // rows. A seed places nothing, so reporting it costs a repair pass per new family.
 export function foldAnchor(anchors, wlEntry) {
   const family = wlEntry.family;
   if (!family) return false;
-  const text = anchorTextOf(wlEntry);
+  // Article and all: the family key strips a leading article to group `the best`
+  // with `best`, but collating without it would file the letter A of `A shapes` under S.
+  const text = wlEntry.norm;
   const cur = anchors.get(family);
   if (cur === undefined) { anchors.set(family, text); return false; }
   if (compareValues(text, cur) >= 0) return false;

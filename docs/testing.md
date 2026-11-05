@@ -372,15 +372,16 @@ If you need to reproduce a webkit-shard failure locally, run CI's own image — 
 The Entry sort collates a family at its first visible member's **anchor**, not at the family key (`docs/worker-protocol.md` § *Family anchoring*).
 Two levels cover it:
 
-- **Unit** (`tests/unit/sort.test.js`) — `foldAnchor`'s seed-vs-drop contract, the anchor text (article-stripped, not raw display), a family collating at its own member rather than its key, the composite `(anchor, family)` primary keeping two families contiguous under a second sort pick, and the no-family fallback.
+- **Unit** (`tests/unit/sort.test.js`) — `foldAnchor`'s seed-vs-drop contract, the anchor text (the norm, leading article kept), a family collating at its own member rather than its key, the composite `(anchor, family)` primary keeping two families contiguous under a second sort pick, and the no-family fallback.
   A fixture here must use a family key that is a spelling **no row has**, or the anchor equals the key and the test proves nothing.
-- **Browser** (`tests/browser/worker-partials.spec.js`) — that a family collates at its own member end-to-end (`AM band` under A, not at its `be band` key), and that streamed order equals buffered order for a family spanning batches.
-  The filler prefix in each is load-bearing: it must span the gap between the two candidate positions, or both orders agree and the test cannot fail.
+- **Browser** (`tests/browser/worker-partials.spec.js`) — that a family collates at its own member end-to-end (`AM band` under A, not at its `be band` key).
+  The filler prefix is load-bearing: it must span the gap between the two candidate positions, or both orders agree and the test cannot fail.
 
-**The anchor repair is covered, and the fixture is fragile by nature.**
-`worker-partials.spec.js`' anchor-drop test asserts on the last *streamed snapshot*, not on rows fetched after the run settles — a post-completion read can be served by a wholesale rebuild that masks a torn stream entirely.
-Its fixture encodes three independent constraints (a family collating opposite to its norm order, a witness row falling between the old and new anchor, and a filler that splits the two across batches); get any one wrong and both orderings agree, leaving a test that cannot fail.
-Verify any change to it by disabling the repair and confirming it goes red.
+**The anchor repair is covered through a fixture tool.**
+A drop needs a family member that collates ahead of where the scan meets it, and no shipped stack produces one (`worker-protocol.md` § *Family anchoring*).
+`__grawlixTest.installFixtureTools()` installs test-only tools ([`engine/fixture-tools.js`](../site/src/engine/fixture-tools.js)) on main and in the worker; `late_twin` hides its input and emits `apple` from a `zzapple` seed, after the filler, so `worker-partials.spec.js`' transform test drops the family's anchor on the last batch.
+It asserts on the last *streamed snapshot*, not on rows fetched after the run settles, since a post-completion read can be served by a wholesale rebuild that masks a torn stream, and it was verified red with the repair disabled.
+The flat tier's repair has no test: its rows are corpus entries scanned in norm order, so no tool can reorder them.
 Note `tests/browser/streaming-render.spec.js` uses `streamSyntheticBatch` and bypasses the worker, so it cannot catch a comparator regression.
 
 **Cross-run inheritance needs two runs back to back, one of them streamed.**

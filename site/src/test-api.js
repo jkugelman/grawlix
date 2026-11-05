@@ -18,6 +18,7 @@ import { toNorm, displayOf, parseWordlist, buildUserWlEntry } from './engine/nor
 import { getTrashScore, getOutputFormat } from './data/serialize.js';
 import { setUnigramCorpus as segmenterSetCorpus } from './engine/segmenter.js';
 import { TOOLS, makeToolRow } from './engine/tools.js';
+import { installFixtureTools } from './engine/fixture-tools.js';
 import { state, newDbKey, syncKey, getEditsWordlist, pipelineVersion$ } from './data/state.js';
 import { getDb, Storage } from './data/storage.js';
 import { migrateLs, SCHEMA_VERSION } from './data/migrations.js';
@@ -37,7 +38,7 @@ import { HelpDialog } from './ui/dialogs/help.js';
 import { openUpdateSummaryDialog } from './ui/dialogs/update-summary.js';
 import { ToolStack, pipelineIdle } from './ui/tool-stack.js';
 import {
-  pingWorker, runOnWorker, patchWorkerToolForTest, workerAssetStateForTest,
+  pingWorker, runOnWorker, patchWorkerToolForTest, installWorkerFixtureToolsForTest, workerAssetStateForTest,
   pipelineWorkerState, crashWorkerForTest, forceWorkerCrashForTest, failNextWorkerBuildForTest, stallNextWorkerBuildForTest, releaseWorkerBuildForTest,
   setWorkerYieldIntervalForTest, stopRunAfterTotalForTest, setWorkerUnigramCorpusForTest, captureWorkerPartialsForTest, captureWorkerGroupPartialsForTest, captureWorkerChainPartialsForTest,
   configureResultCacheForTest, resultCacheStateForTest, configurePrefixCacheForTest, prefixCacheStateForTest, configurePartialCacheForTest, partialCacheStateForTest, configureArtifactCacheForTest, artifactCacheStateForTest, colsCacheStateForTest, retainedResultInfoForTest,
@@ -260,6 +261,10 @@ const __grawlixTest = {
 
   pingWorker,
   patchWorkerToolForTest,
+  installFixtureTools() {
+    installFixtureTools();
+    installWorkerFixtureToolsForTest();
+  },
   pipelineWorkerState,
   crashWorkerForTest,
   forceWorkerCrashForTest,

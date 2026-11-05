@@ -517,6 +517,10 @@ export function patchWorkerToolForTest(tool, method, message) {
   getWorker().postMessage({ type: '__testPatchTool', tool, method, message });
 }
 
+export function installWorkerFixtureToolsForTest() {
+  getWorker().postMessage({ type: '__testInstallFixtureTools' });
+}
+
 export function crashWorkerForTest() {
   getWorker().postMessage({ type: '__testCrash' });
 }

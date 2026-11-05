@@ -187,7 +187,7 @@ const anchorsFor = rows => {
 
 test('foldAnchor: a family takes its alphabetically first member, reporting only a drop', () => {
   const m = new Map();
-  const e = (display, family) => ({ norm: display, display, score: 50, family });
+  const e = (display, family) => ({ norm: display.replace(/[^a-z]/gi, '').toLowerCase(), display, score: 50, family });
   // Returns "must repair", not "changed": a seed places no rows, so reporting it
   // would fire a full repair pass per first-seen family.
   assert.equal(foldAnchor(m, e('is band', 'be band')), false);
@@ -198,10 +198,12 @@ test('foldAnchor: a family takes its alphabetically first member, reporting only
   assert.equal(m.get('be band'), 'amband');
 });
 
-test('foldAnchor: the anchor is the article-stripped token string, not the raw display', () => {
+test('foldAnchor: the anchor keeps a leading article, so the letter A collates under A', () => {
   const m = new Map();
   foldAnchor(m, { norm: 'thebest', display: 'The Best', score: 50, family: 'best' });
-  assert.equal(m.get('best'), 'best');
+  assert.equal(m.get('best'), 'thebest');
+  foldAnchor(m, { norm: 'ashapes', display: 'A shapes', score: 50, family: 'shape' });
+  assert.equal(m.get('shape'), 'ashapes');
 });
 
 test('single Entry sort: a family collates at its own first member, not at its family key', () => {

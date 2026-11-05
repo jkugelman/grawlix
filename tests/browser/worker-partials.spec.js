@@ -145,16 +145,6 @@ test('a fetchRows for an already-streamed window returns correct rows mid-stream
   for (const norm of result.mid) expect(finalSet.has(norm)).toBe(true);
 });
 
-// Every part of this fixture is load-bearing; it took three tries to make it fail
-// against a build with the repair disabled. `apples` and `the apple` share the family
-// `apple` and collate opposite to their norm order, so the anchor drops from `apples`
-// to `apple`. `applea` is the witness: it must fall BETWEEN those two anchors, so a
-// row left placed under the stale one is overtaken by it. And the filler must sort
-// between `apples` and `theapple` (hence M) or the drop never spans batches. Get any
-// of the three wrong and both orderings agree, leaving a test that cannot fail.
-const ANCHOR_DROP = ['apples', 'the apple', 'applea'];
-const ANCHOR_DROP_PREFIX = 'M';
-
 // `AM band` reduces to the family key `be band`, a spelling no row has. The `B` filler
 // is what discriminates: it spans b00000..b19999, so collating on the key puts this
 // family AFTER all of it while collating on the family's own first member puts it
@@ -168,28 +158,6 @@ test('a family collates at its own member, not at a family key no row spells', a
   const at = norm => finalRows.findIndex(r => r.norm === norm);
   expect(at('amband')).toBeLessThan(at('b00000'));
   expect(at('ambands')).toBeLessThan(at('b00000'));
-});
-
-test('a family whose anchor drops mid-stream lands where a buffered run puts it', async ({ page }) => {
-  await gotoApp(page);
-  await seedCorpus(page, ANCHOR_DROP, ANCHOR_DROP_PREFIX);
-
-  const plain = await runFlat(page, '*');
-  const streamed = await runFlat(page, '*', { stream: true });
-
-  expect(streamed.partials.length).toBeGreaterThan(1);
-  expect(streamed.finalRows).toEqual(plain.finalRows);
-
-  // Assert on the last STREAMED snapshot, not on rows fetched after the run settles:
-  // the streamed order is the authoritative one, and a post-completion read can be
-  // served by a wholesale rebuild that masks a torn stream entirely.
-  const last = streamed.partials[streamed.partials.length - 1];
-  const at = norm => last.firstRows.findIndex(r => r.norm === norm);
-  expect(at('applea')).toBeGreaterThanOrEqual(0);
-  // Repaired, the family re-anchors on `apple` and overtakes `applea`; left placed
-  // under the stale `apples`, it stays stranded behind it.
-  expect(at('apples')).toBeLessThan(at('applea'));
-  expect(at('theapple')).toBeLessThan(at('applea'));
 });
 
 // Typing into the search box fires a run per keystroke, each one a NEW run whose
@@ -217,20 +185,44 @@ test('a new run does not inherit rows from the run it supersedes', async ({ page
   expect([...new Set(shown)]).toEqual(shown);
 });
 
-async function runTransform(page, tool, { stream } = {}) {
-  return page.evaluate(async ({ tool, stream, STREAM_MS, SHIPPED_MS }) => {
+async function runTransform(page, tool, { stream, params = { pattern: '?' } } = {}) {
+  return page.evaluate(async ({ tool, stream, params, STREAM_MS, SHIPPED_MS }) => {
     const T = window.__grawlixTest;
     if (stream) T.setWorkerYieldIntervalForTest(STREAM_MS);
     const capture = T.captureWorkerChainPartialsForTest();
-    await T.setStack([{ tool, params: { pattern: '?' } }]);
+    await T.setStack([{ tool, params }]);
     await T.pipelineIdle();
     const partials = capture.stop();
     if (stream) T.setWorkerYieldIntervalForTest(SHIPPED_MS);
     const reply = await T.fetchWorkerAllTransformRows(T.lastCompletedRunId());
     const heads = rows => rows.map(c => c.atoms[0].wlEntry.display ?? c.atoms[0].wlEntry.norm);
     return { partials, settled: reply ? heads(reply.rows) : [] };
-  }, { tool, stream, STREAM_MS, SHIPPED_MS });
+  }, { tool, stream, params, STREAM_MS, SHIPPED_MS });
 }
+
+// `late_twin` (engine/fixture-tools.js) emits `apple` from its `zzapple` seed, after
+// the W filler, so the apple family anchors at `apples` and drops to `apple` only on
+// the last batch. `applea` is the witness: it falls between the two anchors, so
+// `apples` left placed under the stale one stays behind it. The W filler must sort
+// between `apples` and `zzapple`, or the drop never spans batches.
+const LATE_ANCHOR = ['apple', 'apples', 'applea', 'zzapple'];
+
+test('a transform family whose anchor drops mid-stream is re-placed', async ({ page }) => {
+  await gotoApp(page);
+  await page.evaluate(() => window.__grawlixTest.installFixtureTools());
+  await seedCorpus(page, LATE_ANCHOR);
+
+  const { partials, settled } = await runTransform(page, 'late_twin', { stream: true, params: {} });
+  const heads = p => p.entries.map(atoms => atoms[0]);
+
+  // Without a snapshot holding `apples` before `apple`, no drop fired and the rest passes vacuously.
+  expect(partials.some(p => heads(p).includes('apples') && !heads(p).includes('apple'))).toBe(true);
+
+  // Assert on the last STREAMED snapshot: a post-completion read can be served by a
+  // wholesale rebuild that masks a torn stream.
+  expect(heads(partials.at(-1)).slice(0, 3)).toEqual(['apple', 'apples', 'applea']);
+  expect(settled.slice(0, 3)).toEqual(['apple', 'apples', 'applea']);
+});
 
 // The transform tier's half of the same ownership rule, and every entry is load-bearing.
 // AKE makes Head off yield exactly ONE chain, anchoring the bake family at "bake"; Back

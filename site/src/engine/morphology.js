@@ -124,10 +124,6 @@ function familyWords(text) {
   return words;
 }
 
-export function familyTokens(text) {
-  return familyWords(text).map(w => w.norm);
-}
-
 // Joined without spaces so a phrase and its run-together spelling (`accounts
 // payable` / `accountpayable`) share a family: spacing an entry must not move it.
 export function familyKey(text, vocab) {
@@ -169,9 +165,9 @@ const canAnchor = t => t.length > 1 && !ROMAN_NUMERAL.test(t) && !NON_NAMES.has(
 // two stay index-aligned (`Rock & Roll` norms to two tokens, not three). The word
 // is kept because toNorm discards the case the relation is judged on.
 //
-// Plain words — not familyTokens, whose leading-article strip would collapse the
-// band `The The` back to a lone `the`, and not familyKey, whose lemma reduction
-// would let `Williams` stand in for `William`.
+// Plain words — not familyKey, whose leading-article strip would collapse the
+// band `The The` back to a lone `the` and whose lemma reduction would let
+// `Williams` stand in for `William`.
 export function nameParts(text) {
   const parts = [];
   for (const word of splitWords(String(text ?? ''))) {

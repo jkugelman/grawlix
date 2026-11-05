@@ -78,6 +78,9 @@ The pair must travel as ONE primary: a second sort pick composes ahead of an axi
 
 Because a later batch can introduce an earlier-collating member, batch *k*'s comparator is **not** batch *k+1*'s, and `mergeSortedIndices`' precondition (both sides sorted under the same comparator) stops holding for free.
 It is restored by a **repair** step inside the emitter: when a batch drops a family's anchor, that family's already-placed rows are pulled back out of `indices`, folded into the batch, and re-merged.
+No shipped stack makes a drop: the anchor is a row's norm, scans run in corpus (norm) order, and the one case that puts a scanned output first, a transform that hides its input, emits synthetic rows, which carry no family.
+The repair guards that invariant against a tool whose hidden-input output is a corpus entry, which is what the test-only `late_twin` tool ([`engine/fixture-tools.js`](../site/src/engine/fixture-tools.js)) is.
+Such a run's rows are single-atom corpus entries that `resultTier` would classify as flat, so a streamed run's terminal takes its tier from the stream plan instead, adopting the slot its emitter filled.
 This is incremental maintenance in the streaming path, not a settle — the terminal still only adopts.
 Two consequences that are load-bearing:
 
@@ -619,7 +622,7 @@ Its own request-id space; a timeout resolves `{ members: [], ready: false }`, wh
 - **On receipt:** guarded by `ownedMerged && ownedCorpusFresh` (the freshness rule the edit-seed fetch documents).
   Compute the query's family `familyKey(display ?? norm, ownedMerged.vocab)` — re-keyed from the query, *not* read off a looked-up row, so a live rename's not-yet-saved spelling resolves its own family — resolve the **bound** row (`findRow(ownedMerged, boundNorm, boundDisplay)`), scan `ownedMerged.entries` for `e.norm === norm || e.family === family || genNorms.has(e.norm)` (a per-query O(n) scan, no persistent index — the norm clause catches same-norm spellings whose token-derived family differs), and reply `family` with the members.
 - **Name runs** are a fourth membership clause in that same scan, so they cost no index.
-  A row qualifies when its word sequence (`nameParts`, [`engine/morphology.js`](../site/src/engine/morphology.js) — split at the shared word breaks (`splitWords`), *not* the article-stripping `familyTokens` nor the lemma-reducing `familyKey`) is a strictly shorter **contiguous run** inside the other's, and that run is capitalized in every word **on both sides**.
+  A row qualifies when its word sequence (`nameParts`, [`engine/morphology.js`](../site/src/engine/morphology.js) — split at the shared word breaks (`splitWords`), *not* the article-stripping, lemma-reducing `familyKey`) is a strictly shorter **contiguous run** inside the other's, and that run is capitalized in every word **on both sides**.
   Contiguity is what keeps it a *sub-name*: under mere token containment the band `The The` matches every title saying "the" twice (15,655 rows).
   Judging the run inside the **longer** entry too is what separates `Rigoberta Menchú` from `iced tea` — both hold the anchor as a whole word, only one writes it as a name — so `nameParts` pairs each word with its norm token and drops the same slots from both, keeping them index-aligned when a word norms away (`Rock & Roll`).
   A null `display` renders as its lowercase norm (`displayForRaw`, `engine/norm.js`), so an all-uppercase source contributes no case signal and can't flood the list.

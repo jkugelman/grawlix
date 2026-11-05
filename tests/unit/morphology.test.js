@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { familyKey, collectVocab, familyTokens, inflectForms, generateRelativeNorms, configureCommonWords } from '../../site/src/engine/morphology.js';
+import { familyKey, collectVocab, inflectForms, generateRelativeNorms, configureCommonWords } from '../../site/src/engine/morphology.js';
 import { COMMON_WORDS, LEMMA_BASES } from '../../site/src/engine/common-words-data.js';
 
 configureCommonWords(COMMON_WORDS, LEMMA_BASES);
@@ -74,9 +74,8 @@ test('a phrase and its run-together spelling share a family', () => {
   assert.equal(familyKey('accounts payable', v), familyKey('accountpayable', v));
 });
 
-test('familyTokens strips a leading article but keeps a lone article', () => {
-  assert.deepEqual(familyTokens('the best'), ['best']);
-  assert.deepEqual(familyTokens('a'), ['a']);
+test('a lone article keeps itself as its family key', () => {
+  assert.equal(familyKey('a', collectVocab(['a'])), 'a');
 });
 
 test('a bare two-letter auxiliary keeps its base against the homographic +e word', () => {
