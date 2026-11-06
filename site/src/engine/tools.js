@@ -214,12 +214,6 @@ export function makeToolRow(tool, params = {}, grouped = false, invert = false, 
       if (row.grouped) return false;
       return def.isInert ? def.isInert(row.params) : false;
     },
-    // Parse-time error, known synchronously from params — a separate channel
-    // from the `_error` a tool throws mid-run (set async by the executor).
-    error() {
-      if (row.grouped) return null;
-      return def.error ? def.error(row.params) : null;
-    },
     // An input-showing transform needs a glyph even when it declares none: a glyph-less
     // output equal to its input folds into it (collapseRepeatAtoms), leaving the row an
     // atom short of currentAtomCount, so rows overlap in the scroller.

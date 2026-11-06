@@ -60,7 +60,6 @@ export default {
     const pattern = params && params.pattern || '';
     return !pattern || !!regexError(pattern);
   },
-  error: params => regexError(params && params.pattern),
   matchOn: 'both',
   assets: matchModeAssets,
   passes: matchModePasses,

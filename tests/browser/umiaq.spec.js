@@ -29,6 +29,7 @@ async function run(page, query) {
 
 const tier = page => page.evaluate(() => window.__grawlixTest.windowedFlatDebug().sortTier);
 const entries = page => page.evaluate(() => window.__grawlixTest.getVisibleEntries());
+const underlined = async page => (await page.locator('.tool-row .assist-hl .q-err').allTextContents()).join('');
 const tuples = async page =>
   (await page.evaluate(() => window.__grawlixTest.getVisibleGroups())).map(g => g.chains.map(c => c.join('')));
 
@@ -131,10 +132,13 @@ test('a query with a space, a backslash, and a capital round-trips through the U
   await expect.poll(() => entries(page)).toEqual(['the IRS']);
 });
 
-test('a reserved character errors on the row with an escape hint and keeps results transparent', async ({ page }) => {
+test('a reserved character is underlined, offers an escape fix, and keeps results transparent', async ({ page }) => {
   await setupSpelled(page);
   await run(page, 'x&y');
-  await expect(page.locator('.tool-row-error-btn')).toHaveAttribute('title', /\\&/);
+  await expect(page.locator('.tool-row .assist-hl .q-err')).toHaveText('&');
+  await page.locator('.tool-row input[data-key="query"]').click();
+  await expect(page.locator('.assist-panel .assist-fix', { hasText: 'Use \\&' })).toBeVisible();
+  await expect(page.locator('.tool-row-error-btn')).toBeHidden();
   expect((await entries(page)).length).toBe(SPELLED.entries.length);
 });
 
@@ -282,20 +286,19 @@ test('an invalid query keeps results transparent but flags the error', async ({ 
   await setup(page);
   await run(page, '//abc');   // letter-bank anagram — not yet supported
   expect((await entries(page)).length).toBe(WORDS.entries.length);
-  const errBtn = page.locator('.tool-row-error-btn');
-  await expect(errBtn).toBeVisible();
-  await expect(errBtn).toHaveAttribute('title', 'letter-bank anagram (//) is not supported');
+  await expect.poll(() => underlined(page)).toBe('//');
+  await expect(page.locator('.tool-row-error-btn')).toBeHidden();
 });
 
-// parseUmiaqQuery runs from def.error() on every repaint, so a conflict that throws instead
-// of reporting takes the row's chrome down with it rather than lighting the warning.
+// The box's assist parses the query on every repaint, so a conflict that throws instead
+// of reporting takes the row's chrome down with it rather than underlining the clause.
 test('a length conflict reports on the row instead of throwing during repaint', async ({ page }) => {
   await setup(page);
   await run(page, 'A;A=#@#;|A|=5');
   expect((await entries(page)).length).toBe(WORDS.entries.length);
-  const errBtn = page.locator('.tool-row-error-btn');
-  await expect(errBtn).toBeVisible();
-  await expect(errBtn).toHaveAttribute('title', 'A=#@# conflicts with |A|=5');
+  await expect.poll(() => underlined(page)).toBe('A=#@#');
+  await page.locator('.tool-row input[data-key="query"]').click();
+  await expect(page.locator('.assist-panel .assist-error')).toContainText('A=#@# conflicts with |A|=5');
 });
 
 // Guards against the range trimming an out-of-range lane and keeping the rest, which

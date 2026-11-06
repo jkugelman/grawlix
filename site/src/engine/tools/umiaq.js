@@ -33,10 +33,6 @@ export default {
   input: 'highlight', output: 'plain',
   matchOn: 'both',
   isInert: params => !parseUmiaqQuery(params?.query || '').ok,
-  error(params) {
-    const parsed = parseUmiaqQuery(params?.query || '');
-    return parsed.ok || parsed.empty ? null : parsed.error;
-  },
   prepare(params) {
     const parsed = parseUmiaqQuery(params.query || '');
     if (!parsed.ok) return null;

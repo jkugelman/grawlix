@@ -331,14 +331,15 @@ One signal for the whole run rather than a per-tool spinner badge: the user care
 The dim lands on `#vs-host` rather than the panel itself so the spinner overlay stays at full opacity while the rows behind it fade.
 
 **Tool errors.**
-Two channels feed one `⚠` affordance.
 An **execution error** — a thrown `def.prepare` / `def.run` / group key — is caught at the per-stage boundary in `executePipeline` and wrapped in a `ToolStageError` carrying the offending stack row.
 The worker posts it as an `error` message naming that row's index; the client writes the message to main's copy of the row as `_error` and resolves the run `{ errored: true, rows: [] }`, so the caller clears the stale results rather than continuing to show them.
-A **parse error** — an invalid query the tool can't run, like a stray `.` in Umiaq or an unterminated group in Regex — is reported synchronously from params by an optional `def.error(params)` accessor (Umiaq hands back its parser message; Regex its `SyntaxError` reason, stripped of V8's `Invalid regular expression: /…/:` echo, which only repeats the pattern the user can already see), known *before* the row runs — which it won't, since the same invalidity also reports `isInert`.
-`ToolStack.refreshRowMarks()` runs after every pipeline run and shows the row's effective message (`_error || error()`) on the `⚠` icon — always rendered, hidden by default, anchored at the input's right edge (the input is pinned to its grid column so a caret-less tool doesn't strand the icon off to the right).
+`ToolStack.refreshRowMarks()` shows `_error` on the row's `⚠` icon — always rendered, hidden by default, anchored at the input's right edge (the input is pinned to its grid column so a caret-less tool doesn't strand the icon off to the right).
 On a hover device the message rides the button's `title`; on touch a click opens `ErrorPopover` (positioned on click, dismissed on outside-click or Escape).
-No debounce gates the reveal: the parser's deliberate `empty`-vs-`error` split already keeps a half-typed query (`AB;` → `empty`) quiet, so the icon tracks each keystroke without flashing while composing.
-`runOnWorker` clears every row's `_error` before it dispatches, and a fixed query drops `error()` to null, so the icon clears on the next run either way.
+`runOnWorker` clears every row's `_error` before it dispatches, so the icon clears on the next run.
+
+A **parse error** — an invalid query the tool can't run, like a stray `.` in Umiaq or an unterminated group in Regex — never reaches the icon.
+The tool reports `isInert` and doesn't run, and the box's pattern assist underlines the bad span and explains it in its panel ([`design.md`](design.md) § *Pattern assist*), so a second, differently worded message on the icon would only repeat it.
+Only Umiaq and Regex have parse errors, and both boxes carry the assist.
 
 **First-paint covers the corpus build, not the tool pipeline.**
 The splash exists to cover the one thing main can't render around: the worker reading IndexedDB, parsing, rescoring, and merging the corpus.

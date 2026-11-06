@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { executePipeline, rowLastEntry } from '../../site/src/engine/executor.js';
 import umiaqTool from '../../site/src/engine/tools/umiaq.js';
+import { parseUmiaqQuery } from '../../site/src/engine/umiaq.js';
 
 function toolRow(def, params) {
   return {
@@ -105,10 +106,11 @@ test('pipeline: a truncated tuple run folds into capped (one "there are more" fa
   assert.equal(res.capped, true);
 });
 
-test('error: a broken query reports its message; a valid or half-typed one is silent', () => {
-  assert.match(umiaqTool.error({ query: 'a.b' }), /unexpected character/);
-  assert.match(umiaqTool.error({ query: 'a[bc' }), /unclosed/);
-  assert.equal(umiaqTool.error({ query: 'AB' }), null);
-  assert.equal(umiaqTool.error({ query: '' }), null);
-  assert.equal(umiaqTool.error({ query: 'AB;' }), null);
+test('parse: a broken query reports its message; a valid or half-typed one is silent', () => {
+  const parseError = query => { const p = parseUmiaqQuery(query); return p.ok || p.empty ? null : p.error; };
+  assert.match(parseError('a.b'), /unexpected character/);
+  assert.match(parseError('a[bc'), /unclosed/);
+  assert.equal(parseError('AB'), null);
+  assert.equal(parseError(''), null);
+  assert.equal(parseError('AB;'), null);
 });

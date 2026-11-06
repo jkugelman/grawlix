@@ -144,8 +144,8 @@ export function setupRenderEffect() {
     }
   });
 
-  // Two error channels, two signals: parse errors (pipelineVersion$, every
-  // keystroke/stack edit) and async runtime errors (errorMarks$, from the worker).
+  // Two signals: an edit (pipelineVersion$) drops the edited row's stale runtime
+  // error at once, and the worker (errorMarks$) sets or clears one.
   // Reacting to these — never to a run resolving — is what stops a ⚠ from lagging
   // behind a superseded run, the failure mode that gating on the run produced.
   effect(() => {

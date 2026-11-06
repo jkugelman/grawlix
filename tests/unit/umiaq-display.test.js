@@ -459,12 +459,14 @@ test('tool run: an escaped capital matches only the capitalized spelling', () =>
   assert.ok(umiaqTool.run({ norm: 'nasax', display: 'NASA x' }, lower));
 });
 
-test('tool def: the new errors surface through error() and isInert()', () => {
+test('tool def: the new errors make the query fail to parse and the row inert', () => {
   for (const q of ['\\s', 'x&y', 'A;|A| >= 3', '7: A*']) {
-    assert.ok(umiaqTool.error({ query: q }), q);
+    const parsed = parseUmiaqQuery(q);
+    assert.ok(!parsed.ok && !parsed.empty && parsed.error, q);
     assert.equal(umiaqTool.isInert({ query: q }), true, q);
   }
-  assert.equal(umiaqTool.error({ query: 'A B;B A' }), null);
+  assert.equal(parseUmiaqQuery('A B;B A').ok, true);
+  assert.equal(umiaqTool.isInert({ query: 'A B;B A' }), false);
 });
 
 test('PackedRecordJoin round-trips a display coordinate and keys lanes by spelling', () => {

@@ -1567,8 +1567,8 @@ Per-wordlist field categories beyond the cosmetic four:
   No cache or corpus touched — rendered rows resolve their source by `sourceId` and read the name live.
 - **Config-summary effect** reads `configSummary$`.
   The worker's per-config summaries arrive *after* the `cacheVersion$` bump that re-synced (the cache branch already painted with the previous shipped values), so this repaints the count displays, scoring legend, and stats bar once the fresh values land.
-- **Error-marks effect** reads `pipelineVersion$` and `errorMarks$` and repaints the tool rows' ⚠ marks.
-  The two signals are the two error channels: a parse error is a pure function of the params, so it rides `pipelineVersion$` and updates live on every keystroke; a runtime error is the worker's, so it rides `errorMarks$`.
+- **Error-marks effect** reads `pipelineVersion$` and `errorMarks$` and repaints the tool rows' ⚠ marks, which show only runtime errors (parse errors are the pattern assist's, § *Pattern assist*).
+  `errorMarks$` carries the worker setting or clearing a row's error; `pipelineVersion$` carries an edit, which drops the edited row's stale error at once.
   Reacting to the inputs rather than to a run resolving is what keeps a mark from lagging a superseded run — a keystroke supersedes the in-flight run, and a superseded run never settles, so a settle-gated mark would strand a stale ⚠.
   Freshly built rows (panel mount, tool add/remove/reorder) self-init their marks at build time; the effect covers the state changes that *don't* rebuild the DOM.
 

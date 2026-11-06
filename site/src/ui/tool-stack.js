@@ -805,7 +805,7 @@ export const ToolStack = (() => {
         e.stopPropagation();
         if (window.matchMedia('(hover: hover)').matches) return;
         const idx = parseInt(errBtn.dataset.errorRow, 10);
-        const msg = stack[idx]?._error || stack[idx]?.error() || '';
+        const msg = stack[idx]?._error || '';
         _showRowError(errBtn, msg);
         return;
       }
@@ -980,7 +980,7 @@ export const ToolStack = (() => {
       const row = userRows[idx];
       const btn = rowEl.querySelector('.tool-row-error-btn');
       if (btn) {
-        const msg = row?._error || row?.error();
+        const msg = row?._error;
         btn.hidden = !msg;
         if (msg) btn.title = msg;
         else btn.removeAttribute('title');

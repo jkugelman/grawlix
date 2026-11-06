@@ -99,23 +99,22 @@ test('a throwing tool prepare surfaces the error without hanging the splash', as
   await expect(page.locator('.tool-row-error-btn')).toBeVisible();
 });
 
-test('an invalid Umiaq query surfaces its parse error and clears on a fix', async ({ page }) => {
+test('an invalid Umiaq query is underlined, not marked with a ⚠, and clears on a fix', async ({ page }) => {
   await gotoApp(page);
 
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'umiaq', params: { query: 'A;1>' } }]));
-  const errBtn = page.locator('.tool-row-error-btn');
-  await expect(errBtn).toBeVisible();
-  await expect(errBtn).toHaveAttribute('title', /^unexpected character ">"/);
+  const underline = page.locator('.tool-row .assist-hl .q-err');
+  await expect(underline).toHaveText('>');
+  await page.evaluate(() => window.__grawlixTest.pipelineIdle());
+  await expect(page.locator('.tool-row-error-btn')).toBeHidden();
 
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'umiaq', params: { query: 'AB' } }]));
-  await expect(errBtn).toBeHidden();
+  await expect(underline).toHaveCount(0);
 });
 
-// Read the mark in the same tick the input changes — NOT via a retrying
-// `expect().toBeHidden()`, which would pass even with the bug present, since the
-// run settles fast here and clears the mark before the poll gives up. The
-// synchronous read is what proves the mark comes from the input, not the settle.
-test('the Umiaq parse-error mark tracks the query live, not at run settle', async ({ page }) => {
+// Read the marks in the same tick the input changes — NOT via a retrying
+// expect, which would pass even if the ⚠ flashed on for a run and back off.
+test('a parse error never lights the ⚠, even for a moment, and is underlined at once', async ({ page }) => {
   await gotoApp(page);
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'umiaq', params: { query: 'AB' } }]));
   await page.evaluate(() => window.__grawlixTest.pipelineIdle());
@@ -127,24 +126,28 @@ test('the Umiaq parse-error mark tracks the query live, not at run settle', asyn
     const typeAndRead = (value) => {
       input.value = value;
       input.dispatchEvent(new Event('input', { bubbles: true }));
-      return btn.hidden;
+      return { iconHidden: btn.hidden, underlined: !!input.parentElement.querySelector('.q-err') };
     };
     return { afterBreak: typeAndRead('A;1>'), afterFix: typeAndRead('AB') };
   });
-  expect(marks.afterBreak).toBe(false);   // ⚠ the instant the query breaks
-  expect(marks.afterFix).toBe(true);      // gone the instant it's fixed
+  expect(marks.afterBreak).toEqual({ iconHidden: true, underlined: true });
+  expect(marks.afterFix).toEqual({ iconHidden: true, underlined: false });
+  await page.evaluate(() => window.__grawlixTest.pipelineIdle());
+  await expect(page.locator('.tool-row-error-btn')).toBeHidden();
 });
 
-// The reason wording is engine-specific (V8 "Unterminated group", JSC "missing
-// )", SpiderMonkey "unterminated parenthetical"), so assert only that a reason
-// shows stripped of the "Invalid regular expression:" prefix V8 and JSC add.
-test('an invalid regex surfaces the reason without the engine boilerplate', async ({ page }) => {
+// The reason wording is engine-specific, so assert only that the panel shows a
+// reason stripped of the "Invalid regular expression:" prefix V8 and JSC add.
+// A duplicate group name is one only the browser catches, so its own words show.
+test('an invalid regex explains the reason in the panel without the engine boilerplate', async ({ page }) => {
   await gotoApp(page);
-
-  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'regex', params: { pattern: 'a(b' } }]));
-  const errBtn = page.locator('.tool-row-error-btn');
-  await expect(errBtn).toBeVisible();
-  const title = await errBtn.getAttribute('title');
-  expect(title?.trim()).toBeTruthy();
-  expect(title).not.toContain('Invalid regular expression');
+  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'regex', params: { pattern: '(?<a>x)(?<a>y)' } }]));
+  const input = page.locator('.tool-row input[data-key="pattern"]');
+  await input.click();
+  await input.press('ArrowLeft');
+  const error = page.locator('.assist-panel .assist-error');
+  await expect(error).toBeVisible();
+  expect((await error.textContent())?.trim()).toBeTruthy();
+  await expect(error).not.toContainText('Invalid regular expression');
+  await expect(page.locator('.tool-row-error-btn')).toBeHidden();
 });

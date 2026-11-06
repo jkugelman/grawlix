@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   analyzeRegexPattern, isCapturingGroup, matchingParen, wrapRuns,
-  parseReplacement, replacementMarksOutput, kindForGroup, regexExecAll, runReplace,
+  parseReplacement, replacementMarksOutput, kindForGroup, regexExecAll, runReplace, regexError,
 } from '../../site/src/engine/regex.js';
 import regexTool from '../../site/src/engine/tools/regex.js';
 
@@ -320,11 +320,16 @@ test('runReplace: a zero-width matcher terminates (advance guard)', () => {
   assert.deepEqual(runReplace(wl('ca'), prepared, corpus(['ca'])), []);
 });
 
-test('error: an invalid pattern reports the reason, stripped of V8 boilerplate', () => {
-  const msg = regexTool.error({ pattern: 'a(b' });
+test('regexError: an invalid pattern reports the reason, stripped of V8 boilerplate', () => {
+  const msg = regexError('a(b');
   assert.match(msg, /group/i);
   assert.doesNotMatch(msg, /Invalid regular expression/);
-  assert.equal(regexTool.error({ pattern: '[' }).includes('/'), false);
-  assert.equal(regexTool.error({ pattern: 'abc' }), null);
-  assert.equal(regexTool.error({ pattern: '' }), null);
+  assert.equal(regexError('[').includes('/'), false);
+  assert.equal(regexError('abc'), null);
+  assert.equal(regexError(''), null);
+});
+
+test('an invalid pattern leaves the Regex row inert', () => {
+  assert.equal(regexTool.isInert({ pattern: 'a(b' }), true);
+  assert.equal(regexTool.isInert({ pattern: 'abc' }), false);
 });
