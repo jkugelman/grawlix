@@ -133,3 +133,55 @@ test('the mirror follows the input font, so the caret stays on the letters', asy
   });
   expect(widths.mirror).toBeCloseTo(widths.input, 0);
 });
+
+const regexBox = page => page.locator('.tool-row[data-tool="regex"] input[data-key="pattern"]');
+
+function panelLayout(page) {
+  return page.evaluate(() => {
+    const p = document.querySelector('.assist-panel');
+    const box = document.querySelector('.tool-row[data-tool="regex"] .clearable-input').getBoundingClientRect();
+    const r = p.getBoundingClientRect(), vv = window.visualViewport;
+    const cheat = p.querySelector('.assist-cheat'), hint = p.querySelector('.assist-error, .assist-hint');
+    return {
+      open: p.matches(':popover-open'),
+      clear: r.bottom <= box.top || r.top >= box.bottom,
+      onScreen: r.top >= vv.offsetTop && r.bottom <= vv.offsetTop + vv.height,
+      above: r.bottom <= box.top,
+      cheatShown: !!cheat?.checkVisibility(),
+      hintBelowCheat: hint && cheat ? hint.getBoundingClientRect().top >= cheat.getBoundingClientRect().bottom : null,
+    };
+  });
+}
+
+test('the panel sits whole on screen and never over the box, at any height', async ({ page }) => {
+  await gotoApp(page);
+  await addTool(page, 'regex');
+  await regexBox(page).fill('un*ed');
+  for (const height of [900, 400, 250, 200, 120]) {
+    await page.setViewportSize({ width: 1000, height });
+    await regexBox(page).click();
+    const L = await panelLayout(page);
+    if (L.open) expect(L, `height ${height}`).toMatchObject({ clear: true, onScreen: true });
+  }
+});
+
+test('the panel opens above with hints nearest the box, then drops the cheat sheet, then hides', async ({ page }) => {
+  await gotoApp(page);
+  await addTool(page, 'regex');
+  await regexBox(page).fill('un*ed');
+  await expect(panel(page).locator('.assist-error, .assist-hint')).toBeVisible();
+  expect(await panelLayout(page)).toMatchObject({ above: true, cheatShown: true, hintBelowCheat: true });
+
+  let L;
+  for (let height = 500; height >= 100; height -= 10) {
+    await page.setViewportSize({ width: 1000, height });
+    await regexBox(page).click();
+    L = await panelLayout(page);
+    if (!L.cheatShown) break;
+  }
+  expect(L).toMatchObject({ open: true, clear: true, onScreen: true, cheatShown: false });
+
+  await page.setViewportSize({ width: 1000, height: 60 });
+  await regexBox(page).click();
+  await expect(panel(page)).toBeHidden();
+});

@@ -12,14 +12,13 @@ import { tokenAt, errorVisible } from '../engine/assist.js';
 import { analyzeUmiaq, UMIAQ_CHEAT } from '../engine/assist-umiaq.js';
 import { analyzeRegex, analyzeReplacement, REGEX_CHEAT, REGEX_CHEAT_LINK } from '../engine/assist-regex.js';
 import { analyzeSearch, SEARCH_CHEAT } from '../engine/assist-search.js';
-import { positionPopover } from './components.js';
+import { fitPopover, visibleRect } from './components.js';
 import { ToolStack } from './tool-stack.js';
 
 const DIALECTS = {
-  umiaq: { analyze: text => analyzeUmiaq(text), cheat: UMIAQ_CHEAT, reading: true, placement: 'below' },
-  regex: { analyze: (text, mode) => analyzeRegex(text, { mode }), cheat: REGEX_CHEAT, link: REGEX_CHEAT_LINK, reading: true, placement: 'below' },
-  // Above, so it never covers the entries table's sort headers just under the bar.
-  search: { analyze: (text, mode) => analyzeSearch(text, { mode }), cheat: SEARCH_CHEAT, reading: false, placement: 'above' },
+  umiaq: { analyze: text => analyzeUmiaq(text), cheat: UMIAQ_CHEAT, reading: true },
+  regex: { analyze: (text, mode) => analyzeRegex(text, { mode }), cheat: REGEX_CHEAT, link: REGEX_CHEAT_LINK, reading: true },
+  search: { analyze: (text, mode) => analyzeSearch(text, { mode }), cheat: SEARCH_CHEAT, reading: false },
   'regex-replace': { analyze: analyzeReplacement, context: rowPattern, panel: false },
 };
 const PATTERN_KEY = { umiaq: 'query', regex: 'pattern', search: 'pattern' };
@@ -93,7 +92,7 @@ function syncScroll(input) {
 // ─── Panel ────────────────────────────────────────────────────────────────────
 
 const Panel = (() => {
-  let el = null, owner = null, fixes = [], dismissed = false;
+  let el = null, owner = null, fixes = [], dismissed = false, hasLead = false;
 
   function ensure() {
     if (el) return el;
@@ -104,16 +103,26 @@ const Panel = (() => {
     el.addEventListener('mousedown', e => e.preventDefault());
     el.addEventListener('click', onClick);
     document.body.append(el);
-    const reflow = () => { if (owner) place(); };
+    const reflow = () => { if (owner && !dismissed) place(); };
     window.addEventListener('resize', reflow);
     window.addEventListener('scroll', reflow, true);
+    window.visualViewport?.addEventListener('resize', reflow);
+    window.visualViewport?.addEventListener('scroll', reflow);
     return el;
   }
 
+  // Never capped to scroll; why in docs/design.md § Pattern assist.
   function place() {
     const anchor = owner.closest('.clearable-input') ?? owner;
-    el.style.width = `${Math.min(Math.max(anchor.offsetWidth, 520), window.innerWidth - 16)}px`;
-    positionPopover(el, anchor, { placement: DIALECTS[owner.dataset.assist].placement, offset: 4 });
+    const view = visibleRect();
+    el.style.width = `${Math.min(Math.max(anchor.offsetWidth, 520), view.right - view.left - 16)}px`;
+    if (!el.matches(':popover-open')) el.showPopover();
+    for (const compact of hasLead ? [false, true] : [false]) {
+      el.classList.toggle('compact', compact);
+      const side = fitPopover(el, anchor, { placement: 'above', offset: 4 });
+      if (side) { el.classList.toggle('above', side === 'above'); return; }
+    }
+    el.hidePopover();
   }
 
   function fixButtons(list) {
@@ -138,9 +147,9 @@ const Panel = (() => {
     if (errorVisible(A.error, text, caret)) parts.push(`<div class="assist-error">${A.error.msg}${fixButtons(A.error.fixes)}</div>`);
     if (d.reading && A.reading) parts.push(`<div class="assist-reading">${A.reading}</div>`);
     for (const h of A.hints) parts.push(`<div class="assist-hint${h.tip ? ' tip' : ''}">${h.msg}${fixButtons(h.fixes)}</div>`);
+    hasLead = parts.length > 0;
     parts.push(cheatHTML(d));
     el.innerHTML = parts.join('');
-    if (!el.matches(':popover-open')) el.showPopover();
     place();
   }
 

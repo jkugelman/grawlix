@@ -1657,10 +1657,14 @@ html.dark-mode #discovery-banner { background: color-mix(in srgb, var(--accent) 
 .assist-bad { color: var(--q-err); }
 .assist-pair { outline: 1px solid var(--accent); border-radius: 2px; }
 .assist-target { background: color-mix(in srgb, var(--accent) 22%, transparent); border-radius: 2px; }
-.assist-panel { position: fixed; inset: auto; margin: 0; padding: 0; pointer-events: none; max-height: min(420px, 60vh); overflow-y: auto; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 6px 24px rgba(0,0,0,0.2); font-size: 12px; line-height: 1.5; color: var(--text); }
+.assist-panel { position: fixed; inset: auto; margin: 0; padding: 0; pointer-events: none; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 6px 24px rgba(0,0,0,0.2); font-size: 12px; line-height: 1.5; color: var(--text); }
 .assist-panel button, .assist-panel a { pointer-events: auto; }
-.assist-panel > div { padding: 6px 10px; border-top: 1px solid var(--border2); }
-.assist-panel > div:first-child { border-top: 0; }
+.assist-panel:popover-open { display: flex; flex-direction: column; }
+.assist-panel.above { flex-direction: column-reverse; }
+.assist-panel > div { padding: 6px 10px; }
+.assist-panel > div + div { border-top: 1px solid var(--border2); }
+.assist-panel.above > div + div { border-top: 0; border-bottom: 1px solid var(--border2); }
+.assist-panel.compact .assist-cheat { display: none; }
 .assist-panel code, .assist-panel kbd { font-family: var(--font-mono); }
 .assist-quiet { color: var(--muted); }
 .assist-error { background: var(--error-bg); box-shadow: inset 3px 0 var(--q-err); }

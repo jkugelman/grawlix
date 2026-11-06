@@ -681,7 +681,7 @@ In all-mode a blank Shift groups entries into shift classes (STEEDS and TUFFET c
 The Umiaq, Regex and Search boxes (the search bar included) color their syntax as you type and open a **helper panel** beside the box while it has focus.
 A param opts in with `assist: 'umiaq' | 'regex' | 'search'`; Affix keeps the plain `PopupHelp` cheat sheet.
 Regex's replace box (`assist: 'regex-replace'`) gets the coloring but no panel: its syntax is four `$` forms, which its `PopupHelp` already lists.
-The panel holds, top to bottom:
+The panel holds, nearest the box first:
 
 - **The error, in place.**
   The bad span gets a wavy underline (`.q-err`, shared with the rescore editor), the panel says what's wrong in plain words, and a fix button applies the obvious repair when there is one (`.` → `?` in Umiaq, `[!` → `[^`, a backwards range swapped).
@@ -691,12 +691,17 @@ The panel holds, top to bottom:
 - **Mix-up hints**: valid syntax that probably means something else, each with a fix.
   Search syntax typed into Regex (`un*ed`, where `*` repeats the N), capitals typed into Umiaq as a word (`CAT`), a tuple whose edge variables can't be empty (`AtenB;AB` misses TENOR), a regex in Search.
   A fix can move the query to the right tool: a stack row is swapped in place, and the search bar hands its query to a new row above it and empties itself (`ToolStack.moveQueryTo`).
-- **The cheat sheet**, always whole, every row clickable to insert at the caret.
+- **The cheat sheet**, farthest from the box, every row clickable to insert at the caret.
   Umiaq's clause rows (`|A|>=0`, `A=#@#`) append a clause named after the query's first variable; `7-9:` goes at the start of the caret's clause.
   It never changes, so the panel looks the same from the first keystroke to the last.
 
 Search, the box people type in most, gets no reading: its syntax is a handful of symbols, and a sentence restating `c?t` is clutter.
-Its panel opens above the bar, since one below would sit over the entries table's sort headers for every search.
+
+**The panel never covers the box.**
+It sits flush against the box's top or bottom edge, preferring the top, since below it would sit over the results and the entries table's sort headers.
+It's placed only where it fits whole on screen (`fitPopover`), measured against the visual viewport so an on-screen keyboard counts as off screen.
+When the whole panel fits on neither side, it drops the cheat sheet; when that still doesn't fit, or there's nothing but the cheat sheet to show, it hides until there's room again.
+It's never capped to a height with a scrollbar: a scrolled sliver is hard to use on a touch screen, and errors and fixes matter more than the cheat sheet.
 
 **One panel.**
 Everything, the cheat sheet included, lives in the one panel, so a focused box never has popups on both sides.

@@ -131,18 +131,58 @@ export function buildParamHTML(param, value, toolKey, wiring) {
   return `<span class="tool-row-param tool-row-param-text">${labelHTML}${buildTextInputHTML(param, value, toolKey, wiring)}</span>`;
 }
 
+const POPOVER_MARGIN = 8;
+
+// The on-screen part of the layout viewport, in position: fixed coordinates.
+// An on-screen keyboard shrinks the visual viewport but not innerHeight, so
+// measuring against the window places popovers under it.
+export function visibleRect() {
+  const vv = window.visualViewport;
+  if (!vv) return { top: 0, left: 0, bottom: window.innerHeight, right: window.innerWidth };
+  return { top: vv.offsetTop, left: vv.offsetLeft, bottom: vv.offsetTop + vv.height, right: vv.offsetLeft + vv.width };
+}
+
+function popoverGeometry(el, anchor, offset) {
+  // Fixed coordinates and client rects can disagree: iOS WebKit with the
+  // keyboard up measures rects from the visual viewport, so trusting them
+  // double-counts the pan and the popover drifts off the anchor as you scroll.
+  // Measure the gap instead of assuming it's zero.
+  el.style.top = el.style.left = '0px';
+  const origin = el.getBoundingClientRect();
+  const fixed = visibleRect();
+  const view = { top: fixed.top + origin.top, bottom: fixed.bottom + origin.top, left: fixed.left + origin.left, right: fixed.right + origin.left };
+  const a = anchor.getBoundingClientRect();
+  const room = {
+    above: a.top - offset - view.top - POPOVER_MARGIN,
+    below: view.bottom - POPOVER_MARGIN - a.bottom - offset,
+  };
+  return { view, origin, a, e: origin, room };
+}
+
+function placePopover(el, { view, origin, a, e }, side, offset, align) {
+  const top = side === 'above' ? a.top - e.height - offset : a.bottom + offset;
+  const rawLeft = align === 'right' ? a.right - e.width : a.left;
+  const left = Math.max(view.left + POPOVER_MARGIN, Math.min(rawLeft, view.right - e.width - POPOVER_MARGIN));
+  el.style.top  = (top - origin.top) + 'px';
+  el.style.left = (left - origin.left) + 'px';
+}
+
+const otherSide = side => (side === 'above' ? 'below' : 'above');
+
 export function positionPopover(el, anchor, { placement = 'above', offset = 6, align = 'left' } = {}) {
-  const aRect = anchor.getBoundingClientRect();
-  const eRect = el.getBoundingClientRect();
-  let above = placement === 'above';
-  if (above && aRect.top - eRect.height - offset < 8) above = false;
-  else if (!above && aRect.bottom + offset + eRect.height > window.innerHeight - 8) above = true;
-  const top = above ? aRect.top - eRect.height - offset : aRect.bottom + offset;
-  const maxLeft = window.innerWidth - eRect.width - 8;
-  const rawLeft = align === 'right' ? aRect.right - eRect.width : aRect.left;
-  const left = Math.max(8, Math.min(rawLeft, maxLeft));
-  el.style.top  = top  + 'px';
-  el.style.left = left + 'px';
+  const g = popoverGeometry(el, anchor, offset);
+  let side = placement;
+  if (g.e.height > g.room[side] && g.room[otherSide(side)] > g.room[side]) side = otherSide(side);
+  placePopover(el, g, side, offset, align);
+}
+
+// Returns null without moving `el` when it fits whole on neither side; a caller
+// that doesn't hide it then leaves it at its stale spot, possibly over the anchor.
+export function fitPopover(el, anchor, { placement = 'above', offset = 6, align = 'left' } = {}) {
+  const g = popoverGeometry(el, anchor, offset);
+  const side = [placement, otherSide(placement)].find(s => g.e.height <= g.room[s]) ?? null;
+  if (side) placePopover(el, g, side, offset, align);
+  return side;
 }
 
 export class PopupHelp {
