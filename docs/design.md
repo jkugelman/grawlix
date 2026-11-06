@@ -685,7 +685,9 @@ The panel holds, nearest the box first:
 
 - **The error, in place.**
   The bad span gets a wavy underline (`.q-err`, shared with the rescore editor), the panel says what's wrong in plain words, and a fix button applies the obvious repair when there is one (`.` → `?` in Umiaq, `[!` → `[^`, a backwards range swapped).
-  An error stays quiet while it's still being typed — an unfinished construct like `^(ab` until the caret leaves the end, any other while the caret sits right after it — so the panel doesn't nag mid-keystroke.
+  An error waits only when more typing could still fix it, so the panel doesn't nag mid-keystroke: an unfinished construct like `^(ab`, `7-9` (a length prefix missing its `:`) or Regex's `(?<na` waits until the caret leaves the end, and one the next keystroke might complete, like Umiaq's `A!` on its way to `A!=`, waits while the caret sits right after it.
+  An error no typing can fix, like Umiaq's `.` or Regex's stray `)`, shows the moment it's typed.
+  Each analyzer tags its errors `PENDING` or `FINAL` (`engine/assist.js`); errors only the parser or the browser catch stay untagged and wait, since their messages don't say whether they're half-typed.
 - **The query read back** (Umiaq, Regex): the whole query as a sentence, including the match mode — `ABBA` reads "Finds entries made of a chunk A, then a chunk B, then B again, then A again."
   Together with the cheat sheet it explains every piece, so the panel says nothing about the token at the caret; the box itself only outlines a paren's partner and tints the atom a quantifier repeats.
 - **Mix-up hints**: valid syntax that probably means something else, each with a fix.

@@ -115,6 +115,22 @@ test('Escape dismisses the panel until the next edit', async ({ page }) => {
   await expect(panel(page)).toBeVisible();
 });
 
+test('an error more typing cannot fix shows as soon as it is typed; an unfinished one waits', async ({ page }) => {
+  await gotoApp(page);
+  await addTool(page, 'umiaq');
+  const umiaq = page.locator('.tool-row[data-tool="umiaq"] input[data-key="query"]');
+  await umiaq.pressSequentially('l.');
+  await expect(panel(page).locator('.assist-error')).toContainText('any letter');
+
+  await addTool(page, 'regex');
+  const regex = page.locator('.tool-row[data-tool="regex"] input[data-key="pattern"]');
+  await regex.pressSequentially('(ab');
+  await expect(panel(page)).toBeVisible();
+  await expect(panel(page).locator('.assist-error')).toHaveCount(0);
+  await regex.press('ArrowLeft');
+  await expect(panel(page).locator('.assist-error')).toContainText('needs a closing');
+});
+
 test('the mirror follows the input font, so the caret stays on the letters', async ({ page }) => {
   await gotoApp(page);
   // Stands in for iOS, which raises inputs to 16px to stop focus-zoom.

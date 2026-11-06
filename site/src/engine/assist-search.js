@@ -7,7 +7,7 @@
 // silently inert.
 
 import { CONSONANTS, VOWELS, escapeRegexClass } from './search.js';
-import { code, matchModeWhere, joinParts, reversedRange } from './assist.js';
+import { FINAL, code, matchModeWhere, joinParts, reversedRange } from './assist.js';
 
 export const SEARCH_CHEAT = [
   { code: '*', desc: 'any string', insert: '*' },
@@ -42,8 +42,8 @@ export function analyzeSearch(text, { mode = '' } = {}) {
         const rr = reversedRange(inner);
         const at = rr ? i + 1 + (neg ? 1 : 0) + rr.at : i;
         error = rr
-          ? { s: at, e: at + 3, msg: `The range ${code(rr.a + '-' + rr.b)} runs backwards, so nothing can match.`, fixes: [{ label: `Use ${rr.b}-${rr.a}`, s: at, e: at + 3, text: `${rr.b}-${rr.a}` }] }
-          : { s: i, e: end + 1, msg: 'This class is invalid, so nothing can match.' };
+          ? { s: at, e: at + 3, msg: `The range ${code(rr.a + '-' + rr.b)} runs backwards, so nothing can match.`, fixes: [{ label: `Use ${rr.b}-${rr.a}`, s: at, e: at + 3, text: `${rr.b}-${rr.a}` }], ...FINAL }
+          : { s: i, e: end + 1, msg: 'This class is invalid, so nothing can match.', ...FINAL };
       }
       i = end;
     }

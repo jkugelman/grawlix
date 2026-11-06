@@ -135,3 +135,116 @@ test('an unfinished construct at the end stays quiet while the caret is on it', 
   const dot = analyzeUmiaq('l.ve');
   assert.equal(errorVisible(dot.error, 'l.ve', 4), true);
 });
+
+const DIALECT = { umiaq: analyzeUmiaq, regex: analyzeRegex, search: analyzeSearch };
+
+// [dialect, query typed so far, does its error show with the caret at the end?]
+const AT_END = [
+  // More typing can't fix these, so they show at once.
+  ['umiaq', 'l.', true],
+  ['umiaq', 'ab$', true],
+  ['umiaq', 'ab(', true],
+  ["umiaq", "ab'", true],
+  ['umiaq', 'ab\\c', true],
+  ['umiaq', 'ab/', true],
+  ['umiaq', '//', true],
+  ['umiaq', '/(', true],
+  ['umiaq', '/abC', true],
+  ['umiaq', 'A;A=b?C', true],
+  ['umiaq', '[aB]', true],
+  ['umiaq', '[!a]', true],
+  ['umiaq', 'x:', true],
+  ['umiaq', 'A;|~A|=3', true],
+  ['umiaq', 'A;|A|>3-5', true],
+  ['umiaq', 'A;A B=x', true],
+  ['umiaq', 'ab-', true],
+  ['umiaq', 'ab+', true],
+  ['umiaq', '7-a', true],
+  ['regex', 'ab)', true],
+  ['regex', '*', true],
+  ['regex', 'a(+', true],
+  ['regex', 'a|?', true],
+  ['regex', 'a(*', true],
+  ['regex', 'a{5,3}', true],
+  ['regex', '(?x', true],
+  ['search', '[z-a]', true],
+  ['search', '[#-a]', true],
+  // The next keystroke may fix these, so they wait.
+  ['umiaq', '[ab', false],
+  ['umiaq', '~', false],
+  ['umiaq', 'ab\\', false],
+  ['umiaq', 'A!', false],
+  ['umiaq', '7-', false],
+  ['umiaq', '10+', false],
+  ['umiaq', '7-9', false],
+  ['umiaq', 'A!=', false],
+  ['umiaq', 'A=', false],
+  ['umiaq', '|A', false],
+  ['umiaq', 'A;|A|', false],
+  ['umiaq', 'A;|A|=|B', false],
+  ['umiaq', 'A;|A|=', false],
+  ['umiaq', '/', false],
+  ['regex', '(ab', false],
+  ['regex', '[ab', false],
+  ['regex', 'ab\\', false],
+  ['regex', '(?', false],
+  ['regex', '(?<', false],
+  ['regex', '(?<na', false],
+];
+
+test('an error shows at the end at once exactly when more typing cannot fix it', () => {
+  for (const [dialect, q, shown] of AT_END) {
+    const { error } = DIALECT[dialect](q);
+    assert.ok(error, `${dialect} ${q} should have an error`);
+    assert.equal(errorVisible(error, q, q.length), shown, `${dialect} ${q}`);
+  }
+});
+
+test('a waiting error shows once the caret moves off it or the box loses focus', () => {
+  for (const [dialect, q, shown] of AT_END) {
+    if (shown) continue;
+    const { error } = DIALECT[dialect](q);
+    assert.equal(errorVisible(error, q, -1), true, `${dialect} ${q} unfocused`);
+    if (error.s > 0) assert.equal(errorVisible(error, q, error.s - 1), true, `${dialect} ${q} caret before it`);
+  }
+});
+
+// Typing a valid query one character at a time must never flash an error at the caret.
+const VALID = {
+  umiaq: ['AB;A!=B', '7-9:A~A', '10+:AB', 'A;|A|=3-5', 'A;|A|>=2', 'AB;|A|=|B|', 'A;A=[^aeiou]*', '/abc?', 'l\\.ve', 'ab\\ cd', 'A;|A|!=3'],
+  regex: ['(?:ab)+', '(?<n>a)\\k<n>', '(?=a)b', '(?<!x)y', '(?!q)u', '[a-z]{2,4}?', '^a|b$', 'a\\.b', '(a|b)\\1', 'x{3}'],
+  search: ['[a-m]*', 'c?t', '[^aeiou]#@', 'u.s.'],
+};
+
+test('typing a valid query never shows an error along the way', () => {
+  for (const [dialect, queries] of Object.entries(VALID)) {
+    for (const q of queries) {
+      assert.equal(DIALECT[dialect](q).error, null, `${dialect} ${q} should be valid`);
+      for (let n = 1; n <= q.length; n++) {
+        const prefix = q.slice(0, n);
+        assert.equal(errorVisible(DIALECT[dialect](prefix).error, prefix, n), false, `${dialect} ${q} at ${prefix}`);
+      }
+    }
+  }
+});
+
+test('errorVisible applies each timing at the end, mid-text and unfocused', () => {
+  const span = { s: 2, e: 3 };
+  const cases = [
+    [{}, 'ab.', 3, false],
+    [{}, 'ab. ', 4, false],
+    [{}, 'ab.c', 4, true],
+    [{}, 'ab.c', 3, true],
+    [{ pending: true }, 'ab.', 3, false],
+    [{ pending: true }, 'ab.c', 4, false],
+    [{ pending: true }, 'ab.c', 1, true],
+    [{ final: true }, 'ab.', 3, true],
+    [{ final: true }, 'ab.c', 4, true],
+  ];
+  for (const [timing, text, caret, visible] of cases) {
+    const err = { ...span, ...timing };
+    assert.equal(errorVisible(err, text, caret), visible, `${JSON.stringify(timing)} ${text} @${caret}`);
+    assert.equal(errorVisible(err, text, -1), true);
+  }
+  assert.equal(errorVisible(null, 'ab', 2), false);
+});

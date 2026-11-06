@@ -7,7 +7,7 @@
 
 import { esc } from '../core/util.js';
 import { regexError, lexReplacement, groupColor } from './regex.js';
-import { code, shout, rangeText, matchModeWhere, joinParts } from './assist.js';
+import { PENDING, FINAL, code, shout, rangeText, matchModeWhere, joinParts } from './assist.js';
 
 export const REGEX_CHEAT = [
   { code: '.*', desc: 'any string', insert: '.*' },
@@ -32,11 +32,14 @@ const ESCAPES = {
 
 // ─── Parsing ──────────────────────────────────────────────────────────────────
 
+// `(?`, `(?<`, `(?<na` at the end: a group opening still being typed, whose `?` reads as a bad quantifier.
+const UNFINISHED_GROUP_HEAD = /^\(\?(<([A-Za-z_]\w*)?)?$/;
+
 function parse(text) {
   const R = { tokens: [], errors: [], regions: [], groups: 0 };
   let i = 0;
   const tok = (s, e, kind, extra = {}) => { const t = { s, e, kind, ...extra }; R.tokens.push(t); return t; };
-  const err = (s, e, msg, fixes, pending = false) => R.errors.push({ s, e, msg, fixes, pending });
+  const err = (s, e, msg, fixes, timing) => R.errors.push({ s, e, msg, fixes, ...timing });
 
   function alt(depth) {
     const s = i, opts = [seq(depth)];
@@ -51,7 +54,7 @@ function parse(text) {
     const s = i, items = [];
     while (i < text.length && text[i] !== '|' && !(text[i] === ')' && depth > 0)) {
       if (text[i] === ')') {
-        err(i, i + 1, `This ${code(')')} has no matching ${code('(')}.`, [{ label: 'Remove it', s: i, e: i + 1, text: '' }]);
+        err(i, i + 1, `This ${code(')')} has no matching ${code('(')}.`, [{ label: 'Remove it', s: i, e: i + 1, text: '' }], FINAL);
         tok(i, i + 1, 'bad'); i++; continue;
       }
       const a = atom(depth);
@@ -78,7 +81,7 @@ function parse(text) {
         open.pair = [i, i + 1];
         tok(i, i + 1, 'group', { pair: [s, s + head] });
         i++;
-      } else err(s, s + head, `This ${code('(')} needs a closing ${code(')')}.`, undefined, true);
+      } else err(s, s + head, `This ${code('(')} needs a closing ${code(')')}.`, undefined, PENDING);
       // groupSpansToRanges colors a match's groups in order, so group N lights
       // up in color N-1 — as long as every group before it took part.
       if (idx) R.regions.push({ s, e: i, color: groupColor(idx) });
@@ -90,7 +93,7 @@ function parse(text) {
       if (neg) j++;
       while (j < text.length && text[j] !== ']') j += text[j] === '\\' ? 2 : 1;
       if (j >= text.length) {
-        err(s, text.length, `This ${code('[')} needs a closing ${code(']')}.`, undefined, true);
+        err(s, text.length, `This ${code('[')} needs a closing ${code(']')}.`, undefined, PENDING);
         tok(s, text.length, 'class'); i = text.length; return null;
       }
       const body = text.slice(s + (neg ? 2 : 1), j);
@@ -100,7 +103,7 @@ function parse(text) {
     }
     if (c === '\\') {
       const n = text[i + 1];
-      if (n === undefined) { err(s, s + 1, `A trailing ${code('\\')} has nothing to escape.`, undefined, true); tok(s, s + 1, 'bad'); i++; return null; }
+      if (n === undefined) { err(s, s + 1, `A trailing ${code('\\')} has nothing to escape.`, undefined, PENDING); tok(s, s + 1, 'bad'); i++; return null; }
       tok(s, s + 2, 'esc');
       i += 2;
       return { t: 'esc', ch: n, s, e: i };
@@ -110,7 +113,7 @@ function parse(text) {
     if (c === '$') { tok(s, s + 1, 'anchor'); i++; return { t: 'end', s, e: i }; }
     if ('*+?'.includes(c) || (c === '{' && /^\{\d+(,\d*)?\}/.test(text.slice(i)))) {
       const fixes = c === '*' ? [{ label: 'Use .*', s, e: s + 1, text: '.*' }] : c === '?' ? [{ label: 'Use .', s, e: s + 1, text: '.' }] : undefined;
-      err(s, s + 1, `Nothing to repeat: ${code(c)} repeats the thing just before it, and nothing is there.${c === '*' ? ` Regex writes “anything” as ${code('.*')}.` : ''}`, fixes);
+      err(s, s + 1, `Nothing to repeat: ${code(c)} repeats the thing just before it, and nothing is there.${c === '*' ? ` Regex writes “anything” as ${code('.*')}.` : ''}`, fixes, c === '?' && UNFINISHED_GROUP_HEAD.test(text.slice(s - 1)) ? PENDING : FINAL);
       tok(s, s + 1, 'bad'); i++; return null;
     }
     tok(s, s + 1, 'lit');
@@ -127,7 +130,7 @@ function parse(text) {
       const m = /^\{(\d+)(,(\d*))?\}/.exec(text.slice(i));
       if (!m) return a;
       min = +m[1]; max = m[2] ? (m[3] ? +m[3] : Infinity) : min; len = m[0].length;
-      if (max < min) err(s, s + len, `The numbers in ${code(m[0])} are backwards.`);
+      if (max < min) err(s, s + len, `The numbers in ${code(m[0])} are backwards.`, undefined, FINAL);
     } else return a;
     if (text[i + len] === '?') len++;
     tok(s, s + len, 'quant', { target: [a.s, a.e], ch: c });

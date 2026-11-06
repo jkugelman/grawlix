@@ -49,12 +49,17 @@ export function tokenAt(tokens, caret) {
     || null;
 }
 
-// An error is quiet while it's still being typed: an unfinished construct
-// (`pending`, like `^(ab` before its `)`) until the caret leaves the end, and
-// any other while the caret sits right after it at the end of the text.
+// Error timing tags; a wrong one makes an error nag mid-keystroke or wait when
+// it needn't. PENDING: unfinished, like `^(ab`. FINAL: no further typing can
+// fix it, like Umiaq's `.`. Untagged: typing on might, like `A!` becoming `A!=`.
+export const PENDING = { pending: true }, FINAL = { final: true };
+
+// An error is quiet while it's still being typed: a pending one until the
+// caret leaves the end, and an untagged one while the caret sits right after
+// it at the end of the text. A final one shows at once.
 export function errorVisible(err, text, caret) {
   if (!err) return false;
-  if (caret < 0) return true;
+  if (caret < 0 || err.final) return true;
   const atEnd = text.slice(caret).trim() === '';
   if (err.pending && atEnd) return false;
   return !(atEnd && caret >= err.s && text.slice(err.e, caret).trim() === '');

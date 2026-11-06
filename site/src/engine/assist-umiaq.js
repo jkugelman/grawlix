@@ -8,7 +8,7 @@
 
 import { esc } from '../core/util.js';
 import { parseUmiaqQuery, variableColors } from './umiaq.js';
-import { code, shout, ORDINALS, rangeText, letters, joinParts, reversedRange } from './assist.js';
+import { PENDING, FINAL, code, shout, ORDINALS, rangeText, letters, joinParts, reversedRange } from './assist.js';
 
 const VAR_OP_RE = /^(~?)([A-Z])(!?=)(.+)$/;
 const LEN_RE = /^\|([^|]+)\|(<=|>=|!=|<|>|=)(.+)$/;
@@ -65,18 +65,18 @@ function lexClass(L, i, e) {
   let end = -1;
   for (let j = i + 1; j < e; j++) if (t[j] === ']') { end = j; break; }
   if (end < 0) {
-    L.err(i, e, `This ${code('[')} needs a closing ${code(']')}.`, undefined, true);
+    L.err(i, e, `This ${code('[')} needs a closing ${code(']')}.`, undefined, PENDING);
     L.tok(i, e, 'class');
     return { end: e };
   }
   const body = t.slice(i + 1, end);
   L.tok(i, end + 1, 'class');
   if (body[0] === '!') {
-    L.err(i, i + 2, `Grawlix writes “none of” as ${code('[^…]')}. ${code('[!…]')} is how Qat writes it.`, [{ label: 'Use [^', s: i + 1, e: i + 2, text: '^' }]);
+    L.err(i, i + 2, `Grawlix writes “none of” as ${code('[^…]')}. ${code('[!…]')} is how Qat writes it.`, [{ label: 'Use [^', s: i + 1, e: i + 2, text: '^' }], FINAL);
     return { end: end + 1 };
   }
   if (!/^\^?[a-z0-9#@-]*$/.test(body)) {
-    L.err(i, end + 1, `Only lowercase letters, digits, ${code('#')}, ${code('@')}, a leading ${code('^')} and ranges like ${code('a-m')} go inside ${code('[ ]')}.`);
+    L.err(i, end + 1, `Only lowercase letters, digits, ${code('#')}, ${code('@')}, a leading ${code('^')} and ranges like ${code('a-m')} go inside ${code('[ ]')}.`, undefined, FINAL);
     return { end: end + 1 };
   }
   const neg = body[0] === '^';
@@ -84,9 +84,9 @@ function lexClass(L, i, e) {
   const rr = reversedRange(inner);
   if (rr) {
     const at = i + 1 + (neg ? 1 : 0) + rr.at;
-    L.err(at, at + 3, `The range ${code(rr.a + '-' + rr.b)} runs backwards.`, [{ label: `Use ${rr.b}-${rr.a}`, s: at, e: at + 3, text: `${rr.b}-${rr.a}` }]);
+    L.err(at, at + 3, `The range ${code(rr.a + '-' + rr.b)} runs backwards.`, [{ label: `Use ${rr.b}-${rr.a}`, s: at, e: at + 3, text: `${rr.b}-${rr.a}` }], FINAL);
   }
-  if (!inner) L.err(i, end + 1, 'This class is empty.');
+  if (!inner) L.err(i, end + 1, 'This class is empty.', undefined, FINAL);
   return { end: end + 1, item: { t: 'class', neg, body: inner } };
 }
 
@@ -102,7 +102,7 @@ function lexPattern(L, s, e, { vars }) {
       pat.prefix = { min, max };
       L.tok(s, colon + 1, 'num');
     } else {
-      L.err(s, colon + 1, `A length prefix looks like ${code('7:')}, ${code('7-9:')} or ${code('10+:')}.`);
+      L.err(s, colon + 1, `A length prefix looks like ${code('7:')}, ${code('7-9:')} or ${code('10+:')}.`, undefined, FINAL);
       L.tok(s, colon + 1, 'bad');
     }
     s = colon + 1;
@@ -110,7 +110,7 @@ function lexPattern(L, s, e, { vars }) {
   let i = s;
   if (t[i] === '/') {
     L.tok(i, i + 1, 'op');
-    if (t[i + 1] === '/' || t[i + 1] === '(') L.err(i, i + 2, `${code(t.slice(i, i + 2))} anagrams aren't supported.`);
+    if (t[i + 1] === '/' || t[i + 1] === '(') L.err(i, i + 2, `${code(t.slice(i, i + 2))} anagrams aren't supported.`, undefined, FINAL);
     pat.anagram = [];
     i++;
   }
@@ -125,20 +125,20 @@ function lexPattern(L, s, e, { vars }) {
     else if (ch === '[') { const r = lexClass(L, i, e); if (r.item) out.push(r.item); i = r.end; }
     else if (isCap(ch) || (ch === '~' && isCap(t[i + 1] || ''))) {
       const rev = ch === '~', v = rev ? t[i + 1] : ch, len = rev ? 2 : 1;
-      if (pat.anagram) L.err(i, i + len, `An anagram can't hold variables. Write its letters in lowercase.`);
-      else if (!vars) L.err(i, i + len, `A sub-pattern can't hold variables. Compare two variables with ${code('A=B')} or ${code('A!=B')} instead.`);
+      if (pat.anagram) L.err(i, i + len, `An anagram can't hold variables. Write its letters in lowercase.`, undefined, FINAL);
+      else if (!vars) L.err(i, i + len, `A sub-pattern can't hold variables. Compare two variables with ${code('A=B')} or ${code('A!=B')} instead.`, undefined, FINAL);
       else out.push({ t: rev ? 'rev' : 'var', v });
       L.tok(i, i + len, 'var', { v, rev, role: vars && !pat.anagram ? 'bind' : 'bad' });
       i += len;
     }
-    else if (ch === '~') { L.err(i, i + 1, `${code('~')} goes right before a variable, as in ${code('~A')}.`, undefined, true); L.tok(i, i + 1, 'bad'); i++; }
-    else if (ch === '/') { L.err(i, i + 1, `${code('/')} starts an anagram, so it can only come first.`); L.tok(i, i + 1, 'bad'); i++; }
+    else if (ch === '~') { L.err(i, i + 1, `${code('~')} goes right before a variable, as in ${code('~A')}.`, undefined, PENDING); L.tok(i, i + 1, 'bad'); i++; }
+    else if (ch === '/') { L.err(i, i + 1, `${code('/')} starts an anagram, so it can only come first.`, undefined, FINAL); L.tok(i, i + 1, 'bad'); i++; }
     else if (ch === ' ') { out.push({ t: 'lit', ch: ' ' }); L.tok(i, i + 1, 'lit'); i++; }
     else if (ch === '\\') {
       const n = t[i + 1];
-      if (n === undefined) { L.err(i, i + 1, `A trailing ${code('\\')} has nothing to escape.`, undefined, true); L.tok(i, i + 1, 'bad'); i++; continue; }
+      if (n === undefined) { L.err(i, i + 1, `A trailing ${code('\\')} has nothing to escape.`, undefined, PENDING); L.tok(i, i + 1, 'bad'); i++; continue; }
       if (isLetter(n) && !isCap(n)) {
-        L.err(i, i + 2, `${code('\\' + n)} isn't an escape. A backslash goes before punctuation, a space or a capital letter.`, [{ label: `Use ${n}`, s: i, e: i + 2, text: n }]);
+        L.err(i, i + 2, `${code('\\' + n)} isn't an escape. A backslash goes before punctuation, a space or a capital letter.`, [{ label: `Use ${n}`, s: i, e: i + 2, text: n }], FINAL);
         L.tok(i, i + 2, 'bad'); i += 2; continue;
       }
       out.push({ t: 'lit', ch: n });
@@ -148,10 +148,15 @@ function lexPattern(L, s, e, { vars }) {
     }
     else if (isLetter(ch)) { out.push({ t: 'lit', ch }); L.tok(i, i + 1, 'lit'); i++; }
     else if (ch === '.') {
-      L.err(i, i + 1, `Umiaq writes “any letter” as ${code('?')}. To match a period, write ${code('\\.')}`, [{ label: 'Use ?', s: i, e: i + 1, text: '?' }, { label: 'Use \\.', s: i, e: i + 1, text: '\\.' }]);
+      L.err(i, i + 1, `Umiaq writes “any letter” as ${code('?')}. To match a period, write ${code('\\.')}`, [{ label: 'Use ?', s: i, e: i + 1, text: '?' }, { label: 'Use \\.', s: i, e: i + 1, text: '\\.' }], FINAL);
       L.tok(i, i + 1, 'bad'); i++;
     }
-    else { L.err(i, i + 1, `${code(ch)} is reserved. Write ${code('\\' + ch)} to match it literally.`, [{ label: `Use \\${ch}`, s: i, e: i + 1, text: '\\' + ch }]); L.tok(i, i + 1, 'bad'); i++; }
+    else {
+      // Typing on may still fix it: `7-9` is a length prefix missing its `:`, and `A!` may become `A!=`.
+      const timing = /^\d+(-\d*|\+)$/.test(t.slice(s, e)) ? PENDING : ch === '!' ? undefined : FINAL;
+      L.err(i, i + 1, `${code(ch)} is reserved. Write ${code('\\' + ch)} to match it literally.`, [{ label: `Use \\${ch}`, s: i, e: i + 1, text: '\\' + ch }], timing);
+      L.tok(i, i + 1, 'bad'); i++;
+    }
   }
   return pat;
 }
@@ -162,11 +167,11 @@ function lexTerm(L, s, e, { allowRev }) {
     const ch = t[i];
     if (isCap(ch)) { elems.push({ t: 'var', v: ch }); L.tok(i, i + 1, 'var', { v: ch, role: 'use' }); i++; }
     else if (ch === '~' && isCap(t[i + 1] || '')) {
-      if (!allowRev) L.err(i, i + 2, `A length can't tell a chunk from its reverse. Drop the ${code('~')}.`, [{ label: 'Drop ~', s: i, e: i + 1, text: '' }]);
+      if (!allowRev) L.err(i, i + 2, `A length can't tell a chunk from its reverse. Drop the ${code('~')}.`, [{ label: 'Drop ~', s: i, e: i + 1, text: '' }], FINAL);
       elems.push({ t: 'rev', v: t[i + 1] }); L.tok(i, i + 2, 'var', { v: t[i + 1], rev: true, role: 'use' }); i += 2;
     }
     else if (isLow(ch)) { elems.push({ t: 'lit', ch }); L.tok(i, i + 1, 'lit'); i++; }
-    else { L.err(i, i + 1, `${code(ch)} can't go here. Only variables and letters can.`); L.tok(i, i + 1, 'bad'); i++; }
+    else { L.err(i, i + 1, `${code(ch)} can't go here. Only variables and letters can.`, undefined, FINAL); L.tok(i, i + 1, 'bad'); i++; }
   }
   return { elems };
 }
@@ -175,7 +180,7 @@ function lexLength(L, s, e) {
   const t = L.text, c = t.slice(s, e);
   const close = c.indexOf('|', 1);
   L.tok(s, s + 1, 'op');
-  if (close < 0) { L.err(s, e, `This ${code('|')} needs a closing ${code('|')}, as in ${code('|A|=3')}.`, undefined, true); return; }
+  if (close < 0) { L.err(s, e, `This ${code('|')} needs a closing ${code('|')}, as in ${code('|A|=3')}.`, undefined, PENDING); return; }
   L.tok(s + close, s + close + 1, 'op');
   const inner = c.slice(1, close);
   let left;
@@ -184,23 +189,23 @@ function lexLength(L, s, e) {
   else left = lexTerm(L, s + 1, s + close, { allowRev: false });
   const m = /^(!=|<=|>=|=|<|>)/.exec(c.slice(close + 1));
   const os = s + close + 1;
-  if (!m) { L.err(os, Math.max(e, os + 1), `Add a comparison after the bars, like ${code('=3')} or ${code('>=2')}.`, undefined, true); return; }
+  if (!m) { L.err(os, Math.max(e, os + 1), `Add a comparison after the bars, like ${code('=3')} or ${code('>=2')}.`, undefined, PENDING); return; }
   L.tok(os, os + m[1].length, 'op');
   const rs = os + m[1].length, rhs = t.slice(rs, e);
   if (rhs[0] === '|') {
     const c2 = rhs.indexOf('|', 1);
     L.tok(rs, rs + 1, 'op');
-    if (c2 < 0) { L.err(rs, e, `This ${code('|')} needs a closing ${code('|')}.`, undefined, true); return; }
+    if (c2 < 0) { L.err(rs, e, `This ${code('|')} needs a closing ${code('|')}.`, undefined, PENDING); return; }
     L.tok(rs + c2, rs + c2 + 1, 'op');
     const right = lexTerm(L, rs + 1, rs + c2, { allowRev: false });
     if (!left.span) L.cons.push({ kind: 'lenrel', left, op: m[1], right });
     return;
   }
   const rm = PREFIX_RE.exec(rhs);
-  if (!rm) { L.err(rs, Math.max(e, rs + 1), `Expected a number, a range like ${code('3-5')} or ${code('5+')}, or another ${code('|A|')}.`, undefined, true); return; }
+  if (!rm) { L.err(rs, Math.max(e, rs + 1), `Expected a number, a range like ${code('3-5')} or ${code('5+')}, or another ${code('|A|')}.`, undefined, PENDING); return; }
   const min = +rm[1], max = rm[2] != null ? +rm[2] : rm[3] ? Infinity : min;
   L.tok(rs, e, 'num');
-  if (min !== max && m[1] !== '=') L.err(os, e, `Only ${code('=')} takes a range.`);
+  if (min !== max && m[1] !== '=') L.err(os, e, `Only ${code('=')} takes a range.`, undefined, FINAL);
   L.cons.push({ kind: 'len', left, op: m[1], min, max });
 }
 
@@ -233,7 +238,7 @@ function lex(text) {
   const L = {
     text, tokens: [], errors: [], bindings: [], cons: [],
     tok(s, e, kind, extra = {}) { this.tokens.push({ s, e, kind, ...extra }); },
-    err(s, e, msg, fixes, pending = false) { this.errors.push({ s, e, msg, fixes, pending }); },
+    err(s, e, msg, fixes, timing) { this.errors.push({ s, e, msg, fixes, ...timing }); },
   };
   const { clauses, seps } = splitClauses(text);
   for (const at of seps) L.tok(at, at + 1, 'op');
