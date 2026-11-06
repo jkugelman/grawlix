@@ -1665,6 +1665,10 @@ html.dark-mode #discovery-banner { background: color-mix(in srgb, var(--accent) 
 .assist-panel > div + div { border-top: 1px solid var(--border2); }
 .assist-panel.above > div + div { border-top: 0; border-bottom: 1px solid var(--border2); }
 .assist-panel.compact .assist-cheat { display: none; }
+.assist-panel { opacity: 0; transition: opacity 0.4s ease, overlay 0.4s allow-discrete, display 0.4s allow-discrete; }
+.assist-panel:popover-open { opacity: 1; }
+@starting-style { .assist-panel:popover-open { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .assist-panel { transition: none; } }
 .assist-panel code, .assist-panel kbd { font-family: var(--font-mono); }
 .assist-quiet { color: var(--muted); }
 .assist-error { background: var(--error-bg); box-shadow: inset 3px 0 var(--q-err); }

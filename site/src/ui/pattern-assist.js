@@ -92,7 +92,7 @@ function syncScroll(input) {
 // ─── Panel ────────────────────────────────────────────────────────────────────
 
 const Panel = (() => {
-  let el = null, owner = null, fixes = [], dismissed = false, hasLead = false;
+  let el = null, owner = null, fixes = [], dismissed = false, hasLead = false, shape = null;
 
   function ensure() {
     if (el) return el;
@@ -116,11 +116,19 @@ const Panel = (() => {
     const anchor = owner.closest('.clearable-input') ?? owner;
     const view = visibleRect();
     el.style.width = `${Math.min(Math.max(anchor.offsetWidth, 520), view.right - view.left - 16)}px`;
-    if (!el.matches(':popover-open')) el.showPopover();
+    if (!el.matches(':popover-open')) { el.showPopover(); shape = null; }
     for (const compact of hasLead ? [false, true] : [false]) {
       el.classList.toggle('compact', compact);
       const side = fitPopover(el, anchor, { placement: 'above', offset: 4 });
-      if (side) { el.classList.toggle('above', side === 'above'); return; }
+      if (side) {
+        el.classList.toggle('above', side === 'above');
+        const next = `${side} ${compact}`;
+        if (shape && shape !== next) {
+          el.animate({ opacity: [0, 1] }, { duration: parseFloat(getComputedStyle(el).transitionDuration) * 1000, easing: 'ease' });
+        }
+        shape = next;
+        return;
+      }
     }
     el.hidePopover();
   }

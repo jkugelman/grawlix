@@ -702,6 +702,8 @@ It sits flush against the box's top or bottom edge, preferring the top, since be
 It's placed only where it fits whole on screen (`fitPopover`), measured against the visual viewport so an on-screen keyboard counts as off screen.
 When the whole panel fits on neither side, it drops the cheat sheet; when that still doesn't fit, or there's nothing but the cheat sheet to show, it hides until there's room again.
 It's never capped to a height with a scrollbar: a scrolled sliver is hard to use on a touch screen, and errors and fixes matter more than the cheat sheet.
+It fades in and out, and fades in again when it changes side or drops the cheat sheet; a move that only follows the box as the page scrolls is instant, so it never trails behind.
+The fades are opacity only: a transform would throw off the measurement placement relies on.
 
 **One panel.**
 Everything, the cheat sheet included, lives in the one panel, so a focused box never has popups on both sides.
