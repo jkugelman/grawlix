@@ -1666,7 +1666,10 @@ html.dark-mode #discovery-banner { background: color-mix(in srgb, var(--accent) 
 .assist-panel.above > div + div { border-top: 0; border-bottom: 1px solid var(--border2); }
 .assist-panel.compact .assist-cheat { display: none; }
 .assist-panel { opacity: 0; transition: opacity 0.4s ease, overlay 0.4s allow-discrete, display 0.4s allow-discrete; }
-.assist-panel:popover-open { opacity: 1; }
+/* Display and overlay transition only on close. Reopened mid-fade-out, WebKit
+   reverses the display transition and keeps display: none, so placement
+   measures the panel at zero height and parks it over the box. */
+.assist-panel:popover-open { opacity: 1; transition: opacity 0.4s ease; }
 @starting-style { .assist-panel:popover-open { opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { .assist-panel { transition: none; } }
 .assist-panel code, .assist-panel kbd { font-family: var(--font-mono); }

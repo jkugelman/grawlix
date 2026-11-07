@@ -201,3 +201,30 @@ test('the panel opens above with hints nearest the box, then drops the cheat she
   await regexBox(page).click();
   await expect(panel(page)).toBeHidden();
 });
+
+// Polls :popover-open, not visibility: WebKit can leave the panel open but at
+// display: none, which toBeHidden passes.
+const panelOpen = page => page.evaluate(() => document.querySelector('.assist-panel').matches(':popover-open'));
+
+// The box sits below a 60px viewport until something scrolls it into view.
+async function shrinkBelowBox(page) {
+  await gotoApp(page);
+  await addTool(page, 'regex');
+  await regexBox(page).fill('un*ed');
+  for (let height = 500; height >= 330; height -= 10) {
+    await page.setViewportSize({ width: 1000, height });
+    await regexBox(page).click();
+  }
+  await page.setViewportSize({ width: 1000, height: 60 });
+}
+
+test('the panel stays closed while its box is scrolled off screen', async ({ page }) => {
+  await shrinkBelowBox(page);
+  await expect.poll(() => panelOpen(page)).toBe(false);
+});
+
+test('a panel reopened mid-fade-out is measured at its real height', async ({ page }) => {
+  await shrinkBelowBox(page);
+  await regexBox(page).click();
+  await expect.poll(() => panelOpen(page)).toBe(false);
+});

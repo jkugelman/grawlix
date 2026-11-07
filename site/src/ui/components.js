@@ -176,11 +176,17 @@ export function positionPopover(el, anchor, { placement = 'above', offset = 6, a
   placePopover(el, g, side, offset, align);
 }
 
-// Returns null without moving `el` when it fits whole on neither side; a caller
-// that doesn't hide it then leaves it at its stale spot, possibly over the anchor.
+// Returns null without moving `el` when it fits whole on screen on neither side;
+// a caller that doesn't hide it then leaves it at its stale spot, possibly over
+// the anchor.
 export function fitPopover(el, anchor, { placement = 'above', offset = 6, align = 'left' } = {}) {
   const g = popoverGeometry(el, anchor, offset);
-  const side = [placement, otherSide(placement)].find(s => g.e.height <= g.room[s]) ?? null;
+  // `room` runs to the anchor wherever it is, so an anchor scrolled off one edge
+  // reports room that lies off screen; the near edge must be on screen too.
+  const edgeOnScreen = s => s === 'above'
+    ? g.a.top - offset <= g.view.bottom - POPOVER_MARGIN
+    : g.a.bottom + offset >= g.view.top + POPOVER_MARGIN;
+  const side = [placement, otherSide(placement)].find(s => g.e.height <= g.room[s] && edgeOnScreen(s)) ?? null;
   if (side) placePopover(el, g, side, offset, align);
   return side;
 }
