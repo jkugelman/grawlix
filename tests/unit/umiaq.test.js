@@ -126,6 +126,11 @@ test('parse: a range narrows only =; the comparisons still want a bare count', (
   assert.match(err('|A|=5-3'),  /invalid range 5-3/);
 });
 
+test('parse: Umiaq ranges take one range, never the filters\' comma list', () => {
+  assert.match(parseUmiaqQuery('A;|A|=3,5').error, /unsupported constraint/);
+  assert.match(parseUmiaqQuery('3,5:a*').error, /invalid range 3,5/);
+});
+
 test('parse: a multi-element term takes a range too', () => {
   const sum = q => parseUmiaqQuery('AB;BA;' + q).constraints.sumLen;
   assert.deepEqual(sum('|AB|=8-9'),  [{ vars: ['A', 'B'], lit: 0, min: 8, max: 9 }]);

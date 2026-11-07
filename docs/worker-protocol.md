@@ -254,11 +254,11 @@ Worker replies `pong`.
 - `existsQuery` — the **raw trimmed search text** (or `null` when blank), so the worker can answer `existsInScope` (does the query already exist in the run's scope?).
   Main sends the raw string and lets the worker `toNorm` it (same `engine/norm.js toNorm` both threads use); it does **not** apply `isLiteralQuery` here — that gate stays at the consumer (`newEntrySeedQuery`).
 - `scoreRange` — the **raw range string** (e.g. `'60-80'`, `'30+'`, `'45'`) the global score-range filter is set to, or `null` when no filter is active.
-  Sourced from `app-view.js activeScoreRange()` (the canonical range owner — **not** the scroller's `this.scoreRange`); the worker `parseRange`s it.
-  The worker filters its survivor set against any range that parses, shipping the filtered `count` + window with `filtered: true`; a non-empty range that doesn't parse (a transient typing state like `"60-"`, which `parseRange` returns `null` for — matching main) ships the **unfiltered** set with `filtered: false` so the table shows everything rather than flashing empty.
+  Sourced from `app-view.js activeScoreRange()` (the canonical range owner — **not** the scroller's `this.scoreRange`); the worker parses it with `parseRanges`.
+  The worker filters its survivor set against any range that parses, shipping the filtered `count` + window with `filtered: true`; a non-empty range that doesn't parse (a transient typing state like `"60-"`, which `parseRanges` returns `null` for — matching main) ships the **unfiltered** set with `filtered: false` so the table shows everything rather than flashing empty.
   The histogram counts are bucketed **before** the filter (over the unfiltered scores), so out-of-range bars stay clickable.
   On a `run`, `scoreRange` seeds the initial `viewSpec`; a later score-range change **reprojects** (re-derives the view over the retained join) rather than re-running — see `reproject`.
-- `lengthRange` — the **raw range string** (same `parseRange` syntax as `scoreRange`: `'7'`, `'5+'`, `'5-7'`) the stats-bar length filter is set to, or `null` when it's inactive.
+- `lengthRange` — the **raw range string** (same `parseRanges` syntax as `scoreRange`: `'7'`, `'5+'`, `'5-7'`, `'13, 15'`) the stats-bar length filter is set to, or `null` when it's inactive.
   Sourced from `app-view.js activeLengthRange()`, which returns `''` whenever the filter is **inert** — the tool stack's `chainSortTier` is `'tuple'` — so the worker never sees a length the disabled control is showing.
   Length is measured on `norm.length` (grid squares), the same value the entries table's Length column and the `length` sort axis read.
   Where it applies is lane-kind dependent, and deliberately *not* score's rule: score judges **every atom** in a chain, length judges only the **last** one, because a length-changing tool (Head off, Kangaroos, Initialisms) can't have its seed share its output's length.

@@ -9,7 +9,7 @@ import {
   toNorm, displayOf, parseWordlist,
 } from '../engine/norm.js';
 import { applyEditsWriteSet } from '../engine/edit-plan.js';
-import { parseRange } from '../engine/range.js';
+import { parseRanges } from '../engine/range.js';
 import { isLiteralQuery } from '../engine/search.js';
 import { TOOLS } from '../engine/tools.js';
 import { isReplacing } from '../engine/tools/shared.js';
@@ -323,7 +323,7 @@ function restoreScoreRange() {
   if (stored === null) return dflt;
   const trimmed = stored.trim();
   if (trimmed === '') return '';
-  return parseRange(trimmed) !== null ? trimmed : dflt;
+  return parseRanges(trimmed) !== null ? trimmed : dflt;
 }
 
 // ─── My Edits helpers ─────────────────────────────────────────────────────────
@@ -1290,13 +1290,8 @@ function exportToolsMetadata(stack) {
 }
 
 function exportScoreRangeMetadata() {
-  const intervals = parseRange(AppView.scoreRange);
-  if (!intervals) return null;
-  const { min, max } = intervals[0];
-  const out = {};
-  if (min !== null) out.min = min;
-  if (max !== null) out.max = max;
-  return Object.keys(out).length ? out : null;
+  const ranges = parseRanges(AppView.scoreRange);
+  return ranges && ranges.map(({ min, max }) => max === null ? { min } : { min, max });
 }
 
 function exportSortMetadata() {

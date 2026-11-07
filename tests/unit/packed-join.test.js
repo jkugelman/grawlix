@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { packRecordJoin, materializeRecordRow, recordView, recordComparator, recordPasses, PackedRecordJoin, tryPackGroupJoin, buildGroupFlyweights, materializeGroupRow } from '../../site/src/engine/packed-join.js';
 import { sortGroups, groupRowComparator } from '../../site/src/engine/sort.js';
 import { cacheGroupStats, applyViewFilterToRows, entryPredicate } from '../../site/src/engine/executor.js';
-import { parseRange } from '../../site/src/engine/range.js';
+import { parseRanges } from '../../site/src/engine/range.js';
 
 // A tuple stack: no group tool, so groupSortAxes falls to the plain GROUP_SORT_AXES —
 // exactly what recordSortAxes packs.
@@ -98,7 +98,7 @@ test('recordView with a score range keeps a tuple only when every lane is in ran
   const sort = [{ key: 'entry', dir: 'asc' }];
   const range = '20-80';
   const join = packRecordJoin(groups);
-  const filter = { score: parseRange(range), length: null };
+  const filter = { score: parseRanges(range), length: null };
   const eager = sortGroups(applyViewFilterToRows(groups.map(g => ({ ...g })), filter, 'record'), sort, TUPLE_STACK).map(g => g.key);
   const packed = [...recordView(join, { sort, scoreRange: range }, corpus)].map(ord => join.keyOf(corpus, ord));
   assert.deepEqual(packed, eager);
@@ -131,7 +131,7 @@ test('appendGroups throws on a lane that is not a single corpus entry (mis-gate 
 test('recordPasses matches applyViewFilterToRows record semantics', () => {
   const { corpus, groups } = scenario([[['a', 'a', 10], ['b', 'b', 50]]]);
   const join = packRecordJoin(groups);
-  const ok = r => recordPasses(join, corpus, 0, entryPredicate({ score: parseRange(r), length: null }));
+  const ok = r => recordPasses(join, corpus, 0, entryPredicate({ score: parseRanges(r), length: null }));
   assert.equal(ok('0-100'), true);
   assert.equal(ok('20-100'), false);   // lane 'a'@10 out
 });
@@ -223,7 +223,7 @@ for (const key of ['entry', 'count', 'min-score', 'max-score']) {
         { key: 'aer', anchor: null, members: [['are', 'are', 40], ['ear', 'ear', 50], ['era', 'era', 40]] },
       ]);
       const sort = [{ key, dir: 'asc' }];
-      const filter = range ? { score: parseRange(range), length: null } : null;
+      const filter = range ? { score: parseRanges(range), length: null } : null;
 
       const eagerGroups = groups.map(g => ({ ...g, chains: g.chains.slice() }));
       const eagerFiltered = applyViewFilterToRows(eagerGroups, filter, 'set');

@@ -145,6 +145,7 @@ The term may hold only variables and literals — a wildcard like `|A*|` has no 
 Multi-element terms are checked at the tuple join, so they hold even when the variables live in different bindings.
 
 `=` also takes a **range**, in the same syntax used for score ranges, the Length filter, and the [length prefix](#length-prefix): `|A|=8-9` (eight or nine), `|A|=10+` (ten or more), `|A|=0-6` (up to six).
+Unlike those filters it takes one range, not a comma list: a bound narrows a variable's one search window, which a gap would split.
 `|AB|=8-9` ranges the sum the same way, and `|A|=0+` is a compact way to declare a [zero floor](#zero-length).
 A range is shorthand for the two comparisons it stands for, so it intersects with them like any other bound (`|A|=2-8;|A|<=5` is 2 to 5).
 Only `=` takes one — `|A|>=3-5` is meaningless and rejected, and so is `|A|!=3-5`.

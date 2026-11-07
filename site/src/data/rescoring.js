@@ -2,7 +2,7 @@
 
 // ─── Rescoring ────────────────────────────────────────────────────────────────
 
-import { parseRange, matchesRange } from '../engine/range.js';
+import { parseRange, inRange } from '../engine/range.js';
 import { scoreQuery } from '../core/util.js';
 import { rescoreRulesEqual, maybeAutoSeedRescoreRules } from '../engine/rescore.js';
 import { invalidateHistogramLayout } from '../engine/histogram.js';
@@ -36,8 +36,8 @@ export function updateWordlistDirty(wordlist) {
 // import discards it and auto-seeds the actual scale instead.
 export function reconcileEditsRulesAfterImport(edits) {
   if (edits.dirty) return;
-  const tierIntervals = state.scoring.map(r => parseRange(r.input)).filter(Boolean);
-  const aligned = edits.rawEntries.every(e => tierIntervals.some(iv => matchesRange(e.score, iv)));
+  const tierRanges = state.scoring.map(r => parseRange(r.input)).filter(Boolean);
+  const aligned = edits.rawEntries.every(e => tierRanges.some(r => inRange(e.score, r)));
   if (aligned) return;
   edits.rescoreRules = [];
   maybeAutoSeedRescoreRules(edits, edits.rawEntries);   // My Edits' entries are resident

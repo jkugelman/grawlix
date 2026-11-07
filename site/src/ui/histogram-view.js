@@ -2,7 +2,7 @@
 
 // ─── Histogram pointer interaction ───────────────────────────────────────────
 
-import { parseRange, matchesRange } from '../engine/range.js';
+import { parseRanges, matchesRange } from '../engine/range.js';
 import { slotIntersectsRange } from '../engine/histogram.js';
 import { scopedHistogramLayout } from '../data/derived.js';
 import { AppView, syncScoreRangeButton } from './app-view.js';
@@ -66,7 +66,7 @@ function _onHistogramPointerUp(event) {
   const layout = scopedHistogramLayout();
   let next;
   if (!ds.moved && AppView.scoreRange) {
-    const intervals = parseRange(AppView.scoreRange);
+    const intervals = parseRanges(AppView.scoreRange);
     const insideSelection = intervals && matchesRange(ds.startLo, intervals) && matchesRange(ds.startHi, intervals);
     next = insideSelection ? '' : rangeStrFromBounds(ds.startLo, ds.startHi, layout);
   } else {
@@ -84,25 +84,36 @@ export function mountHistogramPointer() {
 
 // Pass `intervals` to override the live filter (used during drag preview).
 export function positionHistogramRect(histEl, intervals = undefined) {
-  const rect = histEl.querySelector('.histogram-rect');
-  if (!rect) return;
+  const rects = [...histEl.querySelectorAll('.histogram-rect')];
+  if (!rects.length) return;
   if (intervals === undefined) {
     const range = AppView.scoreRange;
-    intervals = range ? parseRange(range) : null;
+    intervals = range ? parseRanges(range) : null;
   }
-  if (!intervals) { rect.hidden = true; return; }
-  const cols = [...histEl.querySelectorAll('.histogram-col')];
-  const matching = cols.filter(c => {
-    const bar = c.querySelector('.histogram-bar');
-    return slotIntersectsRange(+bar.dataset.lo, +bar.dataset.hi, intervals);
+  const runs = [];
+  if (intervals) {
+    let run = null;
+    for (const c of histEl.querySelectorAll('.histogram-col')) {
+      const bar = c.querySelector('.histogram-bar');
+      if (!slotIntersectsRange(+bar.dataset.lo, +bar.dataset.hi, intervals)) { run = null; continue; }
+      if (run) run.last = c;
+      else runs.push(run = { first: c, last: c });
+    }
+  }
+  while (rects.length < runs.length) {
+    const extra = rects[0].cloneNode();
+    rects[rects.length - 1].after(extra);
+    rects.push(extra);
+  }
+  rects.forEach((rect, i) => {
+    const run = runs[i];
+    if (!run) { if (i) rect.remove(); else rect.hidden = true; return; }
+    const left = run.first.offsetLeft - 2;
+    const right = run.last.offsetLeft + run.last.offsetWidth + 2;
+    rect.hidden = false;
+    rect.style.left = `${left}px`;
+    rect.style.width = `${right - left}px`;
   });
-  if (!matching.length) { rect.hidden = true; return; }
-  const first = matching[0], last = matching[matching.length - 1];
-  const left = first.offsetLeft - 2;
-  const right = last.offsetLeft + last.offsetWidth + 2;
-  rect.hidden = false;
-  rect.style.left = `${left}px`;
-  rect.style.width = `${right - left}px`;
 }
 
 export function repositionAllHistogramRects() {

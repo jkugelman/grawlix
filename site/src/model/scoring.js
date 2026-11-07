@@ -3,7 +3,7 @@
 // ─── Scoring (tier labels) ──────────────────────────────────────────────────
 
 import { DEFAULT_SCORING } from '../core/constants.js';
-import { parseRange, matchesRange } from '../engine/range.js';
+import { parseRange, inRange } from '../engine/range.js';
 import { state } from '../data/state.js';
 import {
   scoringRulesEqual, rescoreRulesEqual, compileRescoreRules,
@@ -52,10 +52,10 @@ export function makeScoringRowStub(input = '') { return { input, note: '' }; }
 // empty note collapses to '' so callers can skip the tooltip entirely.
 export function makeTierLookup() {
   const rules = state.scoring
-    .map(r => ({ note: r.note || '', intervals: parseRange(r.input) }))
-    .filter(r => r.intervals);
+    .map(r => ({ note: r.note || '', range: parseRange(r.input) }))
+    .filter(r => r.range);
   return score => {
-    for (const r of rules) if (matchesRange(score, r.intervals)) return r.note;
+    for (const r of rules) if (inRange(score, r.range)) return r.note;
     return '';
   };
 }

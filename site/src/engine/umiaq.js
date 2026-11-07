@@ -171,11 +171,9 @@ function collectTermVars(...tokenLists) {
 }
 
 function rangeBounds(src) {
-  const intervals = parseRange(src);
-  if (!intervals) throw `invalid range ${src}`;
-  const { min, max } = intervals[0];
-  if (max !== null && min > max) throw `invalid range ${src}`;
-  return { min, max };
+  const range = parseRange(src);
+  if (!range) throw `invalid range ${src}`;
+  return range;
 }
 
 function stripLenPrefix(clause) {

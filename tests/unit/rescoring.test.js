@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseRange, matchesRange, rangeSpan } from '../../site/src/engine/range.js';
+import { parseRange, parseRanges, matchesRange } from '../../site/src/engine/range.js';
 import {
   parseRuleOutput, compileRescoreRules, rescoreEntry,
   rescoreRulesEqual, scoringRulesEqual,
@@ -12,11 +12,30 @@ const ruleN = (input, output = '', length = '', note = '') => ({ query: scoreQue
 const entry = (score, norm = 'xxxxx') => ({ score, norm });
 
 test('parseRange reads exact, range, N+, and rejects junk', () => {
-  assert.deepEqual(parseRange('50'), [{ min: 50, max: 50 }]);
-  assert.deepEqual(parseRange('40-60'), [{ min: 40, max: 60 }]);
-  assert.deepEqual(parseRange('50+'), [{ min: 50, max: null }]);
+  assert.deepEqual(parseRange('50'), { min: 50, max: 50 });
+  assert.deepEqual(parseRange('40-60'), { min: 40, max: 60 });
+  assert.deepEqual(parseRange(' 40–60 '), { min: 40, max: 60 });
+  assert.deepEqual(parseRange('50+'), { min: 50, max: null });
   assert.equal(parseRange(''), null);
   assert.equal(parseRange('abc'), null);
+  assert.equal(parseRange('60-40'), null);
+  assert.equal(parseRange('13,15'), null);
+});
+
+test('parseRanges reads a comma list, any item of which matches', () => {
+  assert.deepEqual(parseRanges('50'), [{ min: 50, max: 50 }]);
+  assert.deepEqual(parseRanges('13,15'), [{ min: 13, max: 13 }, { min: 15, max: 15 }]);
+  assert.deepEqual(parseRanges(' 3-5 , 9+ '), [{ min: 3, max: 5 }, { min: 9, max: null }]);
+  assert.deepEqual(parseRanges('13, '), [{ min: 13, max: 13 }]);
+});
+
+test('parseRanges rejects the whole list over one bad item', () => {
+  assert.equal(parseRanges(''), null);
+  assert.equal(parseRanges(','), null);
+  assert.equal(parseRanges('13,,15'), null);
+  assert.equal(parseRanges(',13'), null);
+  assert.equal(parseRanges('13, abc'), null);
+  assert.equal(parseRanges('13, 9-5'), null);
 });
 
 test('parseRuleOutput: blank is unchanged, number is exact, range/N+ are intervals, junk is null', () => {
@@ -59,15 +78,6 @@ test('reordering rules changes which one wins on overlap — no auto-sort rescue
   const broadFirst = { rescoreRules: [rule('0-100', '10'), rule('40-100', '90')] };
   compileRescoreRules(broadFirst);
   assert.equal(rescoreEntry(entry(50), broadFirst.rescoreRules), 10);  // broad rule is first, so 90 never fires
-});
-
-test('rangeSpan: blank/junk/open-ended are Infinity, exact is 0, bounded is its width', () => {
-  assert.equal(rangeSpan(''), Infinity);
-  assert.equal(rangeSpan('   '), Infinity);
-  assert.equal(rangeSpan('abc'), Infinity);
-  assert.equal(rangeSpan('50+'), Infinity);
-  assert.equal(rangeSpan('50'), 0);
-  assert.equal(rangeSpan('40-60'), 20);
 });
 
 test('matchesRange: bounded membership is inclusive of both endpoints', () => {

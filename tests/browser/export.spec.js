@@ -459,14 +459,14 @@ test('JSON metadata: tools array skips the inert permanent search bar', async ({
   expect(json.tools.map(t => t.name)).toEqual(['head_off']);
 });
 
-test('JSON metadata: score_range is {min, max} when fully specified', async ({ page }) => {
+test('JSON metadata: score_range is a list of {min, max}', async ({ page }) => {
   await gotoApp(page);
   await addFixture(page);
   await setStack(page, []);
   await page.evaluate(() => AppView.onScoreRange('40-60'));
 
   const json = await getExport(page, 'json');
-  expect(json.score_range).toEqual({ min: 40, max: 60 });
+  expect(json.score_range).toEqual([{ min: 40, max: 60 }]);
 });
 
 test('JSON metadata: score_range omitted when no range set', async ({ page }) => {
@@ -486,7 +486,17 @@ test('JSON metadata: score_range omits open-ended bound', async ({ page }) => {
   await page.evaluate(() => AppView.onScoreRange('40+'));
 
   const json = await getExport(page, 'json');
-  expect(json.score_range).toEqual({ min: 40 });
+  expect(json.score_range).toEqual([{ min: 40 }]);
+});
+
+test('JSON metadata: score_range lists every range of a comma list', async ({ page }) => {
+  await gotoApp(page);
+  await addFixture(page);
+  await setStack(page, []);
+  await page.evaluate(() => AppView.onScoreRange('20-30, 50+'));
+
+  const json = await getExport(page, 'json');
+  expect(json.score_range).toEqual([{ min: 20, max: 30 }, { min: 50 }]);
 });
 
 test('Filename includes tool keys for chained pipeline', async ({ page }) => {

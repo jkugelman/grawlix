@@ -206,7 +206,7 @@ A second has nothing well-defined to cluster — the first already replaced the 
 
 ## Length filter
 
-A second stats-bar filter beside the score box, sharing its `parseRange` syntax (`7`, `5+`, `5-7`) and its post-pipeline, worker-side, reproject-on-change plumbing — it rides the same `viewSpec`, so changing it re-derives the view over the retained join rather than re-running.
+A second stats-bar filter beside the score box, sharing its `parseRanges` syntax (`7`, `5+`, `5-7`, or a comma list like `13, 15`) and its post-pipeline, worker-side, reproject-on-change plumbing — it rides the same `viewSpec`, so changing it re-derives the view over the retained join rather than re-running.
 Length is `norm.length`, the grid-square count the entries table's Length column and the `length` sort axis already show (`the IRS` is 6), so the filter agrees with what's on screen.
 Unlike the score range it rides the URL (`length=`), since a length means the same on anyone's wordlists.
 

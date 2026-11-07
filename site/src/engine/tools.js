@@ -2,7 +2,7 @@
 
 // ─── Tool catalog & tool helpers ─────────────────────────────────────────────
 
-import { SCORE_RANGE_HELP, LENGTH_HELP } from './range.js';
+import { SCORE_RANGE_HELP, TIER_RANGE_HELP, LENGTH_HELP } from './range.js';
 import { isReplacing } from './tools/shared.js';
 import anagrams from './tools/anagrams.js';
 import hidden_anagram from './tools/hidden_anagram.js';
@@ -141,7 +141,7 @@ for (const [toolKey, tool] of Object.entries(TOOLS)) {
 // field in buildRulesListHTML.
 PARAM_HELP['filter/score']  = SCORE_RANGE_HELP;
 PARAM_HELP['filter/length'] = LENGTH_HELP;
-PARAM_HELP['rule/score']    = SCORE_RANGE_HELP;
+PARAM_HELP['rule/score']    = TIER_RANGE_HELP;
 
 // Normalize tool param strings: lowercase only. Same rule as wlEntry.norm —
 // the executor runs this on every param before handing to `run`, so tools see

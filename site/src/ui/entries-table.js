@@ -16,7 +16,7 @@ import { ROW_HEIGHT, VS_BUFFER, MERGED_ID, MERGED_NAME } from '../core/constants
 import { esc } from '../core/util.js';
 import { isMobile, hasShortcutMod } from '../core/platform.js';
 import { displayOf, projectRangesToDisplay, toNorm, buildUserWlEntry } from '../engine/norm.js';
-import { parseRange } from '../engine/range.js';
+import { parseRange, parseRanges } from '../engine/range.js';
 import { renderHighlightedText } from '../engine/search.js';
 import { FIND_MATCH_CAP } from '../engine/find.js';
 import { TOOLS } from '../engine/tools.js';
@@ -726,9 +726,9 @@ export class EntriesScroller extends BaseVirtualScroller {
     this._errored = false;
     this.sortList = AppView.sortList;
     this.scoreRange = AppView.scoreRange;
-    this._scoreIntervals = this.scoreRange ? parseRange(this.scoreRange) : null;
+    this._scoreIntervals = this.scoreRange ? parseRanges(this.scoreRange) : null;
     this.lengthRange = activeLengthRange();
-    this._lengthIntervals = this.lengthRange ? parseRange(this.lengthRange) : null;
+    this._lengthIntervals = this.lengthRange ? parseRanges(this.lengthRange) : null;
     this._onSave = null;
     this._onDeleteRow = null;
     this._onBatchRescore = null;
@@ -1954,7 +1954,7 @@ export class EntriesScroller extends BaseVirtualScroller {
     // call: entering a tuple tier makes the filter inert. Re-read it here or these
     // fields describe a filter the worker was never sent.
     this.lengthRange = activeLengthRange();
-    this._lengthIntervals = this.lengthRange ? parseRange(this.lengthRange) : null;
+    this._lengthIntervals = this.lengthRange ? parseRanges(this.lengthRange) : null;
     this._resolved = true;
     return tierChanged;
   }
@@ -1966,7 +1966,7 @@ export class EntriesScroller extends BaseVirtualScroller {
     const next = range || '';
     if (next === this.scoreRange) return;
     this.scoreRange = next;
-    this._scoreIntervals = next ? parseRange(next) : null;
+    this._scoreIntervals = next ? parseRanges(next) : null;
     this._invalidateSortCache();
     this.resetSelectionForViewChange();
     reprojectMergedScroller();
@@ -1976,7 +1976,7 @@ export class EntriesScroller extends BaseVirtualScroller {
     const next = range || '';
     if (next === this.lengthRange) return;
     this.lengthRange = next;
-    this._lengthIntervals = next ? parseRange(next) : null;
+    this._lengthIntervals = next ? parseRanges(next) : null;
     this._invalidateSortCache();
     this.resetSelectionForViewChange();
     reprojectMergedScroller();
@@ -4432,8 +4432,8 @@ function scoreQuickPickable() {
 export function buildScoreOptions() {
   const opts = state.scoring
     .map(r => {
-      const intervals = parseRange(r.input);
-      return intervals ? { note: r.note || '', score: intervals[0].min } : null;
+      const range = parseRange(r.input);
+      return range ? { note: r.note || '', score: range.min } : null;
     })
     .filter(Boolean)
     .sort((a, b) => b.score - a.score);

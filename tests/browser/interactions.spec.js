@@ -49,6 +49,32 @@ test('dragging across the histogram applies the score-range filter', async ({ pa
   await expect(page.locator('.score-range-btn')).toHaveAttribute('data-mode', 'reset');
 });
 
+test('a comma-list score range brackets each run of bars separately', async ({ page }) => {
+  await gotoApp(page);
+  await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
+    name: 'Hist',
+    entries: ['aaa', 'bbb', 'ccc', 'ddd', 'eee'],
+    scores: [10, 30, 50, 70, 90],
+  }));
+  await scopeTo(page, 'Hist');
+  await page.locator('#score-range-input').fill('10-30, 90');
+  await expectVisible(page, ['aaa', 'bbb', 'eee']);
+
+  const rects = page.locator('#stats .histogram .histogram-rect');
+  await expect(rects).toHaveCount(2);
+  const [a, b] = await rects.evaluateAll(els => els.map(e => e.getBoundingClientRect().toJSON()));
+  const col = i => page.evaluate(j => document.querySelectorAll('#stats .histogram .histogram-col')[j].getBoundingClientRect().toJSON(), i);
+  const [c0, c1, c2, c4] = [await col(0), await col(1), await col(2), await col(4)];
+  expect(a.left).toBeLessThanOrEqual(c0.left);
+  expect(a.right).toBeGreaterThanOrEqual(c1.right);
+  expect(a.right).toBeLessThan(c2.right);
+  expect(b.left).toBeGreaterThan(c2.right);
+  expect(b.right).toBeGreaterThanOrEqual(c4.right);
+
+  await page.locator('#score-range-input').fill('30-70');
+  await expect(rects).toHaveCount(1);
+});
+
 test('the gear button opens Settings', async ({ page }) => {
   await gotoApp(page);
   await page.locator('#btn-settings').click();

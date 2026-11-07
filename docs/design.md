@@ -109,6 +109,7 @@ The tool stack always ends with the permanent search bar as its last row, and sh
 **One bar, one story.**
 The stats bar carries the counts, the score-range control paired with its histogram, the length filter, and the Share control.
 The count describes the score-range-filtered output; the histogram projects the unfiltered pipeline output with the bracket overlaid, so dragging the range narrower shows what's being trimmed instead of bars disappearing past the bracket.
+A comma-list range draws one bracket per run of adjacent matching bars, so the gap between `30-40` and `60+` reads as unselected; dragging always writes a single range.
 The histogram sits *between* the counts and the score box: it's stats about the entries on one side and the filter's visual twin on the other, so the middle is where it belongs, with the exact control (the box) and the visual one (the histogram) adjacent.
 Left → right: `Entries N   Groups N` · `histogram + Scores [range] + Lengths [range]` · `Share ▾`.
 **Entries** counts what reached the end of the pipeline: chain rows on a flat pipeline, surviving member chains across every visible group with a tool in all-mode, where **Groups** rides alongside.
@@ -289,7 +290,9 @@ At load time `PARAM_HELP` is built from every param that declares `help`, keyed 
 It runs whenever the panel re-renders and an anchor may have been rebuilt — `mountPanel` and `rerenderRows` — destroying the prior popovers and rebinding from scratch each time.
 Search's `pattern` param carries the wildcard cheat sheet; Regex's `pattern` and `replace` params carry regex-syntax sheets (no cheat sheet covers all of regex, so both link out to regexone.com).
 Several **non-tool inputs** ride the same mechanism: the stats-bar score-range filter (`data-help="filter/score"`) and the scoring tiers' score field (`rule/score`).
-`PARAM_HELP` carries their content keyed to match each input builder's emitted `data-help` — `SCORE_RANGE_HELP` and `LENGTH_HELP` live beside `parseRange` (the parser whose `n` / `lo-hi` / `lo+` syntax they document).
+`PARAM_HELP` carries their content keyed to match each input builder's emitted `data-help` — `SCORE_RANGE_HELP`, `LENGTH_HELP` and `TIER_RANGE_HELP` live in `engine/range.js` beside the parsers whose syntax they document.
+`parseRange` reads one range (`n`, `lo-hi`, `lo+`) as `{ min, max }`; `parseRanges` reads a comma list of them (`13, 15`), any of which matches, as an array.
+The score and length filters take lists; a scoring tier takes one range, since a tier names one stretch of the scale and the score picker offers its low end as the score to set.
 The rescore rules' condition and output fields offer suggestions instead (`wordlists.md` § *Rescore and scoring*).
 The rescore editor isn't reached by `mountPanel`/`rerenderRows`, so its `renderDraft` calls `attachHelpPopups` itself after writing the field DOM.
 Each input keeps a short `title` — a field label, or the filter's `Alt-C` shortcut — and leaves the syntax to the cheat sheet, exactly as the search bar pairs its cheat sheet with a `Search (Alt-S)` title.
@@ -1053,7 +1056,7 @@ Consumer parses one schema.
 Scripter can compute trivially (`Math.min(...chain.entries.map(e => e.score))`); the JSON should be lean.
 Catalog group cols *kept* — they're tool-declared, and JSON doesn't know whether a given catalog col is trivially derivable from `group_key` (Letter clusters' `letters` is `group_key.length`) or non-trivial.
 
-**Metadata fields:** `url` (the link that reproduces the view; mostly redundant with `tools`+`sort` but kept as the human-clickable handle); `tools` (parsed pipeline as `[{name, params?, grouped?}]` in order, with the same skip rule as `Router.buildQuery` — permanent search bar drops out when inert, other rows kept); `score_range` ({min, max} numbers, either bound omitted when open-ended, whole field omitted when no range set — the one piece not in URL since the filter is per-user); `sort` ({by, dir} matching internal axis keys).
+**Metadata fields:** `url` (the link that reproduces the view; mostly redundant with `tools`+`sort` but kept as the human-clickable handle); `tools` (parsed pipeline as `[{name, params?, grouped?}]` in order, with the same skip rule as `Router.buildQuery` — permanent search bar drops out when inert, other rows kept); `score_range` (a list of {min, max} numbers, one per comma-separated range, `max` omitted when open-ended, whole field omitted when no range set — the one piece not in URL since the filter is per-user); `sort` ({by, dir} matching internal axis keys).
 
 Wordlist metadata (names + enabled state) was considered for forensic-reproducibility ("which data produced this view") and deferred — noise for the common case; timestamps and Grawlix-version fields were rejected outright (privacy-leakage on shared files, premature).
 

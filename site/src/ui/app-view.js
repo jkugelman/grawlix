@@ -3,7 +3,7 @@
 // ─── App view ─────────────────────────────────────────────────────────────────
 
 import { MERGED_ID } from '../core/constants.js';
-import { parseRange } from '../engine/range.js';
+import { parseRanges } from '../engine/range.js';
 import { lsSave, lsDel } from '../data/storage.js';
 import { defaultScoreRange } from '../data/serialize.js';
 import { ToolStack } from './tool-stack.js';
@@ -32,7 +32,7 @@ export function lengthFilterDisabled() {
 
 export function normalizeRangeInput(value, inputId) {
   const trimmed = (value || '').trim();
-  const intervals = trimmed === '' ? null : parseRange(trimmed);
+  const intervals = trimmed === '' ? null : parseRanges(trimmed);
   const inp = document.getElementById(inputId);
   if (inp) inp.classList.toggle('invalid', trimmed !== '' && intervals === null);
   return (trimmed && intervals) ? trimmed : '';

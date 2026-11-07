@@ -46,6 +46,23 @@ test('an open-ended length keeps everything at or above it', async ({ page }) =>
   await expectVisible(page, ['catnip', 'scatter']);
 });
 
+test('a comma list of lengths keeps entries matching any of them', async ({ page }) => {
+  await gotoApp(page);
+  await seed(page);
+  await setLength(page, '3, 5');
+  await expectVisible(page, ['cat', 'scats']);
+  await setLength(page, '3, 6+');
+  await expectVisible(page, ['cat', 'catnip', 'scatter']);
+});
+
+test('a trailing comma keeps the filter while the next length is typed', async ({ page }) => {
+  await gotoApp(page);
+  await seed(page);
+  await setLength(page, '4,');
+  await expect(page.locator('#length-range-input')).not.toHaveClass(/invalid/);
+  await expectVisible(page, ['cats', 'scat']);
+});
+
 test('clearing the length filter restores the full view', async ({ page }) => {
   await gotoApp(page);
   await seed(page);
@@ -74,6 +91,13 @@ test('the length filter round-trips through the URL', async ({ page }) => {
   await reloadApp(page);
   await expect(page.locator('#length-range-input')).toHaveValue('4');
   await expectVisible(page, ['cats', 'scat']);
+});
+
+test('a comma list round-trips through the URL', async ({ page }) => {
+  await gotoApp(page, '/?length=3%2C5');
+  await seed(page);
+  await expect(page.locator('#length-range-input')).toHaveValue('3,5');
+  await expectVisible(page, ['cat', 'scats']);
 });
 
 test('length leads the query, ahead of the tool rows', async ({ page }) => {
