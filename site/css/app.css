@@ -1624,6 +1624,8 @@ html.dark-mode #discovery-banner { background: color-mix(in srgb, var(--accent) 
 .of-flags { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: repeat(3, auto); grid-auto-flow: column; gap: 8px 16px; }
 .of-flag { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; cursor: pointer; }
 .of-flag input { cursor: pointer; }
+.of-case { display: flex; align-items: center; gap: 10px; margin-top: 12px; }
+.of-case-label { font-size: 13px; font-weight: 600; }
 
 /* Empty states */
 .no-rules { font-size: 12px; color: var(--faint); font-style: italic; margin-bottom: 3px; }

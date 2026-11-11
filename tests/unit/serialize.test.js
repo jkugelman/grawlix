@@ -76,6 +76,27 @@ test('serializeEntries (spaces, punctuation, diacritics off): case untouched', (
   assert.equal(out, 'cafe;50\ncoop;45\ntheIRS;60\n');
 });
 
+test('formatEntryText: the case axis rewrites the formatted text in one case', () => {
+  const e = { norm: 'theirs', display: 'the IRS', score: 60, comment: '' };
+  assert.equal(formatEntryText(e, { ...RICH, case: 'as-is' }), 'the IRS');
+  assert.equal(formatEntryText(e, { ...RICH, case: 'lower' }), 'the irs');
+  assert.equal(formatEntryText(e, { ...RICH, case: 'upper' }), 'THE IRS');
+  assert.equal(formatEntryText(e, { ...STRIPPED, case: 'upper' }), 'THEIRS');
+});
+
+test('serializeEntries: a case fold keeps the comment as written', () => {
+  const out = serializeEntries([{ norm: 'cafe', display: 'Café', score: 50, comment: 'In Paris' }], { ...RICH, case: 'upper' });
+  assert.equal(out, 'CAFÉ;50;In Paris\n');
+});
+
+test('serializeEntries: spellings a case fold collides stay separate lines, best first', () => {
+  const out = serializeEntries([
+    { norm: 'eta', display: 'ETA', score: 40, comment: '' },
+    { norm: 'eta', display: 'eta', score: 50, comment: '' },
+  ], { ...RICH, case: 'lower' });
+  assert.equal(out, 'eta;50\neta;40\n');
+});
+
 test('serializeEntries: stripping a single axis leaves the others intact', () => {
   const out = serializeEntries([
     { norm: 'cafeaulait', display: 'café au lait', score: 50, comment: '' },

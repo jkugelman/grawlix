@@ -37,21 +37,39 @@ const OUTPUT_FLAG_TIPS = {
 };
 const OUTPUT_FLAGS = Object.keys(OUTPUT_FLAG_TIPS);
 
+const OUTPUT_CASES = [
+  { value: 'as-is', label: 'As is' },
+  { value: 'lower', label: 'lower' },
+  { value: 'upper', label: 'UPPER' },
+];
+const OUTPUT_CASE_TIP = 'Letter case. As is keeps each entry as the wordlist spells it; lower or UPPER rewrites every entry: the IRS becomes the irs or THE IRS.';
+
 export function buildOutputFormatControlsHTML(fmt) {
   const flags = OUTPUT_FLAGS.map(k =>
     `<label class="of-flag" title="${esc(OUTPUT_FLAG_TIPS[k])}"><input type="checkbox" data-flag="${k}"${fmt[k] ? ' checked' : ''}> ${k[0].toUpperCase() + k.slice(1)}</label>`
   ).join('');
-  return `<div class="of-flags">${flags}</div>`;
+  const caseCtrl = `<div class="of-case" role="group" aria-label="Case" title="${esc(OUTPUT_CASE_TIP)}">`
+    + `<span class="of-case-label">Case</span>${buildSegCtrlHTML(null, OUTPUT_CASES, fmt.case)}</div>`;
+  return `<div class="of-flags">${flags}</div>${caseCtrl}`;
 }
 
 export function readOutputFormatControls(container) {
   const fmt = {};
   for (const k of OUTPUT_FLAGS) fmt[k] = container.querySelector(`input[data-flag="${k}"]`).checked;
+  fmt.case = container.querySelector('.of-case .seg-btn.active').dataset.val;
   return fmt;
 }
 
 export function wireOutputFormatControls(container, onChange) {
   container.querySelectorAll('input[data-flag]').forEach(cb => { cb.onchange = () => onChange && onChange(); });
+  const caseCtrl = container.querySelector('.of-case');
+  caseCtrl.querySelectorAll('.seg-btn').forEach(btn => {
+    btn.onclick = () => {
+      if (btn.classList.contains('active')) return;
+      setSegCtrlActive(caseCtrl, btn);
+      onChange && onChange();
+    };
+  });
 }
 
 export function buildBadgeHTML(severity, opts = {}) {

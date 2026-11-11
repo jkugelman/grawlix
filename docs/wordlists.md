@@ -487,10 +487,14 @@ For My Edits that blob is its stored editable file, accumulated edits included.
 Construction software disagrees on what entries it can read — Ingrid takes essentially any codepoint, Crossword Compiler takes rich entries (spaces, diacritics, punctuation), Crosserville forbids special characters, and a `.PUZ` pipeline is effectively ASCII-only.
 A single global **output format** (`mergedSettings.outputFormat`) decides how Grawlix *writes* entries, governing the downloads, the synced mirror files, and the results exports (wordlist and CSV) at once.
 The Share popover's **Download as JSON** ignores it: JSON is a format for scripts, so it carries entries as Grawlix holds them.
-It's expressed as independent keep-or-strip axes rather than named modes — booleans for `spaces`, `digits`, `diacritics`, `punctuation`, `symbols`, and `comments` — so it mirrors the orthogonal knobs real software exposes without Grawlix hardcoding any one program's quirks.
-The default is fully rich (everything kept), so existing files are untouched until the user opts to strip something.
-(Named presets like "Crosserville-ready" were rejected — they'd need verified per-program facts; the raw axes stand on their own.
-A letter-case axis was considered and cut — case carries no crossword meaning and no one's asked; entries write in their existing case, plain entries already lowercase via `norm`.)
+It's expressed as independent axes rather than named modes — keep-or-strip booleans for `spaces`, `digits`, `diacritics`, `punctuation`, `symbols`, and `comments`, plus a three-way `case` (`'as-is'`, `'lower'`, `'upper'`) — so it mirrors the orthogonal knobs real software exposes without Grawlix hardcoding any one program's quirks.
+The default is fully rich (everything kept, case as is), so existing files are untouched until the user opts to change something.
+(Named presets like "Crosserville-ready" were rejected — they'd need verified per-program facts; the raw axes stand on their own.)
+
+**Case is for the fill menu, not the grid.**
+Case carries no crossword meaning, but users asked for it: one keeps the rich mixed-case entries for searching in Grawlix and wants the fill menu their synced file feeds to read in lowercase; another uppercases the whole list in a script before using it.
+`case` applies last in `formatEntryText`, after the strip axes, and touches only the entry text, never the comment.
+A stored format with no `case` key reads as `'as-is'` through `getOutputFormat`'s defaults, so the axis needed no schema bump.
 
 **One rule decides between stripping a character and leaving the entry out.**
 A character is removed when the entry is still the same entry without it; when it isn't, the whole entry is left out.
@@ -538,9 +542,9 @@ The format lives in `mergedSettings` in localStorage, so it stays device-local; 
 `regenerateFillOutputs` is single-flighted (a change landing mid-rewrite re-runs once at the end) so overlapping regenerations can't race the same files.
 
 **Duplicates survive stripping; only identical lines collapse.**
-`formatEntryText` is many-to-one once any stripping is active — `café`/`cafe` collide when diacritics drop, `co op`/`coop` when spaces drop.
+`formatEntryText` is many-to-one once any stripping or case fold is active — `café`/`cafe` collide when diacritics drop, `co op`/`coop` when spaces drop, `eta`/`ETA` under either fold.
 Colliding entries are written out as **separate lines**, and only a *byte-identical* repeat is dropped.
-The key fact licensing this: a strip-collision is always within one norm class (`formatEntryText` applies a subset of the transforms `toNorm` applies, all idempotent, so identical formatted text implies identical norm).
+The key fact licensing this: a strip-collision is always within one norm class (`formatEntryText` applies a subset of the transforms `toNorm` applies, plus a case fold `toNorm` ignores, so identical formatted text implies identical norm).
 Consumers already dedupe by norm, so the duplicate is inert to them — they keep the leader, and the sort has already put the best-scored, comment-carrying variant there.
 The file gains a redundant line; nobody gets a wrong score.
 Grawlix ships same-norm duplicates un-collapsed in the fully-rich path anyway (`eta`/`ETA`, `theirs`/`the IRS`), so collapsing them only under stripping would be the inconsistency, not the dupes.
@@ -550,7 +554,7 @@ The comment-presence sort tie-break recovers most of what such a join would prot
 
 **Editing: Settings is the sole owner.**
 The format is edited in exactly one place — the Settings dialog (shared `buildOutputFormatControlsHTML` / `readOutputFormatControls` / `wireOutputFormatControls` helpers).
-Each checkbox click persists the setting immediately (`setOutputFormat`), the same live-apply model as the dialog's other settings, so downloads pick it up at once and a user watching a synced mirror file sees it react.
+Each checkbox or case click persists the setting immediately (`setOutputFormat`), the same live-apply model as the dialog's other settings, so downloads pick it up at once and a user watching a synced mirror file sees it react.
 The expensive part — `regenerateFillOutputs` re-serializing every synced mirror — is split out and debounced ~1s (`OUTPUT_FORMAT_REGEN_DELAY`), flushed on close, so a burst of checkbox clicks coalesces into one rewrite instead of one per click.
 Downloads and synced mirrors both read this one global format directly (`getOutputFormat()`); there is no per-download override.
 A transient per-download format was considered — hand a Crosserville file to a friend while your own file feeds Ingrid — and cut: it meant a modal on every Download for a rare need, where changing the setting and re-downloading does the same job without putting a dialog between the user and "give me this file now."

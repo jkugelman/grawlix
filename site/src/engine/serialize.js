@@ -4,7 +4,7 @@
 
 import { stripDiacritics } from './norm.js';
 
-export const AS_IS_FORMAT = { spaces: true, digits: true, diacritics: true, punctuation: true, symbols: true, comments: true };
+export const AS_IS_FORMAT = { spaces: true, digits: true, diacritics: true, punctuation: true, symbols: true, comments: true, case: 'as-is' };
 
 // ─── Symbols axis ─────────────────────────────────────────────────────────────
 
@@ -47,6 +47,8 @@ export function formatEntryText(e, fmt) {
   if (!fmt.diacritics)  s = stripDiacritics(s);
   if (!fmt.punctuation) s = s.replace(SILENT_PUNCT_RE, '');
   if (!fmt.spaces)      s = s.replace(/\s+/g, '');
+  if (fmt.case === 'lower') s = s.toLowerCase();
+  if (fmt.case === 'upper') s = s.toUpperCase();
   return s;
 }
 
@@ -70,7 +72,7 @@ export function serializeEntries(entries, fmt = AS_IS_FORMAT) {
   const lines = [];
   for (const { e, text } of sortedEntries(entries, fmt)) {
     const line = (fmt.comments && e.comment) ? `${text};${e.score};${e.comment}` : `${text};${e.score}`;
-    if (seen.has(line)) continue;   // only stripping can collide two entries onto one line
+    if (seen.has(line)) continue;   // only stripping or a case fold can collide two entries onto one line
     seen.add(line);
     lines.push(line);
   }

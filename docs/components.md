@@ -30,9 +30,9 @@ This table is exhaustive — [`tests/unit/components-doc.test.js`](../tests/unit
 | --- | --- |
 | `buildSegCtrlHTML(id, options, activeValue)` | A segmented control — a joined row of mutually exclusive buttons. Reach for this for any small either/or or three-way pick (All \| One, dark/light/auto). |
 | `setSegCtrlActive(container, target)` | Moves the active button, by value or by element. Always use this instead of toggling `.active` yourself; it keeps `aria-pressed` in step. |
-| `buildOutputFormatControlsHTML(fmt)` | The Spaces / Digits / Diacritics / Punctuation / Symbols / Comments checkbox grid used wherever a wordlist is written out, each box with a tooltip saying what unchecking it does. |
-| `readOutputFormatControls(container)` | Reads that grid back into a `fmt` object. |
-| `wireOutputFormatControls(container, onChange)` | Fires `onChange` whenever that grid changes. |
+| `buildOutputFormatControlsHTML(fmt)` | The Spaces / Digits / Diacritics / Punctuation / Symbols / Comments checkbox grid used wherever a wordlist is written out, each box with a tooltip saying what unchecking it does, and below it the As is / lower / UPPER case seg control. |
+| `readOutputFormatControls(container)` | Reads those controls back into a `fmt` object. |
+| `wireOutputFormatControls(container, onChange)` | Fires `onChange` whenever those controls change. |
 | `buildBadgeHTML(severity, { title })` | The small colored status dot, `.badge[data-severity]`, with an optional tooltip and matching `aria-label`. |
 | `buildClearableInputHTML(inputHTML, hasValue, { className, before })` | Wraps an `<input>` you've already built with an ✕ clear button. `className` adds a class to the wrapper and `before` puts markup ahead of the input (the pattern-assist mirror). |
 | `syncClearButton(input)` | Shows or hides one clear button. Call after setting `input.value` from code, which fires no `input` event. |
@@ -85,7 +85,7 @@ If you're styling one of these, the rule already exists — extend it rather tha
 | `.badge` | `buildBadgeHTML` |
 | `.clearable-input`, `.clear-btn` | `buildClearableInputHTML` |
 | `.range-filter`, `.length-range-off` | `buildScoreRangeInputHTML`, `buildLengthRangeInputHTML` (`main.js`) — the stats bar's two range boxes. `.range-filter` carries the shared width/mono/invalid styling **and** is what the stats-bar overflow guard measures, so a third range box must have it or it will overlap the Share control instead of collapsing the histogram. Each box also carries an unstyled per-box hook (`.score-range-label`, `.length-range-label`) that JS and the specs select on. |
-| `.of-flags`, `.of-flag` | `buildOutputFormatControlsHTML` |
+| `.of-flags`, `.of-flag`, `.of-case`, `.of-case-label` | `buildOutputFormatControlsHTML` |
 | `.tool-row-param` | `buildParamHTML` |
 | `.url-input-wrap`, `.url-input` | `buildUrlInputHTML` |
 | `.edit-hint` | `buildEditHintHTML` |

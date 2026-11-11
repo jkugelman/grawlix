@@ -570,7 +570,7 @@ Main centers that row (`_scrollIndexToCenter`) unless it's already in view, then
 A download and a disk mirror are the same artifact — a wordlist file for one scope + format — so they serialize **byte-identically**; there is no sort flag, the output is always `sortedEntries(...)` (norm asc, then score desc so a consumer that keeps the first line per norm gets the highest-scored variant).
 - `requestId` — monotonic per client, in its **own request-id space**, echoed on the `serialized` reply for stale-drop matching; a client-side timeout resolves `null` (distinct from the worker's `retry`).
 - `scope` — `MERGED_ID` for the merge, else a source `dbKey`.
-- `format` — the output-format object (`{ spaces, digits, diacritics, punctuation, symbols, comments }`, from `getOutputFormat()`) that `serializeEntries` applies.
+- `format` — the output-format object (`{ spaces, digits, diacritics, punctuation, symbols, comments, case }`, from `getOutputFormat()`) that `serializeEntries` applies.
   Main sends the resolved format so the worker doesn't read localStorage.
 - **On receipt:** `serializeEntriesForScope(scope)` resolves the entries — guarded by `ownedCorpusFresh`; `MERGED_ID` → `ownedMerged.entries`, else the matching `ownedBuilt` source via `sourceAccessor(wl).collectRescored()` (the columnar store materialized to transient rescored views, in norm-sorted order).
   A miss (not fresh, or no such source) returns `null` and replies **`retry: true`** — *never* `text: ''`, because a consumer that wrote that empty string would clobber the synced file to 0 bytes.

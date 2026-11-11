@@ -16,7 +16,7 @@ test.describe('output format setting', () => {
   test('getOutputFormat defaults to fully rich and round-trips through mergedSettings', async ({ page }) => {
     await gotoApp(page);
     expect(await page.evaluate(() => getOutputFormat())).toMatchObject(
-      { spaces: true, punctuation: true, digits: true, diacritics: true, symbols: true, comments: true });
+      { spaces: true, punctuation: true, digits: true, diacritics: true, symbols: true, comments: true, case: 'as-is' });
 
     const got = await page.evaluate(() => {
       const stripped = { spaces: false, punctuation: false, digits: true, diacritics: false, symbols: true, comments: false };
@@ -28,11 +28,25 @@ test.describe('output format setting', () => {
 });
 
 test.describe('output format UI', () => {
-  test('Settings exposes the six flag checkboxes and no case toggle', async ({ page }) => {
+  test('Settings exposes the six flag checkboxes and a three-way case control', async ({ page }) => {
     await gotoApp(page);
     await page.evaluate(() => SettingsDialog.open());
     await expect(page.locator('#output-format-ctrls .of-flag')).toHaveCount(6);
-    await expect(page.locator('#output-format-ctrls .seg-btn')).toHaveCount(0);
+    await expect(page.locator('#output-format-ctrls .of-case .seg-btn')).toHaveText(['As is', 'lower', 'UPPER']);
+    await expect(page.locator('#output-format-ctrls .of-case .seg-btn.active')).toHaveText('As is');
+  });
+
+  test('picking a case in Settings persists immediately and applies to downloads', async ({ page }) => {
+    await gotoApp(page);
+    await page.evaluate(() => window.__grawlixTest.addCustomWordlist({ name: 'Src', entries: ['Blue jay'], scores: [50] }));
+    await page.evaluate(() => SettingsDialog.open());
+    await page.locator('#output-format-ctrls .of-case .seg-btn', { hasText: 'UPPER' }).click();
+    await expect(page.locator('#output-format-ctrls .of-case .seg-btn.active')).toHaveText('UPPER');
+    expect(await page.evaluate(() => getOutputFormat().case)).toBe('upper');
+
+    const dl = page.waitForEvent('download');
+    await page.evaluate(() => downloadSourceWordlist(state.sources.find(w => w.name === 'Src')));
+    expect(await readDownload(await dl)).toContain('BLUE JAY;');
   });
 
   test('every flag is labeled with what unchecking it strips', async ({ page }) => {
