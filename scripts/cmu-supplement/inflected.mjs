@@ -14,7 +14,6 @@ const listed = new Set([...parseCmuDict(await cmuText()).keys(), ...supplementKe
 const skip = excluded();
 const rows = wordlistRows();
 const examples = examplesByToken(rows);
-const stressed = s => s.phones.map((p, i) => (/\d/.test(s.stress[i]) ? p + s.stress[i] : p)).join(' ');
 
 const seen = new Set();
 for (const { letters } of wordlistTokens(rows)) {
@@ -22,6 +21,6 @@ for (const { letters } of wordlistTokens(rows)) {
   seen.add(letters);
   const sounds = soundsOf(letters);
   if (!sounds) continue;
-  const readings = [...new Set(sounds.filter(s => s.plain).map(stressed))];
+  const readings = [...new Set(sounds.map(s => s.toks.join(' ')))];
   console.log(`${letters}\t${readings.join(' | ')}\t${examples.get(letters).join(' | ')}`);
 }

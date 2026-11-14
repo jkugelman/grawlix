@@ -6,10 +6,9 @@ import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { CMU_DICT_URL, parseCmuDict, setCmuDict, soundsOf } from '../../site/src/engine/phonetics.js';
-import { lookup } from '../../site/src/engine/tools/phone_search.js';
 import * as segmenter from '../../site/src/engine/segmenter.js';
 import { spacingReader } from '../../site/src/engine/space-out.js';
-import { tokensOf } from '../../site/src/engine/phone-reading.js';
+import { soundsOrSpelled as lookup, tokensOf } from '../../site/src/engine/phone-reading.js';
 import { wordKinds } from '../../site/src/engine/rule-query.js';
 import { merged } from '../../tests/unit/tools/harness.js';
 
