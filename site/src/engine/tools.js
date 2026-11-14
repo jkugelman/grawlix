@@ -61,7 +61,7 @@ export const TOOL_CATEGORIES = [
   { id: 'transform',  label: 'Transform' },
 ];
 
-export const FEATURED_TOOLS = ['regex', 'umiaq', 'rebus', 'anagrams', 'initialisms', 'rhymes'];
+export const FEATURED_TOOLS = ['regex', 'umiaq', 'phone_search', 'rebus', 'initialisms', 'rhymes'];
 
 export const TOOLS = {
   anagrams,
