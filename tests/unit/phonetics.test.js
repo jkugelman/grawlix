@@ -223,7 +223,7 @@ test('an inflection CMU lacks is read as its longest known stem plus the endingâ
     FROG: ['F R AA1 G'], DIME: ['D AY1 M'], DIM: ['D IH1 M'], KISS: ['K IH1 S'], BAT: ['B AE1 T'],
     DISS: ['D IH1 S'], CAP: ['K AE1 P'], BAMBOOZLE: ['B AE0 M B UW1 Z AH0 L'],
   });
-  const said = word => soundsOf(word)?.find(s => s.plain).phones.join(' ');
+  const said = word => soundsOf(word)?.[0].phones.join(' ');
   assert.equal(said('frogged'), 'F R AA G D');
   assert.equal(said('dimed'), 'D AY M D');
   assert.equal(said('kissed'), 'K IH S T');

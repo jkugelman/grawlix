@@ -1,6 +1,7 @@
 'use strict';
 
 import { spellsOut } from './phone-align.js';
+import { codeOf } from './phone-dialect.js';
 import { splitWords } from './norm.js';
 import { candidates } from './morphology.js';
 
@@ -104,11 +105,11 @@ const lastWord = text => splitWords(text).at(-1) ?? '';
 // SHARE is EH R but PLOWSHARE EY R. Only on an R that closes the syllable — before
 // a vowel the R starts the next one, and PAYROLL would read as "pehroll".
 const BEFORE_R = { IY: 'IH', UW: 'UH', EY: 'EH' };
-const foldVowel = (toks, i, beforeR = true) => {
+const foldVowel = (toks, i) => {
   const phone = toks[i];
   const bare = phone.slice(0, 2);
   if (toks[i + 1] === 'R') {
-    const folds = beforeR && bare in BEFORE_R && !(bare === 'EY' && isVowel(toks[i + 2] ?? '-'));
+    const folds = bare in BEFORE_R && !(bare === 'EY' && isVowel(toks[i + 2] ?? '-'));
     return folds ? BEFORE_R[bare] + phone.slice(2) : phone;
   }
   return bare === 'AO' ? 'AA' + phone.slice(2) : phone;
@@ -163,7 +164,7 @@ const LEGAL_ONSETS = new Set([
   'S P R', 'S T R', 'S K R', 'S P L', 'S K W', 'S K Y', 'S P Y', 'S T Y',
 ]);
 
-const isVowel = ph => 'AEIOU'.includes(ph[0]);
+export const isVowel = ph => 'AEIOU'.includes(ph[0]);
 
 // The checked (lax) vowels, which English does not let end a stressed syllable:
 // BAREST has no /ˈbɛ.rəst/ reading, only /ˈbɛr.əst/. Maximal Onset alone would hand
@@ -217,14 +218,6 @@ const REDUCIBLE = new Set(['AA', 'AE', 'AH', 'AO', 'EH', 'IH', 'OW', 'UH']);
 // its "oh": CMU writes a reduced O as AH, so OW0 is a full vowel, and reducing it
 // has BELLOW find BELLA and AVOCADO rhyme with PRADA.
 const isWeak = vowel => vowel.endsWith('0') && vowel.slice(0, 2) !== 'OW' && REDUCIBLE.has(vowel.slice(0, -1));
-
-// CMU writes ACHOO's first vowel AA2, a full "ah" that MASSACHUSETTS (AH0) and
-// STATUE (AE1) would never otherwise meet. Only a secondary "ah" or "uh": widen an
-// unstressed one too and TUBA finds TOO BAD; a secondary I and INSULT finds CONSULT.
-const AH_VOWELS = ['AA', 'AE', 'AH'];
-export function looseVowelsOf(phone, stress) {
-  return stress === '2' && AH_VOWELS.includes(phone) ? [...AH_VOWELS, 'AX'] : null;
-}
 
 // Own coda, never the next syllable's onset: SAW RED has to keep folding, since a
 // word-initial R colors nothing before it.
@@ -287,15 +280,6 @@ function wholeEntryParts(text) {
 }
 
 // ─── Sound strings ───────────────────────────────────────────────────────────
-
-// Exactly one code unit per phone: with wider codes, a match could land mid-phone
-// and find sounds that aren't there.
-const phoneCodes = new Map();
-export const phoneCode = phone => {
-  let code = phoneCodes.get(phone);
-  if (code === undefined) phoneCodes.set(phone, code = String.fromCharCode(0x41 + phoneCodes.size));
-  return code;
-};
 
 const SOUND_CACHE_MAX = 200_000;
 
@@ -378,11 +362,12 @@ function citationProns(key, prons) {
 // The American flap: a T between a vowel (or R) and an unstressed vowel is said
 // as D, so PUTTING finds PUDDING and METAL finds MEDAL. Not before a syllabic N,
 // where it's a glottal stop: BURTON isn't BURDEN.
+export const flapsAt = (toks, i) => (isVowel(toks[i - 1] ?? '-') || toks[i - 1] === 'R') && toks[i + 1]?.endsWith('0')
+  && !(toks[i + 2] === 'N' && !(toks[i + 3] && isVowel(toks[i + 3])));
+
 const flapT = pron => {
   const toks = pron.split(' ');
-  const flaps = i => (isVowel(toks[i - 1] ?? '-') || toks[i - 1] === 'R') && toks[i + 1]?.endsWith('0')
-    && !(toks[i + 2] === 'N' && !(toks[i + 3] && isVowel(toks[i + 3])));
-  return toks.map((ph, i) => (ph === 'T' && flaps(i) ? 'D' : ph)).join(' ');
+  return toks.map((ph, i) => (ph === 'T' && flapsAt(toks, i) ? 'D' : ph)).join(' ');
 };
 
 // Yod coalescence across a word break: GOT YOU is said "gotchoo", CATCH YOU "catchoo".
@@ -392,32 +377,15 @@ const INTO_Y = { T: 'CH', D: 'JH', S: 'SH', Z: 'ZH', CH: 'CH', JH: 'JH', SH: 'SH
 const YOU_FORMS = new Set(['you', 'your', 'youre', 'yours', 'yourself', 'yourselves', 'youd', 'youll', 'youve']);
 export const coalescedWithY = (phone, word) => (YOU_FORMS.has(word) ? INTO_Y[phone] ?? null : null);
 
-// Stress stripped: `arbiter`'s unstressed -biter has to meet `bitter`.
-// Each word is read plain and folded, and Phone search pairs plain with plain and
-// folded with folded. The folds only see inside the word, so THE RACE keeps its
-// IY and would lose ERASE's IY R if the plain reading went. The folded reading's
-// code also reduces weak unstressed vowels to one schwa, so ROCKET finds
-// CROCKETT; its phones stay unreduced for highlighting, which has no letters for AX.
+// Raw, stress kept: a fold here would be one the query's displayed sounds don't
+// show, and pasting them would stop giving the same results (phone-query.js).
 export const soundsOf = wordLookup(soundsOfProns, { inflect: true });
 
 function soundsOfProns(prons) {
-  const byCode = new Map();
-  for (const raw of prons) {
-    for (const folded of [false, true]) {
-      const pron = folded ? flapT(smoothR(raw)) : raw;
-      const toks = pron.split(' ');
-      const bare = pron.replace(/\d/g, '').split(' ');
-      const phones = bare.map((ph, i) => foldVowel(bare, i, folded));
-      const keys = folded ? phones.map((ph, i) => (isWeak(ph + toks[i].slice(-1)) ? 'AX' : ph)) : phones;
-      const code = keys.map(phoneCode).join('');
-      if (!byCode.has(code)) {
-        const stress = toks.map(tok => (/\d$/.test(tok) ? tok.slice(-1) : '-')).join('');
-        byCode.set(code, { phones, code, stress, plain: false, folded: false });
-      }
-      byCode.get(code)[folded ? 'folded' : 'plain'] = true;
-    }
-  }
-  return [...byCode.values()];
+  return [...new Set(prons)].map(pron => {
+    const toks = pron.split(' ');
+    return { toks, phones: toks.map(tok => tok.replace(/\d$/, '')), code: toks.map(codeOf).join('') };
+  });
 }
 
 // ─── Letter names ────────────────────────────────────────────────────────────

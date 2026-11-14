@@ -395,7 +395,7 @@ A word that still can't be read has no pronunciation; there is no letter-to-soun
 
 **The cot–caught merger is folded, except before R.** CMU records the AO/AA split, and records it arbitrarily: CAUGHT is listed both ways, GONE only AO, DON only AA, ON both; 10,164 of the 10,574 AO headwords carry no AA variant, so the exceptions are coin flips.
 Honoring the split tears rhyme families in half along those flips: GONE PRO and COINTREAU bucketed away from DON HO, JOHN DOE, and TONTO, with ON AUX, ON LOW, and ON TOE stranded in each half, which reads as a duplicate-row bug.
-So AO folds into AA everywhere a pronunciation is compared, in all three rhyme modes and in Phone search.
+So AO folds into AA everywhere a pronunciation is compared: in all three rhyme modes, and in Phone search as the `[AA AO]` a word's translation spells out (§ *Phone search and letter–sound alignment*).
 Not before R, where no dialect merges NORTH with START and folding would rhyme CARD with CORD and BARB with ORB.
 The R must be one the vowel's own syllable closes on, since a word-initial R colors nothing before it: SAW RED folds, SORE ED does not.
 (CMU also lists six headwords both R-ful and R-less, CARS and FOR among them, which is why OLD CARS reaches OLD SAWS; a dictionary wart, left alone.)
@@ -477,24 +477,71 @@ It isn't a separate mode, since syllable-by-syllable is the more general relatio
 
 ### Phone search and letter–sound alignment
 
-Phone search ([`engine/tools/phone_search.js`](../site/src/engine/tools/phone_search.js)) is a filter that turns the input and each entry into sound strings and runs a substring search on them.
-`soundsOf` ([`engine/phonetics.js`](../site/src/engine/phonetics.js)) gives a word's CMU pronunciations with stress stripped and the cot–caught merger folded (§ *Pronunciations*).
-Its folded reading also hears a flapped T as D (§ *Pronunciations*), so PUTTING finds TOFU PUDDING and METAL finds MEDALS.
-It also reduces unstressed AA AE AH AO EH IH UH to one schwa, so ROCKET finds DAVY CROCKETT and EFFACE finds MAKE A FACE; stressed vowels stay apart, so BIT never finds BUT.
-Unlike whole-entry rhymes it leaves an unstressed OW alone: CMU writes a reduced O as AH, so OW0 is a full "oh", and reducing it has BELLOW find BELLA.
-Only the match code is reduced: highlighting aligns the unreduced phones to letters.
-A secondary-stressed "ah" or "uh" in the query (AA2, AE2, AH2) meets any "ah" or "uh" in the entry, stressed or not, or a schwa.
-CMU writes ACHOO's first vowel AA2, so without this ACHOO can't find MASSACHUSETTS (AH0), STATUETTE (AE2) or STATUE (AE1).
-It stops there.
-An unstressed query vowel widened the same way has TUBA find TOO BAD and ANNA find AN HONEST MISTAKE, and a secondary I has INSULT (IH2) find CONSULT.
-The query compiles to regular expressions over the sound codes, with a character class wherever a vowel may be heard several ways.
-Across a word break, YOU runs into the consonant before it: T, D, S and Z become CH, JH, SH and ZH, and CH, JH, SH and ZH absorb the Y sound.
-So ACHOO finds CATCH YOU LATER and I GOT YOU, and ISSUE finds KISS YOU.
-Only YOU and its forms (YOUR, YOURSELF, YOU'RE…) join, since they're said unstressed; a stressed Y word keeps its Y, or JAW would find SCOTLAND YARD.
-The joined reading is an extra folded reading beside the unjoined one, and it carries each word's changed sounds, so highlighting still aligns them to that word's letters.
-Each pronunciation is read twice, plain and folded, since the vowel folds can't see into the next word: THE RACE keeps its IY, and only the plain reading of ERASE (IY R EY S) still finds it.
-An entry's plain readings and folded readings are combined separately, plain with plain, and each set has its own cap of 16, so the folded ones can't crowd out a plain reading that matched before.
-It encodes each phone as exactly one code unit, so a match can't land partway through a phone.
+Phone search ([`engine/tools/phone_search.js`](../site/src/engine/tools/phone_search.js)) searches entries by sound.
+Its query is written in a small **sound dialect**: ARPABET sounds in capitals plus Search's wildcards, with lowercase words as shorthand.
+
+| Syntax | Means |
+|---|---|
+| `S`, `SH`, `NG`… | that consonant (CMU's 24) |
+| `AA`, `OW`… | that vowel (CMU's 15) at any stress |
+| `AA0`, `AA1`, `AA2` | that vowel, only at that stress |
+| `AX` | a reduced vowel: AA AE AH AO EH IH or UH, unstressed |
+| `@`, `#`, `?` | any vowel (`@1` restricts the stress), any consonant, any sound |
+| `*` | any run of sounds |
+| `[AA AO]`, `[^ R]` | one sound of the set, or not in it |
+| `(NG)` | at the start or end: sounds that must be there but aren't part of the match |
+| `(^ R)` | at the start or end: sounds that mustn't be there; the entry's edge counts as not there |
+| `A, B` | either alternative |
+| `knight` | a word, read through CMU and written out as sounds |
+
+Capitals run together greedily, longest name first, so `SNOW` is S N OW, `SH` is SH, and `S HH` needs the space.
+A run of capitals that doesn't split into sounds is an error, with a fix that reads it as a word instead; only text with a lowercase letter is a word, so a phone keyboard's capitalized `No` still reads as a word.
+So `S` with Starts entry finds every entry that starts with an S sound, and with a blank replacement it turns SNOW into NO and KNOW.
+
+**Words are translated, and the translation is what runs.**
+[`engine/phone-query.js`](../site/src/engine/phone-query.js) reads each word through CMU and writes it out in the dialect, and the tool parses and searches only that text ([`engine/phone-dialect.js`](../site/src/engine/phone-dialect.js)).
+The pattern assist shows it as **Searching for** lines (§ *Pattern assist*), which copy with a click, and pasting them back gives the same results, since it's the same text, but for the query's own words, which only a query typed as words hides (below).
+Nothing is folded behind the user's back: an entry is read with CMU's raw pronunciations, stress kept, and every way a word may be heard is spelled out in its translation as a set.
+Each fold is written into the set in both directions, so a sound on either side can meet the other:
+
+- **Stress:** a word's vowels carry no stress digit, so any stress matches, and `bitter` finds ARBITER's unstressed -biter.
+- **Cot–caught:** AA or AO not before R in the word becomes `[AA AO]`, since CMU records the split arbitrarily (§ *Pronunciations*).
+- **Before R:** IY/IH, UW/UH and EY/EH before an R become their pair, so `share` (`SH [EH EY] R`) finds PLOWSHARE.
+  EY and EH stay apart when the R opens the next syllable inside the word.
+- **Schwa:** an unstressed AA AE AH AO EH IH or UH becomes the bare vowel or `AX`, so `rocket` (`R [AA AO] K [AH AX] T`) finds DAVY CROCKETT and EFFACE finds MAKE A FACE, while stressed vowels stay apart and BIT never finds BUT.
+  An unstressed OW stays a full "oh": CMU writes a reduced O as AH, and reducing OW has BELLOW find BELLA.
+- **A secondary "ah" or "uh"** (AA2, AE2, AH2) becomes `[AA AE AH AO AX]`: CMU writes ACHOO's first vowel AA2, so without it ACHOO can't find MASSACHUSETTS (AH0) or STATUE (AE1).
+  It stops there: an unstressed vowel widened the same way has TUBA find TOO BAD, and a secondary I has INSULT find CONSULT.
+- **The flap:** a T or D between a vowel (or R) and an unstressed vowel in the word becomes `[D T]`, so PUTTING finds TOFU PUDDING, but not before a syllabic N, so BURDEN doesn't find BURTON.
+- **AY and AW before R:** CMU writes TIRE AY ER but SPIRE AY R, so a word with either gets both as alternatives.
+- **-ing:** a query ending in an unstressed IY gets an alternative ending `IH (NG)`, so `tabby` finds STABBING and `lackey` finds BLACK INK, since many speakers say the IH of -ing and ink as IY before NG.
+  Elsewhere IH is short, so MONEY doesn't find FEMINIST.
+- **YOU** runs into the consonant before it across a word break: T, D, S and Z become CH, JH, SH and ZH, and CH, JH, SH and ZH absorb the Y. A query gets the joined reading as an alternative, and an entry is read both ways, so ACHOO finds CATCH YOU LATER and ISSUE finds KISS YOU.
+  Only YOU and its forms (YOUR, YOU'RE…) join, since they're said unstressed; a stressed Y word keeps its Y, or JAW would find SCOTLAND YARD.
+
+The folds look only inside a word, since across a break THE RACE would lose its IY.
+They judge context by the query's own sounds, except at the query's end, where what follows is the entry's: there a fold an R would have stopped is split off behind a `(^ …)`.
+So `ma` is `M AA, M AO (^ R)` and doesn't find MORE, and `pair` is `P EH R, P EY R (^ @)` and doesn't find PAYROLL.
+The syntax can't see a word break inside an entry, which costs a few edge cases: `tour` finds ALL TOO REAL, `are` misses SAW RIGHT THROUGH ME, and `toughie` finds LIFT A FINGER, since `(NG)` can't say "no G after it in the same word".
+A word's readings are combined across a run of words, capped at 16, and a line another line already covers is dropped.
+Readings that differ in just one sound share a line, with a set there: READ is `R [EH IY] D`, EITHER `[AY IY] DH ER`.
+Readings further apart keep their own lines, since sets in two places would also match crossings neither reading has; alternatives typed with commas are never merged.
+A word with no pronunciation is an error the panel places on the word.
+
+**Matching.**
+Each phone and stress is one code unit, so a set is a regex character class and a match can't land partway through a phone.
+Each alternative compiles to one regex, with `(…)` as a lookbehind or lookahead and `(^ …)` as a negative one.
+For each reading of the entry, the tool finds every occurrence and keeps the ones the match mode allows: Whole entry needs offset 0 and the full length, Starts entry and Ends entry need just one of them, Whole word needs word breaks, and Spans words needs a break strictly between them.
+Parenthesized sounds are outside the match, so `T AE B IH (NG)` can't count as ending STABBING.
+A `*` matches greedily, so when the mode rejects the longest match at a start, the shorter ends the mode could accept are tried too.
+
+**The search words themselves never match.**
+An occurrence that is the query's own words is dropped: it starts on a word break, runs through words spelled as the query's, and ends in its last word or an inflection of it (morphology's `candidates`).
+`FIGURE` skips `FIGURES` and `FIGURE SKATING` but keeps `CONFIGURE`.
+A sound search that returns the typed word is noise, and under Whole entry this rule is what turns the search into a homophone finder.
+It applies to an alternative typed as words alone; sounds name no word to hide, so `F IH G Y ER` finds FIGURE, and this is the one way a pasted translation searches differently from its words.
+
+**Reading an entry.**
 A word neither CMU nor the supplement knows is first tried as an inflection: morphology's `candidates` strips an *-s*, *-es*, *-ies*, *-ed*, *-ied* or *-ing*, and the longest stem CMU knows is read with the ending's sound after it.
 The ending's sound depends on the stem's last sound: *-s* is IH Z after a hissing sound, S after a voiceless one, and Z otherwise; *-ed* is IH D after T or D, T after a voiceless sound, and D otherwise.
 So FROGGED, ASTROTURFS and BAMBOOZLING read, and DIMED is read from DIME, not DIM.
@@ -511,17 +558,6 @@ An entry's readings are the product of its words' pronunciations, capped at 16.
 The match-mode control sets where the sounds sit: **Whole entry** finds homophones (`KNIGHT` finds `NIGHT`), **Starts entry** and **Ends entry** pin one end (`KNEE` finds `NEON` and `HONEY` respectively), **Whole word** needs word breaks at both ends (`TEA` finds `TEE` but not `ARTY`), and **Spans words** needs a break inside (`TEA` finds `NOT EVEN`).
 The breaks are Search's (`WORD_BREAK_RE`) plus the splits inside a word read through the spacing table: the entry is read aloud in pieces split at every punctuation mark, so `U.S.A.` is three letter names, but `R&R` is one word to Whole word, as it is to Search.
 
-**The query is whole words.**
-The input must read as whole words; it can't be a fragment like `pho` meaning "starts with the letters PHO", because only whole words have pronunciations.
-A query ending in an unstressed IY may also end on an IH followed by NG, so `TABBY` finds `STABBING` and `LACKEY` finds `BLACK INK`: CMU spells the final vowel of `TABBY` IY but the vowel of `-ing` and `ink` IH, which many speakers say as IY before NG.
-Elsewhere IH is short, so `MONEY` doesn't find `FEMINIST` or `HORSEY` `HORSES`, and so is an IH before NG G in one word: `TOUGHIE` doesn't find `LIFT A FINGER`, though `STUFFING GOOD` still counts.
-For each reading of the entry, the tool finds every occurrence of the query's sounds and keeps the ones the match mode allows: Whole entry needs offset 0 and the full length, Starts entry and Ends entry need just one of them, Whole word needs word breaks, and Spans words needs a break strictly between them.
-
-**The search words themselves never match.**
-An occurrence that is the query's own words is dropped: it starts on a word break, runs through words spelled as the query's, and ends in its last word or an inflection of it (morphology's `candidates`).
-`FIGURE` skips `FIGURES` and `FIGURE SKATING` but keeps `CONFIGURE`.
-A sound search that returns the typed word is noise, and under Whole entry this rule is what turns the search into a homophone finder.
-
 **Only citation pronunciations are used.**
 CMU lists weak forms (`ARE` as ER, `FOR` as F ER) and abbreviation expansions (`CO.` as "company") alongside a word's ordinary pronunciation.
 If they were kept, `ARE` would find `BUTCHER` and `KNEE` would find `AND CO`.
@@ -534,7 +570,12 @@ For the same reason, a split into parts drops any one-letter part other than `a`
 **Replacing works on sounds, so its output is any entry that sounds like the result.**
 With the replace field open (§ *The find/replace widget*), the row becomes **Phone replace**, a transform.
 Within each reading of an entry it takes the complete matches the match mode allows, leftmost first and longest at each start with none overlapping, as Search's replace does, and puts the replacement's sounds in their place; a blank replacement deletes them, so ARE → blank turns ARBITER into BITTER.
-The resulting sound string is looked up in an index of every corpus entry's whole-entry readings, built in `prepare` and kept in the prepare-artifact cache, so the output is whatever entries are pronounced that way, spelled however they are.
+The replacement is the same dialect without `*` or `?`, which can't say what to put in.
+Its words translate to exactly the sounds they would in the search box, so either box's lines can be pasted into the other.
+A replacement's `(…)` and `(^ …)` apply to the spliced result: `pa`'s `P AO (^ R)` keeps MA → PA from turning MARSHA into PORSCHE.
+The rest of the entry is heard the way a typed word is, its sounds widened into the same sets, or ARBITER's unstressed -biter couldn't meet BITTER.
+A word's last AA or AO there loses AO when the splice puts an R right after it, as the merger stops before R. The result is a pattern over a whole entry, matched against an index of every corpus entry's readings built in `prepare` and kept in the prepare-artifact cache, so the output is whatever entries are pronounced that way, spelled however they are.
+The index keys each reading coarsely (T and D share a key, every vowel shares one), so a pattern whose sets each fall under one key looks up its candidates, and any other pattern checks every reading of its length.
 Since there's no way to spell a sound string, there is no **Allow unlisted**.
 An output that is the input itself is dropped.
 Unlike the filter, replace keeps occurrences of the typed word itself: KNIGHT → DAY turns KNIGHT SHIFT into DAY SHIFT.
@@ -681,8 +722,8 @@ In all-mode a blank Shift groups entries into shift classes (STEEDS and TUFFET c
 
 ### Pattern assist
 
-The Umiaq, Regex and Search boxes (the search bar included) color their syntax as you type and open a **helper panel** beside the box while it has focus.
-A param opts in with `assist: 'umiaq' | 'regex' | 'search'`; Affix keeps the plain `PopupHelp` cheat sheet.
+The Umiaq, Regex, Search and Phone search boxes (the search bar included) color their syntax as you type and open a **helper panel** beside the box while it has focus.
+A param opts in with `assist: 'umiaq' | 'regex' | 'search' | 'phone'`; Affix keeps the plain `PopupHelp` cheat sheet.
 Regex's replace box (`assist: 'regex-replace'`) gets the coloring but no panel: its syntax is four `$` forms, which its `PopupHelp` already lists.
 The panel holds, nearest the box first:
 
@@ -701,6 +742,16 @@ The panel holds, nearest the box first:
   It never changes, so the panel looks the same from the first keystroke to the last.
 
 Search, the box people type in most, gets no reading: its syntax is a handful of symbols, and a sentence restating `c?t` is clutter.
+
+**Phone search shows its sounds, not a sentence.**
+In place of a reading, the Phone search panel lists the query translated into sounds, one **Searching for** line per alternative (the replace box's panel says **Replacing with**), colored like the box, with each line but the last ending in the comma that separates alternatives when typed.
+That is the exact text the tool searches (§ *Phone search and letter–sound alignment*), so a lowercase word teaches its ARPABET.
+Clicking the lines copies them, comma-joined, and says so in a toast; the block is one button, so copying costs the panel no extra row.
+Translating needs the pronunciation dictionary, which only the worker holds, so the panel asks with `fetchPhoneQuery` ([`worker-protocol.md`](worker-protocol.md)) and repaints when the answer lands; coloring, the dialect's own errors and the cheat sheet are local and show at once.
+A word with no pronunciation comes back as an error placed on the word.
+A lone lowercase consonant letter gets a hint: `s` is a word, the letter name EH S, and the fix writes the sound `S`.
+The cheat sheet leads with words, since a word is what most queries are, then the wildcards; the 39 sounds and `AX` come last, each with CMU's example word, in a smaller grid under their own heading.
+Inserting a sound adds a space when it would otherwise run into the sound before it, since `S` then `H` would read as `SH`.
 
 **The panel never covers the box.**
 It sits flush against the box's top or bottom edge, preferring the top, since below it would sit over the results and the entries table's sort headers.

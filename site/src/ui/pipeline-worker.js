@@ -986,6 +986,26 @@ export function fetchWorkerSpaceOut(norm, timeout = 15000) {
   });
 }
 
+let fetchPhoneQueryRequestId = 0;
+export function fetchWorkerPhoneQuery(text, replacement = false, timeout = 15000) {
+  const w = getWorker();
+  const requestId = ++fetchPhoneQueryRequestId;
+  return new Promise(resolve => {
+    const timer = setTimeout(() => {
+      w.removeEventListener('message', onMessage);
+      resolve({ lines: [], error: null, ready: false });
+    }, timeout);
+    function onMessage({ data }) {
+      if (data?.type !== 'phoneQuery' || data.requestId !== requestId) return;
+      clearTimeout(timer);
+      w.removeEventListener('message', onMessage);
+      resolve({ lines: data.lines ?? [], error: data.error ?? null, ready: !!data.ready });
+    }
+    w.addEventListener('message', onMessage);
+    w.postMessage({ type: 'fetchPhoneQuery', requestId, text, replacement });
+  });
+}
+
 let fetchWordCaseRequestId = 0;
 export function fetchWorkerWordCase(norm, timeout = 5000) {
   const w = getWorker();

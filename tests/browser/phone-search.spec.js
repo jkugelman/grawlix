@@ -31,6 +31,32 @@ test('finds entries containing the input’s sounds and marks the letters', asyn
   await expect(row.locator('mark')).toHaveText('ar');
 });
 
+test('the panel shows the sounds a query searches for, and they search the same way', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 1000 });
+  await gotoApp(page);
+  await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
+    name: 'PhoneTest',
+    entries: ['zarbiter', 'arty', 'tee'],
+    scores: [50, 50, 50],
+  }));
+  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'phone_search', params: { entry: 'tee' } }]));
+  const input = page.locator('.tool-row[data-tool="phone_search"] input[data-key="entry"]');
+  await input.click();
+  const panel = page.locator('.assist-panel');
+  await expect(panel.locator('.assist-lines code')).toHaveText(['T IY']);
+  await page.evaluate(() => { navigator.clipboard.writeText = async text => { window.__copied = text; }; });
+  await panel.locator('.assist-lines-copy').click();
+  await expect(page.locator('.toast', { hasText: 'Sounds copied' })).toBeVisible();
+  expect(await page.evaluate(() => window.__copied)).toBe('T IY');
+  await expect(input).toBeFocused();
+  await input.fill('T IY');
+  await expectVisible(page, ['arty', 'tee']);
+  await input.fill('');
+  await panel.locator('.assist-cheat-row', { hasText: 'tea' }).click();
+  await panel.locator('.assist-cheat-row', { hasText: 'eat' }).first().click();
+  await expect(input).toHaveValue('T IY');
+});
+
 test('the match mode anchors the sounds', async ({ page }) => {
   await gotoApp(page);
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({

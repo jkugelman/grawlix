@@ -34,7 +34,7 @@ async function readings(supplement) {
   for (const t of tokens) {
     const sounds = soundsOf(t);
     if (sounds) {
-      out.set(t, [...new Set(sounds.filter(s => s.plain).map(s => s.phones.join(' ')))].join(' | '));
+      out.set(t, [...new Set(sounds.map(s => s.phones.join(' ')))].join(' | '));
     } else {
       const { items } = itemsOf(t, tableSplits(spacing), soundsOf);
       out.set(t, `split: ${items.map(it => (it ? it.letters : '?')).join(' ')}`);

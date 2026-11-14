@@ -4,6 +4,7 @@ import { setCmuDict } from '../../../site/src/engine/phonetics.js';
 import { setUnigramCorpus, invalidateUnigramCorpus } from '../../../site/src/engine/segmenter.js';
 import { rowAtoms } from '../../../site/src/engine/executor.js';
 import { makeToolRow } from '../../../site/src/engine/tools.js';
+import { translatePhoneQuery, queryWordReader } from '../../../site/src/engine/phone-query.js';
 import { run, sameVisible, visible, highlightTexts, atomWord } from './harness.js';
 
 const CMU = {
@@ -94,6 +95,13 @@ test('EY meets EH before an R that closes the syllable, and not before a vowel',
   seed();
   assert.deepEqual(await hits(['plowshare'], 'share'), { plowshare: ['share'] });
   assert.deepEqual(await hits(['payroll'], 'pair'), {});
+  assert.deepEqual(await hits(['pair'], 'payroll'), {});
+});
+
+test('a query ending in AA or AO meets the other only where no R follows', async () => {
+  invalidateUnigramCorpus();
+  setCmuDict({ MA: ['M AA1'], MOORE: ['M AO1 R'], MAW: ['M AO1'], MAR: ['M AA1 R'] });
+  assert.deepEqual(await hits(['moore', 'maw', 'mar'], 'ma', 'start'), { maw: ['maw'], mar: ['ma'] });
 });
 
 test('after AY, an unstressed ER meets an R', async () => {
@@ -220,6 +228,13 @@ test('skips matches of the query word and its inflections, not words containing 
     ['configure', 'figurine']);
 });
 
+test('the same sounds typed as sounds have no word to hide', async () => {
+  invalidateUnigramCorpus();
+  setCmuDict(FIGURE_CMU);
+  sameVisible(await visible(['figure', 'figures', 'configure'], [{ tool: 'phone_search', params: { entry: 'F IH G Y ER' } }]),
+    ['configure', 'figure', 'figures']);
+});
+
 // ─── Match modes and wildcards ───────────────────────────────────────────────
 
 test('whole entry finds homophones', async () => {
@@ -292,6 +307,29 @@ test('the match mode constrains which sounds are replaced', async () => {
   sameVisible(await visible(['arbiter', 'bitter'], replace('are', '', 'full')), []);
 });
 
+test('a word translates to the same sounds in the search box and the replace box', () => {
+  seed();
+  for (const word of ['tabby', 'pair', 'caught', 'rocket', 'got you', 'read']) {
+    assert.deepEqual(translatePhoneQuery(word, queryWordReader(null), { replacement: true }).lines,
+      translatePhoneQuery(word, queryWordReader(null)).lines, word);
+  }
+});
+
+test('a replacement’s AA stays apart from AO before an R the entry puts after it', async () => {
+  invalidateUnigramCorpus();
+  setCmuDict({ MARSHA: ['M AA1 R SH AH0'], PORSCHE: ['P AO1 R SH AH0'], PARSHA: ['P AA1 R SH AH0'], MA: ['M AA1'], PA: ['P AA1'] });
+  const specs = ['marsha', 'porsche', 'parsha'];
+  sameVisible(await visible(specs, replace('ma', 'pa', 'start')), [['marsha', 'parsha']]);
+  sameVisible(await visible(specs, replace('ma', 'P AA, P AO (^ R)', 'start')), [['marsha', 'parsha']]);
+  sameVisible(await visible(specs, replace('ma', 'P [AA AO]', 'start')), [['marsha', 'parsha'], ['marsha', 'porsche']]);
+});
+
+test('an entry word’s last AA stays apart from AO before a replacement’s R', async () => {
+  invalidateUnigramCorpus();
+  setCmuDict({ PA: ['P AA1'], TEA: ['T IY1'], PAR: ['P AA1 R'], PORE: ['P AO1 R'] });
+  sameVisible(await visible([{ entry: 'pa tea' }, 'par', 'pore'], replace('tea', 'R')), [['pa tea', 'par']]);
+});
+
 test('a replacing row is a transform named Phone replace', () => {
   const row = makeToolRow('phone_search', { entry: 'are', replace: '' });
   assert.equal(row.kind(), 'transform');
@@ -299,4 +337,94 @@ test('a replacing row is a transform named Phone replace', () => {
   assert.equal(row.outputSide(), 'plain');
   assert.equal(makeToolRow('phone_search', { entry: 'are', replace: 'tea' }).outputSide(), 'highlight');
   assert.equal(makeToolRow('phone_search', { entry: 'are' }).name(), 'Phone search');
+});
+
+// ─── The sound dialect ───────────────────────────────────────────────────────
+
+const SNOW_CMU = {
+  ...CMU, SNOW: ['S N OW1'], NO: ['N OW1'], KNOW: ['N OW1'], SCAR: ['S K AA1 R'], CAR: ['K AA1 R'],
+  NOSE: ['N OW1 Z'], CAT: ['K AE1 T'], KIT: ['K IH1 T'], COAT: ['K OW1 T'], COT: ['K AA1 T'], CAUGHT: ['K AO1 T'],
+};
+
+const seedSnow = () => {
+  invalidateUnigramCorpus();
+  setCmuDict(SNOW_CMU);
+};
+
+test('capitals are sounds: S finds entries that start with an S sound', async () => {
+  seedSnow();
+  assert.deepEqual(await hits(['snow', 'scar', 'no', 'nose'], 'S', 'start'), { snow: ['s'], scar: ['s'] });
+  assert.deepEqual(await hits(['snow', 'nose'], 's', 'start'), {});
+});
+
+test('deleting a leading S finds the entries that take an S in front', async () => {
+  seedSnow();
+  sameVisible(await visible(['snow', 'scar', 'no', 'know', 'car', 'nose'], replace('S', '', 'start')),
+    [['scar', 'car'], ['snow', 'know'], ['snow', 'no']]);
+});
+
+test('a vowel without a stress digit matches any stress, with one only that stress', async () => {
+  seed();
+  assert.deepEqual(await hits(['arbiter', 'bitter'], 'B IH T'), { arbiter: ['bit'], bitter: ['bitt'] });
+  assert.deepEqual(await hits(['arbiter', 'bitter'], 'B IH1 T'), { bitter: ['bitt'] });
+  assert.deepEqual(await hits(['arbiter', 'bitter'], 'B IH0 T'), { arbiter: ['bit'] });
+});
+
+test('typed sounds are raw: AO doesn’t meet AA, and a set says when it should', async () => {
+  seedSnow();
+  assert.deepEqual(await hits(['cot', 'caught'], 'K AO T'), { caught: ['caught'] });
+  assert.deepEqual(await hits(['cot', 'caught'], 'K [AA AO] T'), { cot: ['cot'], caught: ['caught'] });
+  assert.deepEqual(await hits(['cot', 'caught'], 'caught'), { cot: ['cot'] });
+});
+
+test('wildcards and comma alternatives', async () => {
+  seedSnow();
+  const specs = ['cat', 'kit', 'coat', 'car', 'scar'];
+  const found = async (entry, mode) => visible(specs, [{ tool: 'phone_search', params: { entry, mode } }]);
+  sameVisible(await found('K @ T', 'full'), ['cat', 'coat', 'kit']);
+  sameVisible(await found('K AE T, K AA R', 'full'), ['car', 'cat']);
+  sameVisible(await found('# K', 'start'), ['scar']);
+});
+
+test('parenthesized sounds must be there but aren’t part of the match', async () => {
+  seed();
+  assert.deepEqual(await hits(['stabbing', 'tabby'], 'T AE B IH (NG)'), { stabbing: ['tabbi'] });
+  assert.deepEqual(await hits(['stabbing'], 'T AE B IH (NG)', 'end'), {});
+  assert.deepEqual(await hits(['stabbing', 'tabby'], '(S) T AE B'), { stabbing: ['tabb'] });
+});
+
+test('(^ …) says what mustn’t follow or come before, the edge of the entry included', async () => {
+  seedSnow();
+  const specs = ['snow', 'no', 'nose', 'know'];
+  assert.deepEqual(await hits(specs, 'N OW (^ Z)'), { snow: ['now'], no: ['no'], know: ['know'] });
+  assert.deepEqual(await hits(specs, '(^ S) N OW'), { no: ['no'], nose: ['no'], know: ['know'] });
+  assert.deepEqual(await hits(specs, 'N OW (^ Z)', 'end'), { snow: ['now'], no: ['no'], know: ['know'] });
+});
+
+test('a * run still finds the shorter match a word mode needs', async () => {
+  seed();
+  assert.deepEqual(await hits([{ entry: 'tea knee neon' }], 'T * IY', 'word'), { 'tea knee neon': ['tea', 'knee'] });
+});
+
+test('pronunciations one sound apart share a line, and further apart don’t', () => {
+  invalidateUnigramCorpus();
+  setCmuDict({ READ: ['R EH1 D', 'R IY1 D'], TOMATO: ['T AH0 M EY1 T OW2', 'T AH0 M AA1 T OW2'], PECAN: ['P IH0 K AA1 N', 'P IY1 K AE2 N'] });
+  const lines = q => translatePhoneQuery(q, queryWordReader(null)).lines;
+  assert.deepEqual(lines('read'), ['R [EH IY] D']);
+  assert.deepEqual(lines('tomato'), ['T [AH AX] M [AA AO EY] T OW']);
+  assert.deepEqual(lines('pecan'), ['P [IH AX] K [AA AO] N', 'P IY K [AA AE AH AO AX] N']);
+  assert.deepEqual(lines('read, R AA D'), ['R [EH IY] D', 'R AA D']);
+});
+
+test('pasting a query’s translation searches the same way, but for the hidden query words', async () => {
+  seed();
+  const specs = [...Object.keys(CMU).map(w => w.toLowerCase()),
+    { entry: 'not even' }, { entry: 'catch you later' }, { entry: 'win the race' }, { entry: 'too bad' }, { entry: 'root beer' }];
+  for (const query of ['are', 'bitter', 'tabby', 'achoo', 'putting', 'rocket', 'share', 'pyre', 'issue', 'erase', 'knee tea']) {
+    const { text } = translatePhoneQuery(query, queryWordReader(null));
+    const others = specs.filter(spec => !query.split(' ').includes(spec));
+    for (const mode of [undefined, 'start', 'word']) {
+      assert.deepEqual(await hits(others, text, mode), await hits(others, query, mode), `${query} → ${text} (${mode ?? 'anywhere'})`);
+    }
+  }
 });

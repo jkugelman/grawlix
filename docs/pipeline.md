@@ -339,7 +339,7 @@ On a hover device the message rides the button's `title`; on touch a click opens
 
 A **parse error** — an invalid query the tool can't run, like a stray `.` in Umiaq or an unterminated group in Regex — never reaches the icon.
 The tool reports `isInert` and doesn't run, and the box's pattern assist underlines the bad span and explains it in its panel ([`design.md`](design.md) § *Pattern assist*), so a second, differently worded message on the icon would only repeat it.
-Only Umiaq and Regex have parse errors, and both boxes carry the assist.
+Umiaq, Regex and Phone search have parse errors, and all three boxes carry the assist.
 
 **First-paint covers the corpus build, not the tool pipeline.**
 The splash exists to cover the one thing main can't render around: the worker reading IndexedDB, parsing, rescoring, and merging the corpus.

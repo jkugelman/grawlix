@@ -11,8 +11,9 @@ import {
   configureIO as configureSegmenterIO, setUnigramCorpus, configureSpaceOutBigrams,
   rankedSplits, SPACE_OUT_WINDOWS, loadUnigramCorpus, hasUnigramCorpus,
 } from './segmenter.js';
-import { bestSpaceOutSplit, buildSpacingTable, loadSpacingCorpus, SPACING_PASS } from './space-out.js';
-import { configureIO as configurePhoneticsIO } from './phonetics.js';
+import { bestSpaceOutSplit, buildSpacingTable, loadSpacingCorpus, spacingReader, SPACING_PASS } from './space-out.js';
+import { configureIO as configurePhoneticsIO, loadCmuDict } from './phonetics.js';
+import { translatePhoneQuery, queryWordReader } from './phone-query.js';
 import { DATA_ASSETS, getDataAsset } from './assets.js';
 import { parseWordlist, toNorm, displayOf, isUnspaced } from './norm.js';
 import { findOccurrences, findEntryOccurrences, buildFindMatcher, FIND_MATCH_CAP } from './find.js';
@@ -1933,6 +1934,22 @@ function handleFetchWinners({ requestId, ids }) {
   postMessage({ type: 'winners', requestId, members });
 }
 
+// Reads typed words against the same vocab a run's spacing table uses, so the
+// panel's lines are the very text the tool will search.
+async function handleFetchPhoneQuery({ requestId, text, replacement }) {
+  let reply = { lines: [], error: null, ready: false };
+  try {
+    await loadCmuDict();
+    await loadSpacingCorpus();
+    if (ownedMerged) {
+      const spacing = spacingReader({ cache: { get: () => null }, vocab: ownedMerged });
+      const { lines, error } = translatePhoneQuery(text, queryWordReader(spacing), { replacement: !!replacement });
+      reply = { lines, error, ready: true };
+    }
+  } catch { /* offline: no lines, and the panel says nothing rather than something wrong */ }
+  postMessage({ type: 'phoneQuery', requestId, ...reply });
+}
+
 // Re-case a segmented part from the user's own list: its merged display carries
 // deliberate casing (DNA, iOS) lowercase segmentation drops. A word the list also
 // carries plainly is left alone (it, us never force-capitalized) — a distinguishing
@@ -3194,6 +3211,10 @@ onmessage = ({ data }) => {
 
     case 'fetchSpaceOut':
       handleFetchSpaceOut(data);
+      break;
+
+    case 'fetchPhoneQuery':
+      handleFetchPhoneQuery(data);
       break;
 
     case 'fetchWordCase':

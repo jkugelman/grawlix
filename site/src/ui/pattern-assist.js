@@ -12,18 +12,23 @@ import { tokenAt, errorVisible } from '../engine/assist.js';
 import { analyzeUmiaq, UMIAQ_CHEAT } from '../engine/assist-umiaq.js';
 import { analyzeRegex, analyzeReplacement, REGEX_CHEAT, REGEX_CHEAT_LINK } from '../engine/assist-regex.js';
 import { analyzeSearch, SEARCH_CHEAT } from '../engine/assist-search.js';
+import { analyzePhone, PHONE_CHEAT } from '../engine/assist-phone.js';
+import { fetchWorkerPhoneQuery } from './pipeline-worker.js';
 import { fitPopover, visibleRect } from './components.js';
 import { ToolStack } from './tool-stack.js';
+import { showToast } from './toasts.js';
 
 const DIALECTS = {
   umiaq: { analyze: text => analyzeUmiaq(text), cheat: UMIAQ_CHEAT, reading: true },
   regex: { analyze: (text, mode) => analyzeRegex(text, { mode }), cheat: REGEX_CHEAT, link: REGEX_CHEAT_LINK, reading: true },
   search: { analyze: (text, mode) => analyzeSearch(text, { mode }), cheat: SEARCH_CHEAT, reading: false },
   'regex-replace': { analyze: analyzeReplacement, context: rowPattern, panel: false },
+  phone: { analyze: text => analyzePhone(text), cheat: PHONE_CHEAT, denseHead: 'Sounds, in ARPABET', lines: 'Searching for' },
+  'phone-replace': { analyze: text => analyzePhone(text, { replacement: true }), cheat: PHONE_CHEAT, denseHead: 'Sounds, in ARPABET', lines: 'Replacing with', replacement: true },
 };
 const PATTERN_KEY = { umiaq: 'query', regex: 'pattern', search: 'pattern' };
 const KIND_CLASS = {
-  wild: 'q-field', anchor: 'q-field', class: 'q-value', esc: 'q-value', num: 'q-value',
+  sound: 'q-value', wild: 'q-field', anchor: 'q-field', class: 'q-value', esc: 'q-value', num: 'q-value',
   op: 'q-op', quant: 'q-op', group: 'q-op', bad: 'assist-bad',
 };
 
@@ -39,9 +44,40 @@ function rowPattern(input) {
 function analysisOf(input) {
   const d = DIALECTS[input.dataset.assist];
   const context = (d.context ?? matchModeOf)(input);
-  const key = `${input.value}\0${context}`;
-  if (input._assist?.key !== key) input._assist = { key, result: d.analyze(input.value, context) };
+  const translated = d.lines ? translationOf(input, d) : null;
+  const key = `${input.value}\0${context}\0${!!translated}`;
+  if (input._assist?.key !== key) {
+    const result = d.analyze(input.value, context);
+    input._assist = { key, result: translated ? withTranslation(result, translated) : result };
+  }
   return input._assist.result;
+}
+
+// ─── Phone search translations ────────────────────────────────────────────────
+
+const translations = new Map();
+const MAX_TRANSLATIONS = 200;
+
+function translationOf(input, d) {
+  const text = input.value.trim();
+  if (!text) return null;
+  const key = `${d.replacement ? 'r' : 'q'}\0${text}`;
+  const known = translations.get(key);
+  if (known) return known === 'pending' ? null : known;
+  if (translations.size > MAX_TRANSLATIONS) translations.clear();
+  translations.set(key, 'pending');
+  fetchWorkerPhoneQuery(text, d.replacement).then(reply => {
+    if (reply.ready) translations.set(key, reply);
+    else translations.delete(key);
+    if (reply.ready && input.isConnected && input.value.trim() === text) refresh(input);
+  });
+  return null;
+}
+
+function withTranslation(A, { lines, error }) {
+  if (A.error) return A;
+  if (error) return { ...A, error };
+  return { ...A, lines };
 }
 
 // ─── Mirror ───────────────────────────────────────────────────────────────────
@@ -92,7 +128,7 @@ function syncScroll(input) {
 // ─── Panel ────────────────────────────────────────────────────────────────────
 
 const Panel = (() => {
-  let el = null, owner = null, fixes = [], dismissed = false, hasLead = false, shape = null;
+  let el = null, owner = null, fixes = [], dismissed = false, hasLead = false, shape = null, copyText = '';
 
   function ensure() {
     if (el) return el;
@@ -139,12 +175,33 @@ const Panel = (() => {
   }
 
   function cheatHTML(d) {
-    const items = d.cheat.map((r, i) => (r.insert != null
+    const row = (r, i) => (r.insert != null
       ? `<button type="button" class="assist-cheat-row" tabindex="-1" data-cheat="${i}"><kbd>${esc(r.code)}</kbd> ${esc(r.desc)}</button>`
-      : `<span class="assist-cheat-row"><kbd>${esc(r.code)}</kbd> ${esc(r.desc)}</span>`)).join('');
+      : `<span class="assist-cheat-row"><kbd>${esc(r.code)}</kbd> ${esc(r.desc)}</span>`);
+    const rows = dense => d.cheat.map((r, i) => (!!r.dense === dense ? row(r, i) : '')).join('');
+    const denseRows = rows(true);
     const link = d.link ? `<a href="${esc(d.link.url)}" target="_blank" rel="noopener">${esc(d.link.text)}</a>` : '';
     return `<div class="assist-cheat"><div class="assist-cheat-head">Cheat sheet</div>`
-      + `<div class="assist-cheat-grid">${items}</div>${link ? `<div class="assist-cheat-link">${link}</div>` : ''}</div>`;
+      + `<div class="assist-cheat-grid">${rows(false)}</div>`
+      + (denseRows ? `<div class="assist-cheat-dense"><div class="assist-cheat-head">${esc(d.denseHead)}</div><div class="assist-cheat-dense-grid">${denseRows}</div></div>` : '')
+      + `${link ? `<div class="assist-cheat-link">${link}</div>` : ''}</div>`;
+  }
+
+  function linesHTML(d, lines) {
+    copyText = lines.join(', ');
+    const items = lines.map((line, i) => `<code>${mirrorHTML(line, analyzePhone(line), -1)}${i < lines.length - 1 ? '<span class="q-op">,</span>' : ''}</code>`).join('');
+    return `<div class="assist-lines"><button type="button" class="assist-lines-copy" tabindex="-1" data-copy-lines>`
+      + `<span class="assist-cheat-head">${esc(d.lines)}</span>${items}</button></div>`;
+  }
+
+  async function copyLines() {
+    try {
+      await navigator.clipboard.writeText(copyText);
+    } catch {
+      showToast('Copy failed — clipboard permission denied');
+      return;
+    }
+    showToast('Sounds copied');
   }
 
   function render() {
@@ -154,6 +211,7 @@ const Panel = (() => {
     fixes = [];
     if (errorVisible(A.error, text, caret)) parts.push(`<div class="assist-error">${A.error.msg}${fixButtons(A.error.fixes)}</div>`);
     if (d.reading && A.reading) parts.push(`<div class="assist-reading">${A.reading}</div>`);
+    if (A.lines?.length) parts.push(linesHTML(d, A.lines));
     for (const h of A.hints) parts.push(`<div class="assist-hint${h.tip ? ' tip' : ''}">${h.msg}${fixButtons(h.fixes)}</div>`);
     hasLead = parts.length > 0;
     parts.push(cheatHTML(d));
@@ -164,6 +222,7 @@ const Panel = (() => {
   function onClick(e) {
     const input = owner;
     if (!input) return;
+    if (e.target.closest('[data-copy-lines]')) { copyLines(); return; }
     const fb = e.target.closest('[data-fix]');
     if (fb) { applyFix(input, fixes[+fb.dataset.fix]); return; }
     const cb = e.target.closest('[data-cheat]');
@@ -216,7 +275,12 @@ function insertCheat(input, row) {
   const ins = row.insert;
   const v = input.value, a = input.selectionStart ?? v.length, b = input.selectionEnd ?? a;
   const splice = (s, e, text, caret) => setValue(input, v.slice(0, s) + text + v.slice(e), caret);
-  if (typeof ins === 'string') { splice(a, b, ins, a + (row.caret ?? ins.length)); return; }
+  if (typeof ins === 'string') {
+    // Sounds run together greedily, so S then H would read as SH.
+    const lead = row.spaced && a > 0 && !/[\s[(]/.test(v[a - 1]) ? ' ' : '';
+    splice(a, b, lead + ins, a + lead.length + (row.caret ?? ins.length));
+    return;
+  }
   const vars = analysisOf(input).variables || [];
   if (ins.variable) {
     const free = [...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'].find(c => !vars.includes(c)) ?? 'Z';

@@ -692,6 +692,16 @@ Both consumers **cache** the answer — the canonical resolver's hour-long LRU a
 Callers must therefore hold their current state on `ready: false` rather than clearing or memoizing: an un-ready reply is *no answer*, never a negative one.
 A timeout resolves `{ suggestion: null, ready: false }` for the same reason.
 
+#### `fetchPhoneQuery` (Phone search assist translation)
+`{ type: 'fetchPhoneQuery', requestId, text, replacement }` — translate a Phone search box's text into its sound dialect for the pattern assist panel ([`design.md`](design.md) § *Pattern assist*).
+Runs `translatePhoneQuery` with a `SpacingReader` over `ownedMerged`, the vocab every run passes, so the lines are the very text the tool searches.
+Loads the CMU dictionaries and the unigram corpus on first use; no pending-edit barrier, since the translation keys only on dictionaries and vocab.
+
+#### `phoneQuery` (Phone search assist reply)
+`{ type: 'phoneQuery', requestId, lines, error, ready }` — reply to `fetchPhoneQuery`.
+`lines` is one dialect line per alternative; `error` is `{ s, e, msg }` for a word with no pronunciation.
+`ready: false` (no merge yet, or a dictionary failed to load) means no answer: main doesn't cache it and asks again on the next edit.
+
 #### `fetchWordCase` (rename-hint casing oracle)
 `{ type: 'fetchWordCase', requestId, norm }` — **how does the merged corpus spell this norm?**
 Asked by the canonical resolver for the **first word** of a Wikipedia-derived form whose leading capital is uncertain, so the ladder can rule on that one letter ([`entry-panel.md`](entry-panel.md) § *The canonical-form rename hint*).

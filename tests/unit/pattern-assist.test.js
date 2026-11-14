@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { analyzeUmiaq } from '../../site/src/engine/assist-umiaq.js';
 import { analyzeRegex, analyzeReplacement } from '../../site/src/engine/assist-regex.js';
 import { analyzeSearch } from '../../site/src/engine/assist-search.js';
+import { analyzePhone } from '../../site/src/engine/assist-phone.js';
 import { errorVisible, tokenAt } from '../../site/src/engine/assist.js';
 import { parseUmiaqQuery, variableColors } from '../../site/src/engine/umiaq.js';
 
@@ -247,4 +248,34 @@ test('errorVisible applies each timing at the end, mid-text and unfocused', () =
     assert.equal(errorVisible(err, text, -1), true);
   }
   assert.equal(errorVisible(null, 'ab', 2), false);
+});
+
+// ─── Phone search ─────────────────────────────────────────────────────────────
+
+test('Phone search colors sounds and wildcards, and leaves words plain', () => {
+  const kinds = analyzePhone('S no [AA AO] @').tokens.map(t => t.kind);
+  assert.deepEqual(kinds, ['sound', 'op', 'op', 'sound', 'sound', 'wild']);
+});
+
+test('capitals that aren’t sounds are an error offering the word', () => {
+  const r = analyzePhone('KNIGHT');
+  assert.deepEqual([r.error.s, r.error.e], [2, 3]);
+  assert.deepEqual(fixLabels(r.error.fixes), ['Use the word knight']);
+  assert.deepEqual(fixLabels(analyzePhone('I').error.fixes), ['Use the word i']);
+});
+
+test('a lone lowercase letter hints at its sound', () => {
+  const r = analyzePhone('s');
+  assert.equal(r.error, null);
+  assert.deepEqual(r.hints.flatMap(h => fixLabels(h.fixes)), ['Use S']);
+  assert.deepEqual(analyzePhone('a').hints, []);
+});
+
+test('Phone search errors: stress, parentheses, and what a replacement can’t hold', () => {
+  assert.match(text(analyzePhone('B1').error.msg), /consonant/);
+  assert.match(text(analyzePhone('AA4').error.msg), /stress/);
+  assert.match(text(analyzePhone('S (N) OW').error.msg), /start or the end/);
+  assert.ok(analyzePhone('[AA AO').error.pending);
+  assert.match(text(analyzePhone('S *', { replacement: true }).error.msg), /replacement/);
+  assert.equal(analyzePhone('S [AA AO] T, K @ (NG), (^ S) N OW (^ Z)').error, null);
 });

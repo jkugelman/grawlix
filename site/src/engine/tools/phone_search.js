@@ -1,9 +1,11 @@
 'use strict';
 
-import { loadCmuDict, hasCmuDict, phoneCode, looseVowelsOf, coalescedWithY } from '../phonetics.js';
+import { loadCmuDict, hasCmuDict, coalescedWithY } from '../phonetics.js';
 import { alignmentOf, lettersForPhones } from '../phone-align.js';
-import { tokensOf, itemsOf as readItems, tableSplits, widerSplits, soundsOrSpelled } from '../phone-reading.js';
+import { itemsOf as readItems, tableSplits, soundsOrSpelled } from '../phone-reading.js';
 import { buildSpacingTable, loadSpacingCorpus, spacingReader, SPACING_PASS } from '../space-out.js';
+import { parsePhoneQuery, compileAlts, occurrencesIn, codeOf, codesOfName, sourceOf, HOLE, bucketKey, bucketOfSet, wholeSource } from '../phone-dialect.js';
+import { translatePhoneQuery, queryWordReader, wordAtoms } from '../phone-query.js';
 import { toNorm, displayOf, buildNormToDisplay } from '../norm.js';
 import { SEARCH_KINDS } from '../search.js';
 import { candidates } from '../morphology.js';
@@ -19,28 +21,13 @@ async function ensureDict() {
 
 // ─── Reading an entry aloud ──────────────────────────────────────────────────
 
-const itemsOf = (display, spacing, wide = false) =>
-  readItems(display, (wide ? widerSplits : tableSplits)(spacing), soundsOrSpelled);
+const itemsOf = (display, spacing) => readItems(display, tableSplits(spacing), soundsOrSpelled);
 
 const MAX_READINGS = 16;
 
-// An unreadable word reads as one code unit no sound matches, so a run of
-// sounds can't be heard across it.
-const HOLE = '\u0001';
-
-// Every way to say an entry, one pronunciation per word: [{ code, sounds }], where
-// sounds[k] is how items[k] is said, null for a hole. The plain readings come
-// first and are capped on their own, so the folded ones never crowd out a
-// reading that matched before the folds existed.
+// CATCH YOU's "catchoo" reading belongs here, not in the query's sounds: it's how
+// the entry is said, and a query fold for it would show on every query's line.
 function readingsOf(items) {
-  const plain = productOf(items, sound => sound.plain);
-  const codes = new Set(plain.map(r => r.code));
-  return [...plain, ...foldedOf(items).filter(r => !codes.has(r.code))];
-}
-
-const foldedOf = items => productOf(items, sound => sound.folded, true);
-
-function productOf(items, keep, connected = false) {
   let readings = [{ code: '', sounds: [] }];
   for (const item of items) {
     if (!item) {
@@ -50,9 +37,8 @@ function productOf(items, keep, connected = false) {
     const next = [];
     for (const r of readings) {
       for (const sound of item.sounds) {
-        if (!keep(sound)) continue;
         if (next.length < MAX_READINGS) next.push({ code: r.code + sound.code, sounds: [...r.sounds, sound] });
-        const joined = connected && joinedWithY(r, sound, item.letters);
+        const joined = joinedWithY(r, sound, item.letters);
         if (joined && next.length < MAX_READINGS) next.push(joined);
       }
     }
@@ -61,15 +47,16 @@ function productOf(items, keep, connected = false) {
   return readings;
 }
 
+const soundOf = toks => ({ toks, phones: toks.map(t => t.replace(/\d$/, '')), code: toks.map(codeOf).join('') });
+
 function joinedWithY(reading, sound, word) {
   const before = reading.sounds[reading.sounds.length - 1];
-  const merged = before && sound.phones[0] === 'Y' && sound.phones.length > 1
-    && coalescedWithY(before.phones[before.phones.length - 1], word);
+  const merged = before && sound.toks[0] === 'Y' && sound.toks.length > 1 && coalescedWithY(before.toks.at(-1), word);
   if (!merged) return null;
-  const end = phoneCode(merged);
-  const joinedBefore = { ...before, phones: [...before.phones.slice(0, -1), merged], code: before.code.slice(0, -1) + end };
-  const rest = { ...sound, phones: sound.phones.slice(1), code: sound.code.slice(1), stress: sound.stress.slice(1) };
-  return { code: reading.code.slice(0, -1) + end + rest.code, sounds: [...reading.sounds.slice(0, -1), joinedBefore, rest] };
+  const joinedBefore = soundOf([...before.toks.slice(0, -1), merged]);
+  const rest = soundOf(sound.toks.slice(1));
+  const sounds = [...reading.sounds.slice(0, -1), joinedBefore, rest];
+  return { code: reading.code.slice(0, -before.code.length) + joinedBefore.code + rest.code, sounds };
 }
 
 const lengthOf = (reading, k) => reading.sounds[k]?.phones.length ?? 1;
@@ -115,47 +102,22 @@ function mergeRanges(ranges) {
 
 // ─── Matching ────────────────────────────────────────────────────────────────
 
-// CMU ends TABBY on IY but has the vowel of STABBING and BLACK INK as IH, which
-// many speakers say as IY before NG. Only there: elsewhere IH is short, and
-// MONEY would match FEMINIST. Not before NG G in one word either, where it stays
-// short: TOUGHIE isn't heard in LIFT A FINGER.
-function ingCodesOf(readings) {
-  const IY = phoneCode('IY'), IH = phoneCode('IH');
-  return readings.flatMap(({ code, sounds }) =>
-    (code.endsWith(IY) && sounds[sounds.length - 1].stress.endsWith('0') ? [code.slice(0, -1) + IH] : []));
-}
-
-const literal = code => [...code].map(ch => `\\u${ch.charCodeAt(0).toString(16).padStart(4, '0')}`).join('');
-
-// Only the folded readings hear the query's secondary vowels loosely (looseVowelsOf), so
-// they're built on their own: readingsOf drops a folded reading spelled like a plain
-// one, and ACHOO's would go.
-function looseSourceOf({ code, sounds }) {
-  let src = '', at = 0;
-  sounds.forEach(({ phones, stress }) => {
-    phones.forEach((phone, i) => {
-      const heard = looseVowelsOf(phone, stress[i]);
-      src += heard ? `[${heard.map(p => literal(phoneCode(p))).join('')}]` : literal(code[at]);
-      at++;
-    });
-  });
-  return src;
-}
-
-const compile = sources => [...new Set(sources)].map(src => new RegExp(src, 'g'));
-
+// The query is translated to the sound dialect and only that text is compiled, so
+// what the assist panel shows is exactly what runs.
 function queryOf(text, spacing) {
-  const { items } = itemsOf(text, spacing, true);
-  if (!items.length || items.includes(null)) return null;
-  const readings = readingsOf(items);
-  return {
-    patterns: compile([
-      ...productOf(items, sound => sound.plain).map(r => literal(r.code)),
-      ...foldedOf(items).map(looseSourceOf),
-    ]),
-    ingPatterns: compile(ingCodesOf(readings).map(literal)),
-    words: items.map(item => item.letters),
-  };
+  const reader = queryWordReader(spacing);
+  const translated = translatePhoneQuery(text, reader);
+  if (translated.error || !translated.text) return null;
+  return { matchers: compileAlts(parsePhoneQuery(translated.text).alts), text: translated.text, words: typedWords(text, reader) };
+}
+
+// The words of each alternative typed as words alone, for hiding the query's own
+// words. Not for sounds: there's no word to hide, which makes this the one way a
+// pasted translation searches differently from the words it came from.
+function typedWords(text, reader) {
+  return parsePhoneQuery(text).alts
+    .filter(({ before, body, after }) => !before.length && !after.length && body.length === 1 && body[0].type === 'word')
+    .map(({ body }) => reader(body[0].text).items.map(item => item.letters));
 }
 
 // The hit is the query's own words: it starts on a word, runs through whole words
@@ -189,25 +151,21 @@ function modeAllows(read, reading, mode) {
   };
 }
 
-// Replacing keeps the search words: rewriting KNIGHT in KNIGHT SHIFT isn't noise.
-function occurrencesOf(query, read, reading, mode, replacing = false) {
-  const { items } = read;
-  const allows = modeAllows(read, reading, mode);
-  const NG = phoneCode('NG'), G = phoneCode('G');
-  const out = [];
-  const scan = (patterns, fits) => {
-    for (const re of patterns) {
-      re.lastIndex = 0;
-      for (let m; (m = re.exec(reading.code)); re.lastIndex = m.index + 1) {
-        const occ = { start: m.index, end: m.index + m[0].length };
-        if (fits(occ) && allows(occ) && (replacing || !isSearchWord(items, reading, occ.start, occ.end, query.words))) out.push(occ);
-      }
-    }
-  };
-  scan(query.patterns, () => true);
-  scan(query.ingPatterns, ({ end }) => reading.code[end] === NG
-    && (reading.code[end + 1] !== G || breaksOf(read, reading).includes(end + 1)));
-  return out;
+function modeEnds(read, reading, mode) {
+  const len = reading.code.length;
+  if (mode === 'full' || mode === 'end') return () => [len];
+  if (mode !== 'word') return () => [];
+  const desc = breaksOf(read, reading).reverse();
+  return () => desc;
+}
+
+// A sound search that returns the typed word is noise, and under Whole entry hiding
+// it is what turns the search into a homophone finder. Replacing keeps it:
+// rewriting KNIGHT in KNIGHT SHIFT isn't noise.
+function occurrencesOf(query, read, reading, mode, hide = false) {
+  const found = occurrencesIn(query.matchers, reading.code, modeAllows(read, reading, mode), modeEnds(read, reading, mode));
+  if (!hide || !query.words.length) return found;
+  return found.filter(o => !query.words.some(words => isSearchWord(read.items, reading, o.start, o.end, words)));
 }
 
 // ─── Replacing ───────────────────────────────────────────────────────────────
@@ -221,48 +179,96 @@ function pickMatches(matches) {
   return picks;
 }
 
-function splice(code, picks, rep) {
-  let out = '', at = 0;
-  const spans = [];
+const atomCodes = new Map();
+const codesOfAtom = atom => {
+  let codes = atomCodes.get(atom);
+  if (!codes) atomCodes.set(atom, codes = parsePhoneQuery(atom).alts[0].body[0].codes);
+  return codes;
+};
+
+// The untouched rest of the entry is heard the way a typed word is, or ARE → blank
+// would leave ARBITER's unstressed -biter unable to meet BITTER.
+// `cotFinal` marks a word's last AA or AO, heard as [AA AO]: the merger stops before
+// an R, and once spliced, an R can land right after it.
+const heardSets = reading => reading.sounds.flatMap(sound => wordAtoms(sound.toks).map((atom, k) => ({
+  codes: codesOfAtom(atom),
+  cotFinal: k === sound.toks.length - 1 && /^A[AO]\d$/.test(sound.toks[k]),
+})));
+
+const R_CODES = codesOfName('R'), AO_CODES = codesOfName('AO');
+const isR = codes => codes.size === 1 && R_CODES.has([...codes][0]);
+
+function spliceSets(heard, picks, rep) {
+  const parts = [], spans = [];
+  let at = 0, count = 0;
+  const pushSets = list => { for (const it of list) { parts.push({ ...it }); count++; } };
   for (const m of picks) {
-    out += code.slice(at, m.start);
-    spans.push([out.length, out.length + rep.length]);
-    out += rep;
+    pushSets(heard.slice(at, m.start));
+    if (rep.before) parts.push({ look: rep.before });
+    spans.push([count, count + rep.sets.length]);
+    pushSets(rep.sets.map(codes => ({ codes })));
+    if (rep.after) parts.push({ look: rep.after });
     at = m.end;
   }
-  return { code: out + code.slice(at), spans };
+  pushSets(heard.slice(at));
+  const sets = parts.filter(it => it.codes);
+  sets.forEach((it, i) => {
+    if (it.cotFinal && sets[i + 1] && isR(sets[i + 1].codes)) it.codes = new Set([...it.codes].filter(c => !AO_CODES.has(c)));
+  });
+  return { parts, sets: sets.map(it => it.codes), spans };
 }
 
+// The replacement's alternatives: { sets, before, after }, its contexts as
+// lookaround sources for the spliced pattern.
 function replacementsOf(text, spacing) {
-  const { items } = itemsOf(text, spacing, true);
-  if (!items.length) return [''];
-  if (items.includes(null)) return null;
-  return [...new Set(readingsOf(items).map(r => r.code))];
+  if (!text.trim()) return [{ sets: [], before: '', after: '' }];
+  const translated = translatePhoneQuery(text, queryWordReader(spacing), { replacement: true });
+  if (translated.error || !translated.text) return null;
+  return parsePhoneQuery(translated.text, { replacement: true }).alts.map(alt => ({
+    sets: alt.body.map(el => el.codes),
+    before: alt.before.length ? `(?<${alt.beforeNot ? '!' : '='}${sourceOf(alt.before)})` : '',
+    after: alt.after.length ? `(?${alt.afterNot ? '!' : '='}${sourceOf(alt.after)})` : '',
+  }));
 }
 
 const INDEX_KEY = 'phone-search/index';
 const INDEX_PASS = { key: INDEX_KEY, weight: 12 };
-const BYTES_PER_INDEX_SLOT = 64;
+const BYTES_PER_INDEX_SLOT = 96;
 
+// Whole-entry readings keyed coarsely (bucketKey), so a spliced pattern whose sets
+// each sit in one bucket looks up its candidates; any other pattern scans the
+// readings of its length. Candidates are always checked against the pattern.
 async function soundIndex(ctx, spacing) {
   const cached = ctx.cache.get(INDEX_KEY);
   if (cached) return cached;
-  const index = new Map();
+  const byKey = new Map(), byLength = new Map();
   let bytes = 0;
   await ctx.forEach(ctx.wordlist.entries, wlEntry => {
     const display = displayOf(wlEntry);
     const { items } = itemsOf(display, spacing);
     if (!items.length || items.includes(null)) return;
+    const seen = new Set();
     for (const { code } of readingsOf(items)) {
-      const list = index.get(code);
-      if (!list) index.set(code, [display]);
-      else if (list[list.length - 1] !== display) list.push(display);
-      else continue;
+      if (seen.has(code)) continue;
+      seen.add(code);
+      const slot = { display, code };
+      const key = bucketKey(code);
+      const list = byKey.get(key);
+      if (list) list.push(slot); else byKey.set(key, [slot]);
+      const sameLength = byLength.get(code.length);
+      if (sameLength) sameLength.push(slot); else byLength.set(code.length, [slot]);
       bytes += BYTES_PER_INDEX_SLOT + 2 * code.length;
     }
   }, INDEX_PASS);
+  const index = { byKey, byLength };
   ctx.cache.put(INDEX_KEY, index, bytes);
   return index;
+}
+
+function candidatesFor(index, sets) {
+  const buckets = sets.map(bucketOfSet);
+  if (buckets.every(b => b !== null)) return index.byKey.get(buckets.join('|')) ?? [];
+  return index.byLength.get(sets.length) ?? [];
 }
 
 // Norm coordinates: the executor emits every spelling of the norm, and display
@@ -287,20 +293,23 @@ function runReplace(display, prepared) {
   if (!reps) return [];
   const read = itemsOf(display, spacing);
   const { items } = read;
-  if (!items.some(Boolean)) return [];
+  if (!items.length || items.includes(null)) return [];
   const self = toNorm(display);
   const outs = new Map();
   for (const reading of readingsOf(items)) {
-    const picks = pickMatches(occurrencesOf(query, read, reading, mode, true));
+    const picks = pickMatches(occurrencesOf(query, read, reading, mode));
     if (!picks.length) continue;
+    const heard = heardSets(reading);
     let inputHighlights = null;
     for (const rep of reps) {
-      const { code, spans } = splice(reading.code, picks, rep);
-      for (const target of index.get(code) ?? []) {
+      const { parts, sets, spans } = spliceSets(heard, picks, rep);
+      if (!sets.length) continue;
+      const pattern = new RegExp(wholeSource(parts));
+      for (const { display: target, code } of candidatesFor(index, sets)) {
         const norm = toNorm(target);
-        if (norm === self || outs.has(norm)) continue;
+        if (norm === self || outs.has(norm) || !pattern.test(code)) continue;
         inputHighlights ??= mergeRanges(picks.flatMap(m => rangesForHit(items, reading, m.start, m.end)));
-        outs.set(norm, { entry: target, inputHighlights, outputHighlights: rep ? outputMarks(target, code, spans, spacing) : [] });
+        outs.set(norm, { entry: target, inputHighlights, outputHighlights: rep.sets.length ? outputMarks(target, code, spans, spacing) : [] });
       }
     }
   }
@@ -319,16 +328,20 @@ export default {
   passes: params => (isReplacing(params) ? [SPACING_PASS, INDEX_PASS] : [SPACING_PASS]),
   findReplace: true, replaceName: 'Phone replace',
   params: [
-    { placeholder: 'entry' },
-    { key: 'replace', placeholder: 'replace', encodeEmpty: true },
+    { key: 'entry', placeholder: 'words', assist: 'phone', raw: true },
+    { key: 'replace', placeholder: 'replace', encodeEmpty: true, assist: 'phone-replace', raw: true },
     MATCH_PARAM,
   ],
   kind: params => (isReplacing(params) ? 'transform' : 'filter'),
   input: 'highlight',
-  output: params => (tokensOf(params.replace || '').length ? 'highlight' : 'plain'),
+  output: params => ((params.replace || '').trim() ? 'highlight' : 'plain'),
   glyph: params => (isReplacing(params) ? '→' : null),
   matchOn: 'display',
-  isInert: params => !tokensOf(params.entry || '').length,
+  isInert: params => {
+    const text = (params.entry || '').trim();
+    return !text || !!parsePhoneQuery(text).error
+      || (isReplacing(params) && !!parsePhoneQuery(params.replace, { replacement: true }).error);
+  },
   async prepare(params, ctx) {
     await ensureDict();
     await loadSpacingCorpus();
@@ -346,7 +359,7 @@ export default {
     if (!items.some(Boolean)) return false;
     const ranges = [];
     for (const reading of readingsOf(items)) {
-      for (const hit of occurrencesOf(prepared.query, read, reading, prepared.mode)) {
+      for (const hit of occurrencesOf(prepared.query, read, reading, prepared.mode, true)) {
         ranges.push(...rangesForHit(items, reading, hit.start, hit.end));
       }
     }
