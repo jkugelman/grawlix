@@ -5,7 +5,7 @@
 // `K @ T`, `S T #`, `T AE B IH (NG)`, comma-separated alternatives. Lowercase
 // words are shorthand that phone-query.js translates into this dialect before
 // anything is compiled, so the dialect is the only thing ever searched.
-// See docs/design.md § Phone search.
+// See docs/phonetics.md § Phone search.
 
 import { FINAL, PENDING } from './assist.js';
 

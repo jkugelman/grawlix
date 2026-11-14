@@ -3,10 +3,10 @@
 Planned sound-based tools and the engine work they need: an eSpeak NG fallback for words the CMU Pronouncing Dictionary lacks, and tools built on it (spoonerisms, a slant-rhyme tier, homophone groups, phonetic substitution, and more).
 The catalog of tool cards lives in [`../tools.md`](../tools.md); this doc owns the *how*.
 
-What has shipped is recorded elsewhere: Rhymes, Phone search, Stress shift, and the CMU core they share are in [`design.md`](../design.md) § *Pronunciations*, § *Rhymes*, § *Phone search and letter–sound alignment*, and § *Stress shift*; the segmenter that reads unspaced entries for them is in [`segmenter.md`](../segmenter.md).
+What has shipped is recorded elsewhere: Rhymes, Phone search, Stress shift, and the CMU core they share are in [`phonetics.md`](../phonetics.md) § *Pronunciations*, § *Rhymes*, § *Phone search and letter–sound alignment*, and § *Stress shift*; the segmenter that reads unspaced entries for them is in [`segmenter.md`](../segmenter.md).
 
 > **Status: planned.**
-> The CMU-side syllabifier and schwa set ship ([`design.md`](../design.md) § *Rhymes*); nothing that needs eSpeak exists.
+> The CMU-side syllabifier and schwa set ship ([`phonetics.md`](../phonetics.md) § *Rhymes*); nothing that needs eSpeak exists.
 > The rest is a plan to vet, ideally with an independent review pass, before any code.
 > The eSpeak capabilities, performance numbers, and spoonerism algorithm were validated empirically against eSpeak NG 1.50 (Ubuntu's `espeak-ng`); newer upstream releases improve letter-to-sound accuracy and speed. eSpeak was evaluated and is undecided; its costs are in the runtime and licensing sections below.
 
@@ -22,7 +22,7 @@ The difference is categorical, and it removes three CMU limits:
 **Phrase-level stress.** eSpeak distinguishes compound from phrasal stress — `greenhouse` /ɡɹˈiːnhaʊs/ (one stress) vs `green house` /ɡɹˈiːn hˈaʊs/ (two); likewise blackbird/black bird, hotdog/hot dog.
 CMU carries only per-isolated-word stress and structurally can't supply this.
 It isn't perfect on hard lexical cases (`lima bean` doesn't de-stress "bean"), but the compound-vs-phrasal distinction is there.
-Whole-entry rhyme turned out not to need it (it keys every syllable, so stress placement never matters; see [`design.md`](../design.md) § *Rhymes*), but a suffix rhyme across a phrase, and any meter tool, still would.
+Whole-entry rhyme turned out not to need it (it keys every syllable, so stress placement never matters; see [`phonetics.md`](../phonetics.md) § *Rhymes*), but a suffix rhyme across a phrase, and any meter tool, still would.
 
 **Out-of-vocabulary coverage.** eSpeak phonemizes words CMU never heard of via its letter-to-sound rules: doomscroll /dˈuːmskɹoʊl/, rizz /ɹˈɪz/, Wordle /wˈɜːdəl/, Cumberbatch /kˈʌmbɚbˌætʃ/, Saoirse /sˈɜːʃə/ ("SUR-sha", correct).
 This is the **biggest practical win** — a crossword wordlist is wall-to-wall entries CMU lacks, and each silently rhymes/matches with nothing.
@@ -101,9 +101,9 @@ The planned tools converge on the same machinery, so they should share one phone
 
 - **A phonemizer** — CMU lookup with an eSpeak generative fallback, behind the injection seam described under Licensing.
 - **A syllabifier** — splits a phoneme stream into onset / nucleus / coda syllables via the Maximal Onset Principle.
-  The ARPABET one ships for whole-entry rhyme (`syllabify`, [`design.md`](../design.md) § *Rhymes*); spoonerisms and syllable-count or meter tools need it extended to IPA.
+  The ARPABET one ships for whole-entry rhyme (`syllabify`, [`phonetics.md`](../phonetics.md) § *Rhymes*); spoonerisms and syllable-count or meter tools need it extended to IPA.
 - **Schwa-equivalence** — collapse unstressed reduced vowels to one class so weak syllables match by ear rather than by exact symbol.
-  The ARPABET set ships for whole-entry rhyme ([`design.md`](../design.md) § *Rhymes*, which also records why the set must stay restricted); slant rhyme and spoonerisms want the IPA equivalent {ə ɪ ᵻ ɐ}.
+  The ARPABET set ships for whole-entry rhyme ([`phonetics.md`](../phonetics.md) § *Rhymes*, which also records why the set must stay restricted); slant rhyme and spoonerisms want the IPA equivalent {ə ɪ ᵻ ɐ}.
 - **A Strict/Loose knob** — schwa-equivalence and slant matching are looseness dials, surfaced the way the shipped Rhymes Match slider already is.
   Looseness finds more (and ships more noise); it should be a control, not a hidden default.
 

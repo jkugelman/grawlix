@@ -36,7 +36,7 @@ For any feature work, redesign, brainstorming, or structural change — **not** 
 Adjacent docs may share screen real estate or constrain the answer; treat the topical index below as a checklist, not a suggestion.
 
 Design (each doc holds both the user-visible behavior of its area and the whys behind it; when shipping a user-facing change, update the doc that owns the area):
-- [`docs/design.md`](docs/design.md) — present-tense design + whys: shell, the single-screen app view, the tool gallery and the per-tool designs (including the phonetic tools and their CMU core), entries table, URL state, code structure (the ES-module layering + dev/prod build), caches & reactivity, non-features.
+- [`docs/design.md`](docs/design.md) — present-tense design + whys: shell, the single-screen app view, the tool gallery and the per-tool designs, entries table, URL state, code structure (the ES-module layering + dev/prod build), caches & reactivity, non-features.
 - [`docs/pipeline.md`](docs/pipeline.md) — how a tool stack runs: the executor and per-row tool API, the chain-row and group-row models, the length filter, inversion, the cooperative runtime (supersession, yielding), streaming results and the prefix/result caches, symmetric unification, row display, sort axes per tier (including the family key), and the highlights pipeline.
   Read before touching the executor or a tool's `run`/`prepare`.
 - [`docs/wordlists.md`](docs/wordlists.md) — wordlist data and its management: scope (the selected wordlist is the corpus), the wordlist bar, the manage panel and its rescore/scoring editor, rich entries (`norm`/`display`) and merge semantics, disk sync, output format, fetching & updates, fetch status, rescore rules.
@@ -58,6 +58,8 @@ Design (each doc holds both the user-visible behavior of its area and the whys b
 - [`docs/segmenter.md`](docs/segmenter.md) — **single source of truth for the segmenter**, which guesses where the spaces go in run-together entries: Norvig's algorithm, the wordfreq corpus, every scoring refinement with its measured tradeoff, and the spacing table that Rhymes, Phone search, Initialisms, Optional letters, and the word-relative match modes share.
   Opens with a human-readable overview worth linking to outsiders.
   Read before tuning segmentation.
+- [`docs/phonetics.md`](docs/phonetics.md) — the sound-based tools (Rhymes, Phone search, Stress shift) and their shared CMU pronunciation core: how words are read, Phone search's ARPABET sound dialect and the translation of typed words into it, matching and replace, and the letter–sound alignment behind highlights.
+  Read before touching `engine/phonetics.js`, `phone-*.js`, or any phonetic tool.
 - [`docs/cmu-supplement.md`](docs/cmu-supplement.md) — Grawlix's own pronunciation dictionary layered over CMU: what's in it, the tokens judged to need no entry, and the LLM passes and scripts (`scripts/cmu-supplement/`) for adding to it.
   Read before editing `site/data/cmu-supplement.dict`.
 - [`docs/entry-panel.md`](docs/entry-panel.md) — the entry panel: opening and closing, the cross-wordlist provenance view, raw editing and the create-vs-rename planner, the Score combobox, the canonical-form rename hint, tiered loading, Related entries, and the Prev/Next walk.

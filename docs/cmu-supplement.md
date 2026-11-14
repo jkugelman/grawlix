@@ -1,7 +1,7 @@
 # The CMU supplement
 
 [`site/data/cmu-supplement.dict`](../site/data/cmu-supplement.dict) is Grawlix's own pronunciation dictionary, layered over the CMU Pronouncing Dictionary for Rhymes, Phone search and Stress shift.
-How it loads and how lookups use it is in [`design.md`](design.md) § *Pronunciations*; this doc covers what's in it and how to add to it.
+How it loads and how lookups use it is in [`phonetics.md`](phonetics.md) § *Pronunciations*; this doc covers what's in it and how to add to it.
 
 ## What's in it
 

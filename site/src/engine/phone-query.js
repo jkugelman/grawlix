@@ -7,7 +7,7 @@
 // "Searching for" lines are exactly what runs, and pasting them back gives the
 // same results. Entries are read raw, so every fold lives here, widened in both
 // directions: a fold that let either side's sound meet the other's becomes a set
-// holding both. See docs/design.md § Phone search.
+// holding both. See docs/phonetics.md § Phone search.
 
 import { parsePhoneQuery } from './phone-dialect.js';
 import { itemsOf, widerSplits, soundsOrSpelled } from './phone-reading.js';
