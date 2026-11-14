@@ -292,6 +292,14 @@ const SECTIONS = [
           <p>Everything else works like the search bar: lowercase is literal, <code>?</code> is any letter or digit, <code>*</code> any run, <code>#</code> and <code>@</code> a consonant and a vowel. The one quirk is that capitals are variables here, so unlike the search bar, case matters.</p>
           <p>A space in the query is a literal space, so <code>A B;B A</code> finds two-word swaps like PEANUT BUTTER and BUTTER PEANUT. Put a backslash before a punctuation mark to match it as written, like <code>u\\.s\\.</code>, or before a capital to match that capital exactly.</p>`,
       },
+      {
+        slug: 'phone-search',
+        q: 'How does Phone search work, and what are the capital letters?',
+        a: `
+          <p>Phone search finds entries by how they sound, not how they're spelled. Type a word and it finds that sound anywhere: <code>knee</code> finds HONEY and NEON. Fill in the replace box to swap one sound for another and see which results are real entries, so <code>no</code> → <code>S no</code> turns KNOW BALL into SNOWBALL.</p>
+          <p>Capital letters are individual sounds, written in <a href="https://en.wikipedia.org/wiki/ARPABET" target="_blank" rel="noopener">ARPABET</a>, the spelling the CMU Pronouncing Dictionary uses. <code>S</code> is the S sound, <code>NG</code> is the end of SING, <code>AY</code> is the vowel in BUY. Lowercase words are turned into sounds for you, and the box's helper panel shows exactly what it's searching for. Click that line to copy it, then tweak it.</p>
+          <p>Sounds give you control that spelling can't. <code>@</code> is any vowel and <code>#</code> any consonant, <code>[S Z]</code> is either one, and a comma searches for several things at once. A digit pins the stress, so <code>AA1</code> is only a stressed AH. The helper panel lists every sound with an example word.</p>`,
+      },
     ],
   },
   {
