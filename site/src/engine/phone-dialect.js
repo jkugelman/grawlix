@@ -58,15 +58,7 @@ for (const [name, code] of CODES) {
   BUCKET.set(code, isVowelName(name) ? 'V' : name === 'D' ? 'T' : name);
 }
 export const bucketKey = code => [...code].map(c => BUCKET.get(c) ?? c).join('|');
-export function bucketOfSet(codes) {
-  let only = null;
-  for (const c of codes) {
-    const b = BUCKET.get(c);
-    if (only !== null && b !== only) return null;
-    only = b;
-  }
-  return only;
-}
+export const bucketsOfSet = codes => [...new Set([...codes].map(c => BUCKET.get(c)))];
 
 // ─── Parsing ─────────────────────────────────────────────────────────────────
 

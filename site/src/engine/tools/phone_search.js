@@ -4,7 +4,7 @@ import { loadCmuDict, hasCmuDict, coalescedWithY } from '../phonetics.js';
 import { alignmentOf, lettersForPhones } from '../phone-align.js';
 import { itemsOf as readItems, tableSplits, soundsOrSpelled } from '../phone-reading.js';
 import { buildSpacingTable, loadSpacingCorpus, spacingReader, SPACING_PASS } from '../space-out.js';
-import { parsePhoneQuery, compileAlts, occurrencesIn, codeOf, codesOfName, sourceOf, HOLE, bucketKey, bucketOfSet, wholeSource } from '../phone-dialect.js';
+import { parsePhoneQuery, compileAlts, occurrencesIn, codeOf, codesOfName, sourceOf, HOLE, bucketKey, bucketsOfSet, wholeSource } from '../phone-dialect.js';
 import { translatePhoneQuery, queryWordReader, wordAtoms } from '../phone-query.js';
 import { toNorm, displayOf, buildNormToDisplay } from '../norm.js';
 import { SEARCH_KINDS } from '../search.js';
@@ -235,9 +235,9 @@ const INDEX_KEY = 'phone-search/index';
 const INDEX_PASS = { key: INDEX_KEY, weight: 12 };
 const BYTES_PER_INDEX_SLOT = 96;
 
-// Whole-entry readings keyed coarsely (bucketKey), so a spliced pattern whose sets
-// each sit in one bucket looks up its candidates; any other pattern scans the
-// readings of its length. Candidates are always checked against the pattern.
+// Whole-entry readings keyed coarsely (bucketKey). A spliced pattern looks up every
+// key its sets' buckets combine into, or past MAX_KEYS scans the readings of its
+// length. Candidates are always checked against the pattern.
 async function soundIndex(ctx, spacing) {
   const cached = ctx.cache.get(INDEX_KEY);
   if (cached) return cached;
@@ -265,10 +265,13 @@ async function soundIndex(ctx, spacing) {
   return index;
 }
 
+const MAX_KEYS = 1024;
+
 function candidatesFor(index, sets) {
-  const buckets = sets.map(bucketOfSet);
-  if (buckets.every(b => b !== null)) return index.byKey.get(buckets.join('|')) ?? [];
-  return index.byLength.get(sets.length) ?? [];
+  const choices = sets.map(bucketsOfSet);
+  if (choices.reduce((n, c) => n * c.length, 1) > MAX_KEYS) return index.byLength.get(sets.length) ?? [];
+  const keys = choices.reduce((prefixes, c) => prefixes.flatMap(p => c.map(b => (p ? p + '|' + b : b))), ['']);
+  return keys.flatMap(key => index.byKey.get(key) ?? []);
 }
 
 // Norm coordinates: the executor emits every spelling of the norm, and display

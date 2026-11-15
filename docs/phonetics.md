@@ -205,7 +205,8 @@ Its words translate to exactly the sounds they would in the search box, so eithe
 A replacement's `(…)` and `(^ …)` apply to the spliced result: `pa`'s `P AO (^ R)` keeps MA → PA from turning MARSHA into PORSCHE.
 The rest of the entry is heard the way a typed word is, its sounds widened into the same sets, or ARBITER's unstressed -biter couldn't meet BITTER.
 A word's last AA or AO there loses AO when the splice puts an R right after it, as the merger stops before R. The result is a pattern over a whole entry, matched against an index of every corpus entry's readings built in `prepare` and kept in the prepare-artifact cache, so the output is whatever entries are pronounced that way, spelled however they are.
-The index keys each reading coarsely (T and D share a key, every vowel shares one), so a pattern whose sets each fall under one key looks up its candidates, and any other pattern checks every reading of its length.
+The index keys each reading coarsely (T and D share a key, every vowel shares one), and a pattern looks up every key its sets combine into: `[S Z]` two, `#` twenty-three.
+Past 1,024 keys (three `#`) it checks every reading of its length instead.
 Since there's no way to spell a sound string, there is no **Allow unlisted**.
 An output that is the input itself is dropped.
 Unlike the filter, replace keeps occurrences of the typed word itself: KNIGHT → DAY turns KNIGHT SHIFT into DAY SHIFT.

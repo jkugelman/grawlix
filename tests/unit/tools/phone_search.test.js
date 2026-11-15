@@ -293,6 +293,15 @@ test('a filled replacement swaps in its sounds, marked on the output', async () 
   assert.deepEqual(rows[0].atoms.map(highlightTexts), [['tee'], ['knee']]);
 });
 
+test('a replacement set spanning several consonants finds each of them', async () => {
+  invalidateUnigramCorpus();
+  setCmuDict({ ...CMU, TIP: ['T IH1 P'], SIP: ['S IH1 P'], ZIP: ['Z IH1 P'], NIP: ['N IH1 P'], STRIP: ['S T R IH1 P'] });
+  const specs = ['tip', 'sip', 'zip', 'nip', 'strip'];
+  sameVisible(await visible(specs, replace('T', '[S Z]', 'start')), [['tip', 'sip'], ['tip', 'zip']]);
+  sameVisible(await visible(specs, replace('T', '#', 'start')), [['tip', 'sip'], ['tip', 'zip'], ['tip', 'nip']]);
+  sameVisible(await visible(specs, replace('T', '# # #', 'start')), [['tip', 'strip']]);
+});
+
 test('replacing rewrites the typed word itself', async () => {
   invalidateUnigramCorpus();
   setCmuDict({ ...CMU, DAY: ['D EY1'], SHIFT: ['SH IH1 F T'] });
