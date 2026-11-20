@@ -52,6 +52,22 @@ test('a Regex capture group and its backreference are colored like its match, an
   await expect(mirror.locator('[class*="search-match"]')).toHaveCount(0);
 });
 
+test('the box draws above its highlights, so they never cover the caret', async ({ page }) => {
+  await gotoApp(page);
+  await addTool(page, 'regex');
+  const input = page.locator('.tool-row[data-tool="regex"] input[data-key="pattern"]');
+  await input.fill('^(..).\\1$');
+  const group = page.locator('.tool-row[data-tool="regex"] .assist-hl .search-match-0').first();
+  await expect(group).toBeVisible();
+  const box = await group.boundingBox();
+  // Hit-testing follows paint order once the layer takes pointer events.
+  const onTop = await page.evaluate(([x, y]) => {
+    document.querySelector('.tool-row[data-tool="regex"] .assist-hl').style.pointerEvents = 'auto';
+    return document.elementFromPoint(x, y)?.dataset.key;
+  }, [box.x + box.width / 2, box.y + box.height / 2]);
+  expect(onTop).toBe('pattern');
+});
+
 test('a Regex replacement colors `$N` like group N, following the pattern', async ({ page }) => {
   await gotoApp(page);
   await addTool(page, 'regex');

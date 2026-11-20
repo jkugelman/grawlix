@@ -1652,7 +1652,9 @@ html.dark-mode #discovery-banner { background: color-mix(in srgb, var(--accent) 
 .popup-help .help-link a:hover { text-decoration: underline; }
 
 /* Pattern assist */
-.assist-field input[data-assist] { color: transparent; caret-color: var(--text); }
+/* Input above the highlight layer, whose backgrounds would hide the caret. */
+.assist-field { background: var(--input-bg); border-radius: 4px; }
+.assist-field input[data-assist] { position: relative; background: transparent; color: transparent; caret-color: var(--text); }
 .assist-field input[data-assist]::selection { color: transparent; background: color-mix(in srgb, var(--accent) 35%, transparent); }
 .assist-hl { position: absolute; top: 0; bottom: 0; display: flex; align-items: center; overflow: hidden; pointer-events: none; color: var(--text); }
 .assist-hl-text { white-space: pre; }
