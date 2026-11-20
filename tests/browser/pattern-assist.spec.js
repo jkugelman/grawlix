@@ -41,13 +41,13 @@ test('Umiaq variables are colored like their results and the query is read back'
   await expect(panel(page)).toBeHidden();
 });
 
-test('a Regex capture group is colored like its match, and a plain regex is not', async ({ page }) => {
+test('a Regex capture group and its backreference are colored like its match, and a plain regex is not', async ({ page }) => {
   await gotoApp(page);
   await addTool(page, 'regex');
   const input = page.locator('.tool-row[data-tool="regex"] input[data-key="pattern"]');
   const mirror = page.locator('.tool-row[data-tool="regex"] .assist-hl');
-  await input.fill('^(..)\\1$');
-  await expect(mirror.locator('.search-match-0')).toHaveText('(..)');
+  await input.fill('^(..).\\1$');
+  await expect(mirror.locator('.search-match-0')).toHaveText(['(..)', '\\1']);
   await input.fill('un.*ed');
   await expect(mirror.locator('[class*="search-match"]')).toHaveCount(0);
 });

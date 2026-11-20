@@ -37,6 +37,7 @@ const UNFINISHED_GROUP_HEAD = /^\(\?(<([A-Za-z_]\w*)?)?$/;
 
 function parse(text) {
   const R = { tokens: [], errors: [], regions: [], groups: 0 };
+  const escapes = [];
   let i = 0;
   const tok = (s, e, kind, extra = {}) => { const t = { s, e, kind, ...extra }; R.tokens.push(t); return t; };
   const err = (s, e, msg, fixes, timing) => R.errors.push({ s, e, msg, fixes, ...timing });
@@ -82,8 +83,6 @@ function parse(text) {
         tok(i, i + 1, 'group', { pair: [s, s + head] });
         i++;
       } else err(s, s + head, `This ${code('(')} needs a closing ${code(')')}.`, undefined, PENDING);
-      // groupSpansToRanges colors a match's groups in order, so group N lights
-      // up in color N-1 — as long as every group before it took part.
       if (idx) R.regions.push({ s, e: i, color: groupColor(idx) });
       return { t: 'group', kind, idx, body, s, e: i };
     }
@@ -106,7 +105,9 @@ function parse(text) {
       if (n === undefined) { err(s, s + 1, `A trailing ${code('\\')} has nothing to escape.`, undefined, PENDING); tok(s, s + 1, 'bad'); i++; return null; }
       tok(s, s + 2, 'esc');
       i += 2;
-      return { t: 'esc', ch: n, s, e: i };
+      const node = { t: 'esc', ch: n, s, e: i };
+      escapes.push(node);
+      return node;
     }
     if (c === '.') { tok(s, s + 1, 'wild'); i++; return { t: 'any', s, e: i }; }
     if (c === '^') { tok(s, s + 1, 'anchor'); i++; return { t: 'start', s, e: i }; }
@@ -139,6 +140,15 @@ function parse(text) {
   }
 
   R.ast = alt(0);
+  // Keep in step with trackBackrefs, or the input colors a `\N` that the
+  // results never highlight.
+  for (const node of escapes) {
+    const digits = /^[1-9]\d*/.exec(text.slice(node.s + 1));
+    if (digits && +digits[0] <= R.groups) {
+      node.ref = +digits[0];
+      R.regions.push({ s: node.s, e: node.s + 1 + digits[0].length, color: groupColor(node.ref) });
+    }
+  }
   R.tokens.sort((a, b) => a.s - b.s);
   return R;
 }
@@ -151,7 +161,7 @@ function phrase(n) {
     case 'alt': return 'either ' + n.opts.map(phrase).join(' or ');
     case 'group': {
       const inner = phrase(n.body);
-      if (n.idx) return `<span class="search-match-${groupColor(n.idx)}">group ${n.idx}</span> (${inner})`;
+      if (n.idx) return `${groupLabel(n.idx)} (${inner})`;
       if (n.kind === 'non') return n.body.t === 'alt' ? inner : `(${inner})`;
       return { la: `(followed by ${inner})`, nla: `(not followed by ${inner})`, lb: `(right after ${inner})`, nlb: `(not right after ${inner})` }[n.kind];
     }
@@ -176,11 +186,13 @@ function phrase(n) {
       if (n.neg && /^[aeiouy]+$/i.test(n.body)) return 'a consonant';
       if (!n.neg && /^[aeiouy]+$/i.test(n.body) && n.body.length >= 5) return 'a vowel';
       return n.neg ? `a character other than ${code(n.body)}` : `one of ${code(n.raw)}`;
-    case 'esc': return ESCAPES[n.ch] ??(/[1-9]/.test(n.ch) ? `group ${n.ch} again` : code(n.ch));
+    case 'esc': return n.ref ? `${groupLabel(n.ref)} again` : ESCAPES[n.ch] ?? code(n.ch);
     case 'lit': return shout(n.ch);
   }
   return '';
 }
+
+const groupLabel = g => `<span class="search-match-${groupColor(g)}">group ${g}</span>`;
 
 function reading(ast, mode) {
   const items = ast.t === 'seq' ? ast.items : [];

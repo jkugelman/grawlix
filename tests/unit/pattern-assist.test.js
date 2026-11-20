@@ -76,6 +76,12 @@ test('each Regex capture group is a region in the color its match gets', () => {
   assert.deepEqual(analyzeRegex('c.t').regions, []);
 });
 
+test('a Regex backreference takes its group\'s color; past the group count it is an escape', () => {
+  const r = analyzeRegex('(a)(b)\\2\\1\\3');
+  assert.deepEqual(r.regions.slice(2), [{ s: 6, e: 8, color: 1 }, { s: 8, e: 10, color: 0 }]);
+  assert.equal(text(r.reading), 'Finds entries that contain group 1 (A), then group 2 (B), then group 2 again, then group 1 again, then 3 anywhere inside.');
+});
+
 test('a replacement\'s `$N` takes group N\'s color, and a missing group is bad', () => {
   const r = analyzeReplacement('$2-$1$&$3', '(a)(b)');
   assert.deepEqual(r.regions, [{ s: 0, e: 2, color: 1 }, { s: 3, e: 5, color: 0 }, { s: 5, e: 7, color: 0 }]);

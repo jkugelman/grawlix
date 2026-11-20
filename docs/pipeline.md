@@ -692,12 +692,15 @@ So a run breaks on every wildcard: Search's `* ? # @` and `[…]` classes, Regex
 `c?t` (Search) and `c.t` (Regex) both light `c` and `t`, leaving the middle dark — the two tools stay consistent because they apply the same rule.
 `buildSearchPattern` wraps each literal run of the compiled query in a capture group; `analyzeRegexPattern` does the same for a regex body, except it first checks for the user's own capture groups and honors those instead when the pattern has any.
 Either way a match's `indices` expose the runs to `groupSpansToRanges`.
+A user's group N colors by its number (`kindForGroup`), so a group that sat out a match doesn't shift the colors after it.
+A match reports no offsets for what a backreference `\N` matched, so `trackBackrefs` wraps each backreference in a group of its own, renumbers the pattern's backreferences around the inserted groups, and colors each inserted group as group N: the repeated text lights up in its group's color.
 
 The Regex tool reuses the `search:N` channel on both sides rather than minting its own kinds.
 As a replace transform it builds the output itself (`runRegexReplace`, not `String.replace`, so it can record output offsets), and which side carries which color follows the same group/no-group split the filter side uses.
 **With capture groups**, it colors each capture group on the input atom and its `$N`/`$&` echoes on the output atom with the *same* color — rearranged letters visibly move between the two — and literal replacement text stays dark.
 **With no capture groups**, there is no cross-side flow to trace, so each side falls back to literal-run highlighting: the pattern's literal runs on the input atom, the replacement string's literal runs on the output atom, both cycling `search:N`.
 The input runs come from a separate run-wrapped highlight regex (`hlRe`) built alongside the functional one — the functional regex can't be run-wrapped because synthetic groups would renumber the user's `$N`.
+A pattern with backreferences gets an `hlRe` too, the `trackBackrefs` rewrite, for the same reason.
 A `$&`/`$N` echo on the output stays dark in this regime: with nothing to pair it to, the literal text is what carries meaning.
 
 Search-replace highlights differently from its filter mode: `runSearchReplace` does a literal whole-span substitution, so there are no literal runs to segment within a match.

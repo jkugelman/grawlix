@@ -105,6 +105,69 @@ export function matchingParen(body, i) {
   return n;
 }
 
+// ─── Backreferences ───────────────────────────────────────────────────────────
+
+// A match reports no offsets for what a backreference matched, so this wraps
+// each one in a capture group of its own and renumbers the backreferences
+// around them; `kinds[g]` colors group g of `src` as its referenced group.
+// `\N` past the group count is an octal escape (unflagged regex), not a backref.
+export function trackBackrefs(body) {
+  const n = body.length;
+  const opens = [], refs = [];
+  let i = 0;
+  while (i < n) {
+    const c = body[i];
+    if (c === '\\') {
+      const digits = /^[1-9]\d*/.exec(body.slice(i + 1));
+      if (!digits) { i += 2; continue; }
+      const e = i + 1 + digits[0].length;
+      refs.push({ s: i, e, q: quantifierEnd(body, e), group: +digits[0] });
+      i = e;
+    } else if (c === '[') {
+      i = classEnd(body, i);
+    } else {
+      if (c === '(' && isCapturingGroup(body, i)) opens.push(i);
+      i++;
+    }
+  }
+  const backrefs = refs.filter(r => r.group <= opens.length);
+  const renumber = [0];
+  let inserted = 0, ri = 0;
+  for (const pos of opens) {
+    while (ri < backrefs.length && backrefs[ri].s < pos) { ri++; inserted++; }
+    renumber.push(renumber.length + inserted);
+  }
+  const kinds = [undefined];
+  let src = '', pos = 0, oi = 0;
+  for (const r of backrefs) {
+    while (oi < opens.length && opens[oi] < r.s) kinds.push(kindForGroup(++oi));
+    kinds.push(kindForGroup(r.group));
+    src += body.slice(pos, r.s) + '(\\' + renumber[r.group] + body.slice(r.e, r.q) + ')';
+    pos = r.q;
+  }
+  while (oi < opens.length) kinds.push(kindForGroup(++oi));
+  return { src: src + body.slice(pos), kinds };
+}
+
+function classEnd(body, i) {
+  const n = body.length;
+  let j = i + 1;
+  if (body[j] === '^') j++;
+  if (body[j] === ']') j++;
+  while (j < n && body[j] !== ']') j += body[j] === '\\' ? 2 : 1;
+  return Math.min(j + 1, n);
+}
+
+function quantifierEnd(body, q) {
+  if (body[q] === '*' || body[q] === '+' || body[q] === '?') q++;
+  else if (body[q] === '{') {
+    const m = /^\{\d+(,\d*)?\}/.exec(body.slice(q));
+    if (!m) return q;
+    q += m[0].length;
+  } else return q;
+  return body[q] === '?' ? q + 1 : q;
+}
+
 export function wrapRuns(body, runs) {
   let out = '', pos = 0;
   for (const [s, e] of runs) {
@@ -150,7 +213,7 @@ export const replacementMarksOutput = (tokens, capturing) => tokens.some(tok => 
 export const groupColor = g => (g <= 0 ? 0 : (g - 1) % HL_COLORS);
 export const kindForGroup = g => SEARCH_KINDS[groupColor(g)];
 
-export function regexExecAll(re, text, matchOk = null) {
+export function regexExecAll(re, text, matchOk = null, kinds = null) {
   re.lastIndex = 0;
   const ranges = [];
   let m, hit = false;
@@ -160,7 +223,7 @@ export function regexExecAll(re, text, matchOk = null) {
       continue;
     }
     hit = true;
-    ranges.push(...groupSpansToRanges(m));
+    ranges.push(...groupSpansToRanges(m, kinds));
     if (m[0].length === 0) re.lastIndex++;   // step past a zero-width match or loop forever
   }
   return { hit, ranges };
@@ -189,7 +252,7 @@ export function execMatches(re, text, matchOk = null) {
 // misaligns in-list highlights, which must stay in norm coords because the
 // executor re-resolves the result onto the real entry.
 export function runReplace(wlEntry, prepared, wordlist) {
-  const { re, hlRe, tokens, allowUnlisted, matchMode, spacing = null } = prepared;
+  const { re, hlRe, hlKinds = null, tokens, allowUnlisted, matchMode, spacing = null } = prepared;
   const norm = wlEntry.norm, display = displayOf(wlEntry);
   let armNorm = true, matches = execMatches(re, norm, matchModeOk(matchMode, wlEntry, 'norm', spacing));
   if (!matches.length && wlEntry.display != null) {
@@ -210,13 +273,13 @@ export function runReplace(wlEntry, prepared, wordlist) {
     const gapD = display.slice(dispPos, dStart(mStart));
     outNorm += armNorm ? norm.slice(inPos, mStart) : toNorm(gapD);
     outDisp += gapD;
-    if (groups) {
+    if (hlRe) {
+      hlRe.lastIndex = mStart;   // lockstep with `re`: same pattern, literal runs or backreferences wrapped
+      inputHighlights.push(...groupSpansToRanges(hlRe.exec(src), hlKinds).map(tag));
+    } else if (groups) {
       for (let g = 1; g < m.length; g++) {
         if (m.indices[g]) inputHighlights.push(tag({ start: m.indices[g][0], end: m.indices[g][1], kind: kindForGroup(g) }));
       }
-    } else if (hlRe) {
-      hlRe.lastIndex = mStart;   // lockstep with `re`: same pattern, literal runs wrapped
-      inputHighlights.push(...groupSpansToRanges(hlRe.exec(src)).map(tag));
     }
     let litIdx = 0;
     for (const tok of tokens) {

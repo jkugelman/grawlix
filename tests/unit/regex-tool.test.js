@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   analyzeRegexPattern, isCapturingGroup, matchingParen, wrapRuns,
   parseReplacement, replacementMarksOutput, kindForGroup, regexExecAll, runReplace, regexError,
+  trackBackrefs,
 } from '../../site/src/engine/regex.js';
 import regexTool from '../../site/src/engine/tools/regex.js';
 
@@ -90,6 +91,42 @@ test('wrapRuns: parenthesizes each run, leaving the gaps verbatim', () => {
   assert.equal(wrapRuns('ca.t', [[0, 2], [3, 4]]), '(ca).(t)');
   assert.equal(wrapRuns('abc', [[0, 3]]), '(abc)');
   assert.equal(wrapRuns('a.b', []), 'a.b');
+});
+
+test('trackBackrefs: wraps each backreference and its quantifier, renumbering around them', () => {
+  assert.deepEqual(trackBackrefs('(a)\\1+(b)\\2'), {
+    src: '(a)(\\1+)(b)(\\3)', kinds: [undefined, 'search:0', 'search:0', 'search:1', 'search:1'],
+  });
+  assert.equal(trackBackrefs('\\2(a)(b)').src, '(\\3)(a)(b)');
+});
+
+test('trackBackrefs: leaves an escape past the group count, `\\0`, and a class alone', () => {
+  assert.equal(trackBackrefs('(a)\\12\\0[\\1]').src, '(a)\\12\\0[\\1]');
+});
+
+test('Regex filter: a backreference highlights what it matched in its group\'s color', async () => {
+  const prepared = await regexTool.prepare({ pattern: '^(.)(.).\\2\\1$' }, {});
+  assert.deepEqual(regexTool.run(wl('kayak'), prepared), [
+    { start: 0, end: 1, kind: 'search:0', coord: 'norm' },
+    { start: 1, end: 2, kind: 'search:1', coord: 'norm' },
+    { start: 3, end: 4, kind: 'search:1', coord: 'norm' },
+    { start: 4, end: 5, kind: 'search:0', coord: 'norm' },
+  ]);
+});
+
+test('Regex filter: a group colors by its number even when an earlier group sat out', async () => {
+  const prepared = await regexTool.prepare({ pattern: '(x)?(a)' }, {});
+  assert.deepEqual(regexTool.run(wl('a'), prepared), [{ start: 0, end: 1, kind: 'search:1', coord: 'norm' }]);
+});
+
+test('Regex replace: a backreference highlights the input without renumbering `$N`', async () => {
+  const prepared = await regexTool.prepare({ pattern: '(a)\\1', replace: '$1' }, {});
+  const [out] = runReplace(wl('aab'), prepared, corpus(['ab']));
+  assert.equal(out.entry, 'ab');
+  assert.deepEqual(out.inputHighlights, [
+    { start: 0, end: 1, kind: 'search:0' },
+    { start: 1, end: 2, kind: 'search:0' },
+  ]);
 });
 
 test('parseReplacement: `$$` is a literal dollar', () => {

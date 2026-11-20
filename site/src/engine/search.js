@@ -181,14 +181,14 @@ export const HL_COLORS = 9;
 export const SEARCH_KINDS = Object.freeze(
   Array.from({ length: HL_COLORS }, (_, i) => `search:${i}`));
 
-export function groupSpansToRanges(m) {
+export function groupSpansToRanges(m, kinds = null) {
   if (!m?.indices) return [];
   const ranges = [];
   let colorIdx = 0;
   for (let g = 1; g < m.indices.length; g++) {
     if (!m.indices[g]) continue;
     const [start, end] = m.indices[g];
-    ranges.push({ start, end, kind: SEARCH_KINDS[colorIdx % HL_COLORS] });
+    ranges.push({ start, end, kind: kinds ? kinds[g] : SEARCH_KINDS[colorIdx % HL_COLORS] });
     colorIdx++;
   }
   return ranges;

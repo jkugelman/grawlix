@@ -501,7 +501,8 @@ So the panel can explain a query in friendlier words without ever disagreeing wi
 
 **Colors match the results.**
 Umiaq variables are colored with `variableColors`, the assignment the result lanes use, so the A in the query is the same color as the A chunk in every match.
-A Regex capture group is colored, parentheses and contents, in the color its match gets in the results (group N in color N−1, the order `groupSpansToRanges` assigns).
+A Regex capture group is colored, parentheses and contents, in the color its match gets in the results (group N in color N−1, `kindForGroup`).
+A backreference `\N` takes group N's color, as the text it matched does in the results.
 In the replace box, `$N` takes group N's color (`$&` group 1's, as in the output), and a `$N` past the pattern's last group shows red, since it silently inserts nothing.
 A regex without groups, and every Search query, stays uncolored even though their results mark literal runs, since coloring every fixed letter of a plain query like `cat` would only be noise.
 Search's replace box is plain text with no references, so it has nothing to color.

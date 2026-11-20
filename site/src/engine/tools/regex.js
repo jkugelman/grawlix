@@ -1,7 +1,7 @@
 'use strict';
 
 import {
-  analyzeRegexPattern, wrapRuns, parseReplacement,
+  analyzeRegexPattern, wrapRuns, trackBackrefs, parseReplacement,
   regexExecAll, runReplace, replacementMarksOutput, regexError,
 } from '../regex.js';
 import { buildHelpHTML } from '../../core/util.js';
@@ -24,13 +24,16 @@ function build(params, spacing) {
   const matchMode = matchModeOf(params);
   const wrap = src => anchorPattern(matchMode, src);
   const { capturing, runs } = analyzeRegexPattern(body);
+  const tracked = capturing ? trackBackrefs(body) : null;
+  const hlSrc = capturing ? tracked.src : wrapRuns(body, runs);
+  const hlKinds = tracked?.kinds ?? null;
   if (isReplacing(params)) {
     // The functional `re` can't be wrapped for highlighting — synthetic
     // groups would renumber the user's `$N`; `hlRe` is the wrapped copy.
-    const hlRe = capturing ? null : new RegExp(wrap(wrapRuns(body, runs)), 'gid');
-    return { mode: 'replace', re: new RegExp(wrap(body), 'gid'), hlRe, tokens: parseReplacement(params.replace), allowUnlisted: !!params['unlisted'], matchMode, spacing };
+    const hlRe = hlSrc === body ? null : new RegExp(wrap(hlSrc), 'gid');
+    return { mode: 'replace', re: new RegExp(wrap(body), 'gid'), hlRe, hlKinds, tokens: parseReplacement(params.replace), allowUnlisted: !!params['unlisted'], matchMode, spacing };
   }
-  return { mode: 'filter', re: new RegExp(wrap(capturing ? body : wrapRuns(body, runs)), 'gid'), matchMode, spacing };
+  return { mode: 'filter', re: new RegExp(wrap(hlSrc), 'gid'), hlKinds, matchMode, spacing };
 }
 
 export default {
@@ -69,10 +72,10 @@ export default {
   replay: (params, ctx) => build(params, matchModeSpacingLazy(params, ctx)),
   run(wlEntry, prepared, wordlist) {
     if (prepared.mode === 'filter') {
-      const { re, matchMode, spacing } = prepared;
+      const { re, hlKinds, matchMode, spacing } = prepared;
       const d = wlEntry.display;
-      const normRes = regexExecAll(re, wlEntry.norm, matchModeOk(matchMode, wlEntry, 'norm', spacing));
-      const dispRes = d != null ? regexExecAll(re, d, matchModeOk(matchMode, wlEntry, 'display', spacing)) : null;
+      const normRes = regexExecAll(re, wlEntry.norm, matchModeOk(matchMode, wlEntry, 'norm', spacing), hlKinds);
+      const dispRes = d != null ? regexExecAll(re, d, matchModeOk(matchMode, wlEntry, 'display', spacing), hlKinds) : null;
       if (!normRes.hit && !dispRes?.hit) return null;
       if (dispRes?.ranges.length) return dispRes.ranges.map(r => ({ ...r, coord: 'display' }));
       if (normRes.ranges.length) return normRes.ranges.map(r => ({ ...r, coord: 'norm' }));
