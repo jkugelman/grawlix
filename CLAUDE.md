@@ -85,6 +85,9 @@ Future (longer-horizon ideas, not actively planned):
 - [`docs/future/query-language.md`](docs/future/query-language.md) — searching with the rescore rules' `field: value` query language: which tools it could absorb, where it rubs, and four options from a new tool to replacing the stack.
 
 When a plan ships, run the `distill-design-doc` skill to fold it into the doc that owns its area.
+Run it as part of finishing the feature, without stopping to ask, and say you've done it.
+The distillation goes in the same commit as the feature work; if the feature is already committed and unpushed, amend it in.
+Describe it in the commit message by the doc changes the commit contains: a plan doc that was never committed has no retirement to narrate.
 (The header `?` button opens the in-app Help dialog (`HelpDialog`) — an FAQ with a folded-in Acknowledgements section, deep-linkable at `#/help`, that renders its diagrams and credits from the live catalog.)
 
 ## Architecture
