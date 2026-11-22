@@ -104,9 +104,27 @@ const checks = [
 
 // ─── Report ───────────────────────────────────────────────────────────────────
 
+// Only network errors retry; a CheckError is real breakage and fails at once.
+const ATTEMPTS = 3;
+const RETRY_DELAY_MS = 5_000;
+
+async function runWithRetries(c) {
+  for (let attempt = 1; ; attempt++) {
+    try { return await c.run(); }
+    catch (err) {
+      if (err instanceof CheckError || attempt === ATTEMPTS) throw err;
+      console.log(`retry ${c.name}: ${describeError(err)}`);
+      await new Promise(resolve => setTimeout(resolve, RETRY_DELAY_MS * attempt));
+    }
+  }
+}
+
+const describeError = err =>
+  err instanceof CheckError ? err.message : `${err.name}: ${err.cause?.message ?? err.message}`;
+
 const results = await Promise.all(checks.map(async c => {
-  try { return { ...c, ok: true, detail: await c.run() }; }
-  catch (err) { return { ...c, ok: false, detail: err instanceof CheckError ? err.message : `${err.name}: ${err.cause?.message ?? err.message}` }; }
+  try { return { ...c, ok: true, detail: await runWithRetries(c) }; }
+  catch (err) { return { ...c, ok: false, detail: describeError(err) }; }
 }));
 
 for (const r of results) console.log(`${r.ok ? 'ok  ' : 'FAIL'}  ${r.name}: ${r.detail}\n      ${r.url}`);
