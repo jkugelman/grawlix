@@ -5245,6 +5245,7 @@ ansatz AA1 N Z AA2 T S
 ansatz(2) AE1 N S AE2 T S
 ansco AE1 N S K OW0
 anscombe AE1 N S K AH0 M
+ansel AE1 N S AH0 L
 anselms AE1 N S EH0 L M Z
 ansels AE1 N S AH0 L Z
 ansen AE1 N S AH0 N
@@ -10673,6 +10674,7 @@ ballsier B AO1 L Z IY0 ER0
 ballsiest B AO1 L Z IY0 AH0 S T
 ballsiness B AO1 L Z IY0 N AH0 S
 ballsy B AO1 L Z IY0
+bally B AE1 L IY0
 ballyhooer B AE1 L IY0 HH UW2 ER0
 ballyhooers B AE1 L IY0 HH UW2 ER0 Z
 ballyhooing B AE1 L IY0 HH UW1 IH0 NG
@@ -15987,6 +15989,7 @@ brazzi B R AA1 T S IY0
 brazzi(2) B R AE1 Z IY0
 brd B AO1 R D
 brd(2) B IY1 AA1 R D IY1
+brea B R EY1 AH0
 breacher B R IY1 CH ER0
 breachers B R IY1 CH ER0 Z
 breadbaskets B R EH1 D B AE2 S K AH0 T S
@@ -44393,6 +44396,7 @@ fha EH1 F EY1 CH EY1
 fhan F AA1 N
 fhc EH1 F EY1 CH S IY1
 fhqwhgads F AH0 K W AA1 G AE2 D Z
+fi F AY1
 fiacre F IY0 AA1 K R AH0
 fiacre(2) F IY0 AA1 K ER0
 fiacres F IY0 AA1 K R AH0 Z
@@ -71982,6 +71986,7 @@ mahonias M AH0 HH OW1 N IY0 AH0 Z
 mahout M AH0 HH AW1 T
 mahouts M AH0 HH AW1 T S
 mahratta M AH0 R AA1 T AH0
+mahre M AA1 R IY0
 mahres M AA1 R Z
 mahsa M AA1 S AH0
 mahuas M AA1 W AH0 Z
@@ -74491,6 +74496,8 @@ meighen M IY1 AH0 N
 meigs M EH1 G Z
 meijer M AY1 ER0
 meijers M AY1 ER0 Z
+mein M EY1 N
+mein(2) M AY1 N
 meins M EY1 N Z
 meiotic M AY0 AA1 T IH0 K
 meirelles M EY0 R EH1 L IY0 S
@@ -74928,6 +74935,7 @@ mephitinae M EH2 F IH0 T AY1 N IY0
 mephitis M AH0 F AY1 T IH0 S
 mephitises M AH0 F AY1 T IH0 S IH0 Z
 meprobamate M AH0 P R OW1 B AH0 M EY2 T
+mer M EH1 R
 mera M EY1 R AA0
 mera(2) M EH1 R AH0
 merab M EH1 R AE0 B
@@ -101210,6 +101218,7 @@ rehems R IY0 HH EH1 M Z
 rehenna R IY0 HH EH1 N AH0
 rehet R IY0 HH EH1 T
 rehid R IY0 HH IH1 D
+rehide R IY0 HH AY1 D
 rehides R IY0 HH AY1 D Z
 rehiding R IY0 HH AY1 D IH0 NG
 rehinge R IY0 HH IH1 N JH
@@ -102123,6 +102132,7 @@ replyed(2) R IY0 P L AY1 D
 replys R IH0 P L AY1 Z
 replys(2) R IY0 P L AY1 Z
 repointing R IY0 P OY1 N T IH0 NG
+repoll R IY0 P OW1 L
 repolled R IY0 P OW1 L D
 repolling R IY0 P OW1 L IH0 NG
 repolls R IY0 P OW1 L Z

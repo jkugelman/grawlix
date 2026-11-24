@@ -13,7 +13,7 @@ Wordlists
 Linguistic data
 ---------------
 
-- Open English WordNet — inflectional exception lists (noun.exc, verb.exc), reduced to irregular base forms, and the ~700 lemmas that common words reduce to, used as a word-family reduction guard — CC BY 4.0 — https://en-word.net/
+- Open English WordNet — inflectional exception lists (noun.exc, verb.exc), reduced to irregular base forms, and the ~700 lemmas that common words reduce to, used as a word-family reduction guard; and lemmas, synsets and derivation links, used by Twins to tell related pairs — CC BY 4.0 — https://en-word.net/
 - wordfreq — Robyn Speer — Apache-2.0 — a bundled list of the 30,000 most frequent English words from the large_en corpus, used as a word-family reduction tiebreak — https://github.com/rspeer/wordfreq
 
 
@@ -115,7 +115,10 @@ Grawlix bundles modified extracts of the 2025 release: the noun.exc and
 verb.exc inflectional exception lists, reduced to lines mapping an irregular
 surface form to its base, with forms a suffix rule already reaches removed; and
 the single-word lemmas of the index.noun, index.verb, index.adj and index.adv
-files, reduced to those a common English word reduces to. The Storm surge lab
+files, reduced to those a common English word reduces to; and, for
+Twins, every lemma's parts of speech with the synsets it belongs to and
+the lemmas its derivation, pertainym, participle and attribute pointers reach,
+renumbered as shared keys, plus all four exception lists. The Storm surge lab
 page also serves the word lists of every synset in the data.noun, data.verb,
 data.adj and data.adv files, as synonym groups. No other WordNet data is used.
 

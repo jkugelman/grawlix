@@ -50,6 +50,8 @@ export function configureCommonWords(words, bases) {
   lemmaBases = new Set(bases.trim().split('\n'));
 }
 
+export const isDictWord = w => commonWords.has(w) || lemmaBases.has(w);
+
 const ARTICLES = new Set(['a', 'an', 'the']);
 
 // ─── Reduction ───────────────────────────────────────────────────────────────

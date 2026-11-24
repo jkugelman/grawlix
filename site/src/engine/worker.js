@@ -15,6 +15,7 @@ import { bestSpaceOutSplit, buildSpacingTable, loadSpacingCorpus, spacingReader,
 import { configureIO as configurePhoneticsIO, loadCmuDict } from './phonetics.js';
 import { translatePhoneQuery, queryWordReader } from './phone-query.js';
 import { DATA_ASSETS, getDataAsset } from './assets.js';
+import { configureRelationsIO } from './twins-wordnet.js';
 import { parseWordlist, toNorm, displayOf, isUnspaced } from './norm.js';
 import { findOccurrences, findEntryOccurrences, buildFindMatcher, FIND_MATCH_CAP } from './find.js';
 import { matchesRange, parseViewFilter } from './range.js';
@@ -110,6 +111,7 @@ configureSegmenterIO({ idbGet, idbPut });
 // where the same relative path lands outside the site. A lab page's worker
 // (lab/<name>/worker.js) sits at this module's depth, so the path holds there too.
 configurePhoneticsIO({ idbGet, idbPut, supplementUrl: new URL('../../data/cmu-supplement.dict', import.meta.url).href });
+configureRelationsIO({ idbGet, idbPut, url: new URL('../../data/twins-wordnet.txt', import.meta.url).href });
 
 async function handleCheckAssets() {
   for (const asset of DATA_ASSETS) {
@@ -1981,6 +1983,44 @@ async function handleFetchSpaceOut({ requestId, norm }) {
   postMessage({ type: 'spaceOut', requestId, suggestion, ready });
 }
 
+function handleFetchRandomEntry({ requestId, scoreRange, lengthRange }) {
+  const ready = !!(ownedCorpus && ownedCorpusFresh);
+  const row = ready ? rollEntry(ownedCorpus.entries, parseViewFilter({ scoreRange, lengthRange })) : null;
+  postMessage({ type: 'randomEntry', requestId, display: row ? displayOf(row) : null, ready });
+}
+
+// Weighted by score rank within the sample, never by raw score: lists score
+// on their own scales, and a raw-score weight would favor whichever list runs
+// high.
+// One reservoir pass over the list, so a narrow filter still finds its few
+// entries: rejection sampling would give up on them.
+const ROLL_SAMPLE = 256;
+function rollEntry(entries, filter) {
+  const pool = [];
+  let seen = 0;
+  for (const e of entries) {
+    if (filter?.score && !matchesRange(e.score, filter.score)) continue;
+    if (filter?.length && !matchesRange(e.norm.length, filter.length)) continue;
+    const k = seen++ < ROLL_SAMPLE ? seen - 1 : Math.floor(Math.random() * seen);
+    if (k < ROLL_SAMPLE) pool[k] = e;
+  }
+  if (!pool.length) return null;
+  const scores = pool.map(e => e.score).sort((a, b) => a - b);
+  const rank = (s) => {
+    let lo = 0, hi = scores.length;
+    while (lo < hi) { const m = (lo + hi) >> 1; if (scores[m] < s) lo = m + 1; else hi = m; }
+    let end = lo;
+    while (end < scores.length && scores[end] === s) end++;
+    return (lo + end) / 2 / scores.length;
+  };
+  const weights = pool.map(e => rank(e.score) * rollLengthWeight(e.norm.length));
+  let r = Math.random() * weights.reduce((a, b) => a + b, 0);
+  for (let i = 0; i < pool.length; i++) if ((r -= weights[i]) <= 0) return pool[i];
+  return pool[pool.length - 1];
+}
+
+const rollLengthWeight = (len) => (len < 7 ? (len / 7) ** 2 : len > 12 ? (12 / len) ** 3 : 1);
+
 // One norm's spelling, for the rename hint's ruling on a leading capital. `display:
 // null` (no enabled source carries it) is a real answer, distinct from `ready: false`
 // (no corpus to ask) — collapsing them answers "nothing carries it" for EVERY norm,
@@ -3225,6 +3265,10 @@ onmessage = ({ data }) => {
 
     case 'fetchWordCase':
       handleFetchWordCase(data);
+      break;
+
+    case 'fetchRandomEntry':
+      handleFetchRandomEntry(data);
       break;
 
     case 'fetchProvenance':

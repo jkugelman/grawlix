@@ -1008,6 +1008,23 @@ export function fetchWorkerPhoneQuery(text, replacement = false, timeout = 15000
   });
 }
 
+let fetchRandomEntryRequestId = 0;
+export function fetchWorkerRandomEntry(timeout = 5000) {
+  const w = getWorker();
+  const requestId = ++fetchRandomEntryRequestId;
+  return new Promise(resolve => {
+    const timer = setTimeout(() => { w.removeEventListener('message', onMessage); resolve(null); }, timeout);
+    function onMessage({ data }) {
+      if (data?.type !== 'randomEntry' || data.requestId !== requestId) return;
+      clearTimeout(timer);
+      w.removeEventListener('message', onMessage);
+      resolve(data.display ?? null);
+    }
+    w.addEventListener('message', onMessage);
+    w.postMessage({ type: 'fetchRandomEntry', requestId, scoreRange: activeScoreRange() || null, lengthRange: activeLengthRange() || null });
+  });
+}
+
 let fetchWordCaseRequestId = 0;
 export function fetchWorkerWordCase(norm, timeout = 5000) {
   const w = getWorker();

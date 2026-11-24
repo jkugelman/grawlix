@@ -48,12 +48,15 @@ A tool declares the passes its `prepare` makes in `passes` (on the definition, o
 The shipped passes are the spacing table's build (`SPACING_PASS`, [`segmenter.md`](segmenter.md) § *The spacing table*), shared by every tool that builds it; Phone search's sound index; Stress shift's index, built in two passes (reading every entry, then aligning letters in the buckets that could shift); and the executor's own `bucketize`, two passes every group row adds: one computing each entry's keys, one deciding which buckets become groups.
 A group tool sets their weights in `group.weights` (`{ keys, groups }`, 2 each by default), since that cost depends on the tool's `key` and `keepGroup`.
 The plan skips a row a resumed prefix covers and a pass whose artifact is already in `ctx.cache` (`built`, defaulting to "`artifact`, or else `key`, is cached"; the spacing table's checks `complete`, since a superseded run leaves a partial table), so a warm run's ring fills only the slices still to sweep.
-Weights aim at every slice filling at the same speed: each is roughly the pass's seconds in Chrome on a 750K-entry merge, so spacing is 35, Stress shift's index 14 for reading and 2 for aligning, Phone search's index 12, and Rhymes' bucketing 4 + 3.
+Weights aim at every slice filling at the same speed: each is roughly the pass's seconds in Chrome on a 750K-entry merge, so spacing is 35, Twins' letter model 2 and rhyme index 18, Stress shift's index 14 for reading and 2 for aligning, Phone search's index 12, and Rhymes' bucketing 4 + 3.
 A `ctx.forEach` with no pass yields but reports nothing.
 `ctx.cache` (`get(toolKey)` / `take(toolKey)` / `put(toolKey, value, bytes, { patch, elapsed })`) is the seam onto the worker's prepare-artifact cache: a `prepare` retains whatever it computes from the corpus alone, so a run with different params reuses it (see [`worker-protocol.md`](worker-protocol.md) § `artifactCache`).
 Outside the worker it is a no-op, so a tool calls it unconditionally.
 `prepare` is `async`, and carries those helpers, because indexing the wordlist is real O(N) work that has to be chunked and yielded or it freezes the tab.
 `run` stays narrow by contrast — synchronous, per-row, no `ctx` — so the executor keeps sole ownership of the loop, its yielding, and abort; a tool's `run` can't stall or re-drive the run.
+A filter may also declare `lead(prepared)`, naming one norm whose rows the executor runs before the rest, so they stream first: Twins leads with the typed entry, which appears at once while the slow scan of everything else continues.
+The scan order changes nothing else, since every sort ends in a total tiebreak.
+One tool keeps state across calls: Twins memoizes each kept row's score in a module-level slot per query and merged corpus, because its column and highlights re-prepare through `replay` and the result caches re-sort rows by the column without calling `run`, and rescoring a row costs an alignment.
 
 The stage's working set arrives as the **third `prepare` argument**, `input` — a lazy, read-only view of the previous stage's output as entry strings, resolved on access so a tool that ignores it pays nothing and the executor's chain rows never leak into the tool surface.
 It lets a `prepare` index the surviving working set, not only the wordlist.
@@ -563,7 +566,7 @@ A filter declares `column: { key, label, value(input, prepared), order(input, pr
 The column sits after Score with its own single-axis sort (`order`, ties to score desc then collation), its cells carry `value`, and `width` sizes the track from the params, since main never sees every row.
 Under its sort the run bracket marks runs of equal `order` (`design.md` § *Run bracket*).
 A column with `meter: N` draws its value as an N-step meter instead of text: a number is the level, and a string draws as a full meter in a lighter purple (`--meter-special`), its text read out as the label; exports carry the value.
-A column with a `defaultSort` direction is also the default sort while it's active, the one exception to the same default in every tier, for a tool whose rows mean nothing in alphabetical order.
+A column with a `defaultSort` direction is also the default sort while it's active, the one exception to the same default in every tier, for a tool whose rows mean nothing in alphabetical order, such as Twins' Likeness, sorted descending.
 `defaultSortFor(stack)` names the default axis and direction, and only a sort the user hasn't picked follows it: `AppView.sortPicked` turns true on a header click or a URL `sort=`, and until then `reconcileSort` applies the stack's default, so removing the tool returns to Entry.
 The URL leaves out `sort=` when the sort equals that default, direction included, so a picked Entry sort under such a tool is written out and survives a reload.
 Removing the tool drops the axis through `reconcileSort` like any other axis the tier lacks.
@@ -668,7 +671,7 @@ Under Entry that tail rides the direction too (it omits its `dir`, same conventi
 In a grouped pipeline the axes project off the whole group: Entry off the chains' seed atoms in display order, Count off the surviving chain count, Min/Max score and Min/Max length across every atom in every chain.
 The chains *within* a group are themselves ordered to match the **primary** axis — alphabetical-by-seed under Entry, seed-score-descending otherwise — and Entry holds them ascending regardless of the row direction, since the toggle reverses the rows, not the chains inside a cluster.
 
-The URL drops `sort=` when the sort is just the tier default (`entry` asc, one level).
+The URL drops `sort=` when the sort is just the stack's default (`entry` asc, one level, outside the exception above).
 A stack edit that flips the tier — adding or removing a transform or a group tool — never snaps the chosen axes to a tier default; it remaps them, level by level.
 `entry` exists in every tier and carries across untouched.
 `length` and `score` each ⇄ their across-the-row Min twin (`length` ⇄ `min-length`, `score` ⇄ `min-score`), and the Max form collapses back onto that same single axis when the row goes single-atom — the first-atom `length` axis itself also persists in the multi-atom tiers, coexisting with the spread, so a single→multi Length sort holds directly.

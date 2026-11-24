@@ -259,24 +259,36 @@ function syllableKeys(sylls) {
 // One unreadable word and there is no reading at all — unlike the last-word modes,
 // which only ever needed the tail.
 function wholeEntryParts(text) {
+  return [...wholeEntryReadings(text).keys()];
+}
+
+// Each key maps to { stressed, lead }: its stressed-syllable count, the higher
+// where two readings give the key, and how many unstressed syllables open it.
+export function wholeEntryReadings(text) {
+  const out = new Map();
+  if (!hasCmuDict()) return out;
   const words = splitWords(text);
   let combos = [[]];
   for (const word of words) {
     const prons = pronsOf(cmuKey(word));
-    if (!prons) return [];
+    if (!prons) return out;
     const next = [];
     for (const c of combos) {
       for (const p of prons) if (next.length < MAX_WHOLE_KEYS) next.push(c.concat(p));
     }
     combos = next;
   }
-  const keys = new Set();
   for (const combo of combos) {
     const sylls = [];
     for (const pron of combo) sylls.push(...syllabify(flapT(smoothR(pron))));
-    if (sylls.length) for (const key of syllableKeys(sylls)) keys.add(key);
+    const stressed = sylls.filter(({ nucleus }) => /[12]$/.test(nucleus)).length;
+    const lead = Math.max(0, sylls.findIndex(({ nucleus }) => /[12]$/.test(nucleus)));
+    if (sylls.length) for (const key of syllableKeys(sylls)) {
+      const had = out.get(key);
+      out.set(key, { stressed: Math.max(had?.stressed ?? 0, stressed), lead: Math.min(had?.lead ?? lead, lead) });
+    }
   }
-  return [...keys];
+  return out;
 }
 
 // ─── Sound strings ───────────────────────────────────────────────────────────

@@ -442,6 +442,15 @@ function tagCoord(ranges, coord) {
   return ranges.map(r => r.coord ? r : { ...r, coord });
 }
 
+// A filter's `lead` names a norm whose rows run first, so they stream before
+// the rest are scanned; the sort's total tiebreak makes the result the same
+// in any scan order.
+function leadFirst(rows, norm) {
+  const first = [], rest = [];
+  for (const row of rows) (rowLastEntry(row).norm === norm ? first : rest).push(row);
+  return first.length ? first.concat(rest) : rows;
+}
+
 async function runToolStage(rows, stackRow, prepared, wordlist, y, emit = null) {
   const { def } = stackRow;
   const kind = stackRow.kind();
@@ -452,6 +461,8 @@ async function runToolStage(rows, stackRow, prepared, wordlist, y, emit = null) 
   const coord = matchOn === 'display' ? 'display' : 'norm';
   const next = [];
   let flushed = 0;
+  const lead = kind === 'filter' ? def.lead?.(prepared) : null;
+  if (lead != null) rows = leadFirst(rows, lead);
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i];
     const tailEntry = rowLastEntry(row);

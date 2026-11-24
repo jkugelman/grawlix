@@ -174,7 +174,7 @@ Chaining extensions and other planned gallery work are tracked in [`planned/tool
 Tool output lands in the entries table (§ Entries table) as **chain rows** ([`pipeline.md`](pipeline.md) § *The chain-row model*) — or, with a group tool in the stack, as **group rows** ([`pipeline.md`](pipeline.md) § *The group-row model*).
 
 **Single catalog drives every surface.**
-Each tool is one record in `TOOLS` (`name`, `icon`, `category`, `desc`, `example`, `params`, `kind`, `input`, `output`, a `run` for filter/transform tools or a `group` for group tools, optional `glyph` / `findReplace` / `replaceName` / `prepare`); gallery section ordering comes from a parallel `TOOL_CATEGORIES` list.
+Each tool is one record in `TOOLS` (`name`, `icon`, `category`, `desc`, `example`, `params`, `kind`, `input`, `output`, a `run` for filter/transform tools or a `group` for group tools, optional `tagline` (an italic second line on the card) / `glyph` / `findReplace` / `replaceName` / `prepare`); gallery section ordering comes from a parallel `TOOL_CATEGORIES` list.
 Gallery cards, stack-row labels, and the search bar's `Search` label all render the inline icon-and-name pair through the shared `buildToolLabelHTML` helper.
 Adding a tool means adding one entry — every surface that names tools picks it up — and the helper guarantees the icon-and-name pair looks identical wherever it appears.
 
@@ -378,6 +378,141 @@ It degenerates harmlessly, but a downstream tool that wants to treat multi-word 
 
 The sound-based tools and the CMU pronunciation core they share have their own doc.
 [`phonetics.md`](phonetics.md) covers how words are read, Rhymes' modes, Phone search's sound dialect and how words translate into it, the letter–sound alignment, and Stress shift.
+
+### Twins
+
+Twins ([`engine/tools/twins.js`](../site/src/engine/tools/twins.js)) finds entries whose letters or sounds are close to the typed entry's while their meanings are unrelated: BULL MARKET / BULLET MARK, THERE'S A WAY / THERESA MAY, BASS TRACKS / BRASS TACKS.
+Puzzmo calls these *apt pairs* and Crosscord *fraternal twins*.
+It keeps every pair up to looseness 0.40, with no setting: John's good pairs run out to about 0.30, and sorting by likeness already puts the distant ones last.
+Results carry a **Likeness** column, drawn as an eight-step meter rather than a number so it needs no explaining, and sort most alike first by default, the one tool whose column is also the default sort ([`pipeline.md`](pipeline.md) § *Sort axes per tier*): its hits read as noise in alphabetical order.
+The steps fall at looseness 0.07, 0.14, 0.20, 0.25, 0.30, 0.35 and 0.38, narrowing toward the cutoff.
+Over random queries 95% of hits score between 0.25 and the 0.40 cutoff, half of them above 0.36, so the lower steps spread across that end, while the top bars stay rare, as good twins are.
+The typed entry itself, when the list has it, leads the results with a full meter in a lighter purple, so a query shows at a glance whether the list holds it.
+It is matched as Search matches a literal pattern (§ *Search syntax*), by display or by letters, case aside: `catchair` claims both CAT CHAIR and CATCH AIR, while `cat chair` claims only its own spelling and leaves CATCH AIR a twin.
+The meter is a general column option (`meter: 8`, the step count; the value a level, or a word drawn as a full meter in that purple); exports carry the value.
+Recall comes first: a filter earns its place only when it catches almost nothing John would want, since a lost good pair costs more than a few extra inflections.
+
+**🎲 browses without a query.**
+The button beside the entry field asks the worker for a random entry of the visible wordlist that passes the score and length filters, and fills the field with it; a roll with no lookalikes shows only the rolled entry, and the next click rolls again ([`worker-protocol.md`](worker-protocol.md) § *`fetchRandomEntry`*).
+The worker keeps a random sample of 256 such entries in one pass over the list, about 6 ms, so a narrow filter still finds its few entries, and draws one weighted by two things.
+Its score's rank within the sample, so higher-scored entries come up more, by the list's own scale: a raw-score weight would favor whichever list scores high.
+And its length, favoring 7 to 12 letters: over random queries, 3–5-letter entries average 277 Twins hits and 8–10-letter ones 177 with a best match near 0.17, while 11–13-letter ones fall to 34 hits with a best near 0.25 and 14–16-letter ones to 6.
+The roll keeps no index, so it costs no memory.
+A tool opts in by naming the param to fill (`dice: 'entry'`).
+
+Internally the scorer measures **looseness**, the opposite of likeness: a cost divided by the shorter entry's length, from a weighted letter alignment ([`engine/twins.js`](../site/src/engine/twins.js)) over the entries with spaces removed:
+
+- Sound-alike swaps (C/K/S, S/Z, I/Y, F/V…), vowel-for-vowel swaps and a collapsed doubled letter are cheap; opening a gap costs more than extending one, so inserting one chunk counts as about one edit.
+  Inserted letters cost by kind (vowels least, H L N R S T next, F J K Q V W X Z most), so TOWEL OFF's added Fs cost more than EARHART's R and H.
+- A few rearrangements count as one operation each: a moved block (BULL MARK·ET / BULL·ET MARK), two letters trading places (TOVE LO / LOVE TO), a run of two to four letters the other entry contains (INDIGO / INDIEGOGO), and two short blocks trading places (SEMAPHORE / SOPHOMORE), the last tried only when letter counts nearly match, and 0.2 dearer when a block spans a word break.
+- Long unbroken runs of edits cost extra, so one clean cut (MARIE ANTOINETTE / MARIONETTE) beats scattered changes.
+- Shared words and shared affixes of three or more letters come out of the length the cost is divided by, never below four letters, so a pair is judged on what differs: SAINTLIEST / SPINDLIEST is a short changed core, not a long near match.
+- A **sound route** scores the pair's CMU readings with a phone aligner ([`engine/twins-sound.js`](../site/src/engine/twins-sound.js)) and keeps the better of the two routes, the sound one with 0.06 added (HARRY CAREY / HARA-KIRI, DINOSAUR / DINAH SHORE).
+  Every consonant change by sound costs at least 0.3, since articulatory features alone priced SEETHING / ZEVON too close.
+  One phone moved elsewhere (FIRE TRUCK / FRIAR TUCK, TREE SURGEON / RESURGENT) or two neighbors swapped (KNOW BEST / NO BETS) costs 0.4 in place of its two edits, but only while everything else lines up within 0.5: a move on top of other changes (RAINBOW / BRENNER) is too hard to hear, so it keeps the full price.
+  An R and an ER pair as one moved sound: CMU reads HIRE's R as part of its syllable and HONOR's as a vowel, so HIRE ON / HIGH HONOR otherwise prices as two edits at 1 bar.
+- A **rhyme route** catches multirhymes, which the sound route prices far off because every consonant differs (CHERRY TREE / MARRY ME was 0.58).
+  Two entries rhyme when every syllable's vowel and closing consonants match and only the opening consonants differ, Rhymes' Whole mode ([`phonetics.md`](phonetics.md) § *Rhymes*).
+  The unstressed syllables before the first stress may differ too, when both entries have the same number of them: CAREER FAIR / TAHRIR SQUARE rhyme from -REER FAIR and -RIR SQUARE on.
+  Skipping openings of different lengths added about three hits per random query, mostly junk (POETES MAUDITS / RECIPE, LET IT BE).
+  A two-syllable rhyme scores 0.24, 0.04 less per further syllable down to 0.12; a near rhyme, where one syllable's closing consonants gain or lose one (SPRUCE TREE / BLUE SEA), adds 0.08.
+  That puts rhymes among close spellings without topping the list: John rated two-thirds of exact rhymes good, against a twentieth of the letter and sound pairs near 0.32.
+  Between two single words the rhyming readings need two stressed syllables: one-stress words (CRAZING / BLAMING) rhyme by the hundred, since every syllable's opening consonants are free, while two stresses lining up (STEAK FRIES / SNAKE EYES, READER RABBIT / CEDAR CABINET) is rare.
+  When either entry is a phrase one stress will do, since a phrase landing on a word's syllables is the surprise (FAIREST / SWEAR IT, 7AM / THEY THEM).
+- The sound and rhyme routes read an entry as Phone search and Rhymes do: an unspaced entry CMU lacks is read through the spacing table's `guess` (FLOWERBED as FLOWER BED), and each word folds on its own, so an R opening the next word colors nothing (SAW RED).
+  The letter route takes its word breaks from `best`, which leaves a dictionary word whole: `guess` would break PRESENTER into PRE SENTER, a moved word break that isn't there.
+  The count comes from the two readings that rhyme, never another reading of either entry: ETA's spelled-out E-T-A has three stresses, which once let CRAZING / ETA through.
+  Entries sharing a word never take this route.
+  Matching vowels with free consonants was tried first and more than doubled the lists, mostly with suffix rhymes (HAMITIC drew 854 -ITIC entries); requiring the closing consonants to match is what makes rhymes rare enough to keep.
+- A **shared-run route** ([`engine/twins-run.js`](../site/src/engine/twins-run.js)) catches a single word whose opening or closing letters, an unlikely sequence, recur across a word break in a phrase: PSILOCYBIN / PS I LOVE YOU, ATMOSPHERE / AT MOST, JESUIT / JE SUIS CHARLIE.
+  The run is five letters or more, at least 40% of both the shorter entry and the single word, and crosses a written break with two letters or more on either side.
+  It must be rare: a letter-trigram model trained on the merged corpus's norms has to find at least 3 bits of surprise per letter in it, which PSILO (4.4) and ATMOS (4.4) pass and a common opening like INTER (2.7) fails.
+  The phrase's piece of the run must not be a word of three letters or more, or a prefix, in the single word: that is a compound (EGGNOG / EGG NOODLE, BRICKLAYERS / THICK LAYERS), and without the check compounds outnumber the finds more than twenty to one.
+  Nor may the single word be the phrase's words run together, give or take an inflection (BYWAYS / BY WAY OF EXAMPLE), which John rated junk.
+  The check also costs CHIMPANZEE / TAPPAN ZEE, since ZEE is a word; a looser one, rejecting only when both halves of the single word are words, finds seven times the pairs, and John rated none of 20 of its extra pairs good and 4 junk, against 5 good and 3 junk of 40 under the strict one.
+  Such a pair scores 0.36, down to 0.26 as the run covers more of the shorter entry, so it lands mid-list like a rhyme.
+- A **rebreak**, the same letters with their written word breaks moved (CAT CHAIR / CATCH AIR, LOSE SATURN / LOSES A TURN, QUEEN SPAWN / QUEEN'S PAWN), scores 0.06, a full meter.
+  The list holds 63 such pairs at 40 and up, nearly all good.
+  Both entries' breaks must be written: the segmenter's guesses moved them only in junk (HOYEON read as HOY EON).
+  Breaks only added or dropped don't count, since the list's 443 such pairs are mostly spellings of one phrase (BAND CAMP / BANDCAMP, START UP / STARTUP).
+- A **reorder**, the same words in another order (TIME TRAVEL / TRAVEL TIME, IS IT SO / SO IT IS), scores 0.22, three bars, without aligning.
+  Two words glued into one in the other order (HOUSE CAT / CATHOUSE, GONE BY / BYGONE) score 0.12, four bars, since the glued word mostly means something new; the letter route had scored them by luck, from 0.15 to 0.42.
+  A reorder that keeps its meaning scores 0.30 whatever the letters say: coordination (FORK AND KNIFE, BACK TO FRONT) and a verb phrase beside its compound adjective (HITTING HARD / HARD-HITTING, MAKING MONEY / MONEYMAKING), the commonest boring kinds among the list's 1,082 written reorders and 934 glued ones.
+  These are rough: a query has a reorder or two at most, so they can sit high without crowding the list, and their order matters less than the routes that fill it; at two bars, below the three-bar pairs that fill a screen, John found HOUSE CAT / CATHOUSE out of sight.
+  Some change meaning and some barely do, and letters can't tell which, so all of them show; the list holds about 1,080 such groups, a row or two for the queries that have one.
+  Aligning each entry with its words reordered, to catch near reorders, tripled query time and let in junk (POT SMOKING / COOKING PITS); the word-swap route below catches the ones that sound alike.
+- A **word-swap route** ([`engine/twins-swap.js`](../site/src/engine/twins-swap.js)) catches two entries whose two content words match crosswise by sound, the first of one against the second of the other: FRESH MEAT / MEET IN THE FLESH, BLUE CARBON / CORBIN BLEU, WILL FERRELL / PHARRELL WILLIAMS.
+  A content word has three letters or more and isn't a function word (an article, preposition, particle, pronoun or auxiliary), and an entry needs exactly two, with function words anywhere around them (X OF THE Y); only written word breaks count, since the segmenter's splits of run-together entries made junk.
+  Two words match when the phone aligner puts them within 0.30, or when one starts the other in both sound and spelling, 0.05 a phone (WILL / WILLIAMS; by sound alone STAY starts STAKE).
+  A pair scores 0.12 plus half the two word distances, plus 0.08 for each changed word pair whose vowels differ: with the words swapped back, John rated pairs whose vowels match (SPRING MIX / SIX-STRING) far above those whose don't (PATTY-CAKE / TAKE PITY), so assonant swaps rank near the top and the rest fall among the rhymes.
+  It isn't a swap when the words line up as well in their own order, or when both crosswise pairs are the same word, give or take an inflection, a respelling or an affix (BALL DROP / DROPPED THE BALL, FIBER-OPTIC / OPTICAL FIBRE).
+  One word may stay the same (PRIME OF LIFE / LIFE OF CRIME, ONE-MAN BANDS / BAN KI-MOON).
+  Allowing that only when both entries share the words around the two cost good pairs (RUM BABA / BABAS AU RHUM) and kept out five hits in 300 random queries, all understandable.
+  `prepare` reads every entry's content words into a table beside the rhyme index (0.6 seconds, 14 MB on the full list), each word filed under four keys: its whole reading, its consonants, its first three phones and its rhyme from the last vowel on.
+  A query finds its two words' sound-alikes through the keys once, then tests each row's content words, read from its display text alone; the scorer only matches words sharing a key, so it never scores a pair the tool can't surface.
+  A word the table lacks, as from an edit, is read and filed the first time a query meets it.
+  John rated 80 pairs from a scan of the whole list (`scripts/twins/swapscan.mjs`): both words changed came out 24 good and 6 junk of 50, and the route rejects most of the junk while keeping nearly all the good.
+  The route is rare in practice, 0.1 hits a random query, and adds a few percent to query time.
+- A **spoonerism route** catches two entries that read the same once two consonant runs of one trade places: PIE TIN / TIE PIN, LIGHT RAIN / RIGHT LANE, GETTING LOW / LETTING GO, BLOW YOUR NOSE / KNOW YOUR BLOWS.
+  A run is the consonants before a vowel, a word's opening or a cluster inside it, and one of the two must open a word.
+  Spoonerisms are among the most prized wordplay, so they score near the top of the meter, by tier:
+  - exact, 0.06: two words trade whole openings, and word breaks may move (TREE POSE / PETE ROSE, NO FEE / PHONY);
+  - inner, 0.10: an opening trades with a cluster inside a word (BUTTERFLY / FLUTTERBY, BLEECKER / KEEBLER, CHECKUP / KETCHUP);
+  - partial, 0.12: a trade takes a run's front or back part, never its middle (BRUSHLAND / SHRUBLAND, the ST or the R of STR);
+  - loose, 0.20: a word opening with a vowel takes a sound across a break (OFF KEY / COFFEE), or the trade remakes the same words spelled anew (NEW YOU / YOU KNEW).
+    John rated the exact tier 24 good, 2 OK and 1 junk; inner 25, 9 and 1; partial 27, 6 and 2; loose 9, 0 and 1.
+    Shared words and related meanings, which keep other routes' pairs out, are allowed: the traded runs make new words, and the old ones are often related (GET LOW / LET GO).
+    Trades compare vowels as written, without the sound route's reduced vowels, T–D flap or vowels folded before R: with them, WADE IN matched DAY ONE, COTTAGE matched DOCKAGE and PEERING matched RIPPING, all rated down.
+    Nor may an R leave or reach a vowel, or a nasal leave or reach AE, since either recolors the vowel (KEERY / RICKEY, ARDOR / RODDER, NAPPER / PANNER were rated junk); that also costs MAHRE / RAMI.
+    When both entries end in -ING or -ED, the trade sits in the stems and the pair scores 0.10 more: John rated none of those good (LEAPING / PEALING), while pairs sharing -ER, -S or -Y rated about as well as the rest.
+    Spelled-out letters never count (D.C. / CD), and the same words spelled the same (COULDA WOULDA SHOULDA) stay reorders.
+    The route only scores pairs that rhyme or pass the letter filter at the tool's cutoff, both of which the tool passes on to scoring, so it surfaces every pair the route scores; it misses a few that do neither (MACH ONE / WALKMAN).
+    The list holds about 2,300 such pairs, and the route adds about a tenth to query time.
+    A near-spoonerism with one sound moved (FIRE TRUCK / FRIAR TUCK) is the sound route's.
+- An **anagram route** catches two entries with the same letters (MARISA TOMEI / IT'S A ME MARIO, LIVERPOOL FC / PELVIC FLOOR, VLADIMIR NABOKOV / VIVIAN DARKBLOOM), scored by length so long ones top the list and mid-length ones sit mid-list: 0.38 at seven letters, 0.04 less a letter more, down to 0.08.
+  Rare letters nudge it by up to 0.04 either way, 0.02 a bit of surprise per letter from the wordlists' mean of 4.24, so RSTLNE pairs (NOISE ARTISTS / INSTA STORIES) sit a little lower; length decides far more than rarity.
+  Sharing a word, or gluing the same words in another order, adds 0.06 (COSMIC HORROR / HORROR COMICS): still worth showing, with less luster.
+  A letter reversal scores 0.04 better than an anagram of its length, from six letters (DRACULA / ALUCARD, LIVE ON / NO EVIL).
+  The list holds about 37,000 anagram pairs, a fifth of them seven letters long; the route only ever raises a pair, and about half the long ones already showed through moved letters.
+  Near anagrams, a letter off, are left out: some 215,000 pairs of eight letters or more, mostly coincidence, and a trap, since one reads as an exact anagram until a letter is found missing.
+  Sound reversals (FLESHPOT / TOP-SHELF) are left out too: reversed sounds put R and the other liquids on the wrong side of their vowels, and John couldn't hear the pairs without being told.
+  The route turns on the same letters, which the letter filter always passes at the tool's cutoff, so the tool surfaces every pair it scores.
+- **Related meanings cost 1**: a word of one entry sharing a lemma, synset or derivation link with a word of the other in Open English WordNet ([`engine/twins-wordnet.js`](../site/src/engine/twins-wordnet.js)), skipping shared words and words of three letters or fewer.
+  Hypernym and sister links stay out because they tie unrelated words (TIME~FITS).
+  It is the one signal letters can't supply, since what makes a pair good is that the meanings differ: a logistic regression over the alignment's operation counts never beat the hand weights, and turning relatedness off lifts rated junk under 0.25 from 40% to 49%.
+
+**A pair scores the same whichever entry is typed.**
+The alignment breaks ties by side and the sound route reads the typed entry first, so the scorer puts each pair in a fixed order, alphabetical by norm, and scores a hit the other way too, keeping the better; block swaps are tried within both entries.
+Before this, 23 of 1,169 rated and example pairs scored differently by direction (FRENCH PRESS / FRESH PRINCE 0.21 one way and 0.29 the other), so a search could find a partner from one end and miss it from the other.
+
+A **boring** pair never scores: the same word family, a spelling variant (-ise/-ize, -our/-or), a changed number, an inflection, or one entry's content words all appearing in the other (BRASS TACKS / GET DOWN TO BRASS TACKS), unless the two have exactly the same words.
+A pair whose word breaks move inside the shorter side is a respacing, never an inflection, so SEETHING / SEE THINGS gets through.
+Affix relatives (ENTHUSIAST / ENTHUSIASM) are charged, not dropped, so a respacing like VENTILATE / VENTI LATTE is never caught.
+
+**Entries are read the way the rest of Grawlix reads them.**
+A run-together entry is segmented by the spacing table's first tier (its compound fallback invents breaks like PRESENTER → PRE SENTER, which would read as moved word breaks), family keys come from the merged vocabulary, and readings from the CMU core.
+The WordNet data is a shipped extract, [`site/data/twins-wordnet.txt`](../site/data/twins-wordnet.txt) (2.8 MB, 1.1 MB gzipped, from [`scripts/gen-twins-wordnet.js`](../scripts/gen-twins-wordnet.js)), listing each lemma's parts of speech and a set of keys (its synsets, itself, and the lemmas its derivation links reach); two words are related when lemmas of theirs share a key, which covers a shared synset, a direct link and a shared neighbor in one test.
+It is a worker data asset like CMU, freed when no row needs it.
+
+**Speed.**
+`prepare` builds the spacing table, shared with the other word-reading tools.
+Each row's `run` first screens the entry's letters (letter-count difference and missing letter pairs, against thresholds fit to keep every known hit, plus a margin), then preps and scores the survivors, about two-fifths of the list.
+A row the screen rejects is still checked for a shared run when it opens or closes with the query's first or last five letters, and for a rhyme, since most rhymes fail the screen.
+The screen reads letters only.
+Also keeping entries whose phones alone are close (`prefilterPhones`, off) adds a few hits between 0.29 and 0.40 at the tool's cutoff (KOREAN AIR / CRENEL, JACUZZI / JOKERS), mostly junk, for about 400 MB of readings, 3 seconds to read every entry, and queries half again as slow.
+Letters alone lose sound-alikes only at the harness's tighter cutoffs, a pair's own looseness.
+`prepare` reads every entry's rhyme keys into an index by display text, builds the word-swap table, and trains the shared-run letter model, one artifact in `ctx.cache` ([`pipeline.md`](pipeline.md) § *Pipeline execution*): about 5.6 seconds and 38 MB on a 740k-entry list, shown as its own progress pass.
+The rhyme keys take 23 MB of that, packed into typed arrays: each distinct syllable is stored once, a reading is a string of syllable numbers, entries with the same keys share one copy, and a display is found by binary search on a pair of 32-bit hashes of its text.
+A Map of strings would price them at 45 MB, and the index with the 18 MB spacing table would overflow the cache pool, evicting the spacing table on every query.
+The three share an artifact because the model and the word table each build under the cache's one-second admission floor and would be refused.
+Neither is repaired on an edit: an entry's display text keys its rhyme keys, so an edited entry reads its own on first sight, and one entry barely moves the model's counts.
+The index competes for the shared 64 MB cache budget, so a query after it is evicted pays the 5.6 seconds again.
+Over the full wordlist a query takes about 4 seconds after the first, between the harness's 2.3 s at 0.30 and 5.3 s at 0.45.
+Kept rows' scores live in a slot per query, filed under its merged corpus so a replaced corpus is freed with them, since the column, the highlights and the result caches all ask about kept rows without the same `prepared` ([`pipeline.md`](pipeline.md) § *Pipeline execution*).
+
+**Tuning happens offline.**
+[`scripts/twins/`](../scripts/twins/) runs the same modules against the live wordlists: it ranks each of John's example pairs from both ends, counts results on random queries, and measures how well looseness separates his rated good pairs from junk.
+Its README records what each change did, and [`EXAMPLES.md`](../scripts/twins/EXAMPLES.md) holds the example pairs.
 
 ### Rebus
 

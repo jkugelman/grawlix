@@ -1,8 +1,9 @@
 'use strict';
 
 import { hasUnigramCorpus, rankedSplits, SPACE_OUT_WINDOWS } from './segmenter.js';
-import { stripAccents, WORD_BREAK_RE } from './norm.js';
-import { soundsOf, spelledSoundsOf } from './phonetics.js';
+import { isUnspaced, stripAccents, toNorm, WORD_BREAK_RE } from './norm.js';
+import { hasPronunciation, soundsOf, spelledSoundsOf } from './phonetics.js';
+import { spaceOutSplits } from './space-out.js';
 import { wordKinds } from './rule-query.js';
 
 // ─── Reading an entry aloud ──────────────────────────────────────────────────
@@ -92,6 +93,34 @@ export const widerSplits = spacing => function* (letters) {
     if (parts.length > 1) yield parts;
   }
 };
+
+// ─── Spacing a whole entry ───────────────────────────────────────────────────
+// Each clause silently corrupts the rhyme if dropped: CMU knowing the whole string
+// settles it (NOTABLE must not read as NO TABLE), and a spaced entry is already spelled.
+//
+// Past those clauses the dictionary has already declined the glued string, so keeping
+// it unsplit is worth exactly nothing — it yields no rhyme at all. That is what earns
+// the reader's `guess` over its `best`, which may legitimately answer "already one
+// word": RICKROLL is unrhymable until something splits it.
+export function spacedReading(display, spacing) {
+  if (!isUnspaced(display) || hasPronunciation(display)) return display;
+  return spacing.guess(toNorm(display))?.join(' ') ?? display;
+}
+
+// The typed entry earns a wider search than the wordlist gets. At the default
+// window the scorer prunes `time machine` outright, because wordfreq carries the
+// glued `timemachine` as a token of its own and it outscores the split — so a user
+// who pastes an unspaced entry gets nothing, with nothing on screen to say why.
+// Widening for the whole wordlist instead is what costs: it rescues 4% of XWI but
+// reads them as `orbs → or bs` and `not ate`.
+export function typedReading(text, spacing) {
+  const narrow = spacedReading(text, spacing);
+  if (narrow !== text || !hasUnigramCorpus()) return narrow;
+  if (!isUnspaced(text) || hasPronunciation(text)) return narrow;
+  const wide = spaceOutSplits(toNorm(text), spacing.vocab, { window: SPACE_OUT_WINDOWS.many, limit: 20 })
+    .find(parts => parts.length >= 2 && parts[parts.length - 1].length > 1);
+  return wide ? wide.join(' ') : narrow;
+}
 
 // ─── Initialisms ─────────────────────────────────────────────────────────────
 

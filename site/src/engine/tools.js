@@ -37,6 +37,7 @@ import head_off from './tools/head_off.js';
 import back_off from './tools/back_off.js';
 import dead_center from './tools/dead_center.js';
 import bookends from './tools/bookends.js';
+import twins from './tools/twins.js';
 import rebus from './tools/rebus.js';
 import remove from './tools/remove.js';
 import optional_letters from './tools/optional_letters.js';
@@ -61,7 +62,7 @@ export const TOOL_CATEGORIES = [
   { id: 'transform',  label: 'Transform' },
 ];
 
-export const FEATURED_TOOLS = ['regex', 'umiaq', 'phone_search', 'rebus', 'initialisms', 'rhymes'];
+export const FEATURED_TOOLS = ['regex', 'umiaq', 'phone_search', 'rebus', 'twins', 'initialisms'];
 
 export const TOOLS = {
   anagrams,
@@ -83,6 +84,7 @@ export const TOOLS = {
   kangaroos,
   joeys,
   weave,
+  twins,
   palindromes,
   semordnilap,
   phone_search,

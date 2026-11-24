@@ -9,6 +9,7 @@ import {
   CMU_SUPPLEMENT_IDB_KEY, CMU_SUPPLEMENT_SIZE_KEY, cmuSupplementUrl,
   cmuBase, cmuSupplement,
 } from './phonetics.js';
+import { wordnetAsset, WORDNET_IDB_KEY, WORDNET_SIZE_KEY } from './twins-wordnet.js';
 
 // `autoUpdate` opts an asset into the periodic remote-freshness check. wordfreq is
 // frozen upstream, so the unigrams are off it — ship a newer copy by bumping the
@@ -43,6 +44,16 @@ export const DATA_ASSETS = [
     load: cmuSupplement.load,
     invalidate: cmuSupplement.invalidate,
     has: cmuSupplement.has,
+  },
+  {
+    key: 'twinsWordnet',
+    get url() { return wordnetAsset.url; },
+    dataIdbKey: WORDNET_IDB_KEY,
+    sizeIdbKey: WORDNET_SIZE_KEY,
+    autoUpdate: true,
+    load: () => wordnetAsset.load(),
+    invalidate: () => wordnetAsset.invalidate(),
+    has: () => wordnetAsset.has(),
   },
 ];
 

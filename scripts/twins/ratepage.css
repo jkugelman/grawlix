@@ -1,0 +1,44 @@
+<style>
+/* Layout: one column of pair cards, a sticky tally bar at the bottom for copying ratings. */
+:root {
+  --bg: #f7f6fb; --surface: #ffffff; --fg: #1d1a26; --muted: #6b6680; --border: #e2dfec;
+  --accent: #6d4fd8; --good: #1f8a4c; --ok: #b07a12; --junk: #c23b3b; --on: #ffffff;
+  --display: "Space Grotesk", "Helvetica Neue", Arial, sans-serif;
+  --body: Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #14121b; --surface: #1d1a27; --fg: #ece9f5; --muted: #9a94b0; --border: #2f2b3d;
+  --accent: #a48cff; --good: #4cc27f; --ok: #e0a93a; --junk: #f06b6b; --on: #14121b; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #14121b; --surface: #1d1a27; --fg: #ece9f5; --muted: #9a94b0; --border: #2f2b3d;
+  --accent: #a48cff; --good: #4cc27f; --ok: #e0a93a; --junk: #f06b6b; --on: #14121b; color-scheme: dark }
+body { background: var(--bg); color: var(--fg); font-family: var(--body); font-size: 15px; line-height: 1.45; }
+.wrap { max-width: 640px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 20px 120px; }
+h1 { font-family: var(--display); font-size: 1.6rem; margin: 0 0 6px; text-wrap: balance; }
+.lede { color: var(--muted); margin: 0 0 18px; max-width: 60ch; }
+ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.item { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 12px; display: grid; gap: 10px; }
+.pair { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px; font-family: var(--display); font-weight: 500; font-size: 1.1rem; min-width: 0; }
+.num { font-family: var(--body); font-size: .8rem; color: var(--muted); font-variant-numeric: tabular-nums; min-width: 1.6em; }
+.sep { color: var(--muted); }
+.btns { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.btns button { font: 600 .9rem var(--body); padding: 9px 0; border-radius: 8px; border: 1px solid var(--border); background: transparent; color: var(--fg); cursor: pointer; }
+.btns button:focus-visible, .bar button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.btns button[aria-pressed="true"][data-v="good"] { background: var(--good); border-color: var(--good); color: var(--on); }
+.btns button[aria-pressed="true"][data-v="ok"] { background: var(--ok); border-color: var(--ok); color: var(--on); }
+.btns button[aria-pressed="true"][data-v="junk"] { background: var(--junk); border-color: var(--junk); color: var(--on); }
+.bar { position: fixed; left: 0; right: 0; bottom: 0; background: var(--surface); border-top: 1px solid var(--border);
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-top: 10px; padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px)); }
+.bar-in { max-width: 640px; margin: 0 auto; display: flex; gap: 10px; align-items: center; }
+.tally { flex: 1; min-width: 0; font-size: .85rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.bar button { font: 600 .95rem var(--body); padding: 10px 16px; border-radius: 8px; border: 0; background: var(--accent); color: var(--on); cursor: pointer; }
+details.pre { margin-top: 22px; }
+details.pre summary { cursor: pointer; font-weight: 600; color: var(--muted); padding-block: 6px; }
+details.pre ol { margin-top: 10px; }
+.note-btn { justify-self: start; font: 500 .82rem var(--body); padding: 4px 10px; border-radius: 999px; border: 1px solid var(--border); background: transparent; color: var(--muted); cursor: pointer; }
+.note-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.note-btn.has { color: var(--accent); border-color: var(--accent); }
+.note { width: 100%; box-sizing: border-box; font: .9rem var(--body); background: var(--bg); color: var(--fg); border: 1px solid var(--border); border-radius: 8px; padding: 8px; resize: vertical; }
+textarea { width: 100%; box-sizing: border-box; margin-top: 8px; font: .85rem ui-monospace, Menlo, monospace; background: var(--bg); color: var(--fg); border: 1px solid var(--border); border-radius: 8px; padding: 8px; }
+</style>

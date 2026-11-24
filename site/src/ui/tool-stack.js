@@ -44,7 +44,7 @@ import {
   TOOL_CATEGORIES, FEATURED_TOOLS, TOOLS, groupColumnCSS, makeToolRow, toolAssets, isGroupOnly, hasAllToggle,
 } from '../engine/tools.js';
 import { MATCH_PARAM, isReplacing } from '../engine/tools/shared.js';
-import { runOnWorker, preloadWorkerAsset } from './pipeline-worker.js';
+import { runOnWorker, preloadWorkerAsset, fetchWorkerRandomEntry } from './pipeline-worker.js';
 import { resetPipelineProgress } from './entries-table.js';
 import { bumpPipelineVersion, setResultsStale } from '../data/state.js';
 import {
@@ -342,7 +342,7 @@ export function buildToolCardHTML(toolKey, tool, { allButton = true } = {}) {
   return `<div class="tool-card" data-tool="${esc(toolKey)}">
     ${allBtn}
     <div class="tool-card-name">${buildToolLabelHTML(tool)}</div>
-    <div class="tool-card-desc">${esc(tool.desc)}</div>
+    <div class="tool-card-desc">${esc(tool.desc)}${tool.tagline ? `<br><em>${esc(tool.tagline)}</em>` : ''}</div>
     <div class="tool-card-example">${esc(tool.example)}</div>
   </div>`;
 }
@@ -403,7 +403,7 @@ export const ToolStack = (() => {
       ${buildToolLabelHTML(labelDefFor(row, tool))}
       ${parts.caret}
       ${main}
-      ${parts.asides}
+      ${tool.dice ? withDice(parts.asides, idx) : parts.asides}
       ${errBtn}
       ${invert}
       ${reverse}
@@ -425,6 +425,27 @@ export const ToolStack = (() => {
                  .replace(/value="[^"]*"/, 'value=""');
     }
     return html;
+  }
+
+  function withDice(asidesHTML, rowIdx) {
+    const btn = `<button type="button" class="tool-row-dice" data-dice="${rowIdx}" title="Random entry" aria-label="Random entry">🎲</button>`;
+    return asidesHTML
+      ? asidesHTML.replace('<div class="tool-row-asides">', `<div class="tool-row-asides">${btn}`)
+      : `<div class="tool-row-asides">${btn}</div>`;
+  }
+
+  let diceRoll = null;
+  async function rollDice(row) {
+    const roll = diceRoll = { row };
+    const display = await fetchWorkerRandomEntry();
+    // A later click or a keystroke replaces the roll; its answer must not land too.
+    if (!display || diceRoll !== roll || !stack.includes(row)) return;
+    diceRoll = null;
+    row.params[row.def.dice] = display;
+    row._error = null;
+    rerenderRows();
+    bumpPipelineVersion();
+    _navigate();
   }
 
   function applyAllModeButtonState(btn, { blocked, active, kind }) {
@@ -839,6 +860,12 @@ export const ToolStack = (() => {
         }
         return;
       }
+      const diceBtn = e.target.closest('.tool-row-dice[data-dice]');
+      if (diceBtn) {
+        const row = stack[parseInt(diceBtn.dataset.dice, 10)];
+        if (row) rollDice(row);
+        return;
+      }
       const allBtn = e.target.closest('.tool-row-all-toggle[data-all-toggle]');
       if (allBtn) {
         if (allBtn.classList.contains('disabled')) return;
@@ -899,6 +926,7 @@ export const ToolStack = (() => {
       const rowAttr = input.dataset.row;
       const row = rowAttr === 'bar' ? getSearchBarRow() : stack[parseInt(rowAttr, 10)];
       if (!row) return;
+      if (diceRoll?.row === row) diceRoll = null;
       const key = input.dataset.key;
       const matchBox = input.closest('.tool-row-match');
       if (input.dataset.pair !== undefined) {

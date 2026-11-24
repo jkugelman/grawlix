@@ -301,6 +301,24 @@ const SECTIONS = [
           <p>Capital letters are individual sounds, written in <a href="https://en.wikipedia.org/wiki/ARPABET" target="_blank" rel="noopener">ARPABET</a>, the spelling the CMU Pronouncing Dictionary uses. <code>S</code> is the S sound, <code>NG</code> is the end of SING, <code>AY</code> is the vowel in BUY. Lowercase words are turned into sounds for you, and the box's helper panel shows exactly what it's searching for. Click that line to copy it, then tweak it.</p>
           <p>Sounds give you control that spelling can't. <code>@</code> is any vowel and <code>#</code> any consonant, <code>[S Z]</code> is either one, and a comma searches for several things at once. A digit pins the stress, so <code>AA1</code> is only a stressed AH. The helper panel lists every sound with an example word.</p>`,
       },
+      {
+        slug: 'twins',
+        q: 'What does Twins do? "Curiously similar entries" is so vague.',
+        a: `
+          <p>Twins mixes many tools into one. Give it an entry and it searches out others that look or sound like it, by any trick it knows. It's built for wandering, not for finding something you already have in mind. Type something and see where it takes you. Some favorites:</p>
+          <ul>
+            <li>Jacuzzi / j'accuse (sound-alike)</li>
+            <li>there's a way / Theresa May (letter swap)</li>
+            <li>hard to take / take to heart (word swap)</li>
+            <li>bass tracks / brass tacks (moved letter)</li>
+            <li>fire truck / Friar Tuck (moved sound)</li>
+            <li>tree pose / Pete Rose (spoonerism)</li>
+            <li>Crazy Train / daisy chain (rhyme)</li>
+            <li>Grace Kelly / grape jelly (near rhyme)</li>
+            <li>psilocybin / P.S. I Love You (shared letters)</li>
+          </ul>
+          <p>Looking for inspiration? Press 🎲 and let fate pick.</p>`,
+      },
     ],
   },
   {
