@@ -562,6 +562,10 @@ A filter declares `column: { key, label, value(input, prepared), order(input, pr
 `activeFlatColumn(stack)` picks the first active, non-inverted, highlighting filter that declares one, and only in a filter-only stack (no transform, group, or tuple row); main's header and the worker's rows and sort both gate on it.
 The column sits after Score with its own single-axis sort (`order`, ties to score desc then collation), its cells carry `value`, and `width` sizes the track from the params, since main never sees every row.
 Under its sort the run bracket marks runs of equal `order` (`design.md` § *Run bracket*).
+A column with `meter: N` draws its value as an N-step meter instead of text: a number is the level, and a string draws as a full meter in a lighter purple (`--meter-special`), its text read out as the label; exports carry the value.
+A column with a `defaultSort` direction is also the default sort while it's active, the one exception to the same default in every tier, for a tool whose rows mean nothing in alphabetical order.
+`defaultSortFor(stack)` names the default axis and direction, and only a sort the user hasn't picked follows it: `AppView.sortPicked` turns true on a header click or a URL `sort=`, and until then `reconcileSort` applies the stack's default, so removing the tool returns to Entry.
+The URL leaves out `sort=` when the sort equals that default, direction included, so a picked Entry sort under such a tool is written out and survives a reload.
 Removing the tool drops the axis through `reconcileSort` like any other axis the tier lacks.
 CSV and JSON exports carry the column under its key.
 The Sources column shows each entry's contributing wordlists as a row of icons rather than a single name, so it carries no sort axis — there's no one value to order by.

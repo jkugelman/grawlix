@@ -5,7 +5,7 @@ import { TOOLS, makeToolRow, toolAssets, configureUmiaq, configureWeave } from '
 import { installFixtureTools, releaseFixtureHold } from './fixture-tools.js';
 import { executePipeline, runDetachedBuild, configureExecutorYield, lastPipelineSeedFrom, lastPipelineTailMs, bottomLineAtoms, applyViewFilterToRows, entryPredicate, chainPredicate, rowLastEntry, rowAtoms, collapseRepeatAtoms, chainKey, mirrorKey, streamPlan, cacheGroupStats, currentAtomCount } from './executor.js';
 import { GdsCache, RoleCache } from './gds-cache.js';
-import { sortGroups, sortChainRows, activeGroupRow, groupRowComparator, chainRowComparator, chainSortTier, DEFAULT_SORT_BY_TIER, entrySortKey, foldAnchor, foldChainAnchor, chainFamily, chainAnchors, usesEntryAxis, compareValues, collationKey } from './sort.js';
+import { sortGroups, sortChainRows, activeGroupRow, groupRowComparator, chainRowComparator, chainSortTier, defaultSortFor, entrySortKey, foldAnchor, foldChainAnchor, chainFamily, chainAnchors, usesEntryAxis, compareValues, collationKey } from './sort.js';
 import { PackedRecordJoin, packRecordJoin, materializeRecordRow, recordView, recordComparator, recordPasses, PackedGroupJoin, tryPackGroupJoin, buildGroupFlyweights, materializeGroupRow } from './packed-join.js';
 import {
   configureIO as configureSegmenterIO, setUnigramCorpus, configureSpaceOutBigrams,
@@ -365,7 +365,7 @@ async function runOne({ runId, stack: serialized, sort, scope, existsQuery, scor
 
   // The UI always supplies a sort; a direct runOnWorker caller may not. Unlike the
   // flat emitter, the transform/tuple emitters crash on a null comparator (`.sort(null)`).
-  if (!sort?.length) sort = [{ key: DEFAULT_SORT_BY_TIER[chainSortTier(stack)], dir: 'asc' }];
+  if (!sort?.length) sort = [defaultSortFor(stack)];
 
   // Cross-run cache probe. The whole serve is synchronous (no yield), so no run can
   // supersede between probe and post — hence no abort re-check inside serveCacheHit.
@@ -438,7 +438,7 @@ async function runRepatch({ runId, reprojectId, stack: serialized, sort, scoreRa
   }
   const signal = makeSignalShim(runId);
   const stack = deserializeStack(serialized);
-  if (!sort?.length) sort = [{ key: DEFAULT_SORT_BY_TIER[chainSortTier(stack)], dir: 'asc' }];
+  if (!sort?.length) sort = [defaultSortFor(stack)];
   reapUnusedAssets(serialized);
 
   let out;

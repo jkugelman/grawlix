@@ -8,7 +8,7 @@ import { lsSave, lsDel } from '../data/storage.js';
 import { defaultScoreRange } from '../data/serialize.js';
 import { ToolStack } from './tool-stack.js';
 import { repositionAllHistogramRects } from './histogram-view.js';
-import { reconcileSort, chainSortTier, DEFAULT_SORT_BY_TIER } from './entries-table.js';
+import { reconcileSort, chainSortTier, defaultSortFor } from './entries-table.js';
 import { getEntriesScroller } from './rendering.js';
 
 export const scopeKey = scope => scope === MERGED_ID ? MERGED_ID : scope.dbKey;
@@ -52,6 +52,9 @@ export const AppView = (() => {
   let _lengthRange     = '';
   let _sortList        = [{ key: 'entry', dir: 'asc' }];
   let _sortPick        = _sortList;
+  // False until a header click or a URL `sort=`: an unpicked sort follows the
+  // stack's default, so a tool with a default sort of its own can apply it.
+  let _sortPicked      = false;
 
   function show() {
     // Reposition once the bars are laid out: rect positioning reads live
@@ -95,7 +98,7 @@ export const AppView = (() => {
   // No filter call in either write — the scroller re-applies sort itself; these
   // just hold the source of truth the getters and URL read.
   const copySort = list => list.length ? list.map(s => ({ ...s })) : [{ key: 'entry', dir: 'asc' }];
-  function pickSortList(list) { _sortPick = copySort(list); _sortList = copySort(list); }
+  function pickSortList(list, picked = true) { _sortPick = copySort(list); _sortList = copySort(list); _sortPicked = picked; }
   function setSortList(list) { _sortList = copySort(list); }
 
   // Bulk-apply URL sort state at boot, after Router has set the tool stack.
@@ -103,9 +106,9 @@ export const AppView = (() => {
   // default axis at that direction — so an old shared link keeps its direction.
   function applyURLState({ sortList, legacyDir }) {
     const stack = ToolStack.getStack();
-    pickSortList((sortList && sortList.length)
-      ? sortList
-      : [{ key: DEFAULT_SORT_BY_TIER[chainSortTier(stack)], dir: legacyDir || 'asc' }]);
+    if (sortList && sortList.length) pickSortList(sortList);
+    else if (legacyDir) pickSortList([{ key: defaultSortFor(stack).key, dir: legacyDir }]);
+    else pickSortList([defaultSortFor(stack)], false);
     reconcileSort(stack);
   }
 
@@ -126,6 +129,7 @@ export const AppView = (() => {
     get sortDir()         { return _sortList[0].dir; },
     get sortList()        { return _sortList.map(s => ({ ...s })); },
     get sortPick()        { return _sortPick.map(s => ({ ...s })); },
+    get sortPicked()      { return _sortPicked; },
   };
 })();
 

@@ -3,7 +3,7 @@
 import { toNorm } from '../engine/norm.js';
 import { showToast } from '../ui/toasts.js';
 import { AppView, normalizeRangeInput } from '../ui/app-view.js';
-import { chainSortTier, DEFAULT_SORT_BY_TIER, isValidSortAxis, EntryPanel, entryPanelRouteValue } from '../ui/entries-table.js';
+import { defaultSortFor, isValidSortAxis, EntryPanel, entryPanelRouteValue } from '../ui/entries-table.js';
 import { ToolStack } from '../ui/tool-stack.js';
 import { encodeRow, decodeRows } from './url-codec.js';
 
@@ -54,9 +54,9 @@ export const Router = (() => {
       if (isBar && rowIsDefault(row) && stack[i - 1]?.tool !== 'search') return;
       parts.push(...encodeRow(row));
     });
-    const defaultAxis = DEFAULT_SORT_BY_TIER[chainSortTier(stack)];
+    const def = defaultSortFor(stack);
     const list = AppView.sortList;
-    const isDefault = list.length === 1 && list[0].key === defaultAxis && list[0].dir === 'asc';
+    const isDefault = list.length === 1 && list[0].key === def.key && list[0].dir === def.dir;
     if (!isDefault) {
       const enc = list.map(s => s.dir === 'asc' ? s.key : `${s.key}:${s.dir}`).join(',');
       parts.push('sort=' + enc);

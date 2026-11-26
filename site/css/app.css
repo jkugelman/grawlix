@@ -440,6 +440,10 @@ mark.find-hit:last-child,
 .entry-row .atom-comment, .entry-row .atom-source { display: none; }
 
 .entry-row .atom-tool { display: none; }
+#detail-panel.has-tool-col .entry-row .atom-tool.tool-meter { display: flex; gap: 2px; align-items: center; }
+.tool-meter i { width: 5px; height: 10px; border-radius: 1px; background: var(--border2); }
+.tool-meter i.on { background: var(--accent); }
+.tool-meter--special i { background: var(--meter-special); }
 #detail-panel.has-tool-col .entry-row .atom-tool { display: block; grid-column: 5; font-size: 12px; color: var(--muted); }
 #detail-panel.has-tool-col .entry-row .atom-comment { grid-column: 6; }
 #detail-panel.has-tool-col .entry-row .atom-source  { grid-column: 7; }

@@ -25,7 +25,7 @@ import {
 } from '../engine/executor.js';
 import {
   compareItems, compareValues, activeGroupColumns, activeGroupAnchorLabel, activeFlatColumn,
-  sortAxes, chainSortTier, DEFAULT_SORT_BY_TIER, isValidSortAxis,
+  sortAxes, chainSortTier, DEFAULT_SORT_BY_TIER, defaultSortFor, isValidSortAxis,
   isMultiLaneTier, rowMinScore, rowMaxScore, rowMinLength, rowMaxLength,
 } from '../engine/sort.js';
 import { state, getEditsWordlist } from '../data/state.js';
@@ -166,7 +166,7 @@ function blockSemicolon(e) {
 // for the router and tests that reach them through this module.
 export {
   compareItems, compareValues, activeGroupColumns,
-  chainSortTier, DEFAULT_SORT_BY_TIER, isValidSortAxis,
+  chainSortTier, DEFAULT_SORT_BY_TIER, defaultSortFor, isValidSortAxis,
   rowMinScore, rowMaxScore, rowMinLength, rowMaxLength,
 };
 // An axis with no counterpart in the new tier maps across rather than
@@ -227,7 +227,7 @@ export function reconcileSort(stack) {
   const axes = sortAxes(tier, stack);
   const out = [];
   const seen = new Set();
-  for (let { key, dir } of AppView.sortPick) {
+  for (let { key, dir } of AppView.sortPicked ? AppView.sortPick : []) {
     if (!(key in axes)) {
       const mapped = SORT_AXIS_TIER_MAP[key];
       if (mapped && mapped in axes) key = mapped;
@@ -237,7 +237,7 @@ export function reconcileSort(stack) {
     seen.add(key);
     out.push({ key, dir });
   }
-  if (!out.length) out.push({ key: DEFAULT_SORT_BY_TIER[tier], dir: 'asc' });
+  if (!out.length) out.push(defaultSortFor(stack));
   AppView.setSortList(out);
   // The header is built from exactly the stack and the sort settled here, so resync
   // it here: result-driven rebuilds miss changes no result path flags (a tool column
@@ -2544,7 +2544,7 @@ export class EntriesScroller extends BaseVirtualScroller {
         entryCell +
         `<span class="atom-len">${norm.length}</span>` +
         `<span class="atom-score">${scoreInner}</span>` +
-        (ai === 0 && chainRow.columnValue !== undefined ? `<span class="atom-tool">${esc(chainRow.columnValue)}</span>` : '') +
+        (ai === 0 && chainRow.columnValue !== undefined ? toolCellHTML(chainRow.columnValue) : '') +
         `<span class="atom-comment"${commentText ? ` title="${esc(commentText)}"` : ''}>${commentInner}</span>` +
         sourceCell +
         `</span>`;
@@ -5032,12 +5032,26 @@ export function onSortHeaderActivate(e) {
   if (e.type === 'keydown') document.querySelector(`.sticky-stack [data-sort-col="${CSS.escape(cell.dataset.sortCol)}"]`)?.focus();
 }
 
+let toolColMeter = null;
+function toolCellHTML(value) {
+  if (!toolColMeter) return `<span class="atom-tool">${esc(value)}</span>`;
+  const { label, steps } = toolColMeter;
+  if (typeof value === 'string') {
+    return `<span class="atom-tool tool-meter tool-meter--special" role="img" aria-label="${esc(label)}: ${esc(value)}">`
+      + '<i></i>'.repeat(steps) + '</span>';
+  }
+  const level = Number(value) || 0;
+  return `<span class="atom-tool tool-meter" data-level="${level}" role="img" aria-label="${esc(label)} ${level} of ${steps}">`
+    + '<i class="on"></i>'.repeat(level) + '<i></i>'.repeat(steps - level) + '</span>';
+}
+
 // The grid's tool track and the header's tool cell must switch together: either
 // one alone wraps a header cell onto a second line until the next result lands.
 function applyToolColumnLayout() {
   const target = document.getElementById('detail-panel');
   if (!target) return;
   const col = activeFlatColumn(ToolStack.getStack());
+  toolColMeter = col?.meter ? { label: col.label, steps: col.meter } : null;
   target.classList.toggle('has-tool-col', !!col);
   if (!col) return;
   const contentW = Math.ceil(col.width(col.row.params) * measureMonoChPx()) + 1;

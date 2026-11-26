@@ -190,6 +190,15 @@ const SORT_AXES = {
 };
 export const DEFAULT_SORT_BY_TIER = { single: 'entry', multi: 'entry', group: 'entry', tuple: 'entry' };
 
+// A flat tool column with a `defaultSort` direction (Twins' Likeness)
+// replaces Entry as the default while it's active: its rows mean nothing in
+// alphabetical order.
+export function defaultSortFor(stack) {
+  const tier = chainSortTier(stack);
+  const col = tier === 'single' ? activeFlatColumn(stack) : null;
+  return col?.defaultSort ? { key: col.key, dir: col.defaultSort } : { key: DEFAULT_SORT_BY_TIER[tier], dir: 'asc' };
+}
+
 // Group and tuple rows share the multi-lane render/window machinery; they differ
 // only in chrome (a group has a key/anchor/columns and can overflow; a tuple is
 // bare fixed-N lanes). Callers branch on this where the shared machinery applies.
