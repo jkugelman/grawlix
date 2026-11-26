@@ -2883,15 +2883,25 @@ let colsWriteTimer = null;
 // A note doesn't change a score, so it doesn't invalidate.
 const rulesSig = rules => JSON.stringify((rules ?? []).map(r => [r.query, r.output]));
 
-const TEXT_ENC = new TextEncoder();
-async function hashText(text) {
-  const digest = await crypto.subtle.digest('SHA-256', TEXT_ENC.encode(text));
-  return Array.from(new Uint8Array(digest), b => b.toString(16).padStart(2, '0')).join('');
+// Plain JS, not crypto.subtle: browsers only provide that over HTTPS or on
+// localhost, and a phone reaches the dev server by LAN address over HTTP.
+// Two 32-bit lanes (cyrb53's mixing, kept to 64 bits) plus the length.
+function hashText(text) {
+  let h1 = 0xdeadbeef, h2 = 0x41c6ce57;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text.charCodeAt(i);
+    h1 = Math.imul(h1 ^ ch, 2654435761);
+    h2 = Math.imul(h2 ^ ch, 1597334677);
+  }
+  h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+  h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+  const hex = h => (h >>> 0).toString(16).padStart(8, '0');
+  return `${text.length.toString(16)}-${hex(h2)}${hex(h1)}`;
 }
 
 async function loadColumns(wl, text, prev, stale = () => false) {
-  const textHash = await hashText(text);
   if (stale()) return false;
+  const textHash = hashText(text);
   const sig = rulesSig(wl.rescoreRules);
   wl.textHash = textHash;
   wl.rulesSig = sig;
@@ -2947,18 +2957,12 @@ function scheduleColsWrite() {
   }, WARM_IDLE_MS);
 }
 
-// A swap outside loadColumns (a fetch applied in place) learns its text's hash late;
-// until then textHash is null, so nothing reuses or persists the new columns.
+// A swap outside loadColumns (a fetch applied in place) re-keys its columns here.
 function adoptSwappedColumns(wl, text) {
-  wl.textHash = null;
+  wl.textHash = hashText(text);
   wl.colsPersisted = false;
   wl.rulesSig = rulesSig(wl.rescoreRules);
-  const cols = wl.cols;
-  hashText(text).then(h => {
-    if (wl.cols !== cols) return;
-    wl.textHash = h;
-    queueColsWrite(wl);
-  });
+  queueColsWrite(wl);
 }
 
 function buildScopeCorpus(built, scope) {

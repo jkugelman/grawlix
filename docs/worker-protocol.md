@@ -168,9 +168,10 @@ A source's columns are a pure function of its text, its rescore rules, and the p
 A matching text with different rules reuses the text-derived arrays and re-runs only the score pass (`rescoreColumns`).
 The rules signature is each rule's query and output; a note changes no score, so editing one doesn't invalidate.
 
-Why the text is hashed (SHA-256, about 0.1 s for all five lists): the key is correct by construction.
+Why the text is hashed (a 64-bit hash plus the length, about 30 ms for all five lists): the key is correct by construction.
 A writer-maintained generation would have to be bumped by every write path, and a missed one silently serves another text's columns.
-A fetch applied in place (`applyFetched`) swaps a source's columns outside `loadColumns`, so it clears the hash and re-adopts it once the new text is hashed.
+The hash is plain JS because `crypto.subtle` exists only over HTTPS or on localhost, and a phone reaches the dev server by LAN address over HTTP.
+A fetch applied in place (`applyFetched`) swaps a source's columns outside `loadColumns`, so it re-keys them with the new text's hash.
 
 Why the build id covers only the parse code: `scripts/build.js` hashes `engine/sources.js` and everything it imports into `__GRAWLIX_PARSE_BUILD_ID__`, so only a parser change discards users' records; hashing the whole site would miss on every deploy.
 Unbundled `site/` has no build id, so the IDB record is off in dev and in `npm run test:browser`; a parser edit there would otherwise serve stale columns.
