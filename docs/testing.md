@@ -386,6 +386,12 @@ A test that picks a real tool for its shape depends on that tool's incidental be
 A test of a tool's own behavior stays on the real tool.
 A fixture also reaches engine paths no shipped tool can, which is how the tier pick for a hidden-input transform and the atom count for a glyph-less one were found to be wrong.
 
+## Lab pages
+
+A lab page ([`design.md`](design.md) § *Lab pages*) gets a browser spec that loads `/lab/<name>/` and runs its tools, with `gotoApp(page, route, { labTools })` naming the lab's tool slugs so the new-tools reveal stays shut.
+The spec serves the lab's generated data from a small inline fixture with `page.route`, so it never needs `npm run lab:data`.
+The tool's search logic gets unit tests against a fixture of the same format, and [`lab.test.js`](../tests/unit/lab.test.js) pins the generated shell.
+
 ## Family anchoring
 
 The Entry sort collates a family at its first visible member's **anchor**, not at the family key (`docs/worker-protocol.md` § *Family anchoring*).

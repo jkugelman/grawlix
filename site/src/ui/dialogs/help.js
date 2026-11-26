@@ -5,6 +5,7 @@
 import { WORDLIST_PUBLISHERS, MERGED_NAME } from '../../core/constants.js';
 import { esc, pluralize } from '../../core/util.js';
 import { getBrowser } from '../../core/platform.js';
+import { siteURL } from '../../core/site.js';
 import { FEATURED_TOOLS, TOOLS } from '../../engine/tools.js';
 import { mergedEntryCount } from '../../data/merge.js';
 import { buildIconHTML, colorSeed, getMergedIcon } from '../icons.js';
@@ -43,7 +44,7 @@ function toolsDiagram() {
 
 function screenshot({ file, alt, caption, width, height }) {
   return `<figure class="faq-shot">
-      <img src="img/${file}" alt="${esc(alt)}" width="${width}" height="${height}" loading="lazy">
+      <img src="${siteURL(`img/${file}`)}" alt="${esc(alt)}" width="${width}" height="${height}" loading="lazy">
       <figcaption>${caption}</figcaption>
     </figure>`;
 }

@@ -17,6 +17,15 @@ Linguistic data
 - wordfreq — Robyn Speer — Apache-2.0 — a bundled list of the 30,000 most frequent English words from the large_en corpus, used as a word-family reduction tiebreak — https://github.com/rspeer/wordfreq
 
 
+Lab pages
+---------
+
+- Moby Thesaurus II — Grady Ward — public domain — via the moby npm package, for the Storm surge lab — https://github.com/words/moby
+- Open English WordNet — synsets, as synonym groups for the Storm surge lab — CC BY 4.0 — https://en-word.net/
+- Roget's Thesaurus — public domain — synonym groups, for the Storm surge lab — https://github.com/jkugelman/crossword/tree/main/wordlists/roget
+- Counter-fitted word vectors — Mrkšić et al. 2016, built on GloVe (Pennington et al. 2014) and Paragram-SL999 (Wieting et al. 2015) — used at build time to rate the Storm surge lab's synonym pairs; only the ratings ship — https://github.com/nmrksic/counter-fitting
+
+
 Fetched at runtime
 ------------------
 
@@ -106,8 +115,9 @@ Grawlix bundles modified extracts of the 2025 release: the noun.exc and
 verb.exc inflectional exception lists, reduced to lines mapping an irregular
 surface form to its base, with forms a suffix rule already reaches removed; and
 the single-word lemmas of the index.noun, index.verb, index.adj and index.adv
-files, reduced to those a common English word reduces to. No other WordNet data
-is used.
+files, reduced to those a common English word reduces to. The Storm surge lab
+page also serves the word lists of every synset in the data.noun, data.verb,
+data.adj and data.adv files, as synonym groups. No other WordNet data is used.
 
 
 wordfreq — https://github.com/rspeer/wordfreq

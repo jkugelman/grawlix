@@ -1,8 +1,9 @@
 import { readdir, readFile, writeFile, mkdir, copyFile, rm } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
-import { join, extname, relative } from 'node:path';
+import { dirname, join, extname, relative } from 'node:path';
 import { minify } from 'html-minifier-terser';
 import * as esbuild from 'esbuild';
+import { labNames, labShellHTML } from './lab.js';
 
 const SRC = 'site';
 const OUT = 'dist';
@@ -24,6 +25,12 @@ const JS_ENTRIES = [
   // the literal spawn URL resolves the same against dist/ and site/.
   { entry: 'site/src/engine/worker.js', outfile: 'dist/src/engine/worker.js' },
 ];
+const LABS = await labNames();
+for (const name of LABS) {
+  for (const file of ['main.js', 'worker.js']) {
+    JS_ENTRIES.push({ entry: `site/lab/${name}/${file}`, outfile: `dist/lab/${name}/${file}` });
+  }
+}
 
 const CSS_ENTRIES = [
   { entry: 'site/css/theme.css', outfile: 'dist/css/theme.css' },
@@ -79,9 +86,12 @@ async function walk(dir) {
     const rel = relative(SRC, from);
     if (entry.isDirectory()) {
       if (ESBUILD_OWNED.includes(rel)) continue;
+      if (dirname(rel) === 'lab' && !LABS.includes(entry.name)) continue;
       await walk(from);
       continue;
     }
+    // A lab's modules are bundled into its entries, and its shell is generated below.
+    if (rel.startsWith('lab/') && (extname(entry.name) === '.js' || entry.name === 'index.html')) continue;
     const to = join(OUT, rel);
     await mkdir(join(to, '..'), { recursive: true });
     if (extname(entry.name) === '.html') {
@@ -98,3 +108,10 @@ async function walk(dir) {
 }
 
 await walk(SRC);
+
+const indexHTML = await readFile(join(SRC, 'index.html'), 'utf8');
+for (const name of LABS) {
+  const out = await minify(labShellHTML(indexHTML, name), MINIFY_OPTS);
+  await writeFile(join(OUT, 'lab', name, 'index.html'), out);
+  console.log(`built    lab/${name}/index.html`);
+}

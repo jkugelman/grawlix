@@ -24,7 +24,7 @@ Per-file conventions:
 - **Imports at the top**, before any other code.
   A module imports only from layers below its own (or sibling `ui/` modules, where circular imports are allowed); never from a layer above it.
 - **Importing a module only *defines*.**
-  No DOM, no `effect()`, no `window` touch, no cross-layer reach at import time — all side effects run from `main.js`'s `boot()`.
+  No DOM, no `effect()`, no `window` touch, no cross-layer reach at import time — all side effects run from `boot()` in `boot.js`.
   (Pure, idempotent top-level computation is fine.)
 - Each module is `'use strict';` and ends its exports as named exports (per-tool files in `engine/tools/` `export default` their definition).
 

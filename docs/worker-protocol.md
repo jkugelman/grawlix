@@ -1413,8 +1413,8 @@ An idle worker builds the active scope's spacing table ([`segmenter.md`](segment
 ## Worker lifecycle
 
 - **Spawn:** lazily via `getWorker()` on first use, one worker per tab — but that first use is the boot-time `syncConfig`, so in practice it comes up at boot.
-  Spawned via `new Worker(new URL('./engine/worker.js', baseURL), { type: 'module' })`, where `baseURL` is **`main.js`'s `import.meta.url`**, injected at boot through `configurePipelineWorker({ baseURL })`.
-  (Anchoring on `main.js` is load-bearing — bundling inlines the `new URL` literal verbatim without rewriting its relative path, and the client module sits at a different depth than the bundle, so a client-anchored URL is dev-passing/prod-404.)
+  Spawned via `new Worker(workerURL, { type: 'module' })`, where the entry module resolves `workerURL` against its own `import.meta.url` and hands it to `boot()`, which injects it through `configurePipelineWorker({ workerURL })`: `main.js` passes `./engine/worker.js`, and a lab page's entry passes its own `worker.js` ([`design.md`](design.md) § *Lab pages*).
+  (Anchoring on the entry is load-bearing — bundling inlines the `new URL` literal verbatim without rewriting its relative path, and the client module sits at a different depth than the bundle, so a client-anchored URL is dev-passing/prod-404.)
 - **Memory:** the worker holds the only corpus copy — roughly **1× peak corpus memory** in the worker (rich `entries` + `norms`, plus the separate `ownedMerged` when scoped away from merged).
   Main holds no merged/scoped corpus, only My Edits' `rawEntries`.
 - **Crash → respawn → rebuild → re-dispatch.**

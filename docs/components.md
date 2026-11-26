@@ -84,7 +84,7 @@ If you're styling one of these, the rule already exists — extend it rather tha
 | `.choice-arrow`, `.choice-menu` | `buildChoiceArrowHTML`, `toggleChoiceMenu` |
 | `.badge` | `buildBadgeHTML` |
 | `.clearable-input`, `.clear-btn` | `buildClearableInputHTML` |
-| `.range-filter`, `.length-range-off` | `buildScoreRangeInputHTML`, `buildLengthRangeInputHTML` (`main.js`) — the stats bar's two range boxes. `.range-filter` carries the shared width/mono/invalid styling **and** is what the stats-bar overflow guard measures, so a third range box must have it or it will overlap the Share control instead of collapsing the histogram. Each box also carries an unstyled per-box hook (`.score-range-label`, `.length-range-label`) that JS and the specs select on. |
+| `.range-filter`, `.length-range-off` | `buildScoreRangeInputHTML`, `buildLengthRangeInputHTML` (`boot.js`) — the stats bar's two range boxes. `.range-filter` carries the shared width/mono/invalid styling **and** is what the stats-bar overflow guard measures, so a third range box must have it or it will overlap the Share control instead of collapsing the histogram. Each box also carries an unstyled per-box hook (`.score-range-label`, `.length-range-label`) that JS and the specs select on. |
 | `.of-flags`, `.of-flag`, `.of-case`, `.of-case-label` | `buildOutputFormatControlsHTML` |
 | `.tool-row-param` | `buildParamHTML` |
 | `.url-input-wrap`, `.url-input` | `buildUrlInputHTML` |

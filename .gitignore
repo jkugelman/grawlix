@@ -13,3 +13,7 @@ node_modules/
 playwright-report/
 playwright/.cache/
 test-results/
+
+# Lab pages: shells are generated from site/index.html, data by scripts/lab/<name>.js
+site/lab/*/index.html
+site/lab/*/data/

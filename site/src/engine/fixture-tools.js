@@ -4,7 +4,7 @@
 //
 // Installed by test hooks only: listing them in tools.js would put them in the gallery.
 
-import { TOOLS } from './tools.js';
+import { registerTools } from './tools.js';
 import { bestRowForNorm } from './corpus.js';
 
 // Emits corpus entries out of norm order, the one way to drop a family anchor
@@ -147,5 +147,5 @@ const held_pairs = {
 };
 
 export function installFixtureTools() {
-  Object.assign(TOOLS, { late_twin, echo, prefix_group, prefix_group_anchored, pair_map, throws, held_pairs });
+  registerTools({ late_twin, echo, prefix_group, prefix_group_anchored, pair_map, throws, held_pairs });
 }

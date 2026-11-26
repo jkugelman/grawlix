@@ -102,20 +102,8 @@ export const TOOLS = {
   optional_letters,
 };
 
-// A param's `key` defaults to a slug of its label (or placeholder); declare
-// `key` explicitly only when the internal name should differ from that text.
-for (const tool of Object.values(TOOLS)) {
-  for (const p of tool.params) {
-    if (!p.key) p.key = (p.label || p.placeholder || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '-');
-  }
-}
-
-for (const col of Object.values(TOOLS).flatMap(t => t.group?.columns || [])) {
-  if (!col.key) col.key = col.label.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-');
-}
-
 // Pure: gather the group-column keys across the catalog and build the CSS that
-// sizes each `.group-col`. main.js's mountGroupColumnStyle injects the result.
+// sizes each `.group-col`. boot() mounts it via mountGroupColumnStyle.
 export function groupColumnCSS() {
   const keys = new Set();
   for (const tool of Object.values(TOOLS)) {
@@ -130,11 +118,26 @@ export function groupColumnCSS() {
 // Keyed `toolKey/paramKey` to match the `data-help` attribute that input
 // builders emit — attachHelpPopups joins the two. Keep the formats in sync.
 export const PARAM_HELP = {};
-for (const [toolKey, tool] of Object.entries(TOOLS)) {
-  for (const p of tool.params) {
-    if (p.help) PARAM_HELP[`${toolKey}/${p.key}`] = p.help;
+
+// For tools outside the shipped catalog (lab pages, test fixtures). The worker has
+// its own copy of the catalog, so a caller registers in both realms or the worker
+// can't run the tool.
+export function registerTools(tools) {
+  for (const [toolKey, tool] of Object.entries(tools)) {
+    // A param's `key` defaults to a slug of its label (or placeholder); declare
+    // `key` explicitly only when the internal name should differ from that text.
+    for (const p of tool.params) {
+      if (!p.key) p.key = (p.label || p.placeholder || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '-');
+      if (p.help) PARAM_HELP[`${toolKey}/${p.key}`] = p.help;
+    }
+    for (const col of tool.group?.columns || []) {
+      if (!col.key) col.key = col.label.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-');
+    }
+    TOOLS[toolKey] = tool;
   }
 }
+registerTools(TOOLS);
+
 // Non-tool inputs share the same data-help mechanism; each key must match the
 // `data-help` its input builder emits — the stats-bar score/length filters in
 // buildScoreRangeInputHTML and buildLengthRangeInputHTML, the scoring tiers' score

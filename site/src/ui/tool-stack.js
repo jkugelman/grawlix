@@ -53,7 +53,7 @@ import {
 } from './components.js';
 
 // Router (URL persistence), the tool-row error popover, and help-popup
-// reattachment all live in the rendering layer (still in main.js). Injected so
+// reattachment all live in the rendering layer (still in boot.js). Injected so
 // this view doesn't reach upward; boot() supplies them via configureToolStack.
 let _navigate         = () => {};
 let _showRowError     = () => {};

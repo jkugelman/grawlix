@@ -7,6 +7,8 @@
 # (`http-server -c-1` sets Cache-Control: max-age=-1), so the browser never
 # serves stale JS/CSS — edit a file, reload, done. No file-watching / HMR by
 # design; the user reloads manually.
+# Directory listings are off (`-d false`), as on GitHub Pages, so an unlisted
+# lab's directory doesn't advertise its siblings in dev either.
 #
 # It does NOT serve site/ directly. One perma-server on $PORT serves a stable
 # symlink ($SERVE_LINK). To change WHAT is served, repoint the symlink: with
@@ -121,17 +123,17 @@ start_server() {
   # binary, so reach for the syscall through python3 -- already required here,
   # since it is what serves the site under test.
   if command -v setsid >/dev/null 2>&1; then
-    setsid npx -y http-server "$SERVE_LINK" -a 0.0.0.0 -p "$PORT" -c-1 \
+    setsid npx -y http-server "$SERVE_LINK" -a 0.0.0.0 -p "$PORT" -c-1 -d false \
       >"$LOG" 2>&1 </dev/null &
   elif command -v python3 >/dev/null 2>&1; then
     python3 -c 'import os,sys; os.setsid(); os.execvp(sys.argv[1], sys.argv[1:])' \
-      npx -y http-server "$SERVE_LINK" -a 0.0.0.0 -p "$PORT" -c-1 \
+      npx -y http-server "$SERVE_LINK" -a 0.0.0.0 -p "$PORT" -c-1 -d false \
       >"$LOG" 2>&1 </dev/null &
   else
     # Last resort: the subshell exits at once, orphaning the server onto init.
     # It survives the agent, but shares its process group, so a group-wide kill
     # would still take it down.
-    ( npx -y http-server "$SERVE_LINK" -a 0.0.0.0 -p "$PORT" -c-1 \
+    ( npx -y http-server "$SERVE_LINK" -a 0.0.0.0 -p "$PORT" -c-1 -d false \
         >"$LOG" 2>&1 </dev/null & )
   fi
 }
@@ -192,7 +194,20 @@ do_start() {
 
   echo "Serving: $(describe_target)"
   echo "Desktop: http://localhost:$PORT/"
+  write_lab_shells
   run_bridge
+}
+
+# Lab pages' index.html files and data are generated, not checked in. The data
+# step is a no-op unless a lab's data is missing or its generator changed.
+write_lab_shells() {
+  local checkout name
+  checkout=$(dirname "$(readlink -f "$SERVE_LINK")")
+  [ -f "$checkout/scripts/lab.js" ] || return 0
+  (cd "$checkout" && node scripts/lab.js --data | { grep -v '^wrote ' || true; }) || echo "dev-server: lab setup failed; labs may lack their data" >&2
+  for name in $(ls "$checkout/site/lab" 2>/dev/null); do
+    echo "Lab:     http://localhost:$PORT/lab/$name/"
+  done
 }
 
 do_status() {

@@ -105,11 +105,11 @@ core  <  engine  <  data  <  model  <  ui  <  app
 - `ui/` — components, dialogs, scrollers, rendering.
 - `app/` — router + action dispatcher.
 
-`main.js` is the thin boot entry; `test-api.js` is the only every-layer importer (imported last).
+`main.js` is the thin entry that calls `boot()` from `boot.js`; `test-api.js` is the only every-layer importer (imported last).
 `site/index.html` is just the shell (FOUC script + `<link>`s + `<script type="module" src="src/main.js">`); CSS lives in `site/css/`.
 
 **Importing a module only *defines*** — no DOM, no `effect()`, no `window` touch, no cross-layer reach at import time.
-All side effects run from one ordered `boot()` in `main.js`, whose mount/inject order is a load-bearing contract.
+All side effects run from one ordered `boot()` in `boot.js`, whose mount/inject order is a load-bearing contract.
 Cross-layer calls that would point upward (ui→app, or into a not-yet-available dep) are inverted via `configureX({...})` injection seams wired at boot; disk-sync repaints route through a `syncStatus$` signal rather than calling ui directly.
 Intra-`ui` circular imports are permitted (the strict rule is cross-layer acyclicity).
 The whys for all of this live in [`docs/design.md`](docs/design.md) § *Code structure*.
@@ -118,6 +118,10 @@ The whys for all of this live in [`docs/design.md`](docs/design.md) § *Code str
 No build step in the local loop — serve `site/` statically and refresh.
 `npm run build` runs esbuild from `main.js` into one minified `dist/` bundle (run by [`.github/workflows/ci.yml`](.github/workflows/ci.yml)).
 CI tests the bundle (`GRAWLIX_SITE_DIR=dist`).
+
+**Lab pages** (`site/lab/<name>/`, served at `/lab/<name>/`) are unlisted copies of the app with extra tools, for sharing an experiment with a few people; the main bundle carries none of their code.
+Their `index.html` shells and big data files are generated, never checked in (`npm run lab`, `npm run lab:data`).
+See [`docs/design.md`](docs/design.md) § *Lab pages*.
 
 Sections within a module are delimited by banner comments like:
 ```

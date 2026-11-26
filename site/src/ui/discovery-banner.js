@@ -7,7 +7,7 @@ import { isMobile } from '../core/platform.js';
 import { state } from '../data/state.js';
 import { lsSave, lsLoad } from '../data/storage.js';
 
-// The import action lives upward (main.js, WordlistActions); injected so this
+// The import action lives upward (boot.js, WordlistActions); injected so this
 // view imports nothing above ui. Unlike the on*= menu handlers, this is a direct
 // JS call from the banner's click listener, so it can't route through `window`.
 let _import = () => {};

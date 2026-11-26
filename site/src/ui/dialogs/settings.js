@@ -15,7 +15,7 @@ import { showConfirm } from './confirm.js';
 const OUTPUT_FORMAT_REGEN_DELAY = 1000;
 
 // checkForUpdates / regenerateFillOutputs / getAutoUpdate live in the app layer
-// (main.js); injected so this dialog imports nothing above ui. Defaults are no-ops
+// (boot.js); injected so this dialog imports nothing above ui. Defaults are no-ops
 // (getAutoUpdate defaults to enabled) so the dialog stays inert until boot wires them.
 let _checkForUpdates = () => {};
 let _regenerateFillOutputs = () => {};

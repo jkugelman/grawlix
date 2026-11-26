@@ -57,12 +57,12 @@ async function stubLookupFetches(page) {
 // Navigate to the app with the given route. Defaults to the bare URL.
 // Polls until init() has finished opening the IndexedDB so callers can
 // immediately call test-API functions that persist data.
-async function gotoApp(page, route = '/', { seedScoreRange = true } = {}) {
+async function gotoApp(page, route = '/', { seedScoreRange = true, labTools = [] } = {}) {
   await stubLookupFetches(page);
   // Mark the visitor returning and every tool already seen, so the new-tools
   // reveal — a full-screen overlay — never fires and swallows clicks in tests.
   await page.addInitScript(() => localStorage.setItem('grawlix_returningVisitor', '1'));
-  await page.addInitScript(slugs => localStorage.setItem('grawlix_seenTools', JSON.stringify(slugs)), Object.keys(TOOLS));
+  await page.addInitScript(slugs => localStorage.setItem('grawlix_seenTools', JSON.stringify(slugs)), [...Object.keys(TOOLS), ...labTools]);
   // The suite asserts against an unfiltered corpus, but new users now default to
   // the trash-tier filter (`1+`), so seed the filter off. Seed only when absent:
   // addInitScript re-runs on every navigation, so an unconditional set would

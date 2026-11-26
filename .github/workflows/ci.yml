@@ -44,6 +44,21 @@ jobs:
       - name: Run unit tests
         run: npm run test:unit
 
+      # Lab data is generated, not checked in. It changes only when its generators
+      # do, so the cache keeps most deploys off the upstream sources' servers, and
+      # the generate step skips a lab whose restored data is current.
+      - name: Restore lab data
+        uses: actions/cache@v6
+        with:
+          path: site/lab/*/data/
+          key: lab-data-v2-${{ hashFiles('scripts/lab/**', 'scripts/wordnet.js') }}
+
+      # A lab whose upstream source is down deploys without its data rather than
+      # blocking the main site's deploy.
+      - name: Generate lab data
+        continue-on-error: true
+        run: npm run lab:data
+
       - name: Build minified site
         run: npm run build
 

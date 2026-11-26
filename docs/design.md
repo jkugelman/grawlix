@@ -1062,6 +1062,7 @@ These are local-only:
 ## Code structure
 
 The app is authored as ES modules under [`site/src/`](../site/src/) — one entry, `main.js`, and a graph of ~75 small modules below it.
+Lab pages (§ *Lab pages*) add an entry of their own each.
 `site/index.html` is just a shell: a synchronous `<head>` FOUC script (sets the dark/light class before first paint — it must stay a plain non-module inline script, since module scripts are deferred and would reintroduce the flash), `<link>`s to `css/`, and a single `<script type="module" src="src/main.js">`.
 
 ### Layering: imports flow strictly downward
@@ -1084,8 +1085,9 @@ core  <  engine  <  data  <  model  <  ui  <  app
   The reusable pieces are catalogued in [`components.md`](components.md).
 - **`app/`** — orchestration: the URL router and the action dispatcher (fetch/import/update, My Edits add/delete, merge & download, export, rename).
 
-Two modules sit outside the layer stack.
-`main.js` is a thin boot entry (imports everything, runs the ordered `boot()` — below).
+Three modules sit outside the layer stack.
+`boot.js` imports everything and exports the ordered `boot()` (below).
+`main.js` is the entry: it calls `boot()` with the two URLs that depend on where the entry is served from, the pipeline worker's and the site root.
 `test-api.js` is the **only** every-layer importer: it assembles `window.__grawlixTest` from bindings across core/engine/data/model/ui/app, so `main.js` imports it *last*, after every layer it reaches into is initialized.
 
 ### Dev serves modules; deploy bundles them
@@ -1107,8 +1109,8 @@ Which test runs need the bundled `dist/` is in [`testing.md`](testing.md) § *CI
 ### Importing defines; `boot()` does
 
 The single load-bearing rule that makes the module graph work: **importing or evaluating a module only *defines* things.**
-Every DOM build, every event listener, every `effect()` registration, every `window` touch runs from one ordered `boot()` in `main.js`.
-(Pure, idempotent top-level computation — e.g. the `for` loops that backfill default `key`s on the tool params — is fine and stays put; the bar is *no DOM, no effect registration, no cross-layer reach at import*, not "no top-level statements.")
+Every DOM build, every event listener, every `effect()` registration, every `window` touch runs from one ordered `boot()` in `boot.js`.
+(Pure, idempotent top-level computation — e.g. `registerTools(TOOLS)`, which backfills default `key`s on the tool params — is fine and stays put; the bar is *no DOM, no effect registration, no cross-layer reach at import*, not "no top-level statements.")
 
 This matters because every top-level statement of a module runs *at import*, in dependency-graph order — so an import-time side effect becomes a fragile ordering constraint or a temporal-dead-zone error.
 With imports side-effect-free, import order stops being a correctness concern, and the worker can import the tool catalog without a `document` to throw on.
@@ -1147,7 +1149,8 @@ The worker-side seams are wired at the top of `engine/worker.js` or on its `conf
 
 | Seam | Module | Injected | Default before injection |
 |---|---|---|---|
-| `configurePipelineWorker` | `ui/pipeline-worker.js` | `baseURL: import.meta.url` (main.js's) | `null`: spawning the worker throws |
+| `configurePipelineWorker` | `ui/pipeline-worker.js` | `workerURL`, from the entry module | `null`: spawning the worker throws |
+| `configureSite` | `core/site.js` | `root`, the site root, from the entry module | `null`: `siteURL` throws |
 | `configureSyncDialog` | `ui/dialogs/sync.js` | `WordlistActions` | no-op |
 | `configureAddWordlist` | `ui/dialogs/add-wordlist.js` | `addNewWordlist`, `fetchWordlist`, `ingestFile` | no-op |
 | `configureImportGuide` | `ui/dialogs/import-guide.js` | `ingestFile` | no-op |
@@ -1191,7 +1194,7 @@ The corpus *mutators* — `setUnigramCorpus` / `invalidateUnigramCorpus` — are
 ### Per-tool files
 
 Each tool is its own `engine/tools/<slug>.js` that `export default`s its definition and imports only down-layer modules plus `engine/tools/shared.js` (cross-tool helpers).
-`engine/tools.js` is a thin **assembler**: it imports all the per-tool definitions, builds the ordered `TOOLS` catalog and its metadata (`TOOL_CATEGORIES`, `FEATURED_TOOLS`), runs the param/column key-backfill, and exposes `makeToolRow` / `normalizeParams` / the pure `groupColumnCSS()`.
+`engine/tools.js` is a thin **assembler**: it imports all the per-tool definitions, builds the ordered `TOOLS` catalog and its metadata (`TOOL_CATEGORIES`, `FEATURED_TOOLS`), registers it through `registerTools` (the param/column key-backfill; lab pages and test fixtures register their extra tools the same way), and exposes `makeToolRow` / `normalizeParams` / the pure `groupColumnCSS()`.
 Per-tool files never import the assembler, so there's no cycle.
 (The catalog *content* — every tool's icon, name, description, status — is owned by [`tools.md`](tools.md), not the code.)
 
@@ -1204,10 +1207,40 @@ Existing users notice nothing.
 ### Build settings that the worker forced
 
 - **esbuild multi-entry for `engine/worker.js`.**
-  The worker can't share the main bundle's scope, so `build.js` emits it as a second entry point, its outfile mirroring the source path so the literal `new Worker(new URL(...))` spawn URL resolves the same against `site/` and `dist/`.
+  The worker can't share the main bundle's scope, so `build.js` emits it as a second entry point, its outfile mirroring the source path so the `new URL('./engine/worker.js', import.meta.url)` that `main.js` hands to `boot()` resolves the same against `site/` and `dist/`.
 - **The corpus loader fetches its own data.**
   The unigram-corpus seam landed as injected-I/O rather than ship-the-map: the worker opens the same per-origin IndexedDB store directly and decodes the corpus itself (the segmenter's `configureIO`, above), instead of the main thread building the frequency map and shipping it.
 - **Source maps ship.** esbuild emits them cheaply (`sourcemap: true`), so a production stack trace points back into source rather than minified bundle code.
+
+### Lab pages
+
+A lab page is an unlisted copy of the app at `/lab/<name>/` that adds its own tools, for sharing an experiment with a few people.
+Each lab is a directory `site/lab/<name>/`:
+
+- `tools.js` registers the lab's tools with `registerTools` and adds a Lab category to the gallery.
+- `main.js` imports `tools.js`, then calls `boot()` with the lab's own worker and the site root.
+- `worker.js` imports `tools.js`, then `src/engine/worker.js`, so the worker's catalog holds the tools too.
+- The tool modules.
+- `data/`, for data too big for Git: generated by `scripts/lab/<name>.js` and gitignored.
+
+The lab's `index.html` is generated from `site/index.html` by [`scripts/lab.js`](../scripts/lab.js), never checked in: every relative URL climbs `../../`, the script tag points at the lab's `main.js`, the manifest is dropped so the page can't install as an app of its own, and a `noindex` tag keeps it out of search.
+`npm run build` bundles each lab's two entries and writes its shell into `dist/`.
+In `site/`, `npm run lab` writes the shells (gitignored); the dev server and `npm run test:browser` run it on start.
+`npm run lab:data` runs each lab's data generator whose data is missing or stale, judged by a stamp in `data/` that hashes the generator and the local modules it imports; the dev server runs it on start, so a fresh checkout or a changed generator regenerates without being asked.
+CI runs it before the build on top of a cache of the data keyed on the generators, and a generator that fails (an upstream source is down) only leaves its lab without data: the deploy goes ahead.
+
+Nothing under `src/` imports from `site/lab/`, so the main page's bundle carries no lab code.
+A lab is unlisted, not private: its source is in the public repo, and anyone with the link can load it.
+Nothing lists the labs: `/lab/` has no page, GitHub Pages serves no directory listings, and the dev server turns them off to match.
+
+A lab shares the main page's origin, so its wordlists, My Edits, settings and cached assets are the same ones, and moving between the two is seamless.
+URL state lives in the query string and the router keeps `location.pathname`, so a lab's links stay on the lab.
+A lab link opened on the main page drops the unknown tool with a toast, like any unknown slug.
+The new-tools reveal shows a lab's tools to a returning visitor once; marking them seen only adds to `seenTools`, which the main page ignores for slugs it lacks.
+A lab's worker sits at the same depth as `src/engine/worker.js`, which the worker's own data URLs rely on.
+
+Retiring a lab is deleting its directory and its generator; the next deploy takes the URL down, and nothing in storage refers to it.
+A directory counts as a lab only while it holds a `main.js`, so the ignored files a deleted lab leaves in a checkout don't break the build.
 
 ## Caches
 

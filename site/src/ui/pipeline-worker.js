@@ -1,10 +1,8 @@
 // ─── Pipeline worker client ──────────────────────────────────────────────────
-// The worker URL anchors on main.js's import.meta.url (injected at boot), not
-// this module's. Bundling inlines this file into main.js at src/ while site/
-// serves it from src/ui/ — a literal relative to import.meta.url would resolve
-// to different places in the two builds. main.js lands at src/main.js in both,
-// so anchoring there makes one relative path correct everywhere, deploy base
-// included (no leading-slash hardcoding).
+// The worker URL is injected at boot by the entry module, not resolved against
+// this module's import.meta.url: bundling inlines this file into the entry while
+// site/ serves it from src/ui/, so a literal relative to it would resolve to
+// different places in the two builds.
 
 import { currentAtomCount } from '../engine/executor.js';
 import { anyAssetAutoUpdates } from '../engine/assets.js';
@@ -17,7 +15,7 @@ import { isMobile } from '../core/platform.js';
 import { AppView, activeScoreRange, activeLengthRange } from './app-view.js';
 import { entryPanelRebindQuery, streamFlatBatchToScroller, streamGroupBatchToScroller, streamTransformBatchToScroller, ingestReprojectToScroller, setPipelineProgress } from './entries-table.js';
 
-let workerBaseURL = null;
+let workerURL = null;
 let worker = null;
 
 function workerOwnsCorpus() { return true; }
@@ -48,13 +46,13 @@ export function whenWorkerCommitted(timeout = 5000) {
   });
 }
 
-export function configurePipelineWorker({ baseURL }) {
-  workerBaseURL = baseURL;
+export function configurePipelineWorker(opts) {
+  workerURL = opts.workerURL;
 }
 
 function getWorker() {
   if (!worker) {
-    worker = new Worker(new URL('./engine/worker.js', workerBaseURL), { type: 'module' });
+    worker = new Worker(workerURL, { type: 'module' });
     worker.addEventListener('message', onWorkerMessage);
     worker.addEventListener('error', onWorkerCrash);
     worker.addEventListener('messageerror', onWorkerCrash);

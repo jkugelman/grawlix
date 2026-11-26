@@ -107,7 +107,8 @@ function readWordlistText(sourceId) {
 }
 configureSegmenterIO({ idbGet, idbPut });
 // Resolved here, not in phonetics.js: main.js bundles that module too, at src/,
-// where the same relative path lands outside the site.
+// where the same relative path lands outside the site. A lab page's worker
+// (lab/<name>/worker.js) sits at this module's depth, so the path holds there too.
 configurePhoneticsIO({ idbGet, idbPut, supplementUrl: new URL('../../data/cmu-supplement.dict', import.meta.url).href });
 
 async function handleCheckAssets() {
