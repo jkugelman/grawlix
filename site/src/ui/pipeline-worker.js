@@ -482,11 +482,15 @@ function decodeAtom(atom, sourceById) {
       activeIds: atom.activeIds ?? (atom.sourceId ? [atom.sourceId] : []),
     };
   }
-  return { wlEntry, highlights: atom.h ?? null, glyph: atom.g ?? null };
+  const out = { wlEntry, highlights: atom.h ?? null, glyph: atom.g ?? null };
+  if (atom.c !== undefined) out.column = atom.c;
+  return out;
 }
 
 function decodeChain(chain, sourceById) {
-  return { atoms: chain.atoms.map(a => decodeAtom(a, sourceById)) };
+  const atoms = chain.atoms.map(a => decodeAtom(a, sourceById));
+  const withColumn = atoms.find(a => a.column !== undefined);
+  return withColumn ? { atoms, columnValue: withColumn.column } : { atoms };
 }
 
 function decodeGroupEnvelope(g, sourceById) {

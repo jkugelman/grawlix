@@ -59,7 +59,7 @@ import { openUpdateSummaryDialog } from '../ui/dialogs/update-summary.js';
 import { SettingsDialog, cycleDarkMode } from '../ui/dialogs/settings.js';
 import { HelpDialog } from '../ui/dialogs/help.js';
 import { AppView } from '../ui/app-view.js';
-import { isMultiLaneTier, activeFlatColumn } from '../engine/sort.js';
+import { isMultiLaneTier, activeToolColumn } from '../engine/sort.js';
 import {
   activeGroupColumns, EntryPanel, handleScoreDigitShortcut,
 } from '../ui/entries-table.js';
@@ -1641,7 +1641,7 @@ export function buildCSVText(rows, grouped, stack, tuple = false, fmt = AS_IS_FO
   const atomCount = currentContentAtomCount(stack);
   const isMulti = atomCount > 1;
   const groupCols = grouped ? activeGroupColumns(stack) : [];
-  const toolCol = grouped ? null : activeFlatColumn(stack);
+  const toolCol = grouped ? null : activeToolColumn(stack);
 
   const header = [];
   if (grouped) header.push('group_key', 'count');
@@ -1711,7 +1711,7 @@ export function buildExportJSONObject(rows, grouped, stack, tuple = false) {
   if (range) obj.score_range = range;
   obj.sort = exportSortMetadata();
   const groupCols = grouped ? activeGroupColumns(stack) : [];
-  const toolCol = grouped ? null : activeFlatColumn(stack);
+  const toolCol = grouped ? null : activeToolColumn(stack);
 
   function chainObj(chain, includeProvenance) {
     const entries = chainContentEntries(chain).map(wlE => {

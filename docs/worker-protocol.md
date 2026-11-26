@@ -1109,7 +1109,7 @@ Always carries `ranAgainstOwned: true` (the worker always runs against its own c
   - `{ s: { norm, display, score, coined? } }` — a **synthetic** atom: a tool output that exists in no wordlist (`wlEntry.wordlist === null`).
     Inline and self-contained, **not** looked up by norm on receipt.
     `coined: true` rides along when the tool declared the output coined; main draws a dash in place of its score badge.
-  - plus optional `h` (the atom's `highlights`, omitted when null) and `g` (its `glyph`, one of `'→' | '↔' | '⊃'`, omitted when null).
+  - plus optional `h` (the atom's `highlights`, omitted when null), `g` (its `glyph`, one of `'→' | '↔' | '⊃'`, omitted when null) and `c` (its tool-column value, on the output atom of a transform that declares a `column`; main lifts it to the chain's `columnValue`).
 - `payload` — tiered:
   - **filter/search** (the common, laggy case): **no off-screen highlights, no per-row objects** beyond the inline first window, no transfer.
     `payload = { count, widthHints, stats, histogramCounts, histogramLayout, existsInScope, rebindQuery, rebindEntry, rebindExists, filtered, firstRows }`.

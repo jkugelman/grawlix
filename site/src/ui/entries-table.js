@@ -24,7 +24,7 @@ import {
   isGroupChain, rowLastEntry, rowSetAtoms,
 } from '../engine/executor.js';
 import {
-  compareItems, compareValues, activeGroupColumns, activeGroupAnchorLabel, activeFlatColumn,
+  compareItems, compareValues, activeGroupColumns, activeGroupAnchorLabel, activeToolColumn,
   sortAxes, chainSortTier, DEFAULT_SORT_BY_TIER, defaultSortFor, isValidSortAxis,
   isMultiLaneTier, rowMinScore, rowMaxScore, rowMinLength, rowMaxLength,
 } from '../engine/sort.js';
@@ -4995,7 +4995,7 @@ export function buildEntryHeadersHTML() {
       <span class="group-entries-label">${hdr('Entries', entriesAxes, 'group-entries')}</span>
     </div>`;
   }
-  const toolCol = activeFlatColumn(stack);
+  const toolCol = activeToolColumn(stack);
   return `<div class="entry-headers entry-headers-font">
       <span></span>
       <span class="col-entry">${hdr('Entry', columnSortAxes('col-entry', tierAxes), 'col-entry')}</span>
@@ -5050,7 +5050,7 @@ function toolCellHTML(value) {
 function applyToolColumnLayout() {
   const target = document.getElementById('detail-panel');
   if (!target) return;
-  const col = activeFlatColumn(ToolStack.getStack());
+  const col = activeToolColumn(ToolStack.getStack());
   toolColMeter = col?.meter ? { label: col.label, steps: col.meter } : null;
   target.classList.toggle('has-tool-col', !!col);
   if (!col) return;

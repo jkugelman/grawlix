@@ -568,6 +568,10 @@ A column with a `defaultSort` direction is also the default sort while it's acti
 The URL leaves out `sort=` when the sort equals that default, direction included, so a picked Entry sort under such a tool is written out and survives a reload.
 Removing the tool drops the axis through `reconcileSort` like any other axis the tier lacks.
 CSV and JSON exports carry the column under its key.
+**A transform can add one column too.**
+A transform declares `column: { key, label, width(params), meter?, defaultSort? }` and gives each output its value as `out.column`, which the executor puts on the output atom; the atom carries it through the caches and the wire (`c`), and main lifts it to the row's `columnValue`.
+`activeChainColumn(stack)` picks the first active transform that declares one, in any stack with no group or tuple row; its sort axis orders rows by the value, ties to the first then the last entry.
+`activeToolColumn(stack)`, whichever of the two is active, drives the header, the layout, the default sort and the exports.
 The Sources column shows each entry's contributing wordlists as a row of icons rather than a single name, so it carries no sort axis — there's no one value to order by.
 Because the worker keys every source by `dbKey` and nothing sorts by name, it never carries the human label at all.
 - **Grouped pipelines** (a group tool in the stack): Entry, Count, Min score, Max score, Min length, Max length.

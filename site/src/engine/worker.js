@@ -2155,6 +2155,7 @@ function encodeAtom(atom) {
   }
   if (highlights != null) out.h = highlights;
   if (glyph != null) out.g = glyph;
+  if (atom.column !== undefined) out.c = atom.column;
   return out;
 }
 

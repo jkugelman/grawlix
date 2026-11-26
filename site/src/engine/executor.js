@@ -491,11 +491,13 @@ async function runToolStage(rows, stackRow, prepared, wordlist, y, emit = null) 
           if (showInput && inputHi) {
             atoms.push({ wlEntry: tailEntry, highlights: tagCoord(out.inputHighlights || [], coord), glyph: null });
           }
-          atoms.push({
+          const atom = {
             wlEntry,
             highlights: outputHi ? tagCoord(out.outputHighlights || [], coord) : null,
             glyph,
-          });
+          };
+          if (out.column !== undefined) atom.column = out.column;
+          atoms.push(atom);
           next.push({ atoms });
         }
       }

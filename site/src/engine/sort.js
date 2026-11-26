@@ -195,7 +195,7 @@ export const DEFAULT_SORT_BY_TIER = { single: 'entry', multi: 'entry', group: 'e
 // alphabetical order.
 export function defaultSortFor(stack) {
   const tier = chainSortTier(stack);
-  const col = tier === 'single' ? activeFlatColumn(stack) : null;
+  const col = activeToolColumn(stack);
   return col?.defaultSort ? { key: col.key, dir: col.defaultSort } : { key: DEFAULT_SORT_BY_TIER[tier], dir: 'asc' };
 }
 
@@ -217,6 +217,17 @@ export function sortAxes(tier, stack, anchors = null) {
   let axes = SORT_AXES[tier];
   const col = tier === 'single' ? activeFlatColumn(stack) : null;
   if (col) axes = { ...axes, [col.key]: { label: col.label } };
+  const chainCol = activeChainColumn(stack);
+  if (chainCol) {
+    axes = { ...axes, [chainCol.key]: {
+      label: chainCol.label,
+      primary: rowColumnValue,
+      tiebreakers: [
+        { project: rowFirstDisplay, dir: 'asc' },
+        { project: rowLastDisplay,  dir: 'asc' },
+      ],
+    } };
+  }
   if (!anchors) return axes;
   return { ...axes, entry: { ...axes.entry, primary: entryPrimary(anchors) } };
 }
@@ -297,6 +308,18 @@ export function activeFlatColumn(stack) {
     && r.inputHi() && !r.inverted());
   return row ? { row, ...row.def.column } : null;
 }
+// A transform's column value rides on its output atom (`out.column`), through the
+// wire (encodeAtom/decodeAtom) and the caches: a path that rebuilds atoms without
+// it leaves the cells silently blank.
+export function activeChainColumn(stack) {
+  if (!stack || isFilterOnlyChain(stack) || isGroupChain(stack) || isTupleChain(stack)) return null;
+  const row = stack.find(r => r.def.column && r.kind() === 'transform' && !r.isInert());
+  return row ? { row, ...row.def.column } : null;
+}
+export function activeToolColumn(stack) {
+  return activeFlatColumn(stack) ?? activeChainColumn(stack);
+}
+export const rowColumnValue = r => rowAtoms(r).find(a => a.column !== undefined)?.column;
 export function activeGroupColumns(stack) {
   return activeGroupRow(stack)?.def.group?.columns || [];
 }
