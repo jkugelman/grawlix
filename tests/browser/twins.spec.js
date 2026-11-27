@@ -18,8 +18,8 @@ test('keeps entries that look like the query, the query itself first and then mo
     await T.setStack([{ tool: 'twins', params: { entry: 'bull market' } }]);
   });
   await expectVisible(page, ['bull market', 'ball marker', 'bulwarked', 'submarket'], { ordered: true });
-  await expect(page.locator('#vs-host .entry-row .tool-meter--special')).toHaveAttribute('aria-label', 'Likeness: the typed entry');
-  await expect(page.locator('.entry-headers .col-tool')).toHaveText('Likeness ↓');
+  await expect(page.locator('#vs-host .entry-row .tool-meter--special')).toHaveAttribute('aria-label', 'Similarity: the typed entry');
+  await expect(page.locator('.entry-headers .col-tool')).toHaveText('Similarity ↓');
   await expect(page.locator('.col-tool .col-sort')).toContainText('↓');
   await expect(page).not.toHaveURL(/sort=/);
   const levels = await page.locator('#vs-host .entry-row .tool-meter:not(.tool-meter--special)').evaluateAll(cells => cells
@@ -81,7 +81,7 @@ test('🎲 rolls from the visible wordlist within the score filter', async ({ pa
   }
 });
 
-test('a pair found by sound gets its likeness too', async ({ page }) => {
+test('a pair found by sound gets its similarity too', async ({ page }) => {
   await page.unroute(/cmudict\.dict/);
   await page.route(/cmudict\.dict/, route => route.fulfill({ status: 200, contentType: 'text/plain',
     body: 'midnight M IH1 D N AY2 T\nride R AY1 D\ndid D IH1 D\nright R AY1 T\nby B AY1\nzebra Z IY1 B R AH0\n' }));

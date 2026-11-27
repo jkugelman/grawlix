@@ -383,8 +383,8 @@ The sound-based tools and the CMU pronunciation core they share have their own d
 
 Twins ([`engine/tools/twins.js`](../site/src/engine/tools/twins.js)) finds entries whose letters or sounds are close to the typed entry's while their meanings are unrelated: BULL MARKET / BULLET MARK, THERE'S A WAY / THERESA MAY, BASS TRACKS / BRASS TACKS.
 Puzzmo calls these *apt pairs* and Crosscord *fraternal twins*.
-It keeps every pair up to looseness 0.40, with no setting: John's good pairs run out to about 0.30, and sorting by likeness already puts the distant ones last.
-Results carry a **Likeness** column, drawn as an eight-step meter rather than a number so it needs no explaining, and sort most alike first by default, the one tool whose column is also the default sort ([`pipeline.md`](pipeline.md) § *Sort axes per tier*): its hits read as noise in alphabetical order.
+It keeps every pair up to looseness 0.40, with no setting: John's good pairs run out to about 0.30, and sorting by similarity already puts the distant ones last.
+Results carry a **Similarity** column, drawn as an eight-step meter rather than a number so it needs no explaining, and sort most alike first by default, the one tool whose column is also the default sort ([`pipeline.md`](pipeline.md) § *Sort axes per tier*): its hits read as noise in alphabetical order.
 The steps fall at looseness 0.07, 0.14, 0.20, 0.25, 0.30, 0.35 and 0.38, narrowing toward the cutoff.
 Over random queries 95% of hits score between 0.25 and the 0.40 cutoff, half of them above 0.36, so the lower steps spread across that end, while the top bars stay rare, as good twins are.
 The typed entry itself, when the list has it, leads the results with a full meter in a lighter purple, so a query shows at a glance whether the list holds it.
@@ -400,7 +400,7 @@ And its length, favoring 7 to 12 letters: over random queries, 3–5-letter entr
 The roll keeps no index, so it costs no memory.
 A tool opts in by naming the param to fill (`dice: 'entry'`).
 
-Internally the scorer measures **looseness**, the opposite of likeness: a cost divided by the shorter entry's length, from a weighted letter alignment ([`engine/twins.js`](../site/src/engine/twins.js)) over the entries with spaces removed:
+Internally the scorer measures **looseness**, the opposite of similarity: a cost divided by the shorter entry's length, from a weighted letter alignment ([`engine/twins.js`](../site/src/engine/twins.js)) over the entries with spaces removed:
 
 - Sound-alike swaps (C/K/S, S/Z, I/Y, F/V…), vowel-for-vowel swaps and a collapsed doubled letter are cheap; opening a gap costs more than extending one, so inserting one chunk counts as about one edit.
   Inserted letters cost by kind (vowels least, H L N R S T next, F J K Q V W X Z most), so TOWEL OFF's added Fs cost more than EARHART's R and H.

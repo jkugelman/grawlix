@@ -190,7 +190,7 @@ const SORT_AXES = {
 };
 export const DEFAULT_SORT_BY_TIER = { single: 'entry', multi: 'entry', group: 'entry', tuple: 'entry' };
 
-// A flat tool column with a `defaultSort` direction (Twins' Likeness)
+// A flat tool column with a `defaultSort` direction (Twins' Similarity)
 // replaces Entry as the default while it's active: its rows mean nothing in
 // alphabetical order.
 export function defaultSortFor(stack) {

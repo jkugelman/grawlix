@@ -196,7 +196,7 @@ const SELF = { loose: -1, self: true };
 // the low steps spread across that crowded end, while the top bars stay rare,
 // as good twins are.
 const LEVELS = [0.07, 0.14, 0.2, 0.25, 0.3, 0.35, 0.38];
-const likenessLevel = loose => (loose == null ? 0 : 8 - LEVELS.filter(t => loose >= t).length);
+const similarityLevel = loose => (loose == null ? 0 : 8 - LEVELS.filter(t => loose >= t).length);
 
 export default {
   name: 'Twins', icon: '👯', category: 'pairs',
@@ -228,8 +228,8 @@ export default {
   run: (wlEntry, { slot }) => (slot.hitFor(wlEntry) ? [] : false),
   lead: ({ slot }) => slot.norm,
   column: {
-    key: 'likeness', label: 'Likeness', defaultSort: 'desc', meter: 8,
-    value: (wlEntry, { slot }) => { const hit = slot.hitFor(wlEntry); return hit?.self ? 'the typed entry' : likenessLevel(hit?.loose); },
+    key: 'similarity', label: 'Similarity', defaultSort: 'desc', meter: 8,
+    value: (wlEntry, { slot }) => { const hit = slot.hitFor(wlEntry); return hit?.self ? 'the typed entry' : similarityLevel(hit?.loose); },
     order: (wlEntry, { slot }) => -(slot.hitFor(wlEntry)?.loose ?? 9),
     width: () => 9,
   },

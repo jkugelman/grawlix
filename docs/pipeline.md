@@ -566,7 +566,7 @@ A filter declares `column: { key, label, value(input, prepared), order(input, pr
 The column sits after Score with its own single-axis sort (`order`, ties to score desc then collation), its cells carry `value`, and `width` sizes the track from the params, since main never sees every row.
 Under its sort the run bracket marks runs of equal `order` (`design.md` § *Run bracket*).
 A column with `meter: N` draws its value as an N-step meter instead of text: a number is the level, and a string draws as a full meter in a lighter purple (`--meter-special`), its text read out as the label; exports carry the value.
-A column with a `defaultSort` direction is also the default sort while it's active, the one exception to the same default in every tier, for a tool whose rows mean nothing in alphabetical order, such as Twins' Likeness, sorted descending.
+A column with a `defaultSort` direction is also the default sort while it's active, the one exception to the same default in every tier, for a tool whose rows mean nothing in alphabetical order, such as Twins' Similarity, sorted descending.
 `defaultSortFor(stack)` names the default axis and direction, and only a sort the user hasn't picked follows it: `AppView.sortPicked` turns true on a header click or a URL `sort=`, and until then `reconcileSort` applies the stack's default, so removing the tool returns to Entry.
 The URL leaves out `sort=` when the sort equals that default, direction included, so a picked Entry sort under such a tool is written out and survives a reload.
 Removing the tool drops the axis through `reconcileSort` like any other axis the tier lacks.
