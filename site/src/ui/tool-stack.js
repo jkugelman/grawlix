@@ -46,6 +46,7 @@ import {
 import { MATCH_PARAM, isReplacing } from '../engine/tools/shared.js';
 import { runOnWorker, preloadWorkerAsset, fetchWorkerRandomEntry } from './pipeline-worker.js';
 import { resetPipelineProgress } from './entries-table.js';
+import { takePrerolled, armDicePreroll } from './dice-preroll.js';
 import { bumpPipelineVersion, setResultsStale } from '../data/state.js';
 import {
   buildTextInputHTML, buildParamHTML, syncClearButton, setSegCtrlActive,
@@ -121,6 +122,7 @@ export async function runPipeline(stack, sort) {
     // the class then hides the spinner for the whole of a slow successor.
     if (_pipelineRunning === 0) {
       panel?.classList.remove('pipeline-running');
+      armDicePreroll();
       const waiters = _pipelineIdleWaiters.splice(0);
       queueMicrotask(() => waiters.forEach(fn => fn()));
     }
@@ -437,7 +439,7 @@ export const ToolStack = (() => {
   let diceRoll = null;
   async function rollDice(row) {
     const roll = diceRoll = { row };
-    const display = await fetchWorkerRandomEntry();
+    const display = takePrerolled(stack.indexOf(row)) ?? await fetchWorkerRandomEntry();
     // A later click or a keystroke replaces the roll; its answer must not land too.
     if (!display || diceRoll !== roll || !stack.includes(row)) return;
     diceRoll = null;

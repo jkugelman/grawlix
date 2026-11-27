@@ -730,6 +730,23 @@ Same discipline as `spaceOut`'s `ready`: un-ready is *no answer*, and the resolv
 #### `randomEntry` (🎲 reply)
 `{ type: 'randomEntry', requestId, display, ready }` — reply to `fetchRandomEntry`; `display` is null with no merge yet.
 Its own request-id space; a timeout resolves null and the roll does nothing.
+#### `preroll` (🎲 roll ahead)
+`{ type: 'preroll', stack, row, param, scope, scoreRange, lengthRange }` — **roll 🎲 entries for `stack[row]`'s `param` in the background** (§ *Dice pre-roll*).
+Main sends it once the page has been quiet, with no run in flight.
+- **On receipt:** keys the request by `prerollContext` ([`engine/preroll.js`](../site/src/engine/preroll.js)): the stack with `param` blanked, the scope and the two filters.
+  A new context empties the queue; the same one keeps it and drops any queued entry equal to the param's current value, the roll the user just took.
+  Replies with a `prerollState`, then probes until the queue is full of strong rolls or the worker gives up.
+
+#### `prerollStop` (🎲 stop rolling ahead)
+`{ type: 'prerollStop' }` — main saw a key or pointer press.
+The probe in flight aborts at its next yield; the buffer stays.
+A `run` does the same.
+
+#### `prerollState` (worker → main)
+`{ type: 'prerollState', context, queue, tried, gaveUp, probing, adoptions }` — the queue for `context` (`[{ display, strong }]`, in the order clicks take them), the probes run since the queue last emptied, whether the worker has stopped rolling, the display of the probe in flight (or null), and how many probes a click has taken over.
+Posted at every probe's start and end.
+A click on the die takes from it only while main's own `prerollContext` for the stack on screen matches.
+
 #### `fetchProvenance` (entry-panel provenance + preview)
 `{ type: 'fetchProvenance', requestId, typedRaw, previewRaw, clickedNorm, clickedDisplay }` — **resolve the panel's live preview (the merge row for the typed/seed text) and its cross-wordlist provenance table** so the inline entry panel does no main-thread corpus read.
 The two targets the worker holds: `ownedMerged` for the preview (the merge winner), and `ownedBuilt` (the all-sources rich wordlists, enabled **and** disabled) for the provenance walk — disabled/non-winning lists must still surface.
@@ -1419,6 +1436,27 @@ An idle worker builds the active scope's spacing table ([`segmenter.md`](segment
 - **Memory.**
   A corpus the warm-up loaded itself is unloaded once the worker is idle and no stack row needs it (`releaseWarmUnigrams`, also called after each `drainRuns`).
   The asset reap acts only when the needed-asset set changes, so on its own it would leave the ~100 MB+ resident.
+
+### Dice pre-roll
+
+An idle worker rolls 🎲 entries ahead of the click ([`design.md`](design.md) § *Twins*), on request (`preroll`).
+
+- **Probe.**
+  Each probe draws an entry as `fetchRandomEntry` does, skipping the param's current value and the queued ones, fills it into the stack (`withRolledEntry`, which keeps the params' key order so the click's run keys the same cache entry), and runs `executePipeline` with the run's own prefix seam and prepare cache.
+  It admits the result as a finished run does, so the click's `run` is a finished-cache hit, or seeds from the prefix tile the probe offered.
+  The roll is strong when a result the view's score and length filters keep reaches the rolled tool's `diceStrong` level in that tool's flat column; a hidden score-0 spelling of the rolled entry would otherwise count as a near-perfect twin.
+  After each probe the worker replays the columns of the shown query and the queued rolls (`keepRollsWarm`), so a tool's per-query memo (Twins keeps six) still holds their scores and the click doesn't re-score every row.
+- **Queue.**
+  Up to `PREROLL_QUEUE` rolls, strong ones ahead of the others and oldest first within each kind; a strong roll arriving at a full queue replaces the newest other one.
+  Probing stops when the queue is full of strong rolls, after `PREROLL_MISS_CAP` probes in a row without one (a tool with no `diceStrong` stops once the queue is full), or when no fresh entry can be drawn.
+  Taking a queued roll resets the miss count.
+- **Hand-off.**
+  A flat probe streams its rows into a join of its own.
+  A `run` whose `(scope, stack)` key equals the probe's, against the same corpus and generation, takes the probe over (`adoptPrerollProbe`) instead of queuing: the worker sets `running`, derives the display slot from the join so far and posts it as a `partial`, as a partial-cache resume does, and points the probe's emitter at a stream emitter for the run's id.
+  From then on the probe's signal is the run's (`runId !== latestRunId`), its progress posts as the run's, and its end is the run's terminal (`finishAdoptedProbe`): a result and cache admission, an error, or a partial stash on supersession, then `running` clears and `drainRuns` starts any run that queued behind it.
+- **Abort.**
+  An unadopted probe's signal trips on a run or repatch (`running`/`pending`), `prerollStop`, a new context, a scope change, a rebuild or an edit (`ownedConfigVersion`), as the idle warm-up's does, and a probe that tripped admits nothing.
+  `drainRuns` waits for it to unwind, as it does for the warm-up, and the two never run at once.
 
 ---
 

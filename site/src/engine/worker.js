@@ -5,7 +5,7 @@ import { TOOLS, makeToolRow, toolAssets, configureUmiaq, configureWeave } from '
 import { installFixtureTools, releaseFixtureHold } from './fixture-tools.js';
 import { executePipeline, runDetachedBuild, configureExecutorYield, lastPipelineSeedFrom, lastPipelineTailMs, bottomLineAtoms, applyViewFilterToRows, entryPredicate, chainPredicate, rowLastEntry, rowAtoms, collapseRepeatAtoms, chainKey, mirrorKey, streamPlan, cacheGroupStats, currentAtomCount } from './executor.js';
 import { GdsCache, RoleCache } from './gds-cache.js';
-import { sortGroups, sortChainRows, activeGroupRow, groupRowComparator, chainRowComparator, chainSortTier, defaultSortFor, entrySortKey, foldAnchor, foldChainAnchor, chainFamily, chainAnchors, usesEntryAxis, compareValues, collationKey } from './sort.js';
+import { sortGroups, sortChainRows, activeGroupRow, activeFlatColumn, groupRowComparator, chainRowComparator, chainSortTier, defaultSortFor, entrySortKey, foldAnchor, foldChainAnchor, chainFamily, chainAnchors, usesEntryAxis, compareValues, collationKey } from './sort.js';
 import { PackedRecordJoin, packRecordJoin, materializeRecordRow, recordView, recordComparator, recordPasses, PackedGroupJoin, tryPackGroupJoin, buildGroupFlyweights, materializeGroupRow } from './packed-join.js';
 import {
   configureIO as configureSegmenterIO, setUnigramCorpus, configureSpaceOutBigrams,
@@ -32,6 +32,7 @@ import { computeStatsRaw } from './stats.js';
 import { makeWidthHintAcc, computeWidthHints, computeCorpusWidthBound } from './width-hints.js';
 import { compileFlatHighlighters, compileFlatColumn, materializeFlatRow } from './flat-highlight.js';
 import { serializeEntries } from './serialize.js';
+import { prerollContext, withRolledEntry } from './preroll.js';
 import { threeWayMergeEdits, sameEditsEntries } from './edits-merge.js';
 import { applyEditsWriteSet, planEntryWrite } from './edit-plan.js';
 
@@ -249,6 +250,7 @@ async function drainRuns() {
     // Else the run's prepare finds no table (the warm-up took it out to build) and starts
     // one from zero, throwing away everything the warm-up read.
     if (warming) await warming.catch(() => {});
+    if (prerolling) await prerolling.catch(() => {});
     for (;;) {
       drainDeferredCorpusOps();   // land queued mutations before the next run reads the corpus
       if (!pending) break;
@@ -260,6 +262,7 @@ async function drainRuns() {
     running = false;
     releaseWarmUnigrams();
     scheduleWarm();
+    schedulePreroll();
   }
 }
 
@@ -281,9 +284,9 @@ function scheduleWarm() {
   if (warmTimer) return;
   warmTimer = setTimeout(() => {
     warmTimer = null;
-    if (running || pending || warmActive) return;
+    if (running || pending || warmActive || prerolling) return;
     warmActive = true;
-    warmSpacingTable().finally(() => { warmActive = false; releaseWarmUnigrams(); });
+    warmSpacingTable().finally(() => { warmActive = false; releaseWarmUnigrams(); schedulePreroll(); });
   }, WARM_IDLE_MS);
 }
 
@@ -325,6 +328,200 @@ async function warmSpacingTable() {
   } finally {
     warming = null;
   }
+}
+
+// ─── Dice pre-roll ── see docs/worker-protocol.md § `preroll` ─────────────────
+
+const PREROLL_QUEUE = 4;           // rolls held, strong ones first
+const PREROLL_MISS_CAP = 40;       // probes in a row without a strong roll before giving up on one
+let prerollWant = null;            // the latest `preroll` request; null once stopped or a run arrives
+let prerollBuf = { context: null, queue: [], tried: 0, misses: 0, exhausted: false };
+let prerolling = null;             // the probe loop in flight, which a run waits out (drainRuns)
+let prerollProbe = null;           // the probe in flight: { display, key, join, adopted, ... }
+let prerollAdoptions = 0;
+let _testPrerollHold = null;       // test-only: a probe parks after its first batch until released
+
+function handlePreroll(data) {
+  const context = prerollContext(data.stack, data.row, data.param, data.scope, data.scoreRange, data.lengthRange);
+  if (prerollBuf.context !== context) prerollBuf = { context, queue: [], tried: 0, misses: 0, exhausted: false };
+  const current = (data.stack[data.row]?.params?.[data.param] ?? '').trim();
+  const before = prerollBuf.queue.length;
+  prerollBuf.queue = prerollBuf.queue.filter(r => r.display !== current);
+  if (prerollBuf.queue.length !== before) { prerollBuf.misses = 0; prerollBuf.exhausted = false; }
+  // Same context: keep the request object, or the probe in flight reads as superseded.
+  if (prerollWant?.context === context) prerollWant.current = current;
+  else prerollWant = { ...data, context, current, canBeStrong: deserializeStack(data.stack)[data.row]?.def.diceStrong != null };
+  postPrerollState();
+  schedulePreroll();
+}
+
+function prerollNeeded() {
+  const b = prerollBuf;
+  if (b.exhausted) return false;
+  if (b.queue.length < PREROLL_QUEUE) return true;
+  return !!prerollWant?.canBeStrong && b.misses < PREROLL_MISS_CAP && b.queue.some(r => !r.strong);
+}
+
+// Strong rolls go ahead of the others, oldest first within each kind; a strong
+// roll arriving at a full queue replaces the newest other one.
+function enqueueRoll(buf, roll) {
+  const q = buf.queue;
+  if (roll.strong) {
+    const firstWeak = q.findIndex(r => !r.strong);
+    if (firstWeak < 0) { if (q.length < PREROLL_QUEUE) q.push(roll); return; }
+    if (q.length >= PREROLL_QUEUE) q.pop();
+    q.splice(firstWeak, 0, roll);
+  } else if (q.length < PREROLL_QUEUE) {
+    q.push(roll);
+  }
+}
+
+function schedulePreroll() {
+  if (!prerollWant || prerolling || running || pending || warmActive || !prerollNeeded()) return;
+  const want = prerollWant;
+  prerolling = (async () => {
+    try {
+      while (prerollWant === want && !running && !pending && prerollNeeded()) {
+        if (!(await runPrerollProbe(want))) break;
+      }
+    } finally {
+      prerolling = null;
+      prerollProbe = null;
+      postPrerollState();
+    }
+  })();
+}
+
+function postPrerollState() {
+  const { context, queue, tried, misses, exhausted } = prerollBuf;
+  const probe = prerollProbe && !prerollProbe.adopted ? prerollProbe : null;
+  postMessage({ type: 'prerollState', context, queue: queue.map(r => ({ display: r.display, strong: r.strong })), tried,
+    gaveUp: exhausted || (!!prerollWant?.canBeStrong && misses >= PREROLL_MISS_CAP),
+    probing: probe?.display ?? null, adoptions: prerollAdoptions });
+}
+
+async function runPrerollProbe(want) {
+  if (!ownedCorpusFresh || !ownedCorpus || ownedScope !== want.scope) return false;
+  const corpus = ownedCorpus, scope = ownedScope, gen = ownedConfigVersion, buf = prerollBuf;
+  const filter = parseViewFilter({ scoreRange: want.scoreRange, lengthRange: want.lengthRange });
+  const taken = new Set([want.current, ...buf.queue.map(r => r.display)]);
+  const rolled = rollEntry(corpus.entries, filter, taken);
+  if (!rolled) { buf.exhausted = true; return false; }
+  const display = displayOf(rolled);
+
+  const serialized = withRolledEntry(want.stack, want.row, want.param, display);
+  const stack = deserializeStack(serialized);
+  // A flat stack streams into a join of its own, so a click on the die can take
+  // the probe over (adoptPrerollProbe) and show what it has found so far.
+  const probe = prerollProbe = {
+    display, serialized, stack, scope, corpus, gen, key: resultCacheKey(serialized, scope),
+    flat: streamPlan(stack).tier === 'flat', join: [], emitter: null, adopted: null,
+  };
+  const stale = () => prerollWant !== want || prerollBuf !== buf || running || pending || !ownedCorpusFresh
+    || ownedCorpus !== corpus || ownedScope !== scope || ownedConfigVersion !== gen;
+  const signal = { get aborted() { return probe.adopted ? probe.adopted.runId !== latestRunId : stale(); }, reason: undefined };
+  postPrerollState();
+  const onProgress = fraction => {
+    if (probe.adopted && !signal.aborted) postMessage({ type: 'progress', runId: probe.adopted.runId, fraction });
+  };
+  const emit = probe.flat ? batchRows => {
+    if (probe.emitter) return probe.emitter(batchRows);
+    for (const row of batchRows) probe.join.push(rowLastEntry(row)._i);
+    if (_testPrerollHold?.armed) { _testPrerollHold.armed = false; return _testPrerollHold.promise; }
+  } : null;
+  let out;
+  try {
+    out = await executePipeline(corpus, stack, signal, {
+      emit, resume: makePrefixResume(serialized, scope), onProgress, vocab: ownedMerged, prepareCache: makePrepareCache(scope),
+    });
+  } catch (e) {
+    if (probe.adopted) finishAdoptedProbe(probe, null, e);
+    return false;
+  }
+  if (probe.adopted) { finishAdoptedProbe(probe, out, null); return false; }
+  if (stale()) return false;
+
+  const tier = resultTier(out, stack);
+  admitResultToCache(probe.key, tier, { join: terminalJoin(tier, out.laneKind, out.rows, stack) },
+    out, scope, lastPipelineTailMs());
+  buf.tried++;
+  const strong = rollIsStrong(stack, want.row, tier, out.rows, scope, filter);
+  buf.misses = strong ? 0 : buf.misses + 1;
+  enqueueRoll(buf, { display, strong });
+  keepRollsWarm(want, scope);
+  prerollProbe = null;
+  postPrerollState();
+  return true;
+}
+
+// A click on the die while a roll is still probing sends a `run` for exactly
+// the probe's stack. Rather than start over, the run takes the probe over: it
+// paints the rows found so far and streams the rest under the run's id. Only a
+// flat probe streams a join to hand over.
+function adoptPrerollProbe(data) {
+  const p = prerollProbe;
+  if (!p || p.adopted || !p.flat || running || pending) return false;
+  if (data.scope !== p.scope || resultCacheKey(data.stack, data.scope) !== p.key) return false;
+  if (!ownedCorpusFresh || ownedCorpus !== p.corpus || ownedConfigVersion !== p.gen) return false;
+  running = true;
+  prerollAdoptions++;
+  const { runId, scope } = data;
+  const sort = data.sort?.length ? data.sort : [defaultSortFor(p.stack)];
+  const viewSpec = { sort, scoreRange: data.scoreRange, lengthRange: data.lengthRange };
+  const streamState = { streamed: true };
+  lastFlatResult = deriveFlatResult(runId, p.join, viewSpec, scope, p.stack);
+  lastGroupedResult = lastTransformResult = null;
+  postFlatSnapshot('partial', runId);
+  p.emitter = makeStreamEmitter(runId, viewSpec, scope, p.stack, makeSignalShim(runId), streamState, { join: p.join, len: p.join.length, caughtUp: true });
+  p.adopted = { runId, data, viewSpec, streamState, t0: performance.now() };
+  lastPartialResumeLen = 0;
+  return true;
+}
+
+// The adopted probe's terminal, as runOne's: a supersession stashes the
+// partial, an error reports, and a finish ships the streamed result.
+function finishAdoptedProbe(p, out, err) {
+  const { runId, data, viewSpec, streamState, t0 } = p.adopted;
+  try {
+    if (err || runId !== latestRunId) {
+      if (isAbortError(err) || runId !== latestRunId) stashPartialOnAbort(runId, p.serialized, p.scope, t0, p.gen);
+      else postMessage({ type: 'error', runId, stackRowIndex: stackRowIndex(p.stack, err), message: err?.message || String(err) });
+      return;
+    }
+    const { tier, r } = postResult(runId, out, viewSpec, p.scope, p.stack, data.existsQuery, data.rebindQuery, streamState.streamed);
+    admitResultToCache(p.key, tier, r, out, p.scope, lastPipelineTailMs());
+  } finally {
+    running = false;
+    drainRuns();   // a run that arrived meanwhile queued behind this one
+  }
+}
+
+// A tool may memoize per query in a small LRU (Twins' slots); each probe adds
+// one, which would push out the shown query's and the queued rolls' memos
+// and make the click re-score every row. Replaying their columns keeps them
+// the most recent.
+function keepRollsWarm(want, scope) {
+  for (const display of [want.current, ...prerollBuf.queue.map(r => r.display)]) {
+    if (!display) continue;
+    const stack = deserializeStack(withRolledEntry(want.stack, want.row, want.param, display));
+    if (activeFlatColumn(stack)) compileFlatColumn(stack, renderCtx(scope));
+  }
+}
+
+// The column guard matters: another filter's column would judge the roll by its scale.
+// Only rows the view filters keep count: a hidden score-0 spelling of the rolled
+// entry is a near-perfect twin, and would light the die for a roll that shows none.
+function rollIsStrong(stack, rowIdx, tier, rows, scope, filter) {
+  const threshold = stack[rowIdx]?.def.diceStrong;
+  if (threshold == null || tier !== 'flat' || activeFlatColumn(stack)?.row !== stack[rowIdx]) return false;
+  const column = compileFlatColumn(stack, renderCtx(scope));
+  const shown = filter && entryPredicate(filter);
+  return rows.some(row => {
+    const e = rowLastEntry(row);
+    if (shown && !shown(e)) return false;
+    const v = column.value(e);
+    return typeof v === 'number' && v >= threshold;
+  });
 }
 
 function releaseWarmUnigrams() {
@@ -499,7 +696,7 @@ function makeStreamEmitter(runId, viewSpec, scope, stack, signal, streamState, r
   const widthAcc = makeWidthHintAcc();
   const column = compileFlatColumn(stack, renderCtx(scope));
   const join = resumeCtx ? resumeCtx.join : [];   // resumed: append past catch-up to the painted join
-  let cursor = 0, caughtUp = !resumeCtx;
+  let cursor = 0, caughtUp = !resumeCtx || !!resumeCtx.caughtUp;
   if (resumeCtx) {   // seed width hints from the painted prefix so post-crossover snapshots match a cold run
     const seed = parseViewFilter(viewSpec);
     const seedOk = seed && entryPredicate(seed);
@@ -2012,12 +2209,16 @@ function handleFetchRandomEntry({ requestId, scoreRange, lengthRange }) {
 // One reservoir pass over the list, so a narrow filter still finds its few
 // entries: rejection sampling would give up on them.
 const ROLL_SAMPLE = 256;
-function rollEntry(entries, filter) {
+// `skip` (displays) is checked in the scan, not by redrawing: random redraws
+// give up while unskipped entries remain, which on a short list is often.
+function rollEntry(entries, filter, skip = null) {
+  const skipNorms = skip && new Set([...skip].filter(Boolean).map(toNorm));
   const pool = [];
   let seen = 0;
   for (const e of entries) {
     if (filter?.score && !matchesRange(e.score, filter.score)) continue;
     if (filter?.length && !matchesRange(e.norm.length, filter.length)) continue;
+    if (skipNorms?.has(e.norm) && skip.has(displayOf(e))) continue;
     const k = seen++ < ROLL_SAMPLE ? seen - 1 : Math.floor(Math.random() * seen);
     if (k < ROLL_SAMPLE) pool[k] = e;
   }
@@ -3172,8 +3373,30 @@ onmessage = ({ data }) => {
 
     case 'run':
       latestRunId = data.runId;
+      prerollWant = null;
+      if (adoptPrerollProbe(data)) break;
       pending = data;
       drainRuns();
+      break;
+
+    case '__testHoldPreroll': {
+      let release;
+      const promise = new Promise(r => { release = r; });
+      _testPrerollHold = { armed: true, promise, release };
+      break;
+    }
+
+    case '__testReleasePreroll':
+      _testPrerollHold?.release();
+      _testPrerollHold = null;
+      break;
+
+    case 'preroll':
+      handlePreroll(data);
+      break;
+
+    case 'prerollStop':
+      prerollWant = null;
       break;
 
     case 'cancel':

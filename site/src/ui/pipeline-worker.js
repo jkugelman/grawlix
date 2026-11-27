@@ -5,6 +5,7 @@
 // different places in the two builds.
 
 import { currentAtomCount } from '../engine/executor.js';
+import { prerollContext } from '../engine/preroll.js';
 import { anyAssetAutoUpdates } from '../engine/assets.js';
 import { state, bumpErrorMarks } from '../data/state.js';
 import { setShippedAllSourcesAxis, setShippedScopedLayout } from '../data/derived.js';
@@ -340,6 +341,7 @@ function onWorkerMessage({ data }) {
     });
     return;
   }
+  if (data.type === 'prerollState') { _prerollListener?.(data); return; }
   if (data.type === 'progress') {
     // Advisory prepare-progress for the live run. Same supersession gate as
     // `partial`, and likewise must NOT settle pendingRun.
@@ -1023,6 +1025,37 @@ export function fetchWorkerRandomEntry(timeout = 5000) {
     w.addEventListener('message', onMessage);
     w.postMessage({ type: 'fetchRandomEntry', requestId, scoreRange: activeScoreRange() || null, lengthRange: activeLengthRange() || null });
   });
+}
+
+// ─── Dice pre-roll ── see docs/worker-protocol.md § `preroll` ─────────────────
+
+let _prerollListener = null;
+export function onPrerollState(fn) { _prerollListener = fn; }
+
+export function runInFlight() { return !!(pendingRun || deferredRun); }
+
+function prerollRequest(stack, row) {
+  const serialized = serializeStack(stack);
+  const param = stack[row].def.dice;
+  const scope = state.selected === MERGED_ID ? MERGED_ID : state.selected?.dbKey ?? null;
+  const scoreRange = activeScoreRange() || null, lengthRange = activeLengthRange() || null;
+  return { stack: serialized, row, param, scope, scoreRange, lengthRange,
+    context: prerollContext(serialized, row, param, scope, scoreRange, lengthRange) };
+}
+
+export function prerollContextFor(stack, row) { return prerollRequest(stack, row).context; }
+
+export function sendPreroll(stack, row) {
+  if (workerUnavailable) return;
+  const { context, ...req } = prerollRequest(stack, row);
+  getWorker().postMessage({ type: 'preroll', ...req });
+}
+
+export function holdPrerollForTest() { getWorker().postMessage({ type: '__testHoldPreroll' }); }
+export function releasePrerollForTest() { getWorker().postMessage({ type: '__testReleasePreroll' }); }
+
+export function stopPreroll() {
+  if (worker) worker.postMessage({ type: 'prerollStop' });
 }
 
 let fetchWordCaseRequestId = 0;

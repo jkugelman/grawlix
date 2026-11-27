@@ -400,6 +400,16 @@ And its length, favoring 7 to 12 letters: over random queries, 3–5-letter entr
 The roll keeps no index, so it costs no memory.
 A tool opts in by naming the param to fill (`dice: 'entry'`).
 
+**🎲 rolls ahead.**
+Once the page has gone 1.5 s without a key or pointer press, the worker rolls entries the same way and runs the whole stack for each, so a click fills the field with a roll whose results are already cached and show at once ([`worker-protocol.md`](worker-protocol.md) § *Dice pre-roll*).
+It queues up to four rolls, strong ones first; a strong roll's results, as the score and length filters show them, include a twin at 7 or more bars (the tool's `diceStrong` column level).
+A strong roll that arrives at a full queue replaces the newest other one, and the worker keeps rolling until all four are strong, or until 40 rolls in a row bring none.
+About one roll in six is strong and a roll takes several seconds on a full list, so filling the queue with strong rolls takes several minutes.
+One threshold serves every entry, so a strong roll means the same thing everywhere, though single words reach it far more often than phrases (44% against 5%).
+A click with nothing queued takes the roll still in flight: the field fills with its entry, its results so far show at once, and the rest stream in as for any search.
+A key or pointer press elsewhere stops the roll in flight, and so does any run; a changed stack, scope or filter empties the queue.
+The die looks the same throughout, with no progress or quality shown: users wouldn't know what the signals meant, and the die only has to land on good rolls quickly.
+
 Internally the scorer measures **looseness**, the opposite of similarity: a cost divided by the shorter entry's length, from a weighted letter alignment ([`engine/twins.js`](../site/src/engine/twins.js)) over the entries with spaces removed:
 
 - Sound-alike swaps (C/K/S, S/Z, I/Y, F/V…), vowel-for-vowel swaps and a collapsed doubled letter are cheap; opening a gap costs more than extending one, so inserting one chunk counts as about one edit.

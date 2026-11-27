@@ -20,8 +20,10 @@ const related = (q, e) => wordnetAsset.get()?.(q, e) ?? null;
 // pass re-prepare through `replay`, and the result caches re-sort rows by the
 // column without calling `run`, so a hit must outlive one `prepared`. Slots
 // are filed under their merged corpus, so a replaced corpus is collected
-// along with its slots.
-const SLOTS = 4;
+// along with its slots. Six covers the shown query, the two pre-rolled 🎲
+// entries and the roll being probed; the worker replays the kept three after
+// each probe (keepRollsWarm) so the probes never push them out.
+const SLOTS = 6;
 const slotsByCorpus = new WeakMap();
 
 // Every entry's rhyme keys by its display text, the content words word swaps
@@ -206,6 +208,7 @@ export default {
   assets: ['cmudict', 'cmuSupplement', 'unigrams', 'twinsWordnet'],
   passes: [SPACING_PASS, MODEL_PASS, INDEX_PASS],
   dice: 'entry',
+  diceStrong: 7,
   params: [{ placeholder: 'entry' }],
   kind: 'filter', input: 'highlight', output: 'plain',
   matchOn: 'both',

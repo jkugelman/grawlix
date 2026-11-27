@@ -239,6 +239,8 @@ Small and stable; routes through real internal codepaths.
 | `exportText(format)` | Run an export builder against the current pipeline output and return its result. `format` is `'copy'`, `'wordlist'`, `'csv'`, or `'json'`. Returns a string for copy/csv, an object `{text, count, skipped}` for wordlist, and the data object for json. Awaits `pipelineIdle` first. |
 | `exportFilename(ext)` | Run the same filename builder Download menu items use, against the current tool stack. Returns the sanitized filename including extension. |
 | `sync.merge3(base, file, idb)` | Run the pure My Edits 3-way merge over three wordlist-text inputs. Returns `{resolved: [...], conflicts: [...]}` for asserting deletion-doesn't-resurrect and conflict detection without any file I/O. |
+| `setDiceQuietMs(ms)` / `dicePrerollView()` | Shorten the quiet spell before 🎲 rolls ahead (`null` restores 1.5 s), and read what a click would take: `{ queue, head, strong, probing, tried, gaveUp, adoptions }`. |
+| `holdPreroll()` / `releasePreroll()` | Park the next 🎲 probe after its first batch of rows, so a test can click the die mid-roll, then let it finish. |
 | `releaseWorkerBuildForTest()` | Release a corpus build held open by the `__grawlixStallBuild` flag (below). |
 | `sync.attachMirror(name, {existing}?)` / `attachEditsExisting()` / `attachEditsNew()` / `reconcileEdits()` / `isSynced(name)` / `filename(name)` / `flushWrites()` | Drive the real disk-sync attach/reconcile/write paths against the fake File System Access layer the test installs (`name === 'All Wordlists'` targets the merged mirror; `attachMirror`'s `{existing: true}` exercises the write-to-existing-file door). See [`tests/browser/disk-sync.spec.js`](../tests/browser/disk-sync.spec.js). |
 

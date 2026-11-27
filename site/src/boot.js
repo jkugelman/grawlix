@@ -24,6 +24,7 @@ import { ImportGuideDialog, configureImportGuide } from './ui/dialogs/import-gui
 import { AppView, buildScoreRangeButtonHTML, mountScoreRangeControl, configureAppView, lengthFilterDisabled } from './ui/app-view.js';
 import { configureEntriesTable, GroupMorePopover, ErrorPopover } from './ui/entries-table.js';
 import { ToolStack, ToolPicker, configureToolStack, mountGroupColumnStyle } from './ui/tool-stack.js';
+import { mountDicePreroll } from './ui/dice-preroll.js';
 import { mountHistogramPointer, onHistogramPointerDown } from './ui/histogram-view.js';
 import {
   configureRescoreEditor, startNoteEdit, onRuleInput, saveRuleField, deleteRule, addRule, resetRescoreRules, neutralizeRescoreRules, saveScoringField, deleteScoringRow, addScoringRow, resetScoringRules,
@@ -149,6 +150,7 @@ export function boot({ workerURL, siteRoot }) {
   mountScoreRangeControl();
   mountHistogramPointer();
   mountMenus();
+  mountDicePreroll(() => ToolStack.getStack());
 
   // Dialog/overlay singletons append to <body>. showConfirm must exist before
   // init() (init's migration path calls it); the rest before any UI opens them.

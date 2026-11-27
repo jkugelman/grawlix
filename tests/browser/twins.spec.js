@@ -107,3 +107,114 @@ test('an unspaced entry CMU lacks is read through its split, as Rhymes reads it'
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'twins', params: { entry: 'shower head' } }]));
   await expectVisible(page, ['flowerbed']);
 });
+
+// Production serves the click from the Twins prefix tile: the finished cache
+// prices a result by its cheap tail past that tile and refuses it. The tiny
+// list's Twins stage is under the tile's floor, so only that floor is lowered.
+test('🎲 rolls ahead while the page is quiet, and a click seeds from that roll\'s cached Twins stage', async ({ page }) => {
+  await gotoApp(page);
+  await page.evaluate(async () => {
+    const T = window.__grawlixTest;
+    T.configurePrefixCacheForTest({ minMs: 0 });
+    T.setDiceQuietMs(50);
+    await T.addCustomWordlist({ name: 'Twins', entries: ['bull market', 'ball marker', 'bulwarked'], scores: [50, 50, 50] });
+    await T.setStack([{ tool: 'twins', params: { entry: '' } }]);
+  });
+  const die = page.locator('.tool-row-dice');
+  await expect.poll(() => page.evaluate(() => window.__grawlixTest.dicePrerollView()?.head ?? null)).not.toBeNull();
+  expect(await page.evaluate(() => window.__grawlixTest.dicePrerollView().strong)).toBe(false);
+  // Probes still rolling would seed from these entries' tiles too.
+  await expect.poll(() => page.evaluate(() => window.__grawlixTest.dicePrerollView().gaveUp)).toBe(true);
+  const { head } = await page.evaluate(() => window.__grawlixTest.dicePrerollView());
+  const before = await page.evaluate(() => window.__grawlixTest.prefixCacheState());
+  await die.click();
+  await expect(page.locator('.tool-row input[data-key="entry"]')).toHaveValue(head);
+  await page.evaluate(() => window.__grawlixTest.pipelineIdle());
+  const after = await page.evaluate(() => window.__grawlixTest.prefixCacheState());
+  expect(after.hits).toBe(before.hits + 1);
+  expect(after.seedFrom).toBe(1);
+});
+
+test('🎲 puts a roll with a twin at seven bars or more first', async ({ page }) => {
+  await gotoApp(page);
+  await page.evaluate(async () => {
+    const T = window.__grawlixTest;
+    T.setDiceQuietMs(50);
+    await T.addCustomWordlist({ name: 'Twins', entries: ['lactose', 'lactase'], scores: [50, 50] });
+    await T.setStack([{ tool: 'twins', params: { entry: '' } }]);
+  });
+  const die = page.locator('.tool-row-dice');
+  await expect.poll(() => page.evaluate(() => window.__grawlixTest.dicePrerollView()?.strong ?? false)).toBe(true);
+  const { head, strong } = await page.evaluate(() => window.__grawlixTest.dicePrerollView());
+  expect(strong).toBe(true);
+  await die.click();
+  await expect(page.locator('.tool-row input[data-key="entry"]')).toHaveValue(head);
+});
+
+test('🎲 drops its pre-roll when the stack it was rolled for changes', async ({ page }) => {
+  await gotoApp(page);
+  await page.evaluate(async () => {
+    const T = window.__grawlixTest;
+    T.setDiceQuietMs(50);
+    await T.addCustomWordlist({ name: 'Twins', entries: ['bull market', 'ball marker', 'bulwarked'], scores: [50, 50, 50] });
+    await T.setStack([{ tool: 'twins', params: { entry: '' } }]);
+  });
+  await expect.poll(() => page.evaluate(() => window.__grawlixTest.dicePrerollView()?.head ?? null)).not.toBeNull();
+  await page.evaluate(() => window.__grawlixTest.setDiceQuietMs(60000));
+  await page.locator('.search-bar input[data-key="pattern"]').fill('bu');
+  await expect.poll(() => page.evaluate(() => window.__grawlixTest.dicePrerollView().queue.length)).toBe(0);
+});
+
+test('🎲 queues up to four rolls, strong ones first', async ({ page }) => {
+  await gotoApp(page);
+  await page.evaluate(async () => {
+    const T = window.__grawlixTest;
+    T.setDiceQuietMs(50);
+    await T.addCustomWordlist({ name: 'Twins',
+      entries: ['lactose', 'lactase', 'bull market', 'ball marker', 'bulwarked', 'zebra crossing'], scores: [50, 50, 50, 50, 50, 50] });
+    await T.setStack([{ tool: 'twins', params: { entry: '' } }]);
+  });
+  await expect.poll(() => page.evaluate(() => window.__grawlixTest.dicePrerollView().gaveUp)).toBe(true);
+  const { queue } = await page.evaluate(() => window.__grawlixTest.dicePrerollView());
+  expect(queue).toHaveLength(4);
+  expect(queue.slice(0, 2).map(r => r.display).sort()).toEqual(['lactase', 'lactose']);
+  expect(queue.map(r => r.strong)).toEqual([true, true, false, false]);
+});
+
+test('🎲 clicked mid-roll takes that roll over and shows what it has found so far', async ({ page }) => {
+  await gotoApp(page);
+  await page.evaluate(async () => {
+    const T = window.__grawlixTest;
+    await T.addCustomWordlist({ name: 'Twins', entries: ['bull market', 'ball marker', 'bulwarked'], scores: [50, 50, 50] });
+    T.holdPreroll();
+    T.setDiceQuietMs(50);
+    await T.setStack([{ tool: 'twins', params: { entry: '' } }]);
+  });
+  await expect.poll(() => page.evaluate(() => typeof window.__grawlixTest.dicePrerollView()?.probing)).toBe('string');
+  const { probing } = await page.evaluate(() => window.__grawlixTest.dicePrerollView());
+  await page.locator('.tool-row-dice').click();
+  await expect(page.locator('.tool-row input[data-key="entry"]')).toHaveValue(probing);
+  await expect(page.locator('#vs-host .entry-row').first()).toContainText(probing);
+  await page.evaluate(() => window.__grawlixTest.releasePreroll());
+  await page.evaluate(() => window.__grawlixTest.pipelineIdle());
+  await expect(page.locator('#vs-host .entry-row').first()).toContainText(probing);
+  const view = await page.evaluate(() => window.__grawlixTest.dicePrerollView());
+  expect(view.adoptions).toBe(1);
+});
+
+test('🎲 judges a roll only by the twins the filters show', async ({ page }) => {
+  await gotoApp(page);
+  await page.evaluate(async () => {
+    const T = window.__grawlixTest;
+    await T.addCustomWordlist({ name: 'Twins', entries: ['lactose', 'lactase'], scores: [50, 0] });
+    const input = document.querySelector('#score-range-input');
+    input.value = '1+';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    await T.pipelineIdle();
+    T.setDiceQuietMs(50);
+    await T.setStack([{ tool: 'twins', params: { entry: '' } }]);
+  });
+  await expect.poll(() => page.evaluate(() => window.__grawlixTest.dicePrerollView().gaveUp)).toBe(true);
+  const { queue } = await page.evaluate(() => window.__grawlixTest.dicePrerollView());
+  expect(queue).toEqual([{ display: 'lactose', strong: false }]);
+});

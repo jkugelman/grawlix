@@ -37,13 +37,14 @@ import { WordlistSelector } from './ui/scope-selector.js';
 import { HelpDialog } from './ui/dialogs/help.js';
 import { openUpdateSummaryDialog } from './ui/dialogs/update-summary.js';
 import { ToolStack, pipelineIdle } from './ui/tool-stack.js';
+import { setDiceQuietMsForTest, dicePrerollViewForTest } from './ui/dice-preroll.js';
 import {
   pingWorker, runOnWorker, installWorkerFixtureToolsForTest, releaseWorkerFixtureHoldForTest, workerAssetStateForTest,
   pipelineWorkerState, crashWorkerForTest, forceWorkerCrashForTest, failNextWorkerBuildForTest, stallNextWorkerBuildForTest, releaseWorkerBuildForTest,
   setWorkerYieldIntervalForTest, stopRunAfterTotalForTest, setWorkerUnigramCorpusForTest, captureWorkerPartialsForTest, captureWorkerGroupPartialsForTest, captureWorkerChainPartialsForTest,
   configureResultCacheForTest, resultCacheStateForTest, configurePrefixCacheForTest, prefixCacheStateForTest, configurePartialCacheForTest, partialCacheStateForTest, configureArtifactCacheForTest, artifactCacheStateForTest, colsCacheStateForTest, retainedResultInfoForTest,
   syncWorkerConfig, dumpWorkerCorpus, queryWorkerEntry, fetchWorkerRows, fetchWorkerGroups, fetchWorkerGroupChains, fetchWorkerAllGroups, fetchWorkerAllRows, fetchWorkerAllTransformRows, lastCompletedRunId,
-  workerOwnsCorpus, sendEditEntry, sendDeleteEntry,
+  workerOwnsCorpus, sendEditEntry, sendDeleteEntry, holdPrerollForTest, releasePrerollForTest,
   fetchWorkerProvenance, fetchWorkerEditPlan, syncConfigsSent, allRowsFetchesSent, allGroupsFetchesSent, serializeFetchesSent,
   lastFetchAppliedMode$, diffFetchesSent, fetchWorkerDiffRows,
 } from './ui/pipeline-worker.js';
@@ -273,6 +274,10 @@ const __grawlixTest = {
   releaseWorkerBuildForTest,
   setWorkerYieldIntervalForTest,
   stopRunAfterTotalForTest,
+  setDiceQuietMs: setDiceQuietMsForTest,
+  dicePrerollView: dicePrerollViewForTest,
+  holdPreroll: holdPrerollForTest,
+  releasePreroll: releasePrerollForTest,
   setWorkerUnigramCorpus: setWorkerUnigramCorpusForTest,
   configureResultCacheForTest: (opts = {}) => configureResultCacheForTest(opts),
   resultCacheState: () => resultCacheStateForTest(),
