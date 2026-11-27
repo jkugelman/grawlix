@@ -344,7 +344,7 @@ i AY1
 love L AH1 V
 you Y UW1`;
 
-test("the Help dialog's examples are twins with at least three bars, typed from either side", async () => {
+test("the Help dialog's examples are twins with at least three bars, the same typed from either side", async () => {
   invalidateUnigramCorpus();
   setCmuDict(parseCmuDict(HELP_DICT), parseCmuDict('jaccuse ZH AA0 K Y UW1 Z'));
   const corpus = [...HELP_PAIRS.flat(), 'zebra crossing', 'interval'];
@@ -352,11 +352,16 @@ test("the Help dialog's examples are twins with at least three bars, typed from 
   let prepared;
   def.prepare = async (...args) => (prepared = await prepare.apply(def, args));
   try {
-    for (const [a, b] of HELP_PAIRS) for (const [typed, twin] of [[a, b], [b, a]]) {
+    const bars = async (typed, twin) => {
       const { rows } = await run(corpus, [{ tool: 'twins', params: { entry: typed } }]);
       const row = rows.map(rowLastEntry).find(e => displayOf(e) === twin);
       assert.ok(row, `${typed} finds ${twin}`);
-      assert.ok(def.column.value(row, prepared) >= 3, `${typed} / ${twin}: ${def.column.value(row, prepared)} bars`);
+      return def.column.value(row, prepared);
+    };
+    for (const [a, b] of HELP_PAIRS) {
+      const there = await bars(a, b), back = await bars(b, a);
+      assert.ok(there >= 3, `${a} / ${b}: ${there} bars`);
+      assert.equal(back, there, `${b} / ${a}: ${back} bars, ${there} the other way`);
     }
   } finally {
     def.prepare = prepare;

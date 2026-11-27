@@ -574,14 +574,25 @@ export function makeScorer(overrides = {}) {
     if (loose > maxLoose || (h && h.loose <= loose) || !toolSees(q, e) || (K.related && relationOf(q, e))) return h;
     return { e, cost: loose * lenOf(q, e), loose, anagram: true, letters: h?.loose ?? null, diff: reversal ? '⇆ reversal' : '⇆ anagram' };
   }
-  function spoonRoute(q, e, h, maxLoose) {
-    if (K.spoon === Infinity || K.spoon > maxLoose || (h && h.loose <= K.spoon) || !q.sound || !e.sound) return h;
-    // Trades are symmetric, so test from whichever side is cached: score
-    // caches the query's, sparing a trade list and a letter filter per row.
-    const [x, y] = SPOONS.has(e) && !SPOONS.has(q) ? [e, q] : [q, e];
+  const tradeLoose = (x, y) => {
     const spoons = spoonsOf(x);
     let loose = Infinity;
     for (const v of y.sound.vs) loose = Math.min(loose, spoons.get(v.key ??= spoonKey(v.full)) ?? Infinity);
+    return loose;
+  };
+  const sumOf = (v) => (v.sum ??= v.full.reduce((t, p) => t + p, 0));
+  const bagOf = (v) => (v.bag ??= spoonKey([...v.full].sort((a, b) => a - b)));
+  const sameSounds = (q, e) => q.sound.vs.some((a) => e.sound.vs.some((b) =>
+    a.full.length === b.full.length && sumOf(a) === sumOf(b) && bagOf(a) === bagOf(b)));
+  function spoonRoute(q, e, h, maxLoose) {
+    if (K.spoon === Infinity || K.spoon > maxLoose || (h && h.loose <= K.spoon) || !q.sound || !e.sound) return h;
+    // Start from whichever side is cached, the query's, sparing a trade list
+    // and a letter filter per row. Trades aren't symmetric (TREE POSE trades
+    // into PETE ROSE, not back), so the other side is tried too when the two
+    // hold the same sounds; one side alone silently misses spoonerisms.
+    const [x, y] = SPOONS.has(e) && !SPOONS.has(q) ? [e, q] : [q, e];
+    let loose = tradeLoose(x, y);
+    if (loose > K.spoon && sameSounds(x, y)) loose = Math.min(loose, tradeLoose(y, x));
     if (loose === Infinity || !spoonGate(x, y)) return h;
     if (loose > K.spoon && (q.sound.spelled || e.sound.spelled)) return h;
     const suffix = q.norm.match(BORING_SUFFIX)?.[1];

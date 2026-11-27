@@ -455,6 +455,8 @@ Internally the scorer measures **looseness**, the opposite of likeness: a cost d
   The route is rare in practice, 0.1 hits a random query, and adds a few percent to query time.
 - A **spoonerism route** catches two entries that read the same once two consonant runs of one trade places: PIE TIN / TIE PIN, LIGHT RAIN / RIGHT LANE, GETTING LOW / LETTING GO, BLOW YOUR NOSE / KNOW YOUR BLOWS.
   A run is the consonants before a vowel, a word's opening or a cluster inside it, and one of the two must open a word.
+  Runs stay within a word, so a trade can work from one side only: TREE POSE trades its TR into PETE ROSE, but PETE ROSE's T and R sit in different words.
+  A pair scores the better of its two sides, so typing either entry finds the other at the same score; the row's trades are tried only when the two hold the same sounds, which adds about 4% to query time.
   Spoonerisms are among the most prized wordplay, so they score near the top of the meter, by tier:
   - exact, 0.06: two words trade whole openings, and word breaks may move (TREE POSE / PETE ROSE, NO FEE / PHONY);
   - inner, 0.10: an opening trades with a cluster inside a word (BUTTERFLY / FLUTTERBY, BLEECKER / KEEBLER, CHECKUP / KETCHUP);
