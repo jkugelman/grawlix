@@ -121,6 +121,7 @@ CI tests the bundle (`GRAWLIX_SITE_DIR=dist`).
 
 **Lab pages** (`site/lab/<name>/`, served at `/lab/<name>/`) are unlisted copies of the app with extra tools, for sharing an experiment with a few people; the main bundle carries none of their code.
 Their `index.html` shells and big data files are generated, never checked in (`npm run lab`, `npm run lab:data`).
+A lab's tools are documented only in `docs/lab/<name>.md` and tested only in `lab-<name>` test files; keep them out of the other docs, including `docs/tools.md`.
 See [`docs/design.md`](docs/design.md) § *Lab pages*.
 
 Sections within a module are delimited by banner comments like:

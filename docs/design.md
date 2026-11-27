@@ -1239,7 +1239,9 @@ A lab link opened on the main page drops the unknown tool with a toast, like any
 The new-tools reveal shows a lab's tools to a returning visitor once; marking them seen only adds to `seenTools`, which the main page ignores for slugs it lacks.
 A lab's worker sits at the same depth as `src/engine/worker.js`, which the worker's own data URLs rely on.
 
-Retiring a lab is deleting its directory and its generator; the next deploy takes the URL down, and nothing in storage refers to it.
+**A lab keeps to its own files.**
+Its tools are documented in `docs/lab/<name>.md` and tested in `lab-<name>` test files, and the rest of the docs describe the main app as though no lab existed.
+Retiring a lab is deleting its directory, its generator, its doc and its tests; the next deploy takes the URL down, and nothing in storage refers to it.
 A directory counts as a lab only while it holds a `main.js`, so the ignored files a deleted lab leaves in a checkout don't break the build.
 
 ## Caches

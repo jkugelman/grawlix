@@ -388,9 +388,9 @@ A fixture also reaches engine paths no shipped tool can, which is how the tier p
 
 ## Lab pages
 
-A lab page ([`design.md`](design.md) § *Lab pages*) gets a browser spec that loads `/lab/<name>/` and runs its tools, with `gotoApp(page, route, { labTools })` naming the lab's tool slugs so the new-tools reveal stays shut.
+A lab page ([`design.md`](design.md) § *Lab pages*) gets a browser spec, `tests/browser/lab-<name>.spec.js`, that loads `/lab/<name>/` and runs its tools, with `gotoApp(page, route, { labTools })` naming the lab's tool slugs so the new-tools reveal stays shut.
 The spec serves the lab's generated data from a small inline fixture with `page.route`, so it never needs `npm run lab:data`.
-The tool's search logic gets unit tests against a fixture of the same format, and [`lab.test.js`](../tests/unit/lab.test.js) pins the generated shell.
+The tool's logic gets unit tests in `tests/unit/lab-<name>.test.js`, against a fixture of the same format when it reads generated data, and [`lab.test.js`](../tests/unit/lab.test.js) pins the generated shell.
 
 ## Family anchoring
 
