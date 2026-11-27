@@ -84,3 +84,35 @@ test('a filter after a transform streams, matching the buffered result', async (
   expect(r.streamed.length).toBeGreaterThan(0);
   expect(r.buffered).toEqual(r.streamed);
 });
+
+// A lead scans one norm ahead of the rest, so its family's anchor can drop after the
+// row is placed (`houses` placed, then `house` arrives). The Entry sort must come out
+// as if the corpus had been scanned in order.
+test('a leading first stage sorts by Entry as a plain scan does', async ({ page }) => {
+  await gotoApp(page);
+  await page.evaluate(() => window.__grawlixTest.installFixtureTools());
+  const words = ['house', 'housed', 'housefly', 'houses', 'housing'];
+  await seedCorpus(page, [...numbered.slice(0, 10000).map(w => 'A' + w), ...words, ...numbered.slice(10000)]);
+
+  const run = lead => page.evaluate(async ({ lead, STREAM_MS, SHIPPED_MS }) => {
+    const T = window.__grawlixTest;
+    T.setWorkerYieldIntervalForTest(STREAM_MS);
+    const capture = T.captureWorkerPartialsForTest();
+    await T.setStack([{ tool: 'leading', params: { lead } }]);
+    await T.pipelineIdle();
+    const partials = capture.stop();
+    T.setWorkerYieldIntervalForTest(SHIPPED_MS);
+    const rows = (await T.fetchWorkerRows(0, 1e9)).rows;
+    return { partials: partials.length, firstTotal: partials[0]?.total ?? 0, rows: rows.map(r => r.norm), families: rows.map(r => r.family) };
+  }, { lead, STREAM_MS, SHIPPED_MS });
+
+  const plain = await run('');
+  const led = await run('houses');
+  expect(led.partials).toBeGreaterThan(1);
+  // `houses` is scanned first and `house` after the 10000 `aw` rows, so a smaller
+  // first snapshot places `houses` before its family's anchor drops.
+  expect(led.firstTotal).toBeLessThanOrEqual(10000);
+  const family = norm => led.families[led.rows.indexOf(norm)];
+  expect(family('house')).toBe(family('houses'));
+  expect(led.rows).toEqual(plain.rows);
+});

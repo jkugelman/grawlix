@@ -90,6 +90,22 @@ const pair_map = {
   },
 };
 
+// Keeps every entry and scans the `lead` norm first, as Twins does with its typed
+// entry, which needs the pronunciation assets. Each row costs a little work, or a
+// scan fits in one yield and never streams more than one batch.
+const leading = {
+  name: 'Leading', icon: '🧪', category: 'transform',
+  desc: 'Test fixture', example: 'lead: houses',
+  params: [{ key: 'lead' }],
+  kind: 'filter', input: 'plain', output: 'plain',
+  run(entry) {
+    let h = 0;
+    for (let i = 0; i < 2000; i++) h = (h * 31 + entry.charCodeAt(i % entry.length)) | 0;
+    return h !== 0.5;
+  },
+  lead: params => params.lead || null,
+};
+
 // A filter that throws from the stage `at` names (`run` or `prepare`) and passes
 // everything otherwise, so a spec "fixes" it by clearing the param.
 const THROWS_MESSAGE = 'deliberate test failure';
@@ -147,5 +163,5 @@ const held_pairs = {
 };
 
 export function installFixtureTools() {
-  registerTools({ late_twin, echo, prefix_group, prefix_group_anchored, pair_map, throws, held_pairs });
+  registerTools({ late_twin, echo, prefix_group, prefix_group_anchored, pair_map, throws, held_pairs, leading });
 }
