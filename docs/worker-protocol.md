@@ -1267,7 +1267,8 @@ Posted for a stack of filters and transforms with at least one active transform;
   Seeded into `_winCache` at `windowStart`, kept across batches.
 - `stats` / `histogramCounts` / `histogramLayout` / `widthHints` / `filtered` — cumulative summaries via `transformSummaries` (histogram over the unfiltered survivors, stats over the filtered ones), since main holds no resident chain scores.
 - **The mid-stream survivor *direction* is already canonical.**
-  The fold keeps the lexicographically-smaller norm-join direction directly — the corpus emits in norm order, so that direction (the one `unify` would keep) always arrives first, and the later mirror only flips the kept row's glyph to `↔`.
+  The fold keeps the lexicographically-smaller norm-join direction, the one `unify` keeps.
+  The corpus emits in norm order, so that direction usually arrives first and the later mirror only flips the kept row's glyph to `↔`; when a lead sends the other direction first, the later one replaces it and the view is rebuilt, since the replaced row may already be placed and may have set its family's anchor.
   So the stream is **exact-final**: completion `postResult` **adopts** `lastTransformResult.chains` unchanged (no re-derive, no word-order flip, no cache re-seed), and the streamed FINAL result is byte-identical to a buffered run.
 - **The client renders the stream.**
   `onWorkerMessage`'s `partialChains` branch routes the decoded batch to `appendTransformStreamBatch` (through `streamTransformBatchToScroller`): sets `_streamRunId`/`_streamVersion`/`_workerChainCount`, the `'multi'` chain shape, and `_winCacheRunId` (so `_invalidateWinCacheIfStale` no-ops and the `windowStart` seed isn't clobbered), then re-renders.

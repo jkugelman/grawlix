@@ -116,3 +116,32 @@ test('a leading first stage sorts by Entry as a plain scan does', async ({ page 
   expect(family('house')).toBe(family('houses'));
   expect(led.rows).toEqual(plain.rows);
 });
+
+// `stressed` leads, so its pair streams as STRESSED → DESSERTS, and DESSERTS → STRESSED
+// arrives after it is placed. The fold must still keep the direction unify keeps.
+test('a mirror pair folds to the same direction whichever arrives first', async ({ page }) => {
+  await gotoApp(page);
+  await page.evaluate(() => window.__grawlixTest.installFixtureTools());
+  await seedCorpus(page, [...numbered.slice(0, 10000).map(w => 'A' + w), 'desserts', 'stressed', 'reward', 'drawer']);
+
+  const run = lead => page.evaluate(async ({ lead, STREAM_MS, SHIPPED_MS }) => {
+    const T = window.__grawlixTest;
+    T.setWorkerYieldIntervalForTest(STREAM_MS);
+    const capture = T.captureWorkerChainPartialsForTest();
+    await T.setStack([{ tool: 'leading', params: { lead } }, { tool: 'semordnilap', params: {} }]);
+    await T.pipelineIdle();
+    const partials = capture.stop();
+    T.setWorkerYieldIntervalForTest(SHIPPED_MS);
+    const reply = await T.fetchWorkerAllTransformRows(T.lastCompletedRunId());
+    return {
+      firstTotal: partials[0]?.total ?? 0,
+      rows: reply.rows.map(c => c.atoms.map(a => (a.glyph || '') + a.wlEntry.norm).join(' ')),
+    };
+  }, { lead, STREAM_MS, SHIPPED_MS });
+
+  const plain = await run('');
+  const led = await run('stressed');
+  expect([...plain.rows].sort()).toEqual(['desserts ↔stressed', 'drawer ↔reward']);
+  expect(led.firstTotal).toBe(1);   // STRESSED → DESSERTS, placed before its mirror arrives
+  expect(led.rows).toEqual(plain.rows);
+});

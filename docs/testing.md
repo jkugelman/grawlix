@@ -379,6 +379,7 @@ A browser spec installs them on main and in the worker with `__grawlixTest.insta
 | `pair_map` | transform whose chains the spec lists (`pairs: 'spark>park'`); `input: 'highlight'` marks the input | row shapes, cross-run anchors |
 | `prefix_group`, `prefix_group_anchored` | group keyed by the norm minus trailing digits (`ab042` → `ab`) | windowing, group headers, grouped filters and inversion |
 | `throws` | filter throwing from the stage its `at` param names | the tool-error path |
+| `leading` | filter keeping every entry, with `lead` scanned first as Twins scans its typed entry, and enough work per row to stream several batches | arrival order: a lead's family anchor dropping in the flat tier, a mirror pair arriving in its non-canonical direction |
 | `held_pairs` | tuple pairing entries with their reverse, a batch every 64 pairs; `hold` stops a streamed run after its first pair until `__grawlixTest.releaseFixtureHold()` | tuple streaming and its partial cache, actions that must land mid-stream |
 
 Reach for one when a test exercises shared machinery and only needs *some* tool of a given shape.
@@ -406,7 +407,8 @@ Two levels cover it:
 A drop needs a family member that collates ahead of where the scan meets it, and no shipped stack produces one (`worker-protocol.md` § *Family anchoring*).
 `__grawlixTest.installFixtureTools()` installs test-only tools ([`engine/fixture-tools.js`](../site/src/engine/fixture-tools.js)) on main and in the worker; `late_twin` hides its input and emits `apple` from a `zzapple` seed, after the filler, so `worker-partials.spec.js`' transform test drops the family's anchor on the last batch.
 It asserts on the last *streamed snapshot*, not on rows fetched after the run settles, since a post-completion read can be served by a wholesale rebuild that masks a torn stream, and it was verified red with the repair disabled.
-The flat tier has no repair to test: its rows are corpus entries scanned in norm order, so an anchor never drops.
+The flat tier has no repair: its rows are corpus entries scanned in norm order behind at most one lead norm, so when the lead's anchor drops every placed row still sorts below the new anchor.
+`streaming-pipeline.spec.js` checks that with the `leading` fixture.
 Note `tests/browser/streaming-render.spec.js` uses `streamSyntheticBatch` and bypasses the worker, so it cannot catch a comparator regression.
 
 **Cross-run inheritance needs two runs back to back, one of them streamed.**

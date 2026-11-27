@@ -887,11 +887,12 @@ function postGroupSnapshot(type, runId, reprojectId) {
 
 // The transform tier's stream emitter (sibling of makeTupleStreamEmitter), folding
 // mirror pairs online into `seen` — the retained UNFILTERED join. It keeps the
-// first-arrived direction (only promoting the glyph): the corpus emits in norm order,
-// so the lower-norm-join direction arrives first and is the canonical survivor. It
-// rebuilds the atoms array for the ↔ promotion rather than mutating atoms the
-// executor's terminal unify still reads — in-place mutation would corrupt them. Reads
-// `viewSpec` per batch so a mid-stream reproject re-sorts/re-filters.
+// direction `unify` keeps, the lexicographically smaller chain key, whichever arrives
+// first: a lead can put the other direction first, and keeping that would make the
+// result depend on arrival order. It rebuilds the atoms array for the ↔ promotion
+// rather than mutating atoms the executor's terminal unify still reads — in-place
+// mutation would corrupt them. Reads `viewSpec` per batch so a mid-stream reproject
+// re-sorts/re-filters.
 function makeTransformStreamEmitter(runId, viewSpec, scope, stack, signal, streamState, resumeCtx = null) {
   const seen = new Map();   // fwd-key → survivor row (every direction) — the retained join
   let caughtUp = !resumeCtx;
@@ -907,6 +908,7 @@ function makeTransformStreamEmitter(runId, viewSpec, scope, stack, signal, strea
     const cmp = chainRowComparator(viewSpec.sort, stack, anchors);
     const chainOk = filter && chainPredicate(filter);
     const newInRange = [];
+    let swapped = false;
     for (const raw of batchRows) {
       const row = { atoms: collapseRepeatAtoms(raw.atoms), matched: raw.matched };
       const fwd = chainKey(row.atoms);
@@ -918,7 +920,13 @@ function makeTransformStreamEmitter(runId, viewSpec, scope, stack, signal, strea
           const mScores = mirror.atoms.map(a => a.wlEntry.score);
           const rScores = row.atoms.map(a => a.wlEntry.score).reverse();
           if (mScores.every((s, j) => s === rScores[j])) {
-            mirror.atoms = mirror.atoms.map(a => a.glyph ? { ...a, glyph: '↔' } : a);
+            if (fwd < rev) {
+              seen.delete(rev);
+              seen.set(fwd, { ...row, atoms: promoteMirror(row.atoms) });
+              swapped = true;
+            } else {
+              mirror.atoms = promoteMirror(mirror.atoms);
+            }
             folded = true;
           }
         }
@@ -934,14 +942,9 @@ function makeTransformStreamEmitter(runId, viewSpec, scope, stack, signal, strea
           if (!sameKeySet(seen, resumeCtx.keys)) throw new PartialDivergence();
           caughtUp = true;
           streamState.resuming = false;
-          const rows = [...seen.values()];
-          const view = applyViewFilterToRows(rows, filter, 'single');
           lastTransformResult.join = seen;
-          // Refill in place: `cmp` already closed over this map, so swapping in a fresh
-          // one would leave the rest of this batch merging under the stale anchors.
-          if (anchors) { anchors.clear(); for (const r of view) foldChainAnchor(anchors, r); }
           lastTransformResult.anchors = anchors;
-          lastTransformResult.chains = sortChainRows(view, viewSpec.sort, stack, anchors);
+          lastTransformResult.chains = rebuildTransformView(seen, filter, anchors, viewSpec.sort, stack);
         }
         continue;
       }
@@ -958,7 +961,11 @@ function makeTransformStreamEmitter(runId, viewSpec, scope, stack, signal, strea
       lastTransformResult = { runId, version: 0, chains: [], anchors, join: seen, scope, viewSpec, stack, summaries: null };
     }
     lastTransformResult.anchors = anchors;
-    if (dropped?.size && lastTransformResult.chains.length) {
+    if (swapped) {
+      // The swapped-out direction may already be placed, and may have set its family's
+      // anchor, which an incremental merge never raises: rebuild as derive would.
+      lastTransformResult.chains = rebuildTransformView(seen, filter, anchors, viewSpec.sort, stack);
+    } else if (dropped?.size && lastTransformResult.chains.length) {
       const keep = [];
       for (const c of lastTransformResult.chains) {
         if (dropped.has(chainFamily(c))) newInRange.push(c);
@@ -966,7 +973,7 @@ function makeTransformStreamEmitter(runId, viewSpec, scope, stack, signal, strea
       }
       lastTransformResult.chains = keep;
     }
-    if (newInRange.length) {
+    if (!swapped && newInRange.length) {
       newInRange.sort(cmp);
       lastTransformResult.chains = mergeSortedGroups(lastTransformResult.chains, newInRange, cmp);
     }
@@ -975,6 +982,16 @@ function makeTransformStreamEmitter(runId, viewSpec, scope, stack, signal, strea
     postTransformSnapshot('partialChains', runId);
     maybeTestStopAfterTotal(lastTransformResult.chains.length);
   };
+}
+
+const promoteMirror = atoms => atoms.map(a => a.glyph ? { ...a, glyph: '↔' } : a);
+
+// Refills `anchors` in place: the emitter's comparator already closed over that map, so
+// a fresh one would leave the rest of a batch merging under stale anchors.
+function rebuildTransformView(seen, filter, anchors, sort, stack) {
+  const view = applyViewFilterToRows([...seen.values()], filter, 'single');
+  if (anchors) { anchors.clear(); for (const r of view) foldChainAnchor(anchors, r); }
+  return sortChainRows(view, sort, stack, anchors);
 }
 
 // Shared by the streaming `partialChains` and the reprojected snapshot so the two
