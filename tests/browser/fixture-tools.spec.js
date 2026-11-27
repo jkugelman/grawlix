@@ -24,11 +24,10 @@ async function renderedRows(page, stack) {
     .map(r => ({ text: r.textContent.trim(), marks: [...r.querySelectorAll('mark')].map(m => m.textContent) })));
 }
 
-// A hidden-input transform's rows are lone corpus atoms, which look flat. A filter
-// after it gives the stream plan no tier, so the run doesn't stream and the result
-// tier must still come from the stack: the flat tier re-derives marks by replaying
-// the stack's filters, dropping the transform's own marks.
-test('a hidden-input transform keeps its own marks when it does not stream', async ({ page }) => {
+// A hidden-input transform's rows are lone corpus atoms, which look flat, so the
+// tier must come from the stack: the flat tier re-derives marks by replaying the
+// stack's filters, dropping the transform's own marks.
+test('a hidden-input transform keeps its own marks under a filter', async ({ page }) => {
   await gotoApp(page);
   await seed(page, ['apple', 'zzapple', 'pear']);
 

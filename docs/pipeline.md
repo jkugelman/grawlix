@@ -32,7 +32,7 @@ Filter and transform tools carry a `run`; a group tool carries a `group` instead
 - **Transform** (`kind: 'transform'`) emits 0+ new entries; each output branches the row into a new chain row with an atom appended.
   `run` returns `TransformOutput[]` of `{ entry, coined?, inputHighlights?, outputHighlights? }`, where `entry` is a string (looked up in the merged wordlist's `norms` index) or `[string, score]` for a tool-synthesized entry not in any wordlist, and `coined` marks a synthesized entry whose score is carried but not shown.
 
-An optional `async prepare(params, ctx, input)` runs **once per stage**, after every upstream stage has finished; its return value is handed to `run` in place of the params.
+An optional `async prepare(params, ctx, input)` runs **once per stage**, after every upstream stage has finished, or before the producer's scan for a stage in a streaming pipeline (§ *Streaming results*); its return value is handed to `run` in place of the params.
 It's where a tool compiles a regex or pre-sorts letters once instead of per row — Search compiles its match pattern, Anagram pre-sorts its target letters — or builds an index for a heavier tool.
 Tools without a `prepare` get the normalized params object.
 
@@ -55,12 +55,14 @@ Outside the worker it is a no-op, so a tool calls it unconditionally.
 `prepare` is `async`, and carries those helpers, because indexing the wordlist is real O(N) work that has to be chunked and yielded or it freezes the tab.
 `run` stays narrow by contrast — synchronous, per-row, no `ctx` — so the executor keeps sole ownership of the loop, its yielding, and abort; a tool's `run` can't stall or re-drive the run.
 A filter may also declare `lead(prepared)`, naming one norm whose rows the executor runs before the rest, so they stream first: Twins leads with the typed entry, which appears at once while the slow scan of everything else continues.
+A lead counts only on the stack's first stage: anywhere else the order it set would depend on which stage streams (§ *Streaming results*) and leak into the prefix tiles that other stacks reuse, so a Twins below another tool scans in plain order.
 The scan order changes nothing else, since every sort ends in a total tiebreak.
 One tool keeps state across calls: Twins memoizes each kept row's score in a module-level slot per query and merged corpus, because its column and highlights re-prepare through `replay` and the result caches re-sort rows by the column without calling `run`, and rescoring a row costs an alignment.
 
 The stage's working set arrives as the **third `prepare` argument**, `input` — a lazy, read-only view of the previous stage's output as entry strings, resolved on access so a tool that ignores it pays nothing and the executor's chain rows never leak into the tool surface.
 It lets a `prepare` index the surviving working set, not only the wordlist.
-It's a separate argument rather than a `ctx` field on purpose: a `prepare` that reads the input declares it in its signature, and `streamPlan` reads that arity (≥ 3) to keep an input-dependent `prepare` out of a tuple producer's streaming emit path (§ *Streaming results*), where the input isn't available yet — its pre-run value would diverge from the terminal pass.
+It's a separate argument rather than a `ctx` field on purpose: a `prepare` that reads the input declares it in its signature, and `streamPlan` reads that arity (≥ 3) to keep an input-dependent `prepare` from preparing before its input exists (§ *Streaming results*), where its value would diverge from a buffered run.
+Such a stage starts a flat or transform pipeline instead of joining one, and stops a tuple producer's stream.
 Caesar's `prepare` reads only `ctx.grouped` (a stable row property), so it streams after a tuple producer; a future input-reading `prepare` would not.
 
 Param strings get lowercased at the executor boundary (`normalizeParams`), so tools see canonical input on both sides without per-call ceremony.
@@ -397,14 +399,19 @@ The diff, the 256-add/delete cap past which it rebuilds the merge wholesale, and
 
 ## Streaming results
 
-A run whose final stage is **streamed-out** paints its results into the table as the worker finds them, instead of blanking until the whole run finishes — a slow flat search over a 750K corpus and a long Umiaq run both accumulate visibly.
+A streaming run paints its results into the table as the worker finds them, instead of blanking until the whole run finishes — a slow flat search over a 750K corpus and a long Umiaq run both accumulate visibly.
 Whether a run streams is a property of the tool stack, not a per-run flag: each tool *kind* carries fixed input/output modes — a filter or transform is streamed on both sides, a group tool is buffered on both (a bucket isn't final until the whole input is seen), and the tuple producer ([`umiaq.md`](umiaq.md) § *How the tool runs*) is **buffered-in, streamed-out** (once the candidate pool is fixed, every tuple the join finds is final).
-The rule that falls out: **results stream when the last non-inert tool is streamed-out.**
-`streamPlan(stack)` reads it off the stack and names the producing stage.
-Three stages stream in practice — a filter-only flat search (the trailing search bar), a tuple search (Umiaq, Weave), and a transform when it's the last non-inert tool.
+
+Filters and transforms stream as a **pipeline**, like a shell pipe: the first stage to run, the *producer*, scans its input, and each batch it emits at a yield runs through every later stage before it goes out.
+Results paint while the scan runs, whichever stage is slow: Twins then Search streams as Twins alone does.
+`streamPlan(stack, from)` names the producer and its `downstream` stages.
+The producer is the first active stage at or after `from`, where a resumed run starts, since a stage in the cached prefix never runs; and it is no earlier than the last stage whose `prepare` reads its input, which has to see that input whole (§ *Pipeline execution*).
+Every stage prepares before the producer's scan.
+Each downstream stage keeps the rows it passed, and the executor adopts them as its output, so a stage runs once and the prefix tiles between stages match a buffered run's.
+A group tool anywhere in the stack stops streaming, and the tuple search is a producer of its own (below).
+So three tiers stream: a filter-only flat stack (the trailing search bar included), a tuple search (Umiaq, Weave), and any stack of filters and transforms with at least one transform.
 A transform's catch is that the `unify` mirror-fold (§ Symmetric unification) is a whole-set barrier, so the worker folds **online** instead: as each mirror arrives it promotes the already-painted row's glyph to `↔` in place rather than appending a second row and collapsing later, so the painted count only ever grows.
 The retained direction is already canonical — the corpus emits in norm order, so the lexicographically-smaller norm-join direction always arrives first, which is exactly the survivor `unify` keeps — so the stream is exact-final and completion **adopts** it (no re-derive, no end-of-stream word-order flip), byte-identical to a buffered run.
-A filter chained *after* a transform stays buffered (the transform is no longer the last non-inert tool).
 When a filter follows the tuple search, the tuple producer is still the producer; the filter runs per-batch inside its emit path (`streamPlan` returns it as a `downstream` stage), so each streamed batch is already the filtered set.
 Because the tuple search is buffered-in, it scans the whole corpus before its first tuple — a visible gap of around a second — so the streaming state (empty table, live dots) is shown from **dispatch** rather than from that first batch; otherwise the prior result would sit on screen, dimmed but readable, looking current for the gap.
 A streamed-out filter has no such gap (its first survivors stream within a yield), so only the tuple tier triggers the eager clear.

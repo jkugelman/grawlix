@@ -127,12 +127,35 @@ test('streamPlan: a tuple run streams as a tuple, with a filter tail as downstre
   const lastTransform = streamPlan([transform]);
   assert.equal(lastTransform.tier, 'transform', 'a bare transform streams');
   assert.equal(lastTransform.producer, transform);
-  assert.equal(streamPlan([filter, transform]).tier, 'transform', 'a transform after a filter streams');
-  assert.equal(streamPlan([transform, filter]).tier, null, 'a filter after a transform is not streamed (v1)');
 
   const flat = streamPlan([filter]);
   assert.equal(flat.tier, 'flat');
   assert.equal(flat.producer, filter);
+});
+
+test('streamPlan: filters and transforms stream as one pipeline from the first stage that runs', () => {
+  const f1 = makeToolRow('search', { pattern: 'UN*ED' });
+  const f2 = makeToolRow('search', { pattern: 'UN*1*ED' });
+  const transform = makeToolRow('head_off', { pattern: '?' });
+  const inert = makeToolRow('search', { pattern: '' });
+
+  const filters = streamPlan([f1, inert, f2]);
+  assert.equal(filters.tier, 'flat');
+  assert.equal(filters.producer, f1, 'the first filter produces, not the last');
+  assert.deepEqual(filters.downstream, [f2], 'an inert row is skipped');
+
+  const resumed = streamPlan([f1, f2], 1);
+  assert.equal(resumed.producer, f2, 'a stage before the resume point never runs, so it cannot produce');
+
+  const mixed = streamPlan([transform, f1]);
+  assert.equal(mixed.tier, 'transform');
+  assert.equal(mixed.producer, transform);
+  assert.deepEqual(mixed.downstream, [f1]);
+  assert.equal(streamPlan([f1, transform]).producer, f1);
+
+  const reader = { ...f2, def: { ...f2.def, prepare: (params, ctx, input) => input.length } };
+  assert.equal(streamPlan([f1, reader]).producer, reader,
+    'a stage whose prepare reads its input must see the whole input, so the pipeline starts there');
 });
 
 test('emit: a tuple run with a downstream filter streams ONLY the filtered tuples', async () => {
@@ -221,4 +244,159 @@ test('emit: a reverse transform (head on) streams each row exactly once', async 
   assert.equal(new Set(flat).size, flat.length, 'a row was emitted in more than one batch');
   assert.deepEqual([...flat.map(tailNorm)].sort(), [...result.rows.map(tailNorm)].sort());
   assert.equal(flat.length, result.rows.length);
+});
+
+// ─── Pipelined streaming ──────────────────────────────
+
+function counted(row) {
+  const counter = { calls: 0 };
+  const run = row.def.run;
+  row.def = { ...row.def, run: (...args) => { counter.calls++; return run(...args); } };
+  return counter;
+}
+
+test('pipeline: a filter after a filter streams the filtered rows while the producer scans', async () => {
+  forceDeterministicYields();
+
+  const second = makeToolRow('search', { pattern: 'UN*1*ED' });
+  const calls = counted(second);
+  const batches = [];
+  const result = await executePipeline(
+    makeCorpus(MATCHING), [makeToolRow('search', { pattern: 'UN*ED' }), second], null,
+    { emit: b => batches.push(b) },
+  );
+
+  assert.ok(batches.length >= 2, `expected >= 2 emit calls, got ${batches.length}`);
+  const flat = batches.flat();
+  assert.ok(flat.every(r => tailNorm(r).includes('1')), 'only rows past the second filter are emitted');
+  assert.deepEqual(flat.map(tailNorm), result.rows.map(tailNorm));
+  assert.equal(calls.calls, MATCHING.length, 'the downstream filter runs once per row, not again at the end');
+});
+
+test('pipeline: a filter after a transform streams, matching a buffered run', async () => {
+  forceDeterministicYields();
+
+  const corpus = () => makeCorpus(['scat', 'cat', 'brat', 'rat', 'plice', 'lice']);
+  const stack = () => [makeToolRow('head_off', { pattern: '?' }), makeToolRow('search', { pattern: '?AT' })];
+  const buffered = await executePipeline(corpus(), stack(), null);
+  const batches = [];
+  const streamed = await executePipeline(corpus(), stack(), null, { emit: b => batches.push(b) });
+
+  assert.ok(buffered.rows.length > 0, 'fixture matched nothing');
+  assert.ok(batches.length >= 1, 'a filter after a transform must stream');
+  assert.deepEqual(batches.flat().map(tailNorm).sort(), streamed.rows.map(tailNorm).sort());
+  assert.deepStrictEqual(streamed.rows.map(projectRow), buffered.rows.map(projectRow));
+});
+
+test('pipeline: a run resumed past the first stage streams from the stage it resumes at', async () => {
+  forceDeterministicYields();
+
+  const corpus = makeCorpus(MATCHING);
+  const stack = () => [makeToolRow('search', { pattern: 'UN*ED' }), makeToolRow('search', { pattern: 'UN*1*ED' })];
+  const offers = [];
+  const cold = await executePipeline(corpus, stack(), null,
+    { resume: { floorMs: 0, offer: (prefixLen, state) => offers.push({ prefixLen, state }) } });
+  const tile = offers.find(o => o.prefixLen === 1);
+  assert.ok(tile, 'the first stage must be offered as a tile');
+
+  const batches = [];
+  const resumed = await executePipeline(corpus, stack(), null,
+    { emit: b => batches.push(b), resume: { seedState: tile.state, seedFrom: 1 } });
+  assert.ok(batches.length >= 1, 'a resumed run must still stream');
+  assert.deepEqual(batches.flat().map(tailNorm), resumed.rows.map(tailNorm));
+  assert.deepStrictEqual(resumed.rows.map(projectRow), cold.rows.map(projectRow));
+});
+
+test('pipeline: tiles offered from a streamed run match a buffered run\'s', async () => {
+  forceDeterministicYields();
+
+  const corpus = makeCorpus(MATCHING);
+  const stack = () => [
+    makeToolRow('search', { pattern: 'UN*ED' }),
+    makeToolRow('search', { pattern: 'UN*1*ED' }),
+    makeToolRow('search', { pattern: 'UN*0*ED' }),
+  ];
+  const tiles = async emit => {
+    const offers = [];
+    await executePipeline(corpus, stack(), null,
+      { emit, resume: { floorMs: 0, offer: (prefixLen, state) => offers.push({ prefixLen, rows: state.groups[0].chains.map(tailNorm) }) } });
+    return offers;
+  };
+  const buffered = await tiles(null);
+  assert.deepEqual(buffered.map(o => o.prefixLen), [1, 2]);
+  assert.deepStrictEqual(await tiles(() => {}), buffered);
+});
+
+const leading = (pattern, lead) => {
+  const row = makeToolRow('search', { pattern });
+  row.def = { ...row.def, lead: () => lead };
+  return row;
+};
+
+test('pipeline: the first stage\'s lead streams its rows first, as in a buffered run', async () => {
+  forceDeterministicYields();
+
+  const lead = 'un0150ed';
+  const stack = () => [leading('UN*ED', lead), makeToolRow('search', { pattern: 'UN*1*ED' })];
+  const buffered = await executePipeline(makeCorpus(MATCHING), stack(), null);
+  const batches = [];
+  const streamed = await executePipeline(makeCorpus(MATCHING), stack(), null, { emit: b => batches.push(b) });
+
+  assert.equal(tailNorm(batches[0][0]), lead, 'the lead row streams first');
+  assert.deepEqual(batches.flat().map(tailNorm), buffered.rows.map(tailNorm));
+  assert.deepStrictEqual(streamed.rows.map(projectRow), buffered.rows.map(projectRow));
+});
+
+test('pipeline: a later stage\'s lead changes no order, tiles included', async () => {
+  forceDeterministicYields();
+
+  const stack = () => [makeToolRow('search', { pattern: 'UN*ED' }), leading('UN*ED', 'un0150ed'), makeToolRow('search', { pattern: 'UN*ED' })];
+  const run = async emit => {
+    const tiles = [];
+    const out = await executePipeline(makeCorpus(MATCHING), stack(), null,
+      { emit, resume: { floorMs: 0, offer: (prefixLen, state) => tiles.push({ prefixLen, rows: state.groups[0].chains.map(tailNorm) }) } });
+    return { tiles, rows: out.rows.map(tailNorm) };
+  };
+  const buffered = await run(null);
+  assert.deepEqual(buffered.rows, MATCHING, 'the lead is ignored away from the first stage');
+  assert.deepStrictEqual(await run(() => {}), buffered);
+});
+
+test('pipeline: a lead after a transform orders a resumed run as a cold one', async () => {
+  forceDeterministicYields();
+
+  const words = ['scat', 'cat', 'brat', 'rat', 'plice', 'lice', 'xrat'];
+  const stack = () => [makeToolRow('head_off', { pattern: '?' }), leading('?AT', 'rat'), makeToolRow('search', { pattern: '' })];
+  const chains = out => out.rows.map(r => r.atoms.map(a => a.wlEntry.norm).join('>'));
+  const offers = [];
+  const cold = await executePipeline(makeCorpus(words), stack(), null,
+    { emit: () => {}, resume: { floorMs: 0, offer: (prefixLen, state) => offers.push({ prefixLen, state }) } });
+  const tile = offers.find(o => o.prefixLen === 1);
+  const resumed = await executePipeline(makeCorpus(words), stack(), null,
+    { emit: () => {}, resume: { seedState: tile.state, seedFrom: 1 } });
+  const buffered = await executePipeline(makeCorpus(words), stack(), null);
+
+  assert.ok(chains(cold).length > 1, 'fixture matched too little');
+  assert.deepEqual(chains(resumed), chains(cold));
+  assert.deepEqual(chains(buffered), chains(cold));
+});
+
+test('pipeline: a failing downstream stage marks its own row', async () => {
+  forceDeterministicYields();
+
+  const first = makeToolRow('search', { pattern: 'UN*ED' });
+  const second = makeToolRow('search', { pattern: 'UN*ED' });
+  second.def = { ...second.def, run: () => { throw new Error('boom'); } };
+  const quiet = console.error;
+  console.error = () => {};
+  try {
+    await assert.rejects(
+      executePipeline(makeCorpus(MATCHING), [first, second], null, { emit: () => {} }),
+      e => e.stackRow === second,
+    );
+  } finally {
+    console.error = quiet;
+  }
+  assert.equal(first._error, null, 'the producer is not blamed');
+  assert.equal(second._error, 'boom');
 });

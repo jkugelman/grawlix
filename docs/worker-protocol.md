@@ -25,12 +25,13 @@ The worker executes against its owned corpus, sorts and filters the result itsel
   A **tuple** tool (Umiaq, Weave) produces a fixed-arity tuple result, structurally a grouped result (each tuple a row of N side-by-side single-atom chains), and rides the grouped tier's whole path: payload shape, retained `lastGroupedResult`, and `fetchGroups`/`fetchGroupChains`/`fetchAllGroups`.
   A long tuple run **streams** as `partialGroups` snapshots, the grouped-tier sibling of `partial`.
 - **Transform**: an inline `firstChains` window plus a `chainCount` and result-level summaries; the worker keeps the sorted, filtered chain list and serves later windows via `fetchTransformRows`.
-  A transform that is the last non-inert tool **streams** as `partialChains` snapshots.
+  A stack of filters and transforms with a transform in it **streams** as `partialChains` snapshots.
 
 Because each tier's incremental merge uses a *total* comparator (for tuples, the group axes plus a unique `g.key` tiebreak), the terminal `result` adopts the exact order the stream painted, with no end-of-stream reshuffle; see § *Streaming is authoritative* below.
-Which tier streams is decided by tool IO modes: a streamed-out producer streams.
-That is a flat filter; the tuple producer, whether it is the last non-inert tool or is followed only by stream-safe filters (which run per batch in its emit path, so the streamed tuples arrive already filtered); or a **transform** that is the last non-inert tool (the worker folds its mirror pairs **online** into a running sorted list, making `unify`'s whole-set fold incremental; see `partialChains`).
-A buffered-out group tool does not stream, and neither does a filter chained *after* a transform.
+Which tier streams is decided by tool IO modes ([`pipeline.md`](pipeline.md) § *Streaming results*).
+Filters and transforms stream as one pipeline, each batch the first stage emits running through the rest before the worker sees it: the flat tier when they're all filters, the transform tier when one is a transform (the worker folds its mirror pairs **online** into a running sorted list, making `unify`'s whole-set fold incremental; see `partialChains`).
+The tuple producer streams when it is the last non-inert tool or is followed only by stream-safe filters, which run per batch in its emit path, so the streamed tuples arrive already filtered.
+A buffered-out group tool does not stream.
 
 The result's `laneKind` is the only discriminator: `'single'` for a flat or transform result, `'set'` for a group cluster (an equivalence class: trimmable, so a member can drop while the cluster survives), `'record'` for a tuple (fixed positional lanes, all-or-nothing).
 The client keys its render off it (a record draws bare positional lanes, no overflow chrome), but the transport is identical, so a record rides the grouped tier's path.
@@ -1187,8 +1188,8 @@ A run with several passes (Stress shift sweeps for the spacing table, its index,
 `{ type: 'partial', runId, version, windowStart, total, firstRows, widthHints, stats, histogramCounts, histogramLayout, filtered }` — **a SORTED snapshot of the flat survivors so far**, posted as the executor finds them so the table paints a climbing, correctly-sorted result during a scan rather than waiting for the whole `result`.
 **One run posts one or more `partial`s followed by exactly one terminal `result`** (the same `runId`).
 Posted for any non-empty flat-eligible run (filter-only, ungrouped): a slow scan posts several as it crosses yield boundaries, a fast scan posts a single one (the executor's post-loop flush emits the tail).
-A transform or group-cluster run never streams; a **tuple producer** streams via `partialGroups` instead (below).
-`executePipeline`'s `streamPlan(stack)` decides which stage produces a streamed tier and threads `emit` to it.
+A transform run streams via `partialChains` and a **tuple producer** via `partialGroups` instead (below); a group-cluster run never streams.
+`executePipeline`'s `streamPlan(stack, from)` decides which stage produces a streamed tier and threads `emit` to it; with several filters, each batch has passed all of them.
 - `runId` — the in-flight run; the supersession key.
   The worker drops a `partial` from a clearly-superseded run (`signal.aborted`) before posting, and the client drops any `partial` whose `runId` isn't the latest *dispatched* (`pendingRun.runId`, the same guard the `result` branch uses) so a stale stream can't paint over the current result.
   A `partial` **never settles `pendingRun`** — only `result`/supersession do, or `pipelineIdle()` would resolve mid-stream and break the pipeline-idle contract the suite gates on.
@@ -1256,7 +1257,7 @@ A group-cluster run never streams (buffered-out); a transform streams via `parti
 `{ type: 'partialChains', runId, version, windowStart, laneKind, atomCount, total, firstChains, widthHints, stats, histogramCounts, histogramLayout, filtered }` — **a SORTED snapshot of the transform's surviving chains so far**, the transform-tier sibling of `partial`/`partialGroups`.
 The executor emits raw transform rows per batch; the worker folds mirror pairs **online** and merges surviving in-range rows into the running sorted `lastTransformResult.chains`.
 **One run posts one or more `partialChains` followed by exactly one terminal `result`** (the same `runId`).
-Posted only when a transform is the **last non-inert tool**; a filter after a transform stays buffered (v1).
+Posted for a stack of filters and transforms with at least one active transform; the executor's emitted rows have already run through every stage after the producer.
 - `runId` / `version` — same supersession + stale-window-drop discipline as `partial`/`partialGroups`; the client never settles `pendingRun` off a `partialChains`.
 - `laneKind` — always `'single'` (a transform is one lane per row).
   `atomCount` is the per-row atom depth (`currentAtomCount(stack)`).

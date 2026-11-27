@@ -83,18 +83,34 @@ function lastNonInert(stack) {
   return null;
 }
 
-export function streamPlan(stack) {
-  const last = lastNonInert(stack);
-  if (!last) return { tier: null, producer: null, downstream: [] };
+// The producer must be at or after `from`, the stage a run resumes at: a stage
+// before it comes from a cached prefix and never runs, so the run would silently
+// stop streaming.
+export function streamPlan(stack, from = 0) {
+  const none = { tier: null, producer: null, downstream: [] };
+  if (!lastNonInert(stack)) return none;
   const tail = tupleWithFilterTail(stack);
   if (tail) return { tier: 'tuple', producer: tail.producer, downstream: tail.filters };
-  if (last.kind() === 'filter' && isFilterOnlyChain(stack) && !isGroupChain(stack) && !isTupleChain(stack)) {
-    return { tier: 'flat', producer: last, downstream: [] };
+  if (isGroupChain(stack) || isTupleChain(stack)) return none;
+  const stages = pipelineStages(stack, from);
+  return {
+    tier: isFilterOnlyChain(stack) ? 'flat' : 'transform',
+    producer: stages[0] ?? null,
+    downstream: stages.slice(1),
+  };
+}
+
+// Stages after the producer prepare before its scan, when their input doesn't
+// exist yet; an input-reading prepare there would diverge from a buffered run
+// with no error, so the pipeline starts at the last one instead.
+const readsInput = row => !!row.def.prepare && row.def.prepare.length >= 3;
+
+function pipelineStages(stack, from) {
+  let start = from;
+  for (let i = from; i < stack.length; i++) {
+    if (!stack[i].isInert() && readsInput(stack[i])) start = i;
   }
-  if (last.kind() === 'transform' && !isGroupChain(stack) && !isTupleChain(stack)) {
-    return { tier: 'transform', producer: last, downstream: [] };
-  }
-  return { tier: null, producer: null, downstream: [] };
+  return stack.slice(start).filter(row => !row.isInert());
 }
 
 // Downstream filters here run per-batch in the emit path, so their `prepare` runs
@@ -275,10 +291,6 @@ export async function executePipeline(wordlist, stack, signal,
   const userStackLen = stack.length - 1;   // stack[userStackLen] is the trailing search row
   const searchRow = stack[userStackLen];
 
-  const plan = emit ? streamPlan(stack) : null;
-  const producer = plan ? plan.producer : null;
-  const downstream = plan ? plan.downstream : [];
-
   let state, from;
   if (resume?.seedState) {
     state = cloneState(resume.seedState);
@@ -298,28 +310,48 @@ export async function executePipeline(wordlist, stack, signal,
   _lastSeedFrom = from;
   y.plan(plannedPasses(stack, from, y.cache));
 
-  // Run the user-stack suffix [from, userStackLen), offering each inter-stage state as a
-  // prefix tile once the time since the last cut clears the floor (greedy marginal-cost
-  // tiling). The loop reaches the pre-search boundary (prefixLen userStackLen) like any
-  // other, so a keystroke reuses the whole user stack and adding a row on top reuses it too.
+  const plan = emit ? streamPlan(stack, from) : null;
+  const producer = plan?.producer ?? null;
+  const piped = plan && plan.tier !== 'tuple' ? new Set(plan.downstream) : null;
+
+  // Run the stack suffix [from, userStackLen], offering each inter-stage state up to the
+  // pre-search boundary as a prefix tile once the time since the last cut clears the floor
+  // (greedy marginal-cost tiling), so a keystroke reuses the whole user stack and adding a
+  // row on top reuses it too. A pipelined stage already ran inside the producer's batches
+  // and only adopts its output here: running it again would silently double its cost.
+  // A lead applies only to the stack's first stage. Anywhere else the order it sets would
+  // silently depend on which stage streams, and would leak into prefix tiles other stacks reuse.
+  const leader = stack.find(row => !row.isInert());
   let acc = 0;
-  let tailStart = performance.now();   // reset at each cut, so it ends up marking the LAST tile boundary
-  for (let i = from; i < userStackLen; i++) {
+  let tailStart = performance.now();   // set at each cut, so it ends up marking the LAST tile boundary
+  let pipeline = null;
+  for (let i = from; i <= userStackLen; i++) {
     const stackRow = stack[i];
-    const t0 = performance.now();
-    await runStackRow(stackRow, state, wordlist, vocab, signal, y, stackRow === producer ? emit : null, downstream);
     if (stackRow.isInert()) continue;
-    acc += performance.now() - t0;
+    let ms;
+    if (piped?.has(stackRow)) {
+      ({ rows: state.groups[0].chains, ms } = pipeline.stages.get(stackRow));
+    } else {
+      const t0 = performance.now();
+      if (stackRow === producer && piped) {
+        pipeline = await runPipeline(stackRow, plan.downstream, state, wordlist, vocab, signal, y, emit, stackRow === leader);
+      } else {
+        await runStackRow(stackRow, state, wordlist, vocab, signal, y, stackRow === producer ? emit : null, plan?.downstream, stackRow === leader);
+      }
+      ms = performance.now() - t0 - (pipeline?.downstreamMs ?? 0);
+    }
+    if (i === userStackLen) break;
+    acc += ms;
     // An elided state prices at zero bytes, so the cache would always admit it — and
     // every later run seeding from that tile would return nothing.
     if (resume?.offer && !state.elided && acc >= resume.floorMs) {
       resume.offer(i + 1, cloneState(state), acc);
       acc = 0;
-      tailStart = performance.now();
+      // A pipelined run has already done the later stages' work; leave it out of the
+      // tail and the finished cache silently refuses a result that is costly to re-derive.
+      tailStart = performance.now() - (pipeline ? pipeline.msAfter(stackRow) : 0);
     }
   }
-
-  await runStackRow(searchRow, state, wordlist, vocab, signal, y, searchRow === producer ? emit : null, downstream);
 
   const { groups, laneKind } = state;
   const multiLane = laneKind !== 'single';
@@ -381,7 +413,7 @@ export function plannedPasses(stack, from, cache) {
   return passes;
 }
 
-async function runStackRow(stackRow, state, wordlist, vocab, signal, y, emit = null, downstream = []) {
+async function runStackRow(stackRow, state, wordlist, vocab, signal, y, emit = null, downstream = [], leads = false) {
   if (stackRow.isInert()) return;
   const { def } = stackRow;
   throwIfAborted(signal);
@@ -426,15 +458,67 @@ async function runStackRow(stackRow, state, wordlist, vocab, signal, y, emit = n
     for (const g of state.groups) {
       g.chains = groupFilter
         ? await runGroupFilterStage(g.chains, stackRow, prepared, wordlist, y)
-        : await runToolStage(g.chains, stackRow, prepared, wordlist, y, emit);
+        : await runToolStage(g.chains, stackRow, prepared, wordlist, y, emit, leads);
       if (y.due()) await y.yield();
     }
   } catch (e) {
-    if (signal?.aborted) throw e;
-    stackRow._error = e?.message || String(e);
-    console.error(`Tool "${stackRow.tool}" failed:`, e);
-    throw new ToolStageError(e, stackRow);
+    throw stageFailure(e, stackRow, signal);
   }
+}
+
+// A pipelined stage throws from inside the producer's emit, so a failure already
+// pinned to its stage passes through: rewrap it and the error marks the wrong row.
+function stageFailure(e, stackRow, signal) {
+  if (signal?.aborted || e instanceof ToolStageError) return e;
+  stackRow._error = e?.message || String(e);
+  console.error(`Tool "${stackRow.tool}" failed:`, e);
+  return new ToolStageError(e, stackRow);
+}
+
+async function guardStage(stackRow, signal, fn) {
+  try {
+    return await fn();
+  } catch (e) {
+    throw stageFailure(e, stackRow, signal);
+  }
+}
+
+// ─── Pipelined streaming ──────────────────────────────
+
+async function runPipeline(producer, downstream, state, wordlist, vocab, signal, y, emit, leads) {
+  const stages = [producer, ...downstream];
+  const input = state.groups[0].chains;
+  const prepared = [];
+  for (const row of stages) {
+    const params = normalizeParams(row.params, row.def.params);
+    prepared.push(row.def.prepare
+      ? await guardStage(row, signal, () => row.def.prepare(params,
+        makeCtx(wordlist, vocab, signal, y, row.grouped, row.reversed()),
+        row === producer ? makeWorkingSetView(input) : undefined))
+      : params);
+  }
+
+  const outs = stages.map(() => []);
+  const ms = stages.map(() => 0);
+  const pipe = async batch => {
+    for (let k = 1; k < stages.length && batch.length; k++) {
+      const t0 = performance.now();
+      const stage = stages[k], rows = batch;
+      batch = await guardStage(stage, signal, () => runToolStage(rows, stage, prepared[k], wordlist, y));
+      for (const row of batch) outs[k].push(row);
+      ms[k] += performance.now() - t0;
+    }
+    if (batch.length) emit(batch);
+  };
+  outs[0] = await guardStage(producer, signal, () => runToolStage(input, producer, prepared[0], wordlist, y, pipe, leads));
+  state.groups[0].chains = outs[0];
+
+  const sumAfter = k => ms.slice(k + 1).reduce((a, b) => a + b, 0);
+  return {
+    stages: new Map(stages.map((row, k) => [row, { rows: outs[k], ms: ms[k] }])),
+    downstreamMs: sumAfter(0),
+    msAfter: row => sumAfter(stages.indexOf(row)),
+  };
 }
 
 function tagCoord(ranges, coord) {
@@ -451,7 +535,7 @@ function leadFirst(rows, norm) {
   return first.length ? first.concat(rest) : rows;
 }
 
-async function runToolStage(rows, stackRow, prepared, wordlist, y, emit = null) {
+async function runToolStage(rows, stackRow, prepared, wordlist, y, emit = null, leads = false) {
   const { def } = stackRow;
   const kind = stackRow.kind();
   const invert = stackRow.inverted();
@@ -461,7 +545,7 @@ async function runToolStage(rows, stackRow, prepared, wordlist, y, emit = null) 
   const coord = matchOn === 'display' ? 'display' : 'norm';
   const next = [];
   let flushed = 0;
-  const lead = kind === 'filter' ? def.lead?.(prepared) : null;
+  const lead = leads && kind === 'filter' ? def.lead?.(prepared) : null;
   if (lead != null) rows = leadFirst(rows, lead);
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i];
@@ -517,11 +601,11 @@ async function runToolStage(rows, stackRow, prepared, wordlist, y, emit = null) 
       // Flush before y.yield(), not after: y.yield() is where a superseded run
       // throws AbortError, so flushing below it would silently swallow the last
       // batch. Emitting a tail that abort then strips is harmless (consumer drops it).
-      if (emit && next.length > flushed) { emit(next.slice(flushed)); flushed = next.length; }
+      if (emit && next.length > flushed) { const batch = next.slice(flushed); flushed = next.length; await emit(batch); }
       await y.yield();
     }
   }
-  if (emit && next.length > flushed) emit(next.slice(flushed));
+  if (emit && next.length > flushed) await emit(next.slice(flushed));
   return next;
 }
 

@@ -515,3 +515,19 @@ test('a reshaping edit that supersedes a streaming run stashes nothing (generati
   const rows = await page.evaluate(() => window.__grawlixTest.fetchWorkerRows(0, 1e9).then(r => r.rows.map(x => x.norm)));
   expect(rows.some(n => n === 'aerie')).toBe(false);
 });
+
+test('a two-filter pipeline stashes and resumes like a single filter', async ({ page }) => {
+  await gotoApp(page);
+  await seedBig(page);
+  const stack = [...flat('W*'), ...flat('W*1*')];
+  const expected = await coldFlatRows(page, stack);
+  await isolate(page);
+
+  const { aLastTotal } = await abandonFlat(page, stack, flat('X*'));
+  expect(aLastTotal).toBeGreaterThan(0);
+
+  const { st, rows } = await reenterFlat(page, stack);
+  expect(st.hits).toBeGreaterThanOrEqual(1);
+  expect(st.resumedFrom).toBe(aLastTotal);
+  expect(rows).toEqual(expected);
+});
