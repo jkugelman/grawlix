@@ -370,6 +370,15 @@ const flapT = pron => {
   return toks.map((ph, i) => (ph === 'T' && flapsAt(toks, i) ? 'D' : ph)).join(' ');
 };
 
+export function shiftReadingsOf(toks) {
+  const bare = phones => phones.map(ph => ph.replace(/\d$/, ''));
+  const flapped = flapT(smoothR(toks.join(' '))).split(' ');
+  return {
+    plain: bare(toks.map((ph, i) => (toks[i + 1] === 'R' ? ph : foldVowel(toks, i)))),
+    folded: bare(flapped.map((ph, i) => foldVowel(flapped, i))),
+  };
+}
+
 // Yod coalescence across a word break: GOT YOU is said "gotchoo", CATCH YOU "catchoo".
 // Only into YOU and its forms, which are said unstressed; a stressed Y word keeps its
 // Y, or JAW finds SCOTLAND YARD.

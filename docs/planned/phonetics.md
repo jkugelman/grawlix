@@ -170,8 +170,8 @@ Both are the same syllabify-and-swap engine over the phonemized, cached wordlist
 
 - **Homophone groups** — bucket entries by stress-stripped phoneme string: their/there, to/too/two, knight/night, flour/flower, and the cross-word-boundary "ice cream" = "i scream".
   Finding the homophones of one word already ships, as Phone search in Whole entry mode; what's missing is the all-mode clustering of the whole wordlist, which needs no eSpeak.
-- **Phonetic substitution / Sound shift** — the two phonetic tools already in [`../tools.md`](../tools.md): swap one phoneme for another across the wordlist, or move a phoneme between word positions.
-  Both need reliable phonemization of arbitrary entries, including OOV ones.
+- **Phonetic substitution** — the phonetic tool already in [`../tools.md`](../tools.md): swap one phoneme for another across the wordlist.
+  It needs reliable phonemization of arbitrary entries, including OOV ones.
 - **Syllable-count & meter filters** — count nuclei to filter by syllable count, or match a stress pattern (iambic/dactylic) over arbitrary phrases.
 - **Phonetic anagrams** — anagrams of phonemes, not letters.
 

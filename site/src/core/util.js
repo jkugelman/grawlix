@@ -64,7 +64,7 @@ export function buildHelpHTML(rows, opts = {}) {
       : `<kbd>${esc(code)}</kbd>`;
     return `<span>${token} ${esc(desc)}</span>`;
   }).join('');
-  const oneCol = opts.cols === 1 ? ' one-col' : '';
+  const oneCol = opts.cols === 1 ? ' one-col' : opts.cols === 3 ? ' cols-3' : '';
   const footer = opts.link
     ? `<div class="help-link"><a href="${esc(opts.link.url)}" target="_blank" rel="noopener">${esc(opts.link.text)}</a></div>`
     : '';

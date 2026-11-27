@@ -1648,6 +1648,10 @@ html.dark-mode #discovery-banner { background: color-mix(in srgb, var(--accent) 
 .popup-help.open { opacity: 1; }
 .popup-help .help-grid { column-count: 2; column-gap: 22px; }
 .popup-help .help-grid.one-col { column-count: 1; }
+.popup-help .help-grid.cols-3 { column-count: 3; column-gap: 16px; }
+.popup-help .help-intro { margin-bottom: 6px; }
+.popup-help .help-section { margin: 8px 0 3px; font-weight: 600; color: var(--text); }
+.popup-help .help-section:first-child { margin-top: 0; }
 .popup-help span { display: flex; align-items: baseline; gap: 5px; margin-bottom: 2px; break-inside: avoid; }
 .popup-help kbd { font-family: var(--font-mono); font-size: 11px; color: var(--text); white-space: nowrap; }
 .popup-help .help-ghost { font-style: italic; font-weight: 400; color: var(--text); }

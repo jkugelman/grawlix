@@ -44,7 +44,6 @@ Tool lists in those two categories are provisional.
 | ✓ | Phonetic | 🎵 Rhymes | Rhyming words and phrases | rhyme → climb, key lime |
 | ✓ | Phonetic | 😅 Stress shift | Same sounds, stress on another syllable | into it · intuit |
 |   | Phonetic | 🔊 Phonetic substitution | Swap one phoneme for another across the wordlist | TBD |
-|   | Phonetic | 🎶 Sound shift | Move a phoneme between word positions (e.g. front → end) | TBD |
 | ✓ | Phrase | 🌌 Space out | Guess at where spaces go in multi-word entries | spaceout → space out |
 | ✓ | Phrase | 🔠 Initialisms | Starting letters spell a word | hot → Helen of Troy |
 |   | Phrase | 👯 Double occupancy | Two-part entries where both halves compound with one reference term | green light + house → greenhouse, lighthouse |
