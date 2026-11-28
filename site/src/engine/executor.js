@@ -508,7 +508,7 @@ async function runPipeline(producer, downstream, state, wordlist, vocab, signal,
       for (const row of batch) outs[k].push(row);
       ms[k] += performance.now() - t0;
     }
-    if (batch.length) emit(batch);
+    if (batch.length) await emit(batch);
   };
   outs[0] = await guardStage(producer, signal, () => runToolStage(input, producer, prepared[0], wordlist, y, pipe, leads));
   state.groups[0].chains = outs[0];
