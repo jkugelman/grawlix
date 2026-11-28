@@ -305,7 +305,7 @@ const SECTIONS = [
         slug: 'twins',
         q: 'What does Twins do? "Curiously similar entries" is so vague.',
         a: `
-          <p>Twins mixes many tools into one. Give it an entry and it searches out others that look or sound like it, by any trick it knows. It's built for wandering, not for finding something you already have in mind. Type something and see where it takes you. Some favorites:</p>
+          <p>Twins mixes many tools into one. Give it an entry and it searches out others that look or sound like it, by any trick it knows. It's built for exploring, not for finding something you already have in mind. Type something and see where it takes you. Some favorites:</p>
           <ul>
             <li>Jacuzzi / j'accuse (sound-alike)</li>
             <li>there's a way / Theresa May (letter swap)</li>
